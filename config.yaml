@@ -114,7 +114,7 @@ editor:
     outline: 6
     position: "center"               # center | bottom
   add_intro_hook: true          # overlay the clip title for the first ~2s
-  intro_card: false             # animated Remotion kinetic-typography hook card (needs remotion/
+  intro_card: true              # animated Remotion kinetic-typography hook card (needs remotion/
                                 # installed + Node). Replaces the static hook. Renders ~5-10s/clip.
                                 # Opt-in: flip true once verified reliable in the unattended 6AM run.
 

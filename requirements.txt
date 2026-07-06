@@ -9,7 +9,7 @@ rich>=13.7.0
 # Download + transcription
 yt-dlp>=2024.0.0
 faster-whisper>=1.0.0
-opencv-python-headless>=4.8    # face-tracking reframe (Haar cascade, no GPU needed)
+opencv-python-headless>=4.8,<5    # face-tracking (Haar cascade); v5 removed cv2.CascadeClassifier
 
 # Uploading (YouTube)
 google-api-python-client>=2.100.0

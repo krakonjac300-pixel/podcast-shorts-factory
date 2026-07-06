@@ -277,7 +277,14 @@ def _face_center(video_path: str, samples: int = 16):
     Safe if OpenCV is unavailable."""
     try:
         import cv2
-    except Exception:  # noqa: BLE001
+        # opencv 5.0 removed cv2.CascadeClassifier from the default namespace;
+        # guard it so a bad opencv version degrades to blur-fit instead of
+        # crashing the whole render.
+        cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        if cascade.empty():
+            return None, 0, 0, 0, 0.0
+    except Exception:  # noqa: BLE001 - no face detection → reframe falls back to fit
         return None, 0, 0, 0, 0.0
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -285,8 +292,6 @@ def _face_center(video_path: str, samples: int = 16):
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
     sw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 0
     sh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 0
-    cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     centers, counts, fracs = [], [], []
     idxs = [int(total * i / (samples + 1)) for i in range(1, samples + 1)] if total else []
     for fi in idxs:
@@ -414,7 +419,11 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
     per segment (a 2-shot becomes host-cam / guest-cam cuts)."""
     try:
         import cv2
-    except Exception:  # noqa: BLE001
+        cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        if cascade.empty():
+            return None
+    except Exception:  # noqa: BLE001 - bad opencv → per-shot tracking disabled
         return None
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -424,8 +433,6 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
     if not sw:
         cap.release()
         return None
-    cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     seg_cx: list[float | None] = []
     all_cx: list[float] = []
     for i in range(len(bounds) - 1):
@@ -504,6 +511,20 @@ def edit_clip(clip) -> Path:
                   f"music={plan['music_mood']} "
                   f"emphasis={len(plan.get('emphasis_words', []))} "
                   f"sfx={len(plan.get('sfx_cues', []))}[/]")
+
+    # 0a. animated intro card (Remotion) — rendered UP FRONT so we only skip the
+    #     static ffmpeg hook if the card actually succeeds. If Chromium/Node
+    #     fails (e.g. in a bare scheduled-task session), intro_card stays None
+    #     and the clip keeps its normal static hook — no silent hook loss.
+    intro_card_path = None
+    if e.get("intro_card", False) and remotion_intro.available():
+        _accent = plan.get("emphasis_words", [])[:2] or plan["hook_text"].split()[-1:]
+        intro_card_path = remotion_intro.render_intro(
+            plan["hook_text"], _accent, WORK / f"intro_{clip['id']}.mov")
+        if intro_card_path:
+            console.print("  [dim]intro: animated hook card ready[/]")
+        else:
+            console.print("  [yellow]intro card failed → keeping static hook[/]")
 
     # 0b. trim pass — cut filler words + dead air, then style the tightened clip
     render_src, render_start, render_dur = source["video_path"], start, dur
@@ -676,10 +697,9 @@ def edit_clip(clip) -> Path:
         post += f"subtitles='{ass_escaped}'"
 
     # 3. on-screen hook for first ~2s (AI-written by the planner), wrapped so it
-    #    always fits the frame. Skipped when the animated Remotion intro card is
-    #    on (that replaces the static hook with a kinetic-typography version).
-    use_intro_card = e.get("intro_card", False) and remotion_intro.available()
-    if e.get("add_intro_hook", True) and not use_intro_card:
+    #    always fits the frame. Skipped ONLY when the animated intro card was
+    #    successfully pre-rendered (that replaces the static hook).
+    if e.get("add_intro_hook", True) and not intro_card_path:
         hook = _drawtext_block(plan["hook_text"], size=64, y_top=200,
                                enable="lt(t,2.2)")
         post = f"{post},{hook}" if post else hook
@@ -780,28 +800,23 @@ def edit_clip(clip) -> Path:
                 console.print(f"  [yellow]teaser join skipped:[/] "
                               f"{ex.stderr.decode(errors='ignore')[-200:]}")
 
-    # 5b. animated intro hook card (Remotion) — overlaid on the opening ~2.3s.
-    #     Kinetic typography ffmpeg can't do; optional (editor.intro_card).
-    if use_intro_card:
-        intro = WORK / f"intro_{clip['id']}.mov"
-        accent = plan.get("emphasis_words", [])[:2] or plan["hook_text"].split()[-1:]
-        card = remotion_intro.render_intro(plan["hook_text"], accent, intro)
-        if card:
-            withcard = WORK / f"card_{clip['id']}.mp4"
-            try:
-                subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(out), "-i", str(card),
-                     "-filter_complex",
-                     "[0:v][1:v]overlay=0:0:enable='lt(t,2.4)':format=auto[v]",
-                     "-map", "[v]", "-map", "0:a", "-c:v", "libx264",
-                     "-preset", "medium", "-crf", "20", "-c:a", "copy",
-                     "-pix_fmt", "yuv420p", str(withcard)],
-                    check=True, capture_output=True)
-                withcard.replace(out)
-                console.print("  [dim]intro: animated Remotion hook card overlaid[/]")
-            except subprocess.CalledProcessError as ex:
-                console.print(f"  [yellow]intro card skipped:[/] "
-                              f"{ex.stderr.decode(errors='ignore')[-160:]}")
+    # 5b. overlay the pre-rendered animated intro card on the opening ~2.4s.
+    if intro_card_path:
+        withcard = WORK / f"card_{clip['id']}.mp4"
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(out), "-i", str(intro_card_path),
+                 "-filter_complex",
+                 "[0:v][1:v]overlay=0:0:enable='lt(t,2.4)':format=auto[v]",
+                 "-map", "[v]", "-map", "0:a", "-c:v", "libx264",
+                 "-preset", "medium", "-crf", "20", "-c:a", "copy",
+                 "-pix_fmt", "yuv420p", str(withcard)],
+                check=True, capture_output=True)
+            withcard.replace(out)
+            console.print("  [dim]intro: animated Remotion hook card overlaid[/]")
+        except subprocess.CalledProcessError as ex:
+            console.print(f"  [yellow]intro card overlay skipped:[/] "
+                          f"{ex.stderr.decode(errors='ignore')[-160:]}")
 
     if e.get("qa", True):
         _qa_render(out, total_dur, clip["id"])
