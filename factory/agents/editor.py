@@ -14,7 +14,7 @@ from rich.console import Console
 
 from .. import db, notify
 from ..config import ROOT, WORK, cfg
-from ..utils import broll, captions, trimmer, voice
+from ..utils import broll, captions, remotion_intro, trimmer, voice
 from . import planner
 
 console = Console()
@@ -676,8 +676,10 @@ def edit_clip(clip) -> Path:
         post += f"subtitles='{ass_escaped}'"
 
     # 3. on-screen hook for first ~2s (AI-written by the planner), wrapped so it
-    #    always fits the frame instead of spilling off both edges.
-    if e.get("add_intro_hook", True):
+    #    always fits the frame. Skipped when the animated Remotion intro card is
+    #    on (that replaces the static hook with a kinetic-typography version).
+    use_intro_card = e.get("intro_card", False) and remotion_intro.available()
+    if e.get("add_intro_hook", True) and not use_intro_card:
         hook = _drawtext_block(plan["hook_text"], size=64, y_top=200,
                                enable="lt(t,2.2)")
         post = f"{post},{hook}" if post else hook
@@ -777,6 +779,29 @@ def edit_clip(clip) -> Path:
             except subprocess.CalledProcessError as ex:
                 console.print(f"  [yellow]teaser join skipped:[/] "
                               f"{ex.stderr.decode(errors='ignore')[-200:]}")
+
+    # 5b. animated intro hook card (Remotion) — overlaid on the opening ~2.3s.
+    #     Kinetic typography ffmpeg can't do; optional (editor.intro_card).
+    if use_intro_card:
+        intro = WORK / f"intro_{clip['id']}.mov"
+        accent = plan.get("emphasis_words", [])[:2] or plan["hook_text"].split()[-1:]
+        card = remotion_intro.render_intro(plan["hook_text"], accent, intro)
+        if card:
+            withcard = WORK / f"card_{clip['id']}.mp4"
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(out), "-i", str(card),
+                     "-filter_complex",
+                     "[0:v][1:v]overlay=0:0:enable='lt(t,2.4)':format=auto[v]",
+                     "-map", "[v]", "-map", "0:a", "-c:v", "libx264",
+                     "-preset", "medium", "-crf", "20", "-c:a", "copy",
+                     "-pix_fmt", "yuv420p", str(withcard)],
+                    check=True, capture_output=True)
+                withcard.replace(out)
+                console.print("  [dim]intro: animated Remotion hook card overlaid[/]")
+            except subprocess.CalledProcessError as ex:
+                console.print(f"  [yellow]intro card skipped:[/] "
+                              f"{ex.stderr.decode(errors='ignore')[-160:]}")
 
     if e.get("qa", True):
         _qa_render(out, total_dur, clip["id"])
