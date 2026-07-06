@@ -1,0 +1,233 @@
+"""Agent 7 — TRAINER (the team's coach).
+
+Weekly job, four duties:
+1. WATCH the winners: pull the most-viewed recent Shorts in our niche from the
+   YouTube API — titles, lengths, view counts — plus their top comments (what
+   viewers actually respond to).
+2. STUDY the rules & meta: fresh web research on YouTube monetization policy
+   and the current editing-style meta.
+3. BACKTEST our own team: the Finder's predicted scores vs what really
+   happened — find its systematic biases.
+4. TEACH, with the Manager's sign-off: distill everything into a lesson and a
+   concrete update to ONE skill playbook. The Manager reviews the lesson before
+   it lands; every agent reads playbooks each run, so an approved lesson
+   retrains the whole team automatically.
+
+Hard guardrail: the Trainer can NEVER touch editorial-standards.md (the MUSTs)
+— only the craft playbooks listed in config. Updates live between TRAINER
+markers so they're inspectable and reversible.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+
+from rich.console import Console
+
+from .. import llm, notify, skills
+from ..config import ROOT, cfg
+from . import manager
+
+console = Console()
+
+MARK_START = "<!-- TRAINER:START (auto-updated weekly, Manager-approved) -->"
+MARK_END = "<!-- TRAINER:END -->"
+
+DEFAULT_PLAYBOOKS = ["hooks", "pacing", "captions-craft", "video-editing",
+                     "titles-thumbnails", "growth-strategy",
+                     "youtube-monetization", "thumbnail-design"]
+
+TRAIN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "report_md": {"type": "string",
+                      "description": "training.md content: what's working on top "
+                                     "videos and WHY, policy notes, backtest findings"},
+        "lesson_summary": {"type": "string",
+                           "description": "the ONE lesson of the week, <25 words"},
+        "playbook_target": {"type": "string",
+                            "description": "which playbook to update (from the allowed list)"},
+        "playbook_update_md": {"type": "string",
+                               "description": "markdown section to inject into that "
+                                              "playbook: current meta, concrete do/don't, "
+                                              "cite the evidence. <200 words"},
+    },
+    "required": ["report_md", "lesson_summary", "playbook_target",
+                 "playbook_update_md"],
+}
+
+
+def _top_shorts(max_results: int = 12) -> list[dict]:
+    """Most-viewed recent Shorts for our niche queries, via the YouTube API."""
+    out = []
+    try:
+        from googleapiclient.discovery import build
+        creds = manager._creds()
+        if not creds:
+            return out
+        yt = build("youtube", "v3", credentials=creds)
+        after = (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        queries = cfg.get("trainer.study_queries",
+                          ["podcast clips", "joe rogan clips"])
+        ids = []
+        for q in queries[:3]:
+            r = yt.search().list(q=q, part="id", type="video",
+                                 videoDuration="short", order="viewCount",
+                                 publishedAfter=after,
+                                 maxResults=max_results // len(queries[:3]) + 2
+                                 ).execute()
+            ids += [i["id"]["videoId"] for i in r.get("items", [])]
+        if not ids:
+            return out
+        v = yt.videos().list(part="snippet,statistics,contentDetails",
+                             id=",".join(ids[:max_results])).execute()
+        for it in v.get("items", []):
+            sn, st = it["snippet"], it.get("statistics", {})
+            row = {"title": sn["title"], "channel": sn["channelTitle"],
+                   "duration": it["contentDetails"]["duration"],
+                   "views": int(st.get("viewCount", 0)),
+                   "comments": []}
+            try:
+                c = yt.commentThreads().list(part="snippet", videoId=it["id"],
+                                             order="relevance", maxResults=2,
+                                             textFormat="plainText").execute()
+                row["comments"] = [
+                    x["snippet"]["topLevelComment"]["snippet"]["textDisplay"][:120]
+                    for x in c.get("items", [])]
+            except Exception:  # noqa: BLE001 - comments may be disabled
+                pass
+            out.append(row)
+        out.sort(key=lambda r: -r["views"])
+    except Exception as ex:  # noqa: BLE001 - study is best-effort
+        console.print(f"[yellow]top-shorts study failed (continuing): {ex}[/]")
+    return out
+
+
+def _meta_scan() -> str:
+    """Fresh web snippets: monetization policy + current editing-style meta."""
+    try:
+        from ddgs import DDGS
+    except Exception:  # noqa: BLE001
+        return ""
+    queries = [
+        "YouTube Shorts monetization policy update reused content",
+        "YouTube Shorts editing style trends what works retention",
+        "viral shorts caption hook style meta this month",
+    ]
+    lines = []
+    try:
+        with DDGS() as d:
+            for q in queries:
+                for r in d.text(q, max_results=4):
+                    lines.append(f"- {r.get('title', '')}: {r.get('body', '')[:200]}")
+    except Exception:  # noqa: BLE001
+        pass
+    return "\n".join(lines[:20])
+
+
+def _backtest() -> list[dict]:
+    """The Finder's predictions vs reality — its report card."""
+    from .. import db
+    with db.conn() as c:
+        rows = c.execute("""
+            SELECT cl.title, cl.score AS predicted,
+                   ROUND(cl.end - cl.start, 0) AS secs, MAX(m.views) AS views
+            FROM clips cl
+            JOIN uploads up ON up.clip_id = cl.id AND up.platform='youtube'
+            JOIN metrics m ON m.upload_id = up.id
+            GROUP BY cl.id ORDER BY views DESC
+        """).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _apply_playbook_update(target: str, update_md: str) -> bool:
+    """Inject the lesson between TRAINER markers in the playbook (replace old)."""
+    allowed = cfg.get("trainer.playbooks", DEFAULT_PLAYBOOKS)
+    if target not in allowed or target == "editorial-standards":
+        return False
+    f = ROOT / "factory" / "skills" / f"{target}.md"
+    if not f.exists():
+        return False
+    text = f.read_text(encoding="utf-8")
+    stamp = datetime.now().strftime("%Y-%m-%d")
+    block = (f"{MARK_START}\n## Trainer's current-meta notes ({stamp})\n"
+             f"{update_md.strip()}\n{MARK_END}")
+    if MARK_START in text:
+        pre = text.split(MARK_START)[0]
+        post = text.split(MARK_END, 1)[1] if MARK_END in text else ""
+        text = pre.rstrip() + "\n\n" + block + post
+    else:
+        text = text.rstrip() + "\n\n" + block + "\n"
+    f.write_text(text, encoding="utf-8")
+    return True
+
+
+def train() -> bool:
+    """The weekly coaching session. Returns True if a lesson landed."""
+    if not cfg.get("trainer.enabled", True) or not llm.available():
+        return False
+    console.print(f"[bold cyan]TRAINER[/] studying the winners ({llm.describe()})…")
+
+    top = _top_shorts()
+    meta = _meta_scan()
+    back = _backtest()
+    allowed = cfg.get("trainer.playbooks", DEFAULT_PLAYBOOKS)
+
+    import json
+    prompt = f"""You are the TRAINER (coach) of an automated YouTube Shorts team.
+Study the evidence, figure out WHAT IS WORKING AND WHY on other channels, and
+teach it to the team by updating one craft playbook.
+
+TOP-PERFORMING RECENT SHORTS IN OUR NICHE (title/channel/duration/views/top comments):
+{json.dumps(top, indent=1)[:4000] or '(API unavailable this week)'}
+
+FRESH POLICY & EDITING-META RESEARCH:
+{meta or '(no web results)'}
+
+OUR OWN REPORT CARD (Finder predicted 0-100 vs actual views):
+{json.dumps(back, indent=1)[:1500] or '(no posted clips yet)'}
+
+Reason like a coach: What do the winners share (title patterns, lengths, energy)?
+What do their top comments reveal about why viewers stayed? Any policy changes
+we must respect? Where is our Finder systematically wrong?
+
+playbook_target MUST be one of: {', '.join(allowed)}.
+Call submit_training."""
+
+    result = llm.call_tool("manager", prompt, "submit_training", TRAIN_SCHEMA,
+                           max_tokens=2000)
+    if not result:
+        console.print("[yellow]Trainer: no lesson this week (LLM unavailable).[/]")
+        return False
+
+    # Manager sign-off before anything reaches the team
+    skill_block = skills.load(cfg.get("skills.manager", []))
+    review_prompt = (f"{skill_block}\nYou are the channel Manager. The Trainer "
+                     f"proposes this update to the '{result['playbook_target']}' "
+                     f"playbook:\n---\n{result['playbook_update_md']}\n---\n"
+                     "Approve ONLY if it is specific, evidence-based, and does not "
+                     "contradict the editorial standards. Call submit_review.")
+    review = None
+    for attempt in range(3):                 # review call is cheap — retry hard;
+        review = llm.call_tool("manager", review_prompt, "submit_review",
+                               manager.REVIEW_TOOL_SCHEMA, max_tokens=400)
+        if review is not None:
+            break
+        import time
+        time.sleep(30 * (attempt + 1))       # rate-limit cooldown
+    approved = bool(review and review.get("approved", False))
+
+    (ROOT / "training.md").write_text(result["report_md"].strip() + "\n",
+                                      encoding="utf-8")
+    if approved and _apply_playbook_update(result["playbook_target"],
+                                           result["playbook_update_md"]):
+        console.print(f"[green]✓ TRAINER lesson approved → "
+                      f"{result['playbook_target']}.md updated[/]")
+        notify.notify("Trainer: lesson of the week",
+                      f"{result['lesson_summary'][:120]} "
+                      f"(→ {result['playbook_target']})")
+        return True
+    manager.flag_attention(
+        f"Trainer's lesson was NOT applied "
+        f"({'Manager rejected: ' + (review or {}).get('notes', '')[:100] if review else 'review unavailable'}). "
+        f"Proposed for {result['playbook_target']}: {result['lesson_summary'][:100]}")
+    return False
