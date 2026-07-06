@@ -33,6 +33,8 @@ def build_ass(words: list[dict], clip_start: float, clip_end: float,
     emph_set = {_norm(x) for x in (emphasis_words or []) if _norm(x)}
     primary = style.get("primary_color", "&H00FFFFFF")
     highlight = style.get("highlight_color", "&H0000F0FF")
+    # RED for the key emphasis words (the pro-clip look — matches top DOAC edits)
+    emphasis = style.get("emphasis_color", "&H000000FF")
     outline = style.get("outline", 6)
     align = 5 if style.get("position", "center") == "center" else 2  # 5=mid,2=bottom
     margin_v = 0 if align == 5 else 220
@@ -108,11 +110,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 word = x["word"]
                 emph = _norm(word) in emph_set
                 if x is active:                  # spoken NOW: color + pop
+                    col = emphasis if emph else highlight   # key word → RED
                     fs = f"\\fs{g_emph}" if emph else ""
-                    return (f"{{\\c{highlight}{fs}{pop}}}{word}"
+                    return (f"{{\\c{col}{fs}{pop}}}{word}"
                             f"{{\\c{primary}\\fs{g_size}\\fscx100\\fscy100}}")
-                if emph:                         # key word: bigger + highlighted
-                    return (f"{{\\fs{g_emph}\\c{highlight}}}{word}"
+                if emph:                         # key word (not active): big + RED
+                    return (f"{{\\fs{g_emph}\\c{emphasis}}}{word}"
                             f"{{\\fs{g_size}\\c{primary}}}")
                 return word
 

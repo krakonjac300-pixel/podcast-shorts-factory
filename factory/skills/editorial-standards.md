@@ -24,8 +24,23 @@ pre-upload review checklist — a clip that violates a MUST gets bounced back.
 - MUST: audio loudness ~-14 LUFS; no pops at cuts; music ducked under voice.
 - MUST: the hook's concrete NUMBER is on screen at 0s, big — the clip must
   stop a muted scroll ('220,000 KELVIN' readable before any audio).
-- PREFER: a camera cut or motion event every 3–6s; hook text on screen in the
-  first 0.5s and gone by ~2.2s; SFX that mark real beats, not noise.
+- PREFER: hook text on screen in the first 0.5s and gone by ~2.2s; SFX that
+  mark real beats, not noise.
+
+### Target editing style (measured against top DOAC-clip edits, 2026-07-06)
+A frame-by-frame comparison of our clip vs a pro edit of the SAME content found
+the pro cuts every ~1.9s (48 cuts/90s) vs our ~6.6s. The energy comes from:
+- CHANGE WHAT'S ON SCREEN EVERY ~2s: a shot change, punch-in, or reframe. A
+  face that just sits still for 6s reads as amateur, even with a slow zoom.
+- CUT TO THE LISTENER: when both host and guest are on camera, alternate
+  speaker → reaction → speaker at sentence boundaries. The reaction shot of
+  someone listening is the single strongest "pro-clip" signal we can automate.
+- CAPTIONS: 1-3 words, bold, ALL-CAPS, with the key word in RED (not just
+  bigger). Pop-in per spoken word.
+- FRAMING: tight, changing close-ups > one locked wide shot.
+- HONEST LIMIT: if the clipped moment shows only ONE person the whole time,
+  we can't manufacture a reaction shot — favor moments where the camera
+  already varies, and lean on faster punch-ins + red captions for energy.
 
 ## UPLOADER — packaging
 - MUST: the concrete number/claim appears in the first 40 characters of the

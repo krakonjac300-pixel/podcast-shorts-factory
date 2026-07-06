@@ -319,7 +319,7 @@ _SHOT_CYCLE = (0.0, 0.14, 0.07, 0.14)
 
 
 def _cut_points(cap_words, cap_start: float, dur: float,
-                min_len: float = 3.0, max_len: float = 6.0) -> list[float]:
+                min_len: float = 2.0, max_len: float = 3.5) -> list[float]:
     """Camera-cut times (clip-local): at sentence ends / speech pauses, min
     segment length enforced, forced cut when a segment runs long. This is what
     makes a single static podcast angle feel like a multicam edit."""
