@@ -71,6 +71,16 @@ class TestEditorFraming(unittest.TestCase):
         self.assertIn("crop=", m)
         self.assertIn("scale=1080:1920", m)
 
+    def test_merge_cuts_thins_and_unions(self):
+        # union of sentence cuts + real scene cuts, thinned to >= 1.4s apart
+        merged = self.ed._merge_cuts([2.0, 3.0, 9.0], [2.5, 6.0])
+        self.assertEqual(merged, [2.0, 6.0, 9.0])   # 3.0/2.5 dropped (too close to 2.0)
+        for a, b in zip(merged, merged[1:]):
+            self.assertGreaterEqual(b - a, 1.4)
+
+    def test_scene_cuts_missing_file_safe(self):
+        self.assertEqual(self.ed._scene_cuts("nope.mp4", 30.0), [])
+
     def test_motion_punches_add_pulses(self):
         m = self.ed._motion(1080, 1920, 30.0, 0.10, punches=[5.0, 12.5])
         self.assertIn("abs(ld(0)-5.00)", m)

@@ -77,6 +77,7 @@ editor:
   track_face_per_shot: true    # re-center the crop on the face at every camera cut
   speaker_cuts: true           # 2-person shots: alternate host-cam / guest-cam crops
   camera_cuts: true            # fake-multicam: hard zoom cuts (wide<->close) at sentence ends + whoosh
+  scene_cuts: true             # cut on the source's REAL camera changes (PySceneDetect), not just sentence ends
   grade: true                  # cinematic color grade (contrast + saturation + vignette)
   progress_bar: true           # thin retention bar filling along the bottom
   cta: true                    # end call-to-action text for the last ~2s

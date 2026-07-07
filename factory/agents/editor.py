@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import random
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from rich.console import Console
@@ -20,6 +21,65 @@ from . import planner
 console = Console()
 OUT_DIR = ROOT / "output"
 OUT_DIR.mkdir(exist_ok=True)
+
+
+@dataclass
+class EditResult:
+    """Return value of the headless edit_clip_range() render API."""
+    path: str          # absolute path to the finished MP4 on disk
+    url: str           # download URL (filled in by the service layer)
+    plan: dict         # creative plan / notes for the buyer agent
+
+
+# Named look presets exposed to programmatic callers. Each preset fully specifies
+# the toggles it cares about so repeated service calls never leak state between
+# styles. "bold-captions" is the default (everything on).
+_STYLE_PRESETS = {
+    "bold-captions": {"reframe": "smart", "punch_zoom": True, "camera_cuts": True,
+                      "flash_transitions": True, "memes": True, "broll": True,
+                      "teaser": True, "motion_zoom": True},
+    "minimal": {"reframe": "smart", "punch_zoom": False, "camera_cuts": False,
+                "flash_transitions": False, "memes": False, "broll": False,
+                "teaser": False, "motion_zoom": True},
+    "podcast-frame": {"reframe": "blur", "punch_zoom": False, "camera_cuts": False,
+                      "flash_transitions": False, "memes": False, "broll": False,
+                      "teaser": False, "motion_zoom": False},
+}
+
+
+def _apply_style(style: str) -> None:
+    """Mutate the in-process editor config to match a named style preset.
+    NOTE: cfg is process-global, so callers running multiple styles at once must
+    serialize edit jobs (a host service should take a lock around each edit)."""
+    preset = _STYLE_PRESETS.get(style) or _STYLE_PRESETS["bold-captions"]
+    cfg.editor.update(preset)
+
+
+def edit_clip_range(source_url: str, start_s: float, end_s: float,
+                    style: str = "bold-captions") -> EditResult:
+    """Stateless single-clip render for headless/programmatic callers.
+
+    Downloads the source, reuses the same editor pipeline as the interactive flow
+    for one arbitrary [start_s, end_s] range, and returns the finished MP4 path
+    plus the creative plan. The service layer turns `path` into a signed URL.
+    """
+    from ..utils import media
+
+    _apply_style(style)
+    video, title, channel = media.download(source_url)
+    audio = media.extract_audio(video)
+    transcript = media.transcribe(audio)
+    source_id = db.upsert_source(source_url, title, video, transcript, channel=channel)
+    clip_id = db.add_clip(source_id, float(start_s), float(end_s),
+                          (title or "clip")[:90], "a2a edit-clip", 0.0, "", [])
+    clip = db.clip_by_id(clip_id)
+    out = edit_clip(clip)
+    db.set_clip_status(clip_id, "edited", rendered_path=out)
+
+    notes_path = OUT_DIR / f"clip_{clip_id}.notes.md"
+    plan = {"notes": notes_path.read_text(encoding="utf-8")} if notes_path.exists() else {}
+    plan["style"] = style
+    return EditResult(path=str(out), url="", plan=plan)
 
 
 def _font_escaped() -> str:
@@ -343,6 +403,36 @@ def _cut_points(cap_words, cap_start: float, dur: float,
     return cuts
 
 
+def _scene_cuts(video_path: str, dur: float, min_gap: float = 1.4) -> list[float]:
+    """Timestamps (clip-local sec) where the SOURCE actually changed camera,
+    via PySceneDetect. These are REAL visual changes — the strongest cut points
+    (the reference's energy comes from cutting on real shots, not just sentence
+    ends). Merging these makes our reframe re-center on the new face the instant
+    the source cuts to a different host. Empty on any failure — purely additive."""
+    try:
+        from scenedetect import detect, ContentDetector
+        scenes = detect(str(video_path), ContentDetector(threshold=27))
+    except Exception:  # noqa: BLE001 - scene detect is a bonus, never block a render
+        return []
+    cuts, last = [], -min_gap
+    for start, _end in scenes[1:]:              # skip the first scene (starts at 0)
+        t = start.get_seconds()
+        if 1.0 < t < dur - 1.0 and t - last >= min_gap:
+            cuts.append(round(t, 2))
+            last = t
+    return cuts
+
+
+def _merge_cuts(*lists, min_gap: float = 1.4) -> list[float]:
+    """Union of cut lists, sorted, thinned so none are closer than min_gap."""
+    out, last = [], -min_gap
+    for t in sorted({round(x, 2) for lst in lists for x in lst}):
+        if t - last >= min_gap:
+            out.append(t)
+            last = t
+    return out
+
+
 def _motion(w: int, h: int, dur: float, amount: float, punches=(),
             cuts=()) -> str:
     """The whole 'camera' in one crop: slow Ken Burns push (amount), quick zoom
@@ -548,6 +638,11 @@ def edit_clip(clip) -> Path:
                                plan.get("emphasis_words", []), render_dur)
     if e.get("camera_cuts", True):
         cuts = _cut_points(cap_words, cap_start, render_dur)
+        if e.get("scene_cuts", True):
+            scene = _scene_cuts(render_src, render_dur)
+            if scene:
+                cuts = _merge_cuts(cuts, scene)   # align to real source cuts too
+                console.print(f"  [dim]scene-detect: {len(scene)} real source cut(s) merged[/]")
         if cuts:
             console.print(f"  [dim]camera: {len(cuts) + 1} shots "
                           f"(cuts at {', '.join(f'{c:.0f}s' for c in cuts)})[/]")
