@@ -39,6 +39,9 @@ def render_intro(text: str, accent_words: list[str], out_path: Path,
         subprocess.run(
             [str(binary), "render", "IntroHook", str(out_path),
              "--codec=prores", "--prores-profile=4444",
+             # BOTH needed for a real alpha channel — profile alone renders
+             # opaque yuv422 (the hook card would sit on a black screen).
+             "--pixel-format=yuva444p10le", "--image-format=png",
              f"--props={props_file}"],
             cwd=str(REMOTION_DIR), check=True, capture_output=True,
             timeout=timeout)
