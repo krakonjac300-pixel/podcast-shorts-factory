@@ -42,6 +42,14 @@ WORK.mkdir(exist_ok=True)
 # silently fills up C:). Set before faster-whisper / huggingface_hub import.
 os.environ.setdefault("HF_HOME", str(ROOT / ".hfcache"))
 
+# Route ALL scratch/temp (ffmpeg, whisper, downloads) to the project drive too.
+# C: was hitting 90% full, which triggered Windows low-disk cleanup that wiped
+# the factory. Keeping temp on D: stops the pipeline from adding to C: pressure.
+_TMP = ROOT / ".tmp"
+_TMP.mkdir(exist_ok=True)
+for _v in ("TMPDIR", "TEMP", "TMP"):
+    os.environ[_v] = str(_TMP)
+
 
 class Config:
     def __init__(self, path: str | Path = ROOT / "config.yaml"):
