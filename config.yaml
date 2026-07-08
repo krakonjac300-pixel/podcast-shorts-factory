@@ -56,10 +56,18 @@ finder:
   auto_approve_top: 3          # for unattended/scheduled runs: auto-approve the top N candidates
   # What makes a moment "viral" — tweak to steer the AI's taste
   selection_brief: |
-    Pick self-contained moments that HOOK in the first 1.5 seconds (state the value
-    immediately): bold claims, surprising stories, strong emotion, useful insight,
-    humor, or contrarian takes. Target 30-45s. Each clip must stand alone, and should
-    end on a comment-trigger (a question or mild hot take) to drive engagement.
+    DATA-BACKED PRIORITY (from our real channel: the ONE clip that got 7.5x the
+    views was high-drama/action "Street Racer baits cops, 1000HP"; every
+    history/science-fact/abstract clip flopped at 1-2 views). So:
+    STRONGLY FAVOR: conflict & drama, danger/crime, money & status, shocking
+    personal stories, strong emotion (anger, fear, awe), controversial hot takes,
+    someone getting called out, "you won't believe what happened". A real STAKE
+    or a CLASH beats a fact every time.
+    STRONGLY AVOID: history/ancient-civilization trivia, science "did you know"
+    facts, abstract philosophy/tech-futurism, anything that's merely "interesting"
+    with no human stakes or emotion — these get ~0 views for us.
+    Each clip must HOOK in the first 1.5s, stand alone, target 25-45s, and end on a
+    comment-trigger (a question or hot take that makes people NEED to reply).
 
 editor:
   ai_plan: true                # let the editor's skills (hooks/story/sfx/vfx) design each edit
