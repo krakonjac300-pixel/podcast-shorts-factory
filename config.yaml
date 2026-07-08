@@ -68,6 +68,11 @@ finder:
     with no human stakes or emotion — these get ~0 views for us.
     Each clip must HOOK in the first 1.5s, stand alone, target 25-45s, and end on a
     comment-trigger (a question or hot take that makes people NEED to reply).
+    CRITICAL (from real retention data): our flops lose viewers in the FIRST 5-8
+    SECONDS (Mahabharata 15% watched, Algorithmic-Feeds 29%); our winner held 92%.
+    So the clip's OPENING LINE must be the hook — if the gripping part is 10s into
+    the moment, START THERE. Never open on a wind-up, throat-clear, or slow setup.
+    Pick the timestamp where the drama LANDS, not where it begins.
 
 editor:
   ai_plan: true                # let the editor's skills (hooks/story/sfx/vfx) design each edit
