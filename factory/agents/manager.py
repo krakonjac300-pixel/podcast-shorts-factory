@@ -46,6 +46,30 @@ def _fetch_retention(creds, external_id: str) -> dict:
     return {"avg_watch_pct": None, "avg_watch_sec": None}
 
 
+def _retention_curve(creds, external_id: str) -> dict:
+    """The drop-off CURVE (100 points across the video) → the exact spot clips
+    lose viewers. Returns {hook_hold, drop_point} where hook_hold = % still
+    watching at the 15% mark (the make-or-break hook window) and drop_point =
+    the first % of the video where we fall below 70% audience. This turns the
+    vague 'flops die early' into a measured, per-clip number the team can act on."""
+    try:
+        from googleapiclient.discovery import build
+        ya = build("youtubeAnalytics", "v2", credentials=creds)
+        r = ya.reports().query(
+            ids="channel==MINE", startDate="2026-01-01", endDate=db.now()[:10],
+            metrics="audienceWatchRatio", dimensions="elapsedVideoTimeRatio",
+            filters=f"video=={external_id}").execute()
+        rows = sorted(r.get("rows") or [], key=lambda x: x[0])
+        if not rows:
+            return {"hook_hold": None, "drop_point": None}
+        hook = next((w for t, w in rows if t >= 0.15), rows[-1][1])
+        drop = next((t for t, w in rows if t > 0.03 and w < 0.70), None)
+        return {"hook_hold": round(hook * 100, 0),
+                "drop_point": round(drop * 100, 0) if drop is not None else None}
+    except Exception:  # noqa: BLE001 - curve needs the analytics API + some data
+        return {"hook_hold": None, "drop_point": None}
+
+
 def _fetch_youtube_metrics(external_id: str) -> dict | None:
     """Views/likes/comments via the Data API + retention via Analytics."""
     try:
@@ -253,7 +277,7 @@ def _leaderboard() -> list[dict]:
         rows = c.execute("""
             SELECT cl.id, cl.title, cl.reason, cl.score AS predicted,
                    ROUND(cl.end - cl.start, 1) AS clip_seconds,
-                   s.channel AS source_channel,
+                   s.channel AS source_channel, up.external_id,
                    up.platform, m.views, m.likes, m.comments, m.avg_watch_pct
             FROM metrics m
             JOIN uploads up ON up.id = m.upload_id
@@ -297,23 +321,37 @@ def _write_learnings(rows: list[dict]):
     whole team gets smarter."""
     if not llm.available():
         return
+    # Enrich the top clips with their retention CURVE — hook_hold (% still
+    # watching at the 15% mark) and drop_point (where we fall below 70%). This
+    # is the exact spot clips lose viewers, the highest-signal data we have.
+    creds = _creds()
+    if creds:
+        for r in rows[:6]:
+            if r.get("views", 0) and r.get("external_id"):
+                r.update(_retention_curve(creds, r["external_id"]))
+    for r in rows:
+        r.pop("external_id", None)              # don't leak IDs into the prompt
     skill_block = skills.load(cfg.get("skills.manager", []))
     prompt = (f"{skill_block}\n"
               "You are the channel Manager analyzing our shorts' REAL performance. "
-              "Data per clip (clip_seconds = length; avg_watch_pct = % of the clip "
-              "the average viewer watched — null means not yet available; "
-              "predicted = what our Finder expected 0-100):\n\n"
+              "Data per clip (clip_seconds = length; avg_watch_pct = % watched; "
+              "hook_hold = % of viewers still there at the 15% mark; drop_point = "
+              "the % of the video where we fall below 70% audience — LOW drop_point "
+              "means the HOOK is failing; predicted = Finder's 0-100 guess):\n\n"
               f"{json.dumps(rows, indent=2)}\n\n"
               "REASON step by step before concluding:\n"
-              "1. RETENTION: where avg_watch_pct exists, compare it to clip length. "
-              "Under ~50% = we lose people; look at what those clips have in common "
-              "(length? topic? hook style?). Which LENGTHS hold attention best?\n"
+              "1. HOOK: look at hook_hold + drop_point. If clips drop below 70% "
+              "before the 20% mark, the OPENING is failing — the fix is the Finder "
+              "starting clips on the drama, not a wind-up. Name the worst offenders.\n"
+              "2. RETENTION: where avg_watch_pct exists, compare it to clip length. "
+              "Under ~50% = we lose people; what do those clips share? Best LENGTHS?\n"
               "2. PREDICTION ERROR: where did the Finder's `predicted` score most "
               "disagree with reality? What does that teach about our taste?\n"
               "3. SOURCE: which podcast channels/topics overperform?\n"
               "4. Small sample caution: with few clips, state hypotheses, not laws.\n\n"
               "Then write `learnings.md` (markdown, <350 words) in EXACTLY this shape:\n"
-              "## For the Finder\n(2-4 directives: topics, hook styles, LENGTH guidance)\n"
+              "## For the Finder\n(2-4 directives: topics, hook styles, LENGTH, and "
+              "the drop-off insight — where to START clips so the hook lands fast)\n"
               "## For the Editor\n(2-4 directives: pacing, captions, b-roll, music)\n"
               "## For the Uploader\n(1-3 directives: titles, captions, hashtags)\n"
               "## Experiment for the next clip\n(ONE concrete thing to try differently, "

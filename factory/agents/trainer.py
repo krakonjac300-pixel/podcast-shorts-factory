@@ -125,18 +125,37 @@ def _meta_scan() -> str:
 
 
 def _backtest() -> list[dict]:
-    """The Finder's predictions vs reality — its report card."""
+    """The Finder's predictions vs reality — its report card, now with the real
+    retention % (the metric that actually drives distribution)."""
     from .. import db
     with db.conn() as c:
         rows = c.execute("""
             SELECT cl.title, cl.score AS predicted,
-                   ROUND(cl.end - cl.start, 0) AS secs, MAX(m.views) AS views
+                   ROUND(cl.end - cl.start, 0) AS secs, MAX(m.views) AS views,
+                   m.avg_watch_pct AS watch_pct
             FROM clips cl
             JOIN uploads up ON up.clip_id = cl.id AND up.platform='youtube'
             JOIN metrics m ON m.upload_id = up.id
             GROUP BY cl.id ORDER BY views DESC
         """).fetchall()
     return [dict(r) for r in rows]
+
+
+def _our_best() -> dict | None:
+    """Our single best-retention clip — the Trainer studies THIS as a positive
+    template ('do more of what already worked for US'), not just outside winners."""
+    from .. import db
+    with db.conn() as c:
+        r = c.execute("""
+            SELECT cl.title, cl.reason, ROUND(cl.end - cl.start, 0) AS secs,
+                   MAX(m.views) AS views, m.avg_watch_pct AS watch_pct
+            FROM clips cl
+            JOIN uploads up ON up.clip_id = cl.id AND up.platform='youtube'
+            JOIN metrics m ON m.upload_id = up.id
+            GROUP BY cl.id
+            ORDER BY m.avg_watch_pct DESC, m.views DESC LIMIT 1
+        """).fetchone()
+    return dict(r) if r else None
 
 
 def _apply_playbook_update(target: str, update_md: str) -> bool:
@@ -170,12 +189,13 @@ def train() -> bool:
     top = _top_shorts()
     meta = _meta_scan()
     back = _backtest()
+    best = _our_best()
     allowed = cfg.get("trainer.playbooks", DEFAULT_PLAYBOOKS)
 
     import json
     prompt = f"""You are the TRAINER (coach) of an automated YouTube Shorts team.
-Study the evidence, figure out WHAT IS WORKING AND WHY on other channels, and
-teach it to the team by updating one craft playbook.
+Study the evidence, figure out WHAT IS WORKING AND WHY — for OTHER channels AND
+for US — and teach it by updating one craft playbook.
 
 TOP-PERFORMING RECENT SHORTS IN OUR NICHE (title/channel/duration/views/top comments):
 {json.dumps(top, indent=1)[:4000] or '(API unavailable this week)'}
@@ -183,12 +203,16 @@ TOP-PERFORMING RECENT SHORTS IN OUR NICHE (title/channel/duration/views/top comm
 FRESH POLICY & EDITING-META RESEARCH:
 {meta or '(no web results)'}
 
-OUR OWN REPORT CARD (Finder predicted 0-100 vs actual views):
-{json.dumps(back, indent=1)[:1500] or '(no posted clips yet)'}
+OUR OWN REPORT CARD (predicted 0-100 vs actual views AND watch_pct = % retention):
+{json.dumps(back, indent=1)[:1800] or '(no posted clips yet)'}
 
-Reason like a coach: What do the winners share (title patterns, lengths, energy)?
-What do their top comments reveal about why viewers stayed? Any policy changes
-we must respect? Where is our Finder systematically wrong?
+OUR OWN BEST CLIP (highest retention — this is the template to REPEAT):
+{json.dumps(best, indent=1) if best else '(none yet)'}
+
+Reason like a coach: (1) What does OUR best clip do that our flops don't — copy
+it. (2) retention (watch_pct) drives distribution — clips under ~50% watched are
+losing people early; what's different about them? (3) What do outside winners
+share? (4) Where is our Finder systematically wrong (high predicted, low views)?
 
 playbook_target MUST be one of: {', '.join(allowed)}.
 Call submit_training."""
