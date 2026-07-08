@@ -126,7 +126,7 @@ editor:
     primary_color: "&H00FFFFFF"      # white (ASS BGR hex)
     highlight_color: "&H0000F0FF"    # active-word highlight (yellow-ish)
     outline: 6
-    position: "center"               # center | bottom
+    position: "lower"               # center | bottom
   add_intro_hook: true          # overlay the clip title for the first ~2s
   intro_card: true              # animated Remotion kinetic-typography hook card (needs remotion/
                                 # installed + Node). Replaces the static hook. Renders ~5-10s/clip.

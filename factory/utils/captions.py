@@ -36,8 +36,17 @@ def build_ass(words: list[dict], clip_start: float, clip_end: float,
     # RED for the key emphasis words (the pro-clip look — matches top DOAC edits)
     emphasis = style.get("emphasis_color", "&H000000FF")
     outline = style.get("outline", 6)
-    align = 5 if style.get("position", "center") == "center" else 2  # 5=mid,2=bottom
-    margin_v = 0 if align == 5 else 220
+    # Vertical placement. "lower" (default) sits in the lower-third — below a
+    # punched-in face's chin but above the CTA/progress bar — so captions never
+    # cover the speaker's face. "center" = dead middle (on the face; avoid).
+    pos = style.get("position", "lower")
+    if pos == "center":
+        align, margin_v = 5, 0
+    elif pos == "bottom":
+        align, margin_v = 2, 220
+    else:  # "lower" — anchor at bottom, lift into the lower third (~62% down)
+        align = 2
+        margin_v = int(h * float(style.get("caption_lift", 0.34)))
 
     header = f"""[Script Info]
 ScriptType: v4.00+
