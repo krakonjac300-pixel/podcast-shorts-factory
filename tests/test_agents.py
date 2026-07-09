@@ -810,6 +810,33 @@ class TestFinishingEditor(unittest.TestCase):
         self.assertTrue(any(i["sev"] == "critical" for i in issues))
 
 
+class TestFinderResilience(unittest.TestCase):
+    """The Finder must not zero-out a whole day when the strict pass finds nothing:
+    it retries flaky calls and falls back to a relaxed brief."""
+
+    def test_relaxed_fallback_when_strict_pass_empty(self):
+        from factory.agents import finder
+        calls = {"n": 0}
+
+        def fake_call_tool(agent, prompt, tool, schema, max_tokens=4000):
+            calls["n"] += 1
+            if "do NOT return an empty list" in prompt:      # relaxed/insist pass
+                return {"clips": [{"start": 0, "end": 20, "title": "X",
+                                   "reason": "r", "score": 70, "caption": "c"}]}
+            return {"clips": []}                              # strict pass: nothing
+
+        orig = finder.llm.call_tool
+        finder.llm.call_tool = fake_call_tool
+        try:
+            segs = [{"start": i * 5, "end": i * 5 + 5, "text": f"line {i}",
+                     "word": f"line {i}"} for i in range(4)]
+            out = finder._score_with_claude("Some Title", segs)
+        finally:
+            finder.llm.call_tool = orig
+        self.assertEqual(len(out), 1)          # recovered a clip via the fallback
+        self.assertGreater(calls["n"], 1)      # it retried before giving up
+
+
 class TestBlockOnFailFloor(unittest.TestCase):
     """block_on_fail must never leave the day fully empty: produce backfills a
     freed slot, and ensure_floor() salvages the least-bad clip as a last resort."""

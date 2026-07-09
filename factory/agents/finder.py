@@ -5,13 +5,57 @@ clip-worthy moments. Results are stored as 'candidate' clips for review.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from rich.console import Console
 
-from .. import db, insights, llm, skills
+from .. import db, insights, llm, notify, skills
 from ..config import cfg
 from ..utils import media
 
 console = Console()
+
+
+@dataclass
+class Candidate:
+    """A scored clip-worthy moment returned by the headless find_candidates()
+    API; the interactive flow stores the same fields as DB rows instead."""
+    start_s: float
+    end_s: float
+    hook: str
+    score: float
+    reasoning: str
+    caption: str = ""
+    hashtags: list = field(default_factory=list)
+
+
+def find_candidates(source_url: str, max_clips: int = 5,
+                    niche: str | None = None) -> list[Candidate]:
+    """Stateless clip discovery for headless/programmatic callers.
+
+    Same engine as `find()` — download, transcribe, AI-score — but returns
+    ranked Candidate objects instead of writing DB rows or asking a human to
+    review. The caller decides which clips to accept.
+    """
+    video, title, channel = media.download(source_url)
+    audio = media.extract_audio(video)
+    transcript = media.transcribe(audio)
+    if niche:
+        # bias selection toward the buyer's niche without touching config
+        title = f"{title}  [focus niche: {niche}]"
+    scored = _score_with_claude(title, transcript)[: max(1, int(max_clips))]
+    return [
+        Candidate(
+            start_s=float(c["start"]),
+            end_s=float(c["end"]),
+            hook=c.get("title", ""),
+            score=float(c.get("score", 0)),
+            reasoning=c.get("reason", ""),
+            caption=c.get("caption", ""),
+            hashtags=list(c.get("hashtags", []) or []),
+        )
+        for c in scored
+    ]
 
 
 def _transcript_for_prompt(transcript: list[dict]) -> str:
@@ -67,6 +111,12 @@ def find(url: str) -> int:
         n += 1
     console.print(f"[green]✓ {n} candidate clips saved.[/] Run "
                   "[bold]python run.py review[/] to approve.")
+    if n == 0:
+        # A whole episode yielding nothing (even after the relaxed fallback) means
+        # no posts that day — alert now instead of discovering it days later.
+        notify.notify("Finder found 0 clips",
+                      f"'{title[:70]}' produced no candidates — today's queue may be "
+                      "empty. Check the source or the selection brief.")
     return n
 
 
@@ -102,20 +152,32 @@ def _score_with_claude(title: str, transcript: list[dict]) -> list[dict]:
     if len(pieces) > 1:
         console.print(f"  [dim]long episode → scoring {len(pieces)} chunks[/]")
 
-    clips: list[dict] = []
-    for pi, piece in enumerate(pieces):
+    # The fallback brief for when the strict pass finds nothing. The free model is
+    # flaky and the strict drama-only brief can make it return an EMPTY list on a
+    # whole episode (a football-pundit show reads as "merely interesting"). A day
+    # with zero clips is the worst outcome, so we loosen up rather than post nothing.
+    relaxed_brief = (
+        "Pick the 3 most engaging, self-contained moments for a short-form clip — "
+        "the bits most likely to stop someone scrolling: a strong opinion, a clash, "
+        "a surprising claim, a vivid story, a bold prediction, or a genuinely funny "
+        "beat. Favor emotion and stakes, but do NOT return an empty list — always "
+        "return your best 3 even if nothing is sensational.")
+
+    def _mk_prompt(pi: int, piece: list[dict], brief: str, insist: bool) -> str:
         span = ""
         if len(pieces) > 1:
             span = (f"\n(This is part {pi + 1}/{len(pieces)} of the episode, "
                     f"covering {piece[0]['start']:.0f}s–{piece[-1]['end']:.0f}s.)")
-        prompt = f"""You are a viral short-form video editor. The podcast is titled "{title}".{span}
+        must = ("\n- IMPORTANT: return your best picks — do NOT return an empty list."
+                if insist else "")
+        return f"""You are a viral short-form video editor. The podcast is titled "{title}".{span}
 
 {skill_block}
 Selection brief:
-{f.get('selection_brief', '')}
+{brief}
 
 Constraints:
-- Return at most {per_chunk} clips.
+- Return at most {per_chunk} clips.{must}
 - LENGTH IS A CREATIVE DECISION: hard platform bounds are {f.get('clip_min_seconds', 15)}-{f.get('clip_max_seconds', 90)}s,
   but within them the IDEA decides. Reason it out per clip: a tight shocking
   one-liner earns ~20s; a layered story earns 60-80s ONLY if every sentence
@@ -136,16 +198,32 @@ Transcript (timestamped):
 {_transcript_for_prompt(piece)}
 
 Call submit_clips with your picks, best first."""
-        try:
-            result = llm.call_tool("finder", prompt, "submit_clips", schema,
-                                   max_tokens=4000)
-            got = (result or {}).get("clips", [])
-            clips.extend(got)
+
+    def _score_pass(brief: str, insist: bool, attempts: int = 2) -> list[dict]:
+        out: list[dict] = []
+        for pi, piece in enumerate(pieces):
+            prompt = _mk_prompt(pi, piece, brief, insist)
+            got: list[dict] = []
+            for _ in range(attempts):        # the free model intermittently returns
+                try:                         # an empty tool call — one miss must not
+                    result = llm.call_tool("finder", prompt, "submit_clips",  # zero
+                                           schema, max_tokens=4000)           # out
+                    got = (result or {}).get("clips", [])
+                    if got:
+                        break
+                except Exception as ex:  # noqa: BLE001 - a failed try shouldn't kill the run
+                    console.print(f"  [yellow]chunk {pi + 1} attempt failed: {ex}[/]")
+            out.extend(got)
             if len(pieces) > 1:
                 console.print(f"  [dim]chunk {pi + 1}/{len(pieces)}: "
                               f"{len(got)} candidates[/]")
-        except Exception as ex:  # noqa: BLE001 - a failed chunk shouldn't kill the run
-            console.print(f"  [yellow]chunk {pi + 1} failed: {ex}[/]")
+        return out
+
+    clips = _score_pass(f.get("selection_brief", ""), insist=False)
+    if not clips:
+        console.print("  [yellow]0 clips on the strict pass — retrying with a "
+                      "relaxed brief so the day isn't empty[/]")
+        clips = _score_pass(relaxed_brief, insist=True)
 
     clips.sort(key=lambda c: -float(c.get("score", 0)))
     return clips[:max_cand]
