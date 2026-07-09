@@ -295,12 +295,19 @@ def review_clip(clip) -> tuple[str, list[dict]]:
     return verdict, issues
 
 
-def finish_all() -> int:
-    """Review every queued ('edited') clip. Returns the count reviewed. Critical
-    failures ping the phone and — if finisher.block_on_fail — are held back."""
+def finish_all(clip_ids=None) -> int:
+    """Review queued ('edited') clips. Pass `clip_ids` to review only those
+    (used by the produce backfill loop so already-passed clips aren't re-reviewed
+    or double-finished); None reviews the whole queue. Returns the count reviewed.
+    Critical failures ping the phone and — if finisher.block_on_fail — are held
+    back (status 'flagged'); produce then backfills the freed slot, and
+    ensure_floor() is the last-ditch guarantee the day is never fully empty."""
     if not cfg.get("finisher.enabled", True):
         return 0
     queue = db.clips_by_status("edited")
+    if clip_ids is not None:
+        want = set(clip_ids)
+        queue = [c for c in queue if c["id"] in want]
     if not queue:
         console.print("[yellow]Finishing editor: nothing in the queue.[/]")
         return 0
@@ -328,3 +335,37 @@ def finish_all() -> int:
     else:
         console.print("[green]✓ all clips passed finishing review.[/]")
     return len(queue)
+
+
+def ensure_floor(min_queue: int | None = None) -> int:
+    """Last-ditch guarantee the schedule is never fully empty. Only relevant with
+    block_on_fail: if QA blocked so many clips that fewer than `min_queue` remain
+    postable, salvage the best-scoring flagged clip(s) that still have a playable
+    file — a flawed post beats a dead channel day. Returns how many were salvaged.
+
+    Produce's backfill (render the next-best fresh candidate for each blocked clip)
+    is the primary defense; this only fires when the whole candidate pool failed."""
+    if not cfg.get("finisher.block_on_fail", False):
+        return 0
+    floor = cfg.get("finisher.min_queue", 1) if min_queue is None else min_queue
+    if floor <= 0:
+        return 0
+    have = len(db.clips_by_status("edited"))
+    if have >= floor:
+        return 0
+    salvaged = 0
+    for clip in db.clips_by_status("flagged"):        # best score first
+        if have + salvaged >= floor:
+            break
+        p = Path(clip["rendered_path"]) if clip["rendered_path"] else None
+        if not p or not p.exists():
+            continue                                  # nothing to post → skip
+        db.set_clip_status(clip["id"], "edited")
+        salvaged += 1
+        console.print(f"  [yellow]↺ salvaged flagged clip {clip['id']} so the "
+                      f"day isn't empty[/]")
+        notify.notify("Finishing editor: salvaged a flagged clip",
+                      f"every clip failed QA — scheduling clip {clip['id']} anyway "
+                      f"so the channel isn't dark today. Review it: "
+                      f"{clip['title'][:80]}")
+    return salvaged

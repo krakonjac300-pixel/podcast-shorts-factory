@@ -810,5 +810,78 @@ class TestFinishingEditor(unittest.TestCase):
         self.assertTrue(any(i["sev"] == "critical" for i in issues))
 
 
+class TestBlockOnFailFloor(unittest.TestCase):
+    """block_on_fail must never leave the day fully empty: produce backfills a
+    freed slot, and ensure_floor() salvages the least-bad clip as a last resort."""
+
+    def setUp(self):
+        from factory import db
+        from factory.agents import finishing_editor as fe
+        from factory.config import cfg
+        self.db, self.fe, self.cfg = db, fe, cfg
+        self._orig_db = db.DB_PATH
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.tmp.close()
+        db.DB_PATH = Path(self.tmp.name)
+        self._fin = cfg._d.get("finisher")
+        cfg._d["finisher"] = {"block_on_fail": True, "min_queue": 1}
+        self._notify = fe.notify.notify
+        fe.notify.notify = lambda *a, **k: None      # no phone pings in tests
+        self._files: list[Path] = []
+
+    def tearDown(self):
+        self.db.DB_PATH = self._orig_db
+        Path(self.tmp.name).unlink(missing_ok=True)
+        self.cfg._d["finisher"] = self._fin
+        self.fe.notify.notify = self._notify
+        for f in self._files:
+            f.unlink(missing_ok=True)
+
+    def _flagged(self, sid, score, real_file=True):
+        cid = self.db.add_clip(sid, 0, 30, f"clip{score}", "why", score, "cap", ["#a"])
+        if real_file:
+            f = Path(tempfile.gettempdir()) / f"psf_floor_{cid}.mp4"
+            f.write_bytes(b"x")
+            self._files.append(f)
+            path = str(f)
+        else:
+            path = "/does/not/exist.mp4"
+        self.db.set_clip_status(cid, "edited", rendered_path=path)
+        self.db.set_clip_status(cid, "flagged")
+        return cid
+
+    def test_salvages_best_scoring_flagged_when_empty(self):
+        sid = self.db.upsert_source("u", "p", "v.mp4", [])
+        lo = self._flagged(sid, 40)
+        hi = self._flagged(sid, 90)
+        self.assertEqual(self.fe.ensure_floor(), 1)
+        edited = [c["id"] for c in self.db.clips_by_status("edited")]
+        self.assertIn(hi, edited)                 # best score salvaged
+        self.assertNotIn(lo, edited)
+
+    def test_no_salvage_when_floor_already_met(self):
+        sid = self.db.upsert_source("u", "p", "v.mp4", [])
+        good = self.db.add_clip(sid, 0, 30, "good", "w", 80, "cap", ["#a"])
+        self.db.set_clip_status(good, "edited", rendered_path="x.mp4")
+        self._flagged(sid, 90)
+        self.assertEqual(self.fe.ensure_floor(), 0)
+        self.assertEqual(len(self.db.clips_by_status("flagged")), 1)
+
+    def test_never_salvages_a_clip_with_no_file(self):
+        sid = self.db.upsert_source("u", "p", "v.mp4", [])
+        self._flagged(sid, 90, real_file=False)
+        self.assertEqual(self.fe.ensure_floor(), 0)   # nothing playable to post
+        self.assertEqual(len(self.db.clips_by_status("edited")), 0)
+
+    def test_approve_next_is_non_destructive(self):
+        import run
+        sid = self.db.upsert_source("u", "p", "v.mp4", [])
+        for i in range(5):
+            self.db.add_clip(sid, 0, 30, f"c{i}", "w", 90 - i, "cap", ["#a"])
+        self.assertEqual(run.approve_next(2), 2)
+        self.assertEqual(len(self.db.clips_by_status("approved")), 2)
+        self.assertEqual(len(self.db.clips_by_status("candidate")), 3)  # spares kept
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

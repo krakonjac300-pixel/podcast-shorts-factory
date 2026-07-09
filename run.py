@@ -86,6 +86,19 @@ def auto_approve_top(n: int) -> int:
     return min(n, len(cands))
 
 
+def approve_next(n: int) -> int:
+    """Approve up to N best still-'candidate' clips WITHOUT rejecting the rest,
+    so leftovers stay available to backfill any clip the finishing QA blocks."""
+    if n <= 0:
+        return 0
+    take = db.clips_by_status("candidate")[:n]      # score desc
+    for c in take:
+        db.set_clip_status(c["id"], "approved")
+    if take:
+        console.print(f"[green]✓ approved {len(take)} more clip(s) to render[/]")
+    return len(take)
+
+
 def cmd_auto(url: str, assume_yes: bool = False):
     finder.find(url)
     console.rule("[bold]Review")
@@ -97,6 +110,7 @@ def cmd_auto(url: str, assume_yes: bool = False):
     editor.edit_all()
     console.rule("[bold]Finishing review")
     finishing_editor.finish_all()
+    finishing_editor.ensure_floor()   # never let the day go fully dark (salvage least-bad)
     console.rule("[bold]Upload")
     uploader.upload_all(assume_yes=assume_yes)
     console.rule("[bold]Stats")
@@ -166,17 +180,30 @@ def cmd_produce():
         return
     console.print(f"[green]New video:[/] {url}")
     finder.find(url)
-    console.rule("[bold]Select top clips")
-    auto_approve_top(cfg.get("finder.auto_approve_top", 3))
-    console.rule("[bold]Render to queue")
-    editor.edit_all()        # leaves clips as 'edited' (queued), does NOT upload
-    console.rule("[bold]Finishing review")
-    finishing_editor.finish_all()   # QA + finish each render before it's queued
+
+    # Render up to `target` clips that PASS finishing QA. If block_on_fail holds a
+    # broken clip back, backfill the freed slot with the next-best candidate — so
+    # blocking never thins the day's schedule. Bounded by the candidate pool.
+    target = cfg.get("finder.auto_approve_top", 3)
+    console.rule(f"[bold]Render {target} clip(s) to the queue")
+    for _ in range(target + 2):                     # safety bound on rounds
+        need = target - len(db.clips_by_status("edited"))
+        if need <= 0 or approve_next(need) == 0:
+            break
+        before = {c["id"] for c in db.clips_by_status("edited")}
+        editor.edit_all()                           # renders the just-approved clips
+        new = [c["id"] for c in db.clips_by_status("edited") if c["id"] not in before]
+        finishing_editor.finish_all(clip_ids=new)   # QA only the fresh renders
+
+    for c in db.clips_by_status("candidate"):        # drop spares we didn't need
+        db.set_clip_status(c["id"], "rejected")
+
     if cfg.get("manager.review_before_post", True):
         console.rule("[bold]Manager review")
         from factory.agents.uploader import _review_and_fix
         for c in db.clips_by_status("edited"):
             _review_and_fix(c)      # approve / bounce+re-edit / reject+escalate
+    finishing_editor.ensure_floor()  # never let the day go fully dark (salvage least-bad)
     n = len(db.clips_by_status("edited"))
     console.print(f"[green]✓ queue now has {n} clip(s).[/]")
     if cfg.get("uploader.schedule_mode", True) and n:

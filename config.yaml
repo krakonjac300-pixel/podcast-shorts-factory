@@ -148,7 +148,11 @@ uploader:
 # phone on anything broken. Optional last-stage 'film look' pass.
 finisher:
   enabled: true
-  block_on_fail: false         # true = a critically-broken clip is held back (status 'flagged') instead of posting
+  block_on_fail: true          # true = a critically-broken clip is held back (status 'flagged') instead of posting.
+                               # Produce backfills the freed slot with the next-best fresh clip, so blocking never
+                               # thins the day's schedule (see finder.produce_target / min_queue below).
+  min_queue: 1                 # last-ditch floor: if EVERY clip failed QA, keep the least-bad one so the channel is
+                               # never fully dark on a day. 0 = allow an empty day (pure block, may miss all posts).
   autofix_quiet: true          # gain-up a too-quiet mix automatically
   film_finish: false           # optional final film-grain + micro-sharpen pass (extra encode; Editor already grades)
   checks:
