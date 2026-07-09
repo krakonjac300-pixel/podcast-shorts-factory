@@ -32,14 +32,22 @@ PLAN_TOOL = {
             "sfx_cues": {
                 "type": "array",
                 "items": {"type": "object", "properties": {
-                    "time": {"type": "number"},
+                    "anchor": {"type": "string",
+                               "description": "the EXACT word or 2-3 word phrase from "
+                               "the transcript this sound must land ON — copy it "
+                               "verbatim. We sync the sound to the moment those words "
+                               "are actually spoken, so pick a word where the sound "
+                               "REINFORCES the meaning (impact on a shocking/violent "
+                               "word, ding on a positive reveal or number, riser just "
+                               "before a big statement, whoosh only at a real topic "
+                               "change). No anchor = the sound is dropped."},
                     "type": {"type": "string",
                              "enum": ["whoosh", "swoosh", "riser", "impact", "ding", "pop"],
                              "description": "one of the available pack sounds: "
                              "whoosh/swoosh (transition), riser (build tension), "
                              "impact (emphasis hit), ding (positive/reveal), pop (quick accent)"},
                     "note": {"type": "string"}},
-                    "required": ["time", "type"]},
+                    "required": ["anchor", "type"]},
             },
             "broll": {
                 "type": "array",
@@ -135,8 +143,11 @@ What's working on our channel so far (learn from this):
 {insights.learnings()}
 
 Design the edit. Apply the skills above. Times must be within 0–{dur:.0f}s.
-Keep SFX to at most 4, transitions only at real topic shifts, and pick the ONE
-key word per important line for emphasis. Call submit_edit_plan."""
+SFX: at most 3, and every one MUST 'anchor' to an exact word from the transcript
+where the sound REINFORCES the meaning (impact on a shocking word, ding on a
+positive reveal). A sound where nothing happens is worse than no sound — when in
+doubt, leave it out. Transitions only at real topic shifts, and pick the ONE key
+word per important line for emphasis. Call submit_edit_plan."""
 
     try:
         result = llm.call_tool("editor", prompt, "submit_edit_plan",
@@ -159,7 +170,8 @@ def render_notes(clip, plan: dict) -> str:
     if plan.get("sfx_cues"):
         lines.append("\n## SFX cues")
         for c in plan["sfx_cues"]:
-            lines.append(f"- {c['time']:.1f}s — {c['type']}"
+            where = c.get("anchor") or (f"{c['time']:.1f}s" if "time" in c else "?")
+            lines.append(f"- {c.get('type', '')} on “{where}”"
                          + (f" ({c.get('note')})" if c.get("note") else ""))
     if plan.get("broll"):
         lines.append("\n## B-roll suggestions")

@@ -197,6 +197,50 @@ def _resolve_sfx(name: str, sfx_dir: Path) -> Path | None:
     return None
 
 
+def _anchor_time(anchor: str, cap_words: list[dict]) -> float | None:
+    """When is `anchor` (a word/short phrase the AI quoted from the transcript)
+    actually spoken? Returns its render-time start so an SFX lands on the moment
+    it refers to instead of a guessed timestamp. None if the words aren't found."""
+    toks = [captions._norm(t) for t in (anchor or "").split() if captions._norm(t)]
+    if not toks or not cap_words:
+        return None
+    norm = [(captions._norm(w["word"]), w) for w in cap_words]
+    # exact contiguous phrase match first
+    for i in range(len(norm)):
+        if all(i + k < len(norm) and norm[i + k][0] == toks[k]
+               for k in range(len(toks))):
+            return float(norm[i][1]["start"])
+    # fall back to the most distinctive single token anywhere in the clip
+    for tok in sorted(toks, key=len, reverse=True):
+        for n, w in norm:
+            if n == tok:
+                return float(w["start"])
+    return None
+
+
+def _dedupe_sfx(primary, secondary, render_dur: float,
+                gap: float = 0.7, cap: int = 6):
+    """Stop sounds piling up into noise: drop any cue over the hook (first ~1s)
+    or the tail, thin out cues landing within `gap`s of one already kept, and cap
+    the total. `primary` (anchored planner cues) claim their slots before the
+    `secondary` camera-cut texture fills whatever gaps remain."""
+    kept: list[tuple] = []
+
+    def add(cues):
+        for t, kind, vol in sorted(cues, key=lambda x: x[0]):
+            if len(kept) >= cap:
+                break
+            if t < 1.0 or t > render_dur - 0.4:
+                continue
+            if any(abs(t - kt) < gap for kt, _, _ in kept):
+                continue
+            kept.append((t, kind, vol))
+
+    add(primary)
+    add(secondary)
+    return sorted(kept, key=lambda x: x[0])
+
+
 # Map the planner's free-form music_mood onto our track names.
 _MOOD_SYNONYMS = {
     "upbeat": "upbeat", "energetic": "upbeat", "happy": "upbeat", "fun": "upbeat",
@@ -832,11 +876,21 @@ def edit_clip(clip) -> Path:
     if e.get("mix_sfx", True):
         sfx_dir = ROOT / e.get("sfx_dir", "assets/sfx")
         sfx_vol = e.get("sfx_volume", 0.5)
-        # planner cue times are pre-trim (scale them); camera-cut whooshes are
-        # already in render time (don't) — quieter so they read as texture.
-        cue_list = [(float(c.get("time", 0)) * tscale, c.get("type", ""), sfx_vol)
-                    for c in plan.get("sfx_cues", [])]
-        cue_list += [(t, "swoosh", sfx_vol * 0.45) for t in cuts]
+        # Anchor each planner cue to the render-time of the word it names, so the
+        # sound lands on the actual moment — not a guessed timestamp. If the word
+        # isn't found, fall back to any (scaled, pre-trim) time hint, else drop.
+        planner_cues = []
+        for c in plan.get("sfx_cues", []):
+            at = _anchor_time(c.get("anchor", ""), cap_words)
+            if at is None:
+                if "time" not in c:
+                    continue
+                at = float(c.get("time", 0)) * tscale
+            planner_cues.append((at, c.get("type", ""), sfx_vol))
+        # camera-cut whooshes are already render-time — quieter, read as texture
+        cut_cues = [(t, "swoosh", sfx_vol * 0.45) for t in cuts]
+        cue_list = _dedupe_sfx(planner_cues, cut_cues, render_dur,
+                               cap=e.get("sfx_max", 6))
         for i, (t, kind, vol) in enumerate(cue_list):
             f = _resolve_sfx(kind, sfx_dir)
             if not f:
