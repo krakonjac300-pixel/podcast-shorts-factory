@@ -141,6 +141,23 @@ uploader:
   privacy: "public"             # auto-uploads post live to YouTube (hands-off)
   hashtags: ["#podcast", "#shorts", "#clips"]
 
+# Finishing Editor (Agent 8) — the assistant editor / QA reviewer. Runs after the
+# Editor and before posting: watches each finished clip for the flaws a human
+# catches on playback (captions on a face, black/frozen frames, dead air, clipped
+# or too-quiet audio, wrong duration), auto-fixes the cheap ones and pings your
+# phone on anything broken. Optional last-stage 'film look' pass.
+finisher:
+  enabled: true
+  block_on_fail: false         # true = a critically-broken clip is held back (status 'flagged') instead of posting
+  autofix_quiet: true          # gain-up a too-quiet mix automatically
+  film_finish: false           # optional final film-grain + micro-sharpen pass (extra encode; Editor already grades)
+  checks:
+    black: true                # fully-black stretches (broken render)
+    freeze: true               # frozen/stuck frames
+    silence: true              # dead-air gaps mid-clip
+    levels: true               # clipped or too-quiet audio
+    face_captions: true        # captions overlapping the speaker's face
+
 manager:
   lookback_days: 28
   learnings_file: "learnings.md"

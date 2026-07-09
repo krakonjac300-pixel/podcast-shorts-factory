@@ -5,6 +5,7 @@ Commands:
   find <url>     Agent 1: download, transcribe, AI-score clip candidates
   review         Approve/reject the candidates (human in the loop)
   edit           Agent 2: render approved clips into vertical shorts
+  finish         Agent 8: QA-review + finish each render before it can post
   upload         Agent 3: post/export to platforms (asks per platform)
   stats          Agent 4: refresh metrics + update learnings.md
   scout          Trend Scout: web-search current trends → trends.md
@@ -25,8 +26,8 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from factory import db, notify, skills
-from factory.agents import (community, editor, finder, manager, trainer,
-                            trend_scout, uploader)
+from factory.agents import (community, editor, finder, finishing_editor,
+                            manager, trainer, trend_scout, uploader)
 from factory.config import cfg
 from factory.utils import media
 
@@ -94,6 +95,8 @@ def cmd_auto(url: str, assume_yes: bool = False):
         cmd_review()
     console.rule("[bold]Edit")
     editor.edit_all()
+    console.rule("[bold]Finishing review")
+    finishing_editor.finish_all()
     console.rule("[bold]Upload")
     uploader.upload_all(assume_yes=assume_yes)
     console.rule("[bold]Stats")
@@ -167,6 +170,8 @@ def cmd_produce():
     auto_approve_top(cfg.get("finder.auto_approve_top", 3))
     console.rule("[bold]Render to queue")
     editor.edit_all()        # leaves clips as 'edited' (queued), does NOT upload
+    console.rule("[bold]Finishing review")
+    finishing_editor.finish_all()   # QA + finish each render before it's queued
     if cfg.get("manager.review_before_post", True):
         console.rule("[bold]Manager review")
         from factory.agents.uploader import _review_and_fix
@@ -196,6 +201,8 @@ def main(argv: list[str]):
         cmd_review()
     elif cmd == "edit":
         editor.edit_all()
+    elif cmd == "finish":
+        finishing_editor.finish_all()
     elif cmd == "upload":
         uploader.upload_all(assume_yes="--yes" in rest)
     elif cmd == "stats":

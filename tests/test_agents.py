@@ -722,5 +722,93 @@ class TestFFmpegRender(unittest.TestCase):
         out.unlink(missing_ok=True)
 
 
+class TestSfxAnchoring(unittest.TestCase):
+    """SFX must land on the word they name, not a guessed timestamp, and never
+    pile up into noise (the 'random sounds' complaint)."""
+
+    WORDS = [
+        {"word": "He", "start": 0.5, "end": 0.7},
+        {"word": "literally", "start": 0.7, "end": 1.1},
+        {"word": "DESTROYED", "start": 1.1, "end": 1.8},
+        {"word": "the", "start": 1.8, "end": 1.9},
+        {"word": "whole", "start": 1.9, "end": 2.2},
+        {"word": "company", "start": 2.2, "end": 2.9},
+        {"word": "and", "start": 6.0, "end": 6.1},
+        {"word": "won", "start": 6.1, "end": 6.5},
+    ]
+
+    def test_anchor_matches_word_case_insensitive(self):
+        from factory.agents import editor
+        self.assertAlmostEqual(editor._anchor_time("destroyed", self.WORDS), 1.1)
+
+    def test_anchor_matches_phrase(self):
+        from factory.agents import editor
+        self.assertAlmostEqual(editor._anchor_time("whole company", self.WORDS), 1.9)
+
+    def test_anchor_missing_returns_none(self):
+        from factory.agents import editor
+        self.assertIsNone(editor._anchor_time("kidneys", self.WORDS))
+        self.assertIsNone(editor._anchor_time("", self.WORDS))
+
+    def test_dedupe_drops_hook_and_collisions(self):
+        from factory.agents import editor
+        primary = [(1.1, "impact", 0.5), (6.1, "ding", 0.5), (0.3, "pop", 0.5)]
+        secondary = [(1.3, "swoosh", 0.2), (6.3, "swoosh", 0.2), (11.0, "swoosh", 0.2)]
+        kept = editor._dedupe_sfx(primary, secondary, render_dur=15.0)
+        times = [round(t, 2) for t, _, _ in kept]
+        self.assertIn(1.1, times)          # anchored impact kept
+        self.assertIn(6.1, times)          # anchored ding kept
+        self.assertNotIn(0.3, times)       # over the hook (<1s) dropped
+        self.assertNotIn(1.3, times)       # collides with the impact -> dropped
+        self.assertIn(11.0, times)         # lone cut-swoosh fills a gap
+
+    def test_dedupe_caps_total(self):
+        from factory.agents import editor
+        many = [(float(i), "pop", 0.5) for i in range(2, 40, 1)]
+        kept = editor._dedupe_sfx(many, [], render_dur=60.0, cap=6)
+        self.assertLessEqual(len(kept), 6)
+
+
+class TestFinishingEditor(unittest.TestCase):
+    """The QA reviewer's pure logic: caption band, overlap, verdict, report."""
+
+    def test_caption_band_is_lower_third(self):
+        from factory.agents import finishing_editor as fe
+        top, bot = fe._caption_band(1920, font_size=90, lift=0.34)
+        self.assertLess(top, bot)
+        self.assertGreater(top, 1920 * 0.5)      # band sits below the middle
+        self.assertLessEqual(bot, 1920)
+
+    def test_overlap_frac(self):
+        from factory.agents import finishing_editor as fe
+        band = (1148, 1300)
+        # a centered face high in frame does not reach the band
+        self.assertEqual(fe._overlap_frac((300, 500, 480, 480), band), 0.0)
+        # a low/large face covers it fully
+        self.assertGreater(fe._overlap_frac((300, 1100, 480, 700), band), 0.9)
+
+    def test_verdict_precedence(self):
+        from factory.agents import finishing_editor as fe
+        self.assertEqual(fe._verdict([]), "PASS")
+        self.assertEqual(fe._verdict([{"sev": "warn"}]), "PASS*")
+        self.assertEqual(fe._verdict([{"sev": "fixable"}]), "FIX")
+        self.assertEqual(fe._verdict([{"sev": "warn"}, {"sev": "critical"}]), "FLAG")
+
+    def test_report_md_lists_issues(self):
+        from factory.agents import finishing_editor as fe
+        md = fe._report_md(7, "FLAG",
+                           [{"kind": "black frames", "sev": "critical",
+                             "msg": "broken"}], ["did a thing"])
+        self.assertIn("clip 7", md)
+        self.assertIn("CRITICAL", md)
+        self.assertIn("did a thing", md)
+
+    def test_review_missing_file_flags(self):
+        from factory.agents import finishing_editor as fe
+        verdict, issues = fe.review_clip({"id": 1, "rendered_path": None})
+        self.assertEqual(verdict, "FLAG")
+        self.assertTrue(any(i["sev"] == "critical" for i in issues))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
