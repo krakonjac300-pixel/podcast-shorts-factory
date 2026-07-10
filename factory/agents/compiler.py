@@ -247,7 +247,7 @@ def _card(out: Path, vo_text: str, title: str, sub: str = "",
         bg = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,"
               f"crop={W}:{H},gblur=sigma=22,eq=brightness=-0.20:saturation=0.85,"
               f"crop=w='iw-iw*({zoom})':h='ih-ih*({zoom})':x='(iw-ow)/2':y='(ih-oh)/2',"
-              f"scale={W}:{H},fps={FPS}")
+              f"scale={W}:{H},setsar=1,fps={FPS}")
     else:
         inputs += ["-f", "lavfi", "-i",
                    f"color=c=0x11161d:size={W}x{H}:rate={FPS}:duration={dur:.2f}"]
@@ -310,11 +310,15 @@ def _segment(clip: dict, out: Path, max_excerpt: float) -> float:
 
 def _concat(parts: list[Path], out: Path) -> None:
     """Join uniform parts; single loudnorm pass on the master."""
-    inputs, chains = [], []
+    inputs, norm, chains = [], [], []
     for i, p in enumerate(parts):
         inputs += ["-i", str(p)]
-        chains.append(f"[{i}:v][{i}:a]")
-    fc = ("".join(chains) + f"concat=n={len(parts)}:v=1:a=1[v][pre];"
+        # image-sourced cards can carry an off-by-a-hair SAR (e.g. 1353:1352)
+        # and concat refuses mismatched inputs — normalize every part first
+        norm.append(f"[{i}:v]setsar=1[v{i}]")
+        chains.append(f"[v{i}][{i}:a]")
+    fc = (";".join(norm) + ";" + "".join(chains)
+          + f"concat=n={len(parts)}:v=1:a=1[v][pre];"
           f"[pre]loudnorm=I=-14:TP=-1.5:LRA=11[a]")
     _run(["ffmpeg", "-y", *inputs, "-filter_complex", fc,
           "-map", "[v]", "-map", "[a]",
