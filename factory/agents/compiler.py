@@ -51,22 +51,31 @@ PLAN_SCHEMA = {
         "description": {"type": "string",
                         "description": "2-4 sentence episode description (no hashtags)"},
         "cold_open": {"type": "string",
-                      "description": "narrator cold-open script, 3-5 sentences: the thesis, "
-                                     "why it matters, what's coming. Spoken, punchy."},
+                      "description": "narrator cold-open, ≤45 words. MUST make ONE concrete "
+                                     "PROMISE of what the viewer gets by the end ('by #1 "
+                                     "you'll hear the prediction that could end a career — "
+                                     "and whether he's right') and tease the finale."},
         "outro": {"type": "string",
-                  "description": "narrator verdict, 3-5 sentences, ending on ONE "
-                                 "forced-choice question for the comments"},
+                  "description": "narrator verdict, ≤55 words: DELIVER the cold-open promise, "
+                                 "then OVERDELIVER with one bonus receipt/stat/take beyond it, "
+                                 "then ONE forced-choice question for the comments"},
+        "music_mood": {"type": "string",
+                       "description": "music bed mood: tense | upbeat | lofi | ambient"},
+        "thumbnail_text": {"type": "string",
+                           "description": "2-4 ALL-CAPS words for the thumbnail, e.g. "
+                                          "'THE LAST HONEST MAN'"},
         "segments": {
             "type": "array", "minItems": 3, "maxItems": 8,
             "items": {"type": "object", "properties": {
                 "clip_id": {"type": "integer"},
                 "card_title": {"type": "string",
-                               "description": "3-6 word title card for this segment"},
+                               "description": "3-6 word title card for this segment (no "
+                                              "numbering — we add the countdown #)"},
                 "narration": {"type": "string",
-                              "description": "narrator script BEFORE this clip: react to "
-                                             "the previous moment, set up this one, add "
-                                             "an opinion. 3-5 sentences — this carries "
-                                             "the commentary share."}},
+                              "description": "narrator script BEFORE this clip: 2-3 PUNCHY "
+                                             "spoken sentences, ≤35 words. React to the "
+                                             "previous moment, set up this one with a take. "
+                                             "Never describe — argue."}},
                 "required": ["clip_id", "card_title", "narration"]},
         },
     },
@@ -143,11 +152,13 @@ def _default_plan(pool: list[dict], n: int) -> dict:
             "theme": "this week's strongest moments",
             "description": "The strongest podcast moments of the week, curated "
                            "with commentary.",
-            "cold_open": "This week the podcasts did not hold back. We've pulled "
-                         "the moments worth arguing about — and by the end you'll "
-                         "have a side. Stay for the last one.",
-            "outro": "That's the week. Some takes will age well, some won't. "
-                     "Which one was right? Tell us below.",
+            "cold_open": "This week the podcasts did not hold back. By the end "
+                         "you'll hear the one take everyone will argue about — "
+                         "and our verdict on it. Stay for number one.",
+            "outro": "That's the take we promised — and the verdict: it holds "
+                     "up better than anyone admits. Which side are you on? "
+                     "Tell us below.",
+            "music_mood": "tense", "thumbnail_text": "THE VERDICT",
             "segments": segs}
 
 
@@ -177,9 +188,27 @@ def _font() -> str:
     return fp.replace("\\", "/").replace(":", "\\:")
 
 
-def _card(out: Path, vo_text: str, title: str, sub: str = "") -> float:
-    """Narrator card: dark slate bg, big title, brand line, narrator VO.
-    Returns duration (0.0 → card failed, skip it)."""
+def _grab_frame(video_path: str, at: float, out: Path) -> Path | None:
+    """Freeze-frame from a source video — the animated card background."""
+    try:
+        _run(["ffmpeg", "-y", "-ss", f"{max(0.0, at):.2f}", "-i", str(video_path),
+              "-frames:v", "1", "-q:v", "3", str(out)])
+        return out if out.exists() else None
+    except Exception:  # noqa: BLE001 - cards fall back to the flat-color look
+        return None
+
+
+def _sfx_file(kind: str) -> Path | None:
+    hits = sorted((ROOT / cfg.get("editor.sfx_dir", "assets/sfx")).glob(f"{kind}*.wav"))
+    return hits[0] if hits else None
+
+
+def _card(out: Path, vo_text: str, title: str, sub: str = "",
+          bg_frame: Path | None = None) -> float:
+    """Narrator card v2 — built to NOT be boring: blurred slow-zooming footage
+    of the upcoming clip as the background (flat slate only as fallback), title
+    lines that slide-fade in one after another, a whoosh on entry, and the VO on
+    top. Returns duration (0.0 → card failed, skip it)."""
     vo = WORK / f"{out.stem}_vo.mp3"
     vdur = voice.synth(vo_text, vo, cfg.get("compiler.voice",
                                             cfg.get("editor.voice",
@@ -194,21 +223,48 @@ def _card(out: Path, vo_text: str, title: str, sub: str = "") -> float:
     draws = []
     for i, ln in enumerate(lines):
         off = int(-(n / 2 - i) * 110 + 20)   # explicit sign — "(h/2)--55" is
-        y = f"(h/2){'+' if off >= 0 else '-'}{abs(off)}"  # an ffmpeg parse error
+        base = f"(h/2){'+' if off >= 0 else '-'}{abs(off)}"  # a parse error
+        t0 = 0.18 + i * 0.22                 # staggered reveal, line by line
+        alpha = f"min(1\\,max(0\\,(t-{t0:.2f})*4))"
         draws.append(f"drawtext=fontfile='{font}':text='{_esc(ln.upper())}'"
                      f":fontsize=92:fontcolor=white:borderw=4:bordercolor=black"
-                     f":x=(w-tw)/2:y={y}")
+                     f":alpha='{alpha}'"
+                     f":x=(w-tw)/2:y='{base}+30*(1-{alpha})'")
     if sub:
         draws.append(f"drawtext=fontfile='{font}':text='{_esc(sub)}'"
-                     f":fontsize=40:fontcolor=0xd0d6dd:x=(w-tw)/2:y=h-170")
+                     f":fontsize=40:fontcolor=0xd0d6dd"
+                     f":alpha='min(1\\,max(0\\,(t-{0.18 + n * 0.22:.2f})*4))'"
+                     f":x=(w-tw)/2:y=h-170")
     draws.append(f"drawtext=fontfile='{font}':text='CLIPSMANIA':fontsize=30"
                  f":fontcolor=0x8a93a0:x=(w-tw)/2:y=h-90")
-    vf = ",".join(["fade=t=in:st=0:d=0.35",
+
+    inputs = []
+    if bg_frame and bg_frame.exists():
+        # footage still: blur hard, darken, slow push-in — feels alive, teases
+        # the clip behind the words
+        inputs += ["-loop", "1", "-t", f"{dur:.2f}", "-i", str(bg_frame)]
+        zoom = f"0.10*min(t/{dur:.2f}\\,1)"
+        bg = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,"
+              f"crop={W}:{H},gblur=sigma=22,eq=brightness=-0.20:saturation=0.85,"
+              f"crop=w='iw-iw*({zoom})':h='ih-ih*({zoom})':x='(iw-ow)/2':y='(ih-oh)/2',"
+              f"scale={W}:{H},fps={FPS}")
+    else:
+        inputs += ["-f", "lavfi", "-i",
+                   f"color=c=0x11161d:size={W}x{H}:rate={FPS}:duration={dur:.2f}"]
+        bg = "[0:v]null"
+    inputs += ["-i", str(vo)]
+
+    whoosh = _sfx_file("whoosh") or _sfx_file("swoosh")
+    amix = f"[1:a]{AFMT},apad[a]"
+    if whoosh:
+        inputs += ["-i", str(whoosh)]
+        amix = (f"[1:a]{AFMT}[vo];[2:a]adelay=60|60,volume=0.30,{AFMT}[wh];"
+                f"[vo][wh]amix=inputs=2:normalize=0:duration=first,apad[a]")
+
+    vf = ",".join([bg, "fade=t=in:st=0:d=0.30",
                    f"fade=t=out:st={dur - 0.35:.2f}:d=0.35"] + draws)
-    _run(["ffmpeg", "-y", "-f", "lavfi", "-i",
-          f"color=c=0x11161d:size={W}x{H}:rate={FPS}:duration={dur:.2f}",
-          "-i", str(vo), "-filter_complex",
-          f"[0:v]{vf}[v];[1:a]{AFMT},apad[a]",
+    _run(["ffmpeg", "-y", *inputs, "-filter_complex",
+          f"{vf}[v];{amix}",
           "-map", "[v]", "-map", "[a]", "-t", f"{dur:.2f}",
           "-c:v", "libx264", "-preset", "fast", "-crf", "20",
           "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", str(out)])
@@ -236,9 +292,11 @@ def _segment(clip: dict, out: Path, max_excerpt: float) -> float:
                       "words_per_page": 5, "outline": 4})
         ass = WORK / f"{out.stem}.ass"
         captions.write_ass(ass, words, start, start + dur, style, res=(W, H))
+    from . import editor                          # reuse the proven Ken Burns
     vf = (f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
           f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,fps={FPS},"
-          f"eq=contrast=1.05:saturation=1.15,"
+          f"{editor._motion(W, H, dur, 0.06)},"    # gentle push so the frame
+          f"eq=contrast=1.05:saturation=1.15,"     # never sits dead still
           f"fade=t=in:st=0:d=0.25,fade=t=out:st={dur - 0.25:.2f}:d=0.25")
     if ass:
         vf += f",subtitles='{str(ass).replace(chr(92), '/').replace(':', chr(92) + ':')}'"
@@ -264,6 +322,61 @@ def _concat(parts: list[Path], out: Path) -> None:
           "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", str(out)])
 
 
+def _music_bed(master: Path, mood: str) -> None:
+    """Continuous music bed under the WHOLE episode, sidechain-ducked so it
+    dives under every spoken word and swells in the gaps — the single biggest
+    'produced' feel for one cheap pass (video stream is copied, not re-encoded)."""
+    from . import editor
+    music = editor._pick_music(mood or "tense")
+    if not music or not cfg.get("compiler.music", True):
+        return
+    tmp = master.with_name(master.stem + "_mx.mp4")
+    vol = float(cfg.get("compiler.music_volume", 0.30))
+    fc = (f"[1:a]volume={vol},{AFMT}[m];"
+          f"[0:a]{AFMT},asplit=2[voice][key];"
+          f"[m][key]sidechaincompress=threshold=0.02:ratio=14:attack=8:release=400[duck];"
+          f"[voice][duck]amix=inputs=2:normalize=0:duration=first,"
+          f"loudnorm=I=-14:TP=-1.5:LRA=11[a]")
+    try:
+        _run(["ffmpeg", "-y", "-i", str(master), "-stream_loop", "-1",
+              "-i", str(music), "-filter_complex", fc,
+              "-map", "0:v", "-map", "[a]", "-c:v", "copy",
+              "-c:a", "aac", "-b:a", "192k", str(tmp)])
+        tmp.replace(master)
+        console.print(f"  [dim]music bed: {Path(music).stem} (ducked)[/]")
+    except Exception:  # noqa: BLE001 - music is a bonus, never fatal
+        tmp.unlink(missing_ok=True)
+
+
+def _thumbnail(plan: dict, hero_clip: dict, out: Path) -> Path | None:
+    """1280x720 thumbnail: a frame from the hero (#1) moment + 2-4 huge words.
+    Uploaded automatically once the channel is phone-verified."""
+    text = (plan.get("thumbnail_text") or plan["episode_title"]).upper()
+    words = text.split()[:4]
+    frame = _grab_frame(db.get_source(hero_clip["source_id"])["video_path"],
+                        float(hero_clip["start"]) + 2.0,
+                        WORK / f"{out.stem}_src.jpg")
+    if not frame:
+        return None
+    font = _font()
+    lines = _wrap(" ".join(words), 14)[:2]
+    draws = []
+    for i, ln in enumerate(lines):
+        color = "0x00E5FF" if i == len(lines) - 1 else "white"   # punch word pops
+        draws.append(f"drawtext=fontfile='{font}':text='{_esc(ln)}'"
+                     f":fontsize=150:fontcolor={color}:borderw=8:bordercolor=black"
+                     f":x=70:y={720 - 200 * (len(lines) - i) - 60}")
+    vf = (f"scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,"
+          f"eq=contrast=1.12:saturation=1.35,"
+          f"vignette=angle=PI/4," + ",".join(draws))
+    try:
+        _run(["ffmpeg", "-y", "-i", str(frame), "-vf", vf,
+              "-frames:v", "1", "-q:v", "3", str(out)])
+        return out if out.exists() else None
+    except Exception:  # noqa: BLE001 - thumbnail is a bonus
+        return None
+
+
 # ── plan → episode ───────────────────────────────────────────────────────────
 
 def _plan_episode(pool: list[dict]) -> dict | None:
@@ -286,15 +399,18 @@ What's working on our channel:
 AVAILABLE MOMENTS (clip_id, title, why it was picked, score, source channel/episode, seconds):
 {json.dumps(menu, indent=1)[:5000]}
 
-RULES — these keep the episode monetizable (YouTube reused-content policy):
+RULES — these keep the episode monetizable AND watchable:
 - Pick ONE sharp theme with a THESIS (a debate, a ranking, a "who's right?") —
-  not "best moments". {n_min}-{n_max} segments, strongest LAST (save the best).
-- Your narration IS the product: react, disagree, connect segments, add context
-  the clips don't have. 3-5 full sentences per segment narration — thin one-line
-  narration gets the episode DEMONETIZED. Never describe the clip; ARGUE with it.
-- cold_open states the thesis and promises the payoff. outro gives YOUR verdict
-  and ends on one forced-choice question.
+  not "best moments". {n_min}-{n_max} segments as a COUNTDOWN: we number them
+  #{n_max}→#1 on screen, so order them weakest→strongest — #1 must be the payoff.
+- RETENTION CONTRACT: the cold_open makes ONE concrete PROMISE about #1 ("by the
+  end you'll hear X — and whether he's right"); the outro DELIVERS it and then
+  OVERDELIVERS with a bonus receipt/stat/take the promise didn't include.
+- Narration is 2-3 PUNCHY sentences per segment (≤35 words) — react, disagree,
+  connect; never describe. Thin narration risks demonetization; bloated
+  narration bores. Punchy and opinionated.
 - episode_title: NAME + angle/question, ≤70 chars, no clickbait lies.
+- music_mood + thumbnail_text (2-4 ALL-CAPS words) are required.
 Call submit_episode."""
     result = llm.call_tool("compiler", prompt, "submit_episode", PLAN_SCHEMA,
                            max_tokens=3000)
@@ -328,33 +444,46 @@ def compile_episode(upload: bool = True) -> Path | None:
     max_excerpt = float(cfg.get("compiler.max_excerpt", 75))
     parts: list[dict] = []          # {path, dur, kind, chapter}
 
+    # the finale (#1) is the hero — its footage backs the intro/outro cards,
+    # visually teasing the promised payoff from second one
+    hero = by_id[segments[-1]["clip_id"]]
+    hero_bg = _grab_frame(db.get_source(hero["source_id"])["video_path"],
+                          float(hero["start"]) + 1.0, WORK / f"ep{stamp}_hero.jpg")
+
     d = _card(WORK / f"ep{stamp}_open.mp4", plan["cold_open"],
-              plan["episode_title"], "This week's clips, one argument")
+              plan["episode_title"],
+              f"{len(segments)} moments. one verdict. stay for #1",
+              bg_frame=hero_bg)
     if d > 0:
         parts.append({"path": WORK / f"ep{stamp}_open.mp4", "dur": d,
-                      "kind": "card", "chapter": "Intro"})
+                      "kind": "card", "chapter": "The promise"})
 
     used_sources = []
     for i, seg in enumerate(segments):
         clip = by_id[seg["clip_id"]]
+        num = len(segments) - i                     # countdown …3, 2, #1
+        card_title = f"#{num} — {seg['card_title']}"
+        bg = _grab_frame(db.get_source(clip["source_id"])["video_path"],
+                         float(clip["start"]) + 1.0, WORK / f"ep{stamp}_bg{i}.jpg")
         cd = _card(WORK / f"ep{stamp}_c{i}.mp4", seg["narration"],
-                   seg["card_title"], f"from {clip['channel'] or 'the podcast'}")
+                   card_title, f"from {clip['channel'] or 'the podcast'}",
+                   bg_frame=bg)
         sd = _segment(clip, WORK / f"ep{stamp}_s{i}.mp4", max_excerpt)
         if sd <= 0:
             console.print(f"  [yellow]segment for clip {clip['id']} failed — skipped[/]")
             continue
         if cd > 0:
             parts.append({"path": WORK / f"ep{stamp}_c{i}.mp4", "dur": cd,
-                          "kind": "card", "chapter": seg["card_title"][:40]})
+                          "kind": "card", "chapter": card_title[:40]})
         parts.append({"path": WORK / f"ep{stamp}_s{i}.mp4", "dur": sd,
                       "kind": "clip", "chapter": None})
         used_sources.append(clip["channel"] or clip["ep"])
 
     d = _card(WORK / f"ep{stamp}_out.mp4", plan["outro"], "The verdict",
-              "tell us in the comments")
+              "as promised — and then some. tell us below", bg_frame=hero_bg)
     if d > 0:
         parts.append({"path": WORK / f"ep{stamp}_out.mp4", "dur": d,
-                      "kind": "card", "chapter": "Verdict"})
+                      "kind": "card", "chapter": "The verdict (as promised)"})
 
     n_clips = sum(1 for p in parts if p["kind"] == "clip")
     if n_clips < int(cfg.get("compiler.min_segments", 4)) - 1:
@@ -369,6 +498,8 @@ def compile_episode(upload: bool = True) -> Path | None:
 
     out = OUT_DIR / f"episode_{stamp}.mp4"
     _concat([p["path"] for p in parts], out)
+    _music_bed(out, plan.get("music_mood", "tense"))
+    thumb = _thumbnail(plan, hero, OUT_DIR / f"episode_{stamp}_thumb.jpg")
     desc = _description(plan, parts, used_sources)
     (OUT_DIR / f"episode_{stamp}.notes.md").write_text(
         f"# {plan['episode_title']}\n\ntheme: {plan['theme']}\n"
@@ -384,7 +515,7 @@ def compile_episode(upload: bool = True) -> Path | None:
         return out
 
     if upload:
-        res = _upload_longform(out, plan["episode_title"], desc)
+        res = _upload_longform(out, plan["episode_title"], desc, thumb=thumb)
         if res:
             with db.conn() as c:
                 c.execute("""CREATE TABLE IF NOT EXISTS episodes (
@@ -414,9 +545,11 @@ def _next_publish_slot() -> datetime:
     return t + timedelta(days=ahead)
 
 
-def _upload_longform(path: Path, title: str, description: str) -> dict | None:
+def _upload_longform(path: Path, title: str, description: str,
+                     thumb: Path | None = None) -> dict | None:
     """Scheduled long-form upload (16:9, no #Shorts). Mirrors the uploader's
-    server-side publishAt flow."""
+    server-side publishAt flow. Sets the custom thumbnail when the channel is
+    phone-verified; until then it 403s and we nudge the owner instead."""
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
@@ -439,6 +572,17 @@ def _upload_longform(path: Path, title: str, description: str) -> dict | None:
         resp = yt.videos().insert(part="snippet,status", body=body,
                                   media_body=media).execute()
         vid = resp["id"]
+        if thumb and thumb.exists():
+            try:
+                yt.thumbnails().set(videoId=vid,
+                                    media_body=MediaFileUpload(str(thumb))).execute()
+                console.print("  [dim]custom thumbnail set ✓[/]")
+            except Exception as tex:  # noqa: BLE001 - needs phone verification
+                if "403" in str(tex) or "forbidden" in str(tex).lower():
+                    notify.notify("Thumbnail needs channel verification",
+                                  "Verify at youtube.com/verify (2 min) — then "
+                                  "thumbnails attach automatically.")
+                console.print(f"  [yellow]thumbnail not set: {str(tex)[:90]}[/]")
         return {"external_id": vid, "url": f"https://youtu.be/{vid}",
                 "when": when.strftime("%a %H:%M")}
     except Exception as ex:  # noqa: BLE001

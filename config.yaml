@@ -184,6 +184,8 @@ compiler:
   max_excerpt: 75              # hard cap per continuous source excerpt (seconds)
   min_commentary_share: 0.30   # narrator/cards fraction of runtime; below = hold back
   category_id: "24"            # 24 = Entertainment (17 = Sports)
+  music: true                  # continuous bed, sidechain-ducked under all speech
+  music_volume: 0.30           # bed level before ducking (final loudnorm evens it out)
   # voice: inherits editor.voice unless set
 
 manager:
