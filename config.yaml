@@ -44,6 +44,7 @@ skills:
   uploader: [editorial-standards, copywriting, titles-thumbnails, hashtags-seo, marketing-psychology, thumbnail-design, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
   community: [editorial-standards, engagement-tactics, copywriting, marketing-psychology, platform-algorithms]
   manager:  [editorial-standards, editor-craft, analytics-optimization, marketing-psychology, short-form-strategy, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
+  compiler: [editorial-standards, storytelling, copywriting, youtube-monetization, growth-strategy]
 
 finder:
   whisper_model: "small"        # tiny | base | small | medium | large-v3 (bigger = slower/better)
@@ -168,6 +169,22 @@ finisher:
     silence: true              # dead-air gaps mid-clip
     levels: true               # clipped or too-quiet audio
     face_captions: true        # captions overlapping the speaker's face
+
+# Compiler (Agent 9) — the showrunner. Weekly 16:9 long-form episode stitched from
+# the week's best moments with an AI narrator carrying a real editorial spine
+# (thesis → per-clip setup/analysis → verdict). Monetization-safe by construction:
+# commentary share is MEASURED on the finished cut and episodes under the floor are
+# never uploaded (2026 reused-content rules put the review trigger around 30%).
+compiler:
+  enabled: true
+  publish_day: "sun"           # weekly slot (server-side publishAt — PC can be off)
+  publish_time: "15:00"
+  min_segments: 4              # skip the week if fewer good moments are available
+  max_segments: 6
+  max_excerpt: 75              # hard cap per continuous source excerpt (seconds)
+  min_commentary_share: 0.30   # narrator/cards fraction of runtime; below = hold back
+  category_id: "24"            # 24 = Entertainment (17 = Sports)
+  # voice: inherits editor.voice unless set
 
 manager:
   lookback_days: 28

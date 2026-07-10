@@ -6,6 +6,7 @@ Commands:
   review         Approve/reject the candidates (human in the loop)
   edit           Agent 2: render approved clips into vertical shorts
   finish         Agent 8: QA-review + finish each render before it can post
+  compile        Agent 9: weekly 16:9 long-form episode (--no-upload to just render)
   upload         Agent 3: post/export to platforms (asks per platform)
   stats          Agent 4: refresh metrics + update learnings.md
   scout          Trend Scout: web-search current trends → trends.md
@@ -26,8 +27,9 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from factory import db, notify, skills
-from factory.agents import (community, editor, finder, finishing_editor,
-                            manager, trainer, trend_scout, uploader)
+from factory.agents import (community, compiler, editor, finder,
+                            finishing_editor, manager, trainer, trend_scout,
+                            uploader)
 from factory.config import cfg
 from factory.utils import media
 
@@ -230,6 +232,8 @@ def main(argv: list[str]):
         editor.edit_all()
     elif cmd == "finish":
         finishing_editor.finish_all()
+    elif cmd == "compile":
+        compiler.compile_episode(upload="--no-upload" not in rest)
     elif cmd == "upload":
         uploader.upload_all(assume_yes="--yes" in rest)
     elif cmd == "stats":

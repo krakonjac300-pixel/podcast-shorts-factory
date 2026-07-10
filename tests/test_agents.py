@@ -837,6 +837,59 @@ class TestFinderResilience(unittest.TestCase):
         self.assertGreater(calls["n"], 1)      # it retried before giving up
 
 
+class TestCompiler(unittest.TestCase):
+    """The showrunner's pure logic: chapters, commentary share, wrapping,
+    publish slots, and the monetization-safety description."""
+
+    def test_wrap_caps_lines_and_width(self):
+        from factory.agents import compiler
+        lines = compiler._wrap("one two three four five six seven eight nine "
+                               "ten eleven twelve", 12)
+        self.assertLessEqual(len(lines), 4)
+        self.assertTrue(all(len(x) <= 14 for x in lines))
+
+    def test_chapters_accumulate_time(self):
+        from factory.agents import compiler
+        parts = [{"dur": 10.0, "kind": "card", "chapter": "Intro"},
+                 {"dur": 65.0, "kind": "clip", "chapter": None},
+                 {"dur": 12.0, "kind": "card", "chapter": "The Verdict"}]
+        ch = compiler._chapters(parts)
+        self.assertIn("0:00 Intro", ch)
+        self.assertIn("1:15 The Verdict", ch)      # 10+65 = 75s
+
+    def test_commentary_share(self):
+        from factory.agents import compiler
+        parts = [{"dur": 30.0, "kind": "card"}, {"dur": 70.0, "kind": "clip"}]
+        self.assertAlmostEqual(compiler._commentary_share(parts), 0.30)
+
+    def test_description_has_credits_and_chapters(self):
+        from factory.agents import compiler
+        plan = {"description": "A big debate."}
+        parts = [{"dur": 5.0, "kind": "card", "chapter": "Intro"}]
+        desc = compiler._description(plan, parts, ["@TheOverlap", "@VibeWithFive"])
+        self.assertIn("0:00 Intro", desc)
+        self.assertIn("@TheOverlap", desc)
+        self.assertIn("original creators", desc)
+
+    def test_next_publish_slot_is_future_and_right_weekday(self):
+        from factory.agents import compiler
+        slot = compiler._next_publish_slot()
+        from datetime import datetime
+        self.assertGreater(slot, datetime.now().astimezone())
+        self.assertEqual(slot.weekday(), 6)        # sun per config
+
+    def test_default_plan_fills_required_fields(self):
+        from factory.agents import compiler
+        pool = [{"id": i, "title": f"t{i}", "reason": "r", "score": 80,
+                 "start": 0, "end": 30, "channel": "@x", "ep": "e"}
+                for i in range(6)]
+        plan = compiler._default_plan(pool, 5)
+        for k in ("episode_title", "theme", "description", "cold_open",
+                  "outro", "segments"):
+            self.assertIn(k, plan)
+        self.assertEqual(len(plan["segments"]), 5)
+
+
 class TestBlockOnFailFloor(unittest.TestCase):
     """block_on_fail must never leave the day fully empty: produce backfills a
     freed slot, and ensure_floor() salvages the least-bad clip as a last resort."""
