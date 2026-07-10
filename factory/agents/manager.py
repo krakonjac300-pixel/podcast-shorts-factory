@@ -361,8 +361,44 @@ def _write_learnings(rows: list[dict]):
     if not text or not text.strip():
         return
     out = ROOT / cfg.get("manager.learnings_file", "learnings.md")
-    out.write_text(text, encoding="utf-8")
+    # Team-meeting doctrine lives between PINNED markers and survives every
+    # regeneration — the daily reasoning pass only replaces what comes after it.
+    pin_start, pin_end = "<!-- PINNED:START", "<!-- PINNED:END -->"
+    pinned = ""
+    if out.exists():
+        old = out.read_text(encoding="utf-8")
+        if pin_start in old and pin_end in old:
+            pinned = old[old.index(pin_start):old.index(pin_end) + len(pin_end)] + "\n\n"
+    out.write_text(pinned + text.strip() + "\n", encoding="utf-8")
     console.print(f"[green]✓ Updated {out.name}[/] — every agent reads this next run.")
+
+
+def _ypp_progress() -> dict:
+    """Where we stand on the YouTube Partner Program gates (500 subs +
+    3,000 watch-hours in 90 days). Best-effort — {} on any API hiccup."""
+    try:
+        from datetime import datetime, timedelta
+
+        from googleapiclient.discovery import build
+        creds = _creds()
+        if not creds:
+            return {}
+        yt = build("youtube", "v3", credentials=creds)
+        ch = yt.channels().list(part="statistics", mine=True).execute()
+        st = (ch.get("items") or [{}])[0].get("statistics", {})
+        subs = int(st.get("subscriberCount", 0))
+        ya = build("youtubeAnalytics", "v2", credentials=creds)
+        start = (datetime.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+        r = ya.reports().query(ids="channel==MINE", startDate=start,
+                               endDate=db.now()[:10],
+                               metrics="estimatedMinutesWatched,views").execute()
+        row = (r.get("rows") or [[0, 0]])[0]
+        hours = round(row[0] / 60, 1)
+        return {"subscribers": subs, "subs_needed": 500,
+                "watch_hours_90d": hours, "hours_needed": 3000,
+                "views_90d": row[1]}
+    except Exception:  # noqa: BLE001 - progress tracking must never break the digest
+        return {}
 
 
 DIGEST_TOOL = {
@@ -397,14 +433,18 @@ def weekly_digest():
         hours = c.execute("""
             SELECT substr(created_at, 12, 5) AS hhmm, clip_id
             FROM uploads WHERE platform='youtube' ORDER BY id""").fetchall()
+    ypp = _ypp_progress()
     prompt = ("You are the channel Manager writing the WEEKLY REPORT for the "
               "channel owner (a non-technical creator). Performance data:\n"
               f"{json.dumps(rows, indent=1)}\n\n"
               f"Publish times (UTC) per clip: {[dict(h) for h in hours]}\n"
               f"Current post schedule (local): "
               f"{cfg.get('uploader.post_times', ['09:00', '14:00', '19:00'])}\n\n"
-              "Write the digest: friendly, concrete, no jargon. Only recommend "
-              "new post times if ≥10 measured posts clearly support it. "
+              f"MONETIZATION PROGRESS (YPP needs 500 subs + 3,000 watch-hours/90d):\n"
+              f"{json.dumps(ypp)}\n\n"
+              "Write the digest: friendly, concrete, no jargon. Include a short "
+              "'Road to monetization' line with the YPP numbers above. Only "
+              "recommend new post times if ≥10 measured posts clearly support it. "
               "Call submit_digest.")
     result = llm.call_tool("manager", prompt, "submit_digest", DIGEST_TOOL,
                            max_tokens=1500)

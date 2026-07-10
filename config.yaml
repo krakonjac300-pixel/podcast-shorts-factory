@@ -73,6 +73,13 @@ finder:
     So the clip's OPENING LINE must be the hook — if the gripping part is 10s into
     the moment, START THERE. Never open on a wind-up, throat-clear, or slow setup.
     Pick the timestamp where the drama LANDS, not where it begins.
+    THE 3-SECOND TEST (2026 meeting — YouTube caps any Short swiped in <3s): the
+    opening line must contain a NAMED person AND a visible stake. "Roy Keane says
+    England will lose" passes; "So the thing about football is" fails.
+    PREFER MOMENTS WITH AN ANGLE BUILT IN: someone DISAGREES, RANKS ("best/worst
+    ever"), PREDICTS, or gets called out — curation with a take, never just "a
+    thing someone said". If two moments tie, take the one whose LAST line snaps
+    back to the first line (loop = free rewatches = ranking signal).
 
 editor:
   ai_plan: true                # let the editor's skills (hooks/story/sfx/vfx) design each edit
@@ -176,7 +183,18 @@ manager:
 # playbook so the whole team learns. Can never touch editorial-standards.
 trainer:
   enabled: true
-  study_queries: ["podcast clips viral", "joe rogan clips", "business health podcast shorts"]
+  study_queries: ["podcast clips viral", "football podcast clips", "world cup podcast reaction"]
+  # Winner channels from the 2026-07-10 teardown (research/competitors.md) — the
+  # Trainer studies THESE directly each week (uploads playlists, ~2 quota units
+  # each) instead of burning 100-unit searches. IDs, not handles, on purpose.
+  study_channels:
+    - "UCjXIw1GlwaY1IzpW_jN9iCQ"   # The Overlap (427k views/video)
+    - "UCOgGwJ2o1mxeS4eVb9_UQaw"   # FULL SEND Podcast Clips (336k)
+    - "UCGYYNGmyhZ_kwBF_lqqXdAQ"   # Tifo Football (328k)
+    - "UCnjgxChqYYnyoqO4k_Q1d6Q"   # The Diary Of A CEO Clips (239k)
+    - "UCkgsrOXWQNZRS_Cj8-_7sPw"   # The Rest Is Football (182k)
+    - "UCFxG3MxHC1ogUglvJeMHmVQ"   # That's Football (148k — independent!)
+    - "UCjCJ2LaOIsPzOoXUTMDI3wg"   # Pitch Side (116k — independent)
   playbooks: [hooks, pacing, captions-craft, video-editing, titles-thumbnails, growth-strategy, youtube-monetization, thumbnail-design]
 
 trend_scout:

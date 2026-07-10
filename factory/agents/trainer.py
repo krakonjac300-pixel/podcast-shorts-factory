@@ -57,7 +57,9 @@ TRAIN_SCHEMA = {
 
 
 def _top_shorts(max_results: int = 12) -> list[dict]:
-    """Most-viewed recent Shorts for our niche queries, via the YouTube API."""
+    """Most-viewed recent Shorts to study. Prefers the curated winner channels
+    (trainer.study_channels — uploads playlists at ~2 quota units per channel);
+    falls back to 100-unit keyword searches when no channel list is configured."""
     out = []
     try:
         from googleapiclient.discovery import build
@@ -65,38 +67,56 @@ def _top_shorts(max_results: int = 12) -> list[dict]:
         if not creds:
             return out
         yt = build("youtube", "v3", credentials=creds)
-        after = (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        queries = cfg.get("trainer.study_queries",
-                          ["podcast clips", "joe rogan clips"])
         ids = []
-        for q in queries[:3]:
-            r = yt.search().list(q=q, part="id", type="video",
-                                 videoDuration="short", order="viewCount",
-                                 publishedAfter=after,
-                                 maxResults=max_results // len(queries[:3]) + 2
-                                 ).execute()
-            ids += [i["id"]["videoId"] for i in r.get("items", [])]
+        chans = cfg.get("trainer.study_channels", []) or []
+        if chans:
+            r = yt.channels().list(part="contentDetails",
+                                   id=",".join(chans[:10])).execute()
+            for it in r.get("items", []):
+                pl = it["contentDetails"]["relatedPlaylists"]["uploads"]
+                try:
+                    p = yt.playlistItems().list(part="contentDetails",
+                                                playlistId=pl,
+                                                maxResults=7).execute()
+                    ids += [x["contentDetails"]["videoId"]
+                            for x in p.get("items", [])]
+                except Exception:  # noqa: BLE001 - one channel failing is fine
+                    continue
+        if not ids:
+            after = (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            queries = cfg.get("trainer.study_queries",
+                              ["podcast clips", "joe rogan clips"])
+            for q in queries[:3]:
+                r = yt.search().list(q=q, part="id", type="video",
+                                     videoDuration="short", order="viewCount",
+                                     publishedAfter=after,
+                                     maxResults=max_results // len(queries[:3]) + 2
+                                     ).execute()
+                ids += [i["id"]["videoId"] for i in r.get("items", [])]
         if not ids:
             return out
         v = yt.videos().list(part="snippet,statistics,contentDetails",
-                             id=",".join(ids[:max_results])).execute()
+                             id=",".join(ids[:50])).execute()
         for it in v.get("items", []):
             sn, st = it["snippet"], it.get("statistics", {})
-            row = {"title": sn["title"], "channel": sn["channelTitle"],
-                   "duration": it["contentDetails"]["duration"],
-                   "views": int(st.get("viewCount", 0)),
-                   "comments": []}
+            out.append({"_id": it["id"], "title": sn["title"],
+                        "channel": sn["channelTitle"],
+                        "duration": it["contentDetails"]["duration"],
+                        "views": int(st.get("viewCount", 0)),
+                        "comments": []})
+        out.sort(key=lambda r: -r["views"])
+        out = out[:max_results]
+        for row in out:                     # comments only for the final top-N
             try:
-                c = yt.commentThreads().list(part="snippet", videoId=it["id"],
+                c = yt.commentThreads().list(part="snippet",
+                                             videoId=row.pop("_id"),
                                              order="relevance", maxResults=2,
                                              textFormat="plainText").execute()
                 row["comments"] = [
                     x["snippet"]["topLevelComment"]["snippet"]["textDisplay"][:120]
                     for x in c.get("items", [])]
             except Exception:  # noqa: BLE001 - comments may be disabled
-                pass
-            out.append(row)
-        out.sort(key=lambda r: -r["views"])
+                row.pop("_id", None)
     except Exception as ex:  # noqa: BLE001 - study is best-effort
         console.print(f"[yellow]top-shorts study failed (continuing): {ex}[/]")
     return out

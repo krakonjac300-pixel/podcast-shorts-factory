@@ -68,7 +68,10 @@ Search snippets:
 Write a concise markdown brief (<300 words) titled "# Current Trends" that a
 clip-selection AI can act on: hot topics/themes, hook formats overperforming now,
 trending audio styles (note: added in-app, not downloaded), angles to lean into,
-and overused ones to avoid. Output ONLY the brief."""
+and overused ones to avoid. We are a CURATOR channel, so prioritize CROSS-SHOW
+THEMES — debates/questions multiple podcasts are arguing about this week (e.g.
+"who stops France", "is X finished") — over single-show topics; name 2-3 such
+themes explicitly. Output ONLY the brief."""
 
     try:
         text = llm.call_text("trend_scout", prompt, max_tokens=1500)

@@ -15,8 +15,16 @@ different signals. Tailor the cut, caption, and CTA to the platform it's going t
 - Saves are weighted heavily — reference/educational clips do well.
 - Keep text clear of the bottom-right UI; use 3–6 niche hashtags + keyworded caption.
 
-**YouTube Shorts** — rewards **swipe-away rate (viewed vs swiped) and watch-through**.
-- The first frame must not look skippable — strong cover/first frame is critical.
+**YouTube Shorts** — rewards **watch-time-per-impression and swipe-through**.
+- HOW DISTRIBUTION ACTUALLY WORKS (2026): every Short is cold-seeded to a test pool
+  of ~50–500 feed viewers (mostly non-subscribers; brand-new channels get the small
+  end — 10–30 first-day views is normal). The pool's behavior decides everything:
+  swiped away inside the FIRST 3 SECONDS → reach is capped no matter what else is
+  good. ~70% average retention is the rough "expand" threshold (a 35s Short clears
+  the watch-time gate at ~65%).
+- **Loop rate is a ranking signal** — an ending that snaps back into the opening
+  earns >100% watched and free distribution.
+- The first frame must not look skippable — name + stake burned in before any audio.
 - Title + #Shorts matter for the Shorts shelf and search; YouTube search is evergreen.
 - Slightly more tolerant of longer (up to 60s) and of "mini-episode" framing.
 - Strong CTAs to the channel convert Shorts viewers into subscribers.

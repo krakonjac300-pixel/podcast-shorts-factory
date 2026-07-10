@@ -143,11 +143,15 @@ What's working on our channel so far (learn from this):
 {insights.learnings()}
 
 Design the edit. Apply the skills above. Times must be within 0–{dur:.0f}s.
+hook_text: include the SPEAKER'S NAME when it fits (names stop the scroll — "KEANE:
+SACK THEM" beats "SACK THEM"). The first frame must show a name + a stake.
 SFX: at most 3, and every one MUST 'anchor' to an exact word from the transcript
 where the sound REINFORCES the meaning (impact on a shocking word, ding on a
 positive reveal). A sound where nothing happens is worse than no sound — when in
 doubt, leave it out. Transitions only at real topic shifts, and pick the ONE key
-word per important line for emphasis. Call submit_edit_plan."""
+word per important line for emphasis. Loop rate is a ranking signal: if the clip's
+last line relates to its first, note it in the hook design so the ending flows
+straight back into the opening. Call submit_edit_plan."""
 
     try:
         result = llm.call_tool("editor", prompt, "submit_edit_plan",

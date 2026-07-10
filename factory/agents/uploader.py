@@ -47,9 +47,12 @@ def post_copy(clip, platform: str) -> dict:
         prompt = (f"{skill_block}\nWrite post copy for **{platform}** for this clip.\n"
                   f"Title idea: {clip['title']}\nCaption idea: {clip['caption']}\n"
                   f"What's worked on our channel so far:\n{insights.learnings()}\n"
-                  "TITLE RULE (from performance data): put the concrete NUMBER/claim in the "
-                  "FIRST 40 characters — '40x Hotter Than the Sun: ...' not 'The Machine "
-                  "That...: 40x Hotter'. Tailor tone and hashtags to the platform. "
+                  "TITLE FORMULA (measured on 1M+ view clips in our niche): a "
+                  "RECOGNIZABLE NAME + an emotional verb ('Keane SLAMS…', 'X humbled "
+                  "Y') OR a pure question ('What's the biggest World Cup upset "
+                  "ever?'). Front-load the name/claim in the FIRST 40 characters, "
+                  "keep ≤60 chars, at most ONE emoji. Questions double as comment "
+                  "bait. Tailor tone and hashtags to the platform. "
                   "End caption with ONE forced-choice question. Call submit_copy.")
         result = llm.call_tool("uploader", prompt, "submit_copy", schema, max_tokens=600)
         if result:
@@ -368,6 +371,56 @@ def upload_all(assume_yes: bool = False) -> int:
             posted += _upload_clip(ok, platforms, assume_yes)
     console.print(f"\n[green]✓ {posted} uploads/exports done.[/]")
     return posted
+
+
+def build_post_package(transcript_excerpt: str,
+                       platforms: list[str] | None = None,
+                       niche: str | None = None) -> dict:
+    """Stateless post-copy generation for headless/programmatic callers.
+
+    Given a transcript excerpt, return platform-optimized title/caption/hashtags
+    for each requested platform, plus a recommended posting time. Depends on no
+    channel history or DB — safe to call in a hosted service. Never posts.
+    """
+    platforms = platforms or ["youtube", "tiktok", "instagram"]
+    skill_block = skills.load(cfg.get("skills.uploader", []))
+    schema = {"type": "object", "properties": {
+        "title": {"type": "string"},
+        "caption": {"type": "string"},
+        "hashtags": {"type": "array", "items": {"type": "string"}}},
+        "required": ["title", "caption", "hashtags"]}
+
+    out: dict[str, dict] = {}
+    for platform in platforms:
+        fallback = {"title": "", "caption": transcript_excerpt[:150], "hashtags": []}
+        prompt = (
+            f"{skill_block}\nWrite short-form post copy for **{platform}** based on "
+            f"this clip transcript excerpt.\nNiche: {niche or 'general'}\n\n"
+            f"Transcript excerpt:\n\"\"\"\n{transcript_excerpt[:4000]}\n\"\"\"\n\n"
+            "RULES: put the concrete hook/number in the FIRST 40 characters of the "
+            "title. Tailor tone and hashtags to the platform. End the caption with ONE "
+            "forced-choice question to drive comments. Call submit_copy.")
+        # Free models occasionally return an empty tool call; a paid service must
+        # not deliver an empty title, so retry once before falling back.
+        result, err = None, None
+        for _ in range(2):
+            try:
+                result = llm.call_tool("uploader", prompt, "submit_copy", schema,
+                                       max_tokens=600)
+                if result and result.get("title"):
+                    break
+            except Exception as ex:  # noqa: BLE001 - one platform failing shouldn't fail all
+                err = str(ex)
+        merged = {**fallback, **{k: v for k, v in (result or {}).items() if v}}
+        if err and not merged.get("title"):
+            merged["error"] = err
+        out[platform] = merged
+
+    return {
+        "platforms": out,
+        "recommended_post_time": "peak audience window; test 9AM / 2PM / 7PM local",
+        "note": "This service never posts. Publish with your own platform credentials.",
+    }
 
 
 def upload_one(assume_yes: bool = True) -> bool:

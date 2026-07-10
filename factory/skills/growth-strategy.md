@@ -3,6 +3,24 @@
 Concrete, current targets for turning clips into views and subscribers. These are the
 numbers the 2026 Shorts algorithm actually rewards.
 
+## TEAM DOCTRINE (2026-07-10 meeting — from a 21-channel API teardown)
+- **We are a CURATOR, not a mirror.** Fan channels that re-clip one official podcast
+  are a measured graveyard (20–613 subs after years; one doing exactly that since
+  June 2026 sits at 0 subs, ~6 views/video). The official clips channel always
+  outranks the copy — their short of an episode we clipped has 1.27M views, ours 3.
+  Our edge is what officials CAN'T do: curate ACROSS shows (Overlap + Rio + Rogan +
+  DOAC), take an angle, rank, disagree. Every post needs an editorial layer — a
+  take, a question, a comparison — never just "here's the moment."
+- **Title formula (measured on 1M+ view clips):** RECOGNIZABLE NAME + emotional verb
+  or question, front-loaded, ≤60 chars, one emoji max. "Roy warns England…" /
+  "NATE DIAZ HUMBLED COWBOY!" / Tifo-style pure questions ("What's the biggest World
+  Cup upset ever?" — questions double as comment bait).
+- **Niche-lock through the World Cup final (~Jul 19): football drama only** — one
+  coherent audience for the algorithm to seed. Revisit after the final.
+- **Shorts recruit, LONG-FORM pays:** winners run up to 1:4 shorts:longs (Tifo 7:27).
+  YPP path = 500 subs + 3,000 watch-hours/90d — reachable via weekly themed
+  compilations, effectively never via 3M Shorts views.
+
 ## Length: 30–45 seconds is the sweet spot
 - **Sub-15s Shorts collapsed in reach** in 2026 — they can't clear the absolute watch-time
   bar even at 100% retention. Don't make ultra-short clips.
