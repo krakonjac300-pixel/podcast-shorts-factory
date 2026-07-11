@@ -364,12 +364,16 @@ def _thumbnail(plan: dict, hero_clip: dict, out: Path) -> Path | None:
         return None
     font = _font()
     lines = _wrap(" ".join(words), 14)[:2]
+    # auto-shrink so the widest line fits 1280px with margin — a fixed 150px
+    # clipped 'BRUTAL TRUTHS' off the right edge of episode 1's thumbnail
+    widest = max(len(ln) for ln in lines)
+    size = min(150, int((1280 - 150) / (0.62 * widest)))
     draws = []
     for i, ln in enumerate(lines):
         color = "0x00E5FF" if i == len(lines) - 1 else "white"   # punch word pops
         draws.append(f"drawtext=fontfile='{font}':text='{_esc(ln)}'"
-                     f":fontsize=150:fontcolor={color}:borderw=8:bordercolor=black"
-                     f":x=70:y={720 - 200 * (len(lines) - i) - 60}")
+                     f":fontsize={size}:fontcolor={color}:borderw=8:bordercolor=black"
+                     f":x=70:y={720 - int(size * 1.35) * (len(lines) - i) - 60}")
     vf = (f"scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,"
           f"eq=contrast=1.12:saturation=1.35,"
           f"vignette=angle=PI/4," + ",".join(draws))
