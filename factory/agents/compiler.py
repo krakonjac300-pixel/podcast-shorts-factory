@@ -423,11 +423,23 @@ Call submit_episode."""
     return result
 
 
-def compile_episode(upload: bool = True) -> Path | None:
+def compile_episode(upload: bool = True, force: bool = False) -> Path | None:
     """Build this week's episode. Returns the rendered path (None = nothing to
-    do or blocked). Uploads as a scheduled long-form post unless upload=False."""
+    do or blocked). Uploads as a scheduled long-form post unless upload=False.
+    Skips when this week's episode already exists (PSF-Compile also fires at
+    startup as a missed-Sunday catch-up) unless force=True."""
     if not cfg.get("compiler.enabled", True):
         return None
+    if not force and upload:
+        try:
+            with db.conn() as c:
+                last = c.execute("SELECT MAX(created_at) FROM episodes").fetchone()[0]
+            if last and (datetime.now() - datetime.fromisoformat(last)).days < 5:
+                console.print("[dim]compiler: this week's episode already exists "
+                              "— skipping (catch-up guard).[/]")
+                return None
+        except Exception:  # noqa: BLE001 - no episodes table yet → proceed
+            pass
     pool = _candidate_pool()
     if len(pool) < int(cfg.get("compiler.min_segments", 4)):
         console.print("[yellow]Compiler: not enough moments with source video "

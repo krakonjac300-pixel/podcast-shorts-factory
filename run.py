@@ -173,6 +173,18 @@ def cmd_daily():
 def cmd_produce():
     """Make the day's clips into the post queue (no posting). Scout → fresh video
     → top N clips rendered and left as 'edited' for staggered posting."""
+    # Catch-up guard: PSF-Produce also fires at machine startup (the PC is often
+    # off at 6AM and Windows' missed-run catch-up proved unreliable, 2026-07-10/11).
+    # If today's posts are already locked in server-side, this run is a no-op —
+    # so the startup trigger can never double-book a day the 6AM run handled.
+    from datetime import datetime
+    from factory.agents.uploader import _taken_slots
+    today = [t for t in _taken_slots()
+             if t.date() == datetime.now().astimezone().date()]
+    if len(today) >= 2:
+        console.print(f"[dim]produce: {len(today)} post(s) already scheduled for "
+                      f"today — day covered, skipping (catch-up guard).[/]")
+        return
     console.print(f"[dim]post queue has {len(db.clips_by_status('edited'))} clip(s) ready[/]")
     console.rule("[bold]Trend Scout")
     trend_scout.scout()
@@ -233,7 +245,8 @@ def main(argv: list[str]):
     elif cmd == "finish":
         finishing_editor.finish_all()
     elif cmd == "compile":
-        compiler.compile_episode(upload="--no-upload" not in rest)
+        compiler.compile_episode(upload="--no-upload" not in rest,
+                                 force="--force" in rest)
     elif cmd == "upload":
         uploader.upload_all(assume_yes="--yes" in rest)
     elif cmd == "stats":
