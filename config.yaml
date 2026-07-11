@@ -171,6 +171,17 @@ finisher:
     face_captions: true        # captions overlapping the speaker's face
     face_edge: true            # a person cut in half by the frame edge (bad punch-in)
 
+# Montage Shorts — FORMAT EXPERIMENT (started 2026-07-11, review after ~1 week):
+# one ARC7-style emotional montage per day (3-4 cross-episode micro-moments,
+# name tags, emoji sticker, whooshes, ducked music) REPLACES one of the three
+# daily clips. kind='montage' in the DB; the Manager's leaderboard carries
+# `format` so the numbers decide if the format lives.
+montage:
+  enabled: true
+  take_min: 6                  # seconds per micro-moment
+  take_max: 14
+  score: 75                    # queue priority for the scheduler (score-ordered)
+
 # Compiler (Agent 9) — the showrunner. Weekly 16:9 long-form episode stitched from
 # the week's best moments with an AI narrator carrying a real editorial spine
 # (thesis → per-clip setup/analysis → verdict). Monetization-safe by construction:

@@ -277,6 +277,7 @@ def _leaderboard() -> list[dict]:
         rows = c.execute("""
             SELECT cl.id, cl.title, cl.reason, cl.score AS predicted,
                    ROUND(cl.end - cl.start, 1) AS clip_seconds,
+                   COALESCE(cl.kind, 'clip') AS format,
                    s.channel AS source_channel, up.external_id,
                    up.platform, m.views, m.likes, m.comments, m.avg_watch_pct
             FROM metrics m

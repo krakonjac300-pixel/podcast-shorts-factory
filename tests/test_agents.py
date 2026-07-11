@@ -890,6 +890,42 @@ class TestCompiler(unittest.TestCase):
         self.assertEqual(len(plan["segments"]), 5)
 
 
+class TestMontage(unittest.TestCase):
+    """The montage experiment's pure logic."""
+
+    def test_take_window_clamps(self):
+        from factory.agents import montage
+        s, e = montage._take_window(100.0, 140.0, 10)
+        self.assertEqual((s, e), (100.0, 110.0))
+        s, e = montage._take_window(100.0, 140.0, 99)     # over cap → 14
+        self.assertEqual(e - s, 14.0)
+        s, e = montage._take_window(100.0, 104.0, 10)     # short moment → its len
+        self.assertAlmostEqual(e - s, 4.0)
+
+    def test_label_safe(self):
+        from factory.agents import montage
+        self.assertEqual(montage._label_safe("Roy Keane's:"), "ROY KEANES")
+        self.assertLessEqual(len(montage._label_safe("A VERY LONG SPEAKER NAME")), 14)
+
+    def test_default_plan_shape(self):
+        from factory.agents import montage
+        pool = [{"id": i, "title": f"Keane {i}", "reason": "r", "score": 80,
+                 "start": 0, "end": 30, "source_id": 1, "video_path": "x",
+                 "channel": "@c"} for i in range(5)]
+        plan = montage._default_plan(pool)
+        for k in ("theme", "hook_text", "title", "caption", "moments"):
+            self.assertIn(k, plan)
+        self.assertEqual(len(plan["moments"]), 3)
+        for mo in plan["moments"]:
+            self.assertIn(mo["emoji"], montage.EMOJI)
+
+    def test_kind_column_migration(self):
+        from factory import db
+        with db.conn() as c:
+            cols = [r[1] for r in c.execute("PRAGMA table_info(clips)").fetchall()]
+        self.assertIn("kind", cols)
+
+
 class TestBlockOnFailFloor(unittest.TestCase):
     """block_on_fail must never leave the day fully empty: produce backfills a
     freed slot, and ensure_floor() salvages the least-bad clip as a last resort."""

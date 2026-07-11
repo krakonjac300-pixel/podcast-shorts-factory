@@ -67,7 +67,10 @@ def conn():
     c.executescript(SCHEMA)
     for mig in ("ALTER TABLE sources ADD COLUMN channel TEXT",
                 "ALTER TABLE clips ADD COLUMN review_notes TEXT",
-                "ALTER TABLE clips ADD COLUMN review_attempts INTEGER DEFAULT 0"):
+                "ALTER TABLE clips ADD COLUMN review_attempts INTEGER DEFAULT 0",
+                # format experiments: NULL = regular clip, 'montage' = the
+                # multi-moment montage Short — lets the Manager compare formats
+                "ALTER TABLE clips ADD COLUMN kind TEXT"):
         try:                                # migrate older databases
             c.execute(mig)
         except sqlite3.OperationalError:    # column already exists

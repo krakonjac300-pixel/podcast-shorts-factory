@@ -28,8 +28,8 @@ from rich.table import Table
 
 from factory import db, notify, skills
 from factory.agents import (community, compiler, editor, finder,
-                            finishing_editor, manager, trainer, trend_scout,
-                            uploader)
+                            finishing_editor, manager, montage, trainer,
+                            trend_scout, uploader)
 from factory.config import cfg
 from factory.utils import media
 
@@ -195,9 +195,20 @@ def cmd_produce():
     console.print(f"[green]New video:[/] {url}")
     finder.find(url)
 
-    # Render up to `target` clips that PASS finishing QA. If block_on_fail holds a
-    # broken clip back, backfill the freed slot with the next-best candidate — so
-    # blocking never thins the day's schedule. Bounded by the candidate pool.
+    # Format experiment: one montage Short (cross-episode moments from PAST
+    # sources) takes one of today's slots when it builds successfully.
+    montage_id = None
+    try:
+        montage_id = montage.build_daily()
+        if montage_id:
+            finishing_editor.finish_all(clip_ids=[montage_id])
+    except Exception as ex:  # noqa: BLE001 - experiment must never kill the day
+        console.print(f"[yellow]montage skipped: {ex}[/]")
+
+    # Render up to `target` clips that PASS finishing QA. The montage (already
+    # status 'edited') occupies one of the slots, so the loop tops up with fresh
+    # clips around it. If block_on_fail holds a broken clip back, backfill the
+    # freed slot with the next-best candidate — blocking never thins the day.
     target = cfg.get("finder.auto_approve_top", 3)
     console.rule(f"[bold]Render {target} clip(s) to the queue")
     for _ in range(target + 2):                     # safety bound on rounds
@@ -247,6 +258,8 @@ def main(argv: list[str]):
     elif cmd == "compile":
         compiler.compile_episode(upload="--no-upload" not in rest,
                                  force="--force" in rest)
+    elif cmd == "montage":
+        montage.build_daily(register="--dry-run" not in rest)
     elif cmd == "upload":
         uploader.upload_all(assume_yes="--yes" in rest)
     elif cmd == "stats":
