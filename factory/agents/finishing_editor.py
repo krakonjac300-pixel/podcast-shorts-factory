@@ -166,6 +166,46 @@ def _check_levels(path: Path) -> list[dict]:
     return out
 
 
+def _check_face_edge(path: Path, samples: int = 24) -> list[dict]:
+    """Is a person cut in half by the frame edge? A punch-in crop that landed
+    beside the speaker leaves a face hugging the left/right border. The defect
+    lives in individual camera segments (2-4s), so sample densely and trigger
+    on an absolute count — a 40s clip with one bad 3s shot must still flag."""
+    try:
+        import cv2
+        cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        if cascade.empty():
+            return []
+        cap = cv2.VideoCapture(str(path))
+        if not cap.isOpened():
+            return []
+    except Exception:  # noqa: BLE001
+        return []
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    fw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 0
+    idxs = [int(total * i / (samples + 1)) for i in range(1, samples + 1)] if total else []
+    edge = seen = 0
+    for fi in idxs:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, fi)
+        ok, frame = cap.read()
+        if not ok:
+            continue
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = cascade.detectMultiScale(gray, 1.1, 5, minSize=(70, 70))
+        if not len(faces):
+            continue
+        seen += 1
+        if any(x <= 4 or x + w >= fw - 4 for x, _, w, _ in faces):
+            edge += 1
+    cap.release()
+    if edge >= 3 and seen >= 3 and edge / seen >= 0.15:
+        return [{"kind": "person cut by frame edge", "sev": "warn",
+                 "msg": f"a face hugs the frame border in {edge}/{seen} sampled "
+                        f"frames — the punch-in crop likely missed the speaker"}]
+    return []
+
+
 def _check_face_captions(path: Path, band: tuple[int, int],
                          samples: int = 10) -> list[dict]:
     """Do the burned captions sit on the speaker's face? Sample frames of the
@@ -275,6 +315,8 @@ def review_clip(clip) -> tuple[str, list[dict]]:
         band = _caption_band(res[1], capc.get("font_size", 90),
                              capc.get("caption_lift", 0.34))
         issues += _check_face_captions(path, band)
+    if chk("face_edge"):
+        issues += _check_face_edge(path)
 
     actions: list[str] = []
     # cheap auto-fixes turn a 'fixable' issue into a resolved one

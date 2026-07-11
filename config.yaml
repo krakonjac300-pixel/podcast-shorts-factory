@@ -169,6 +169,7 @@ finisher:
     silence: true              # dead-air gaps mid-clip
     levels: true               # clipped or too-quiet audio
     face_captions: true        # captions overlapping the speaker's face
+    face_edge: true            # a person cut in half by the frame edge (bad punch-in)
 
 # Compiler (Agent 9) — the showrunner. Weekly 16:9 long-form episode stitched from
 # the week's best moments with an AI narrator carrying a real editorial spine

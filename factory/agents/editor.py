@@ -567,11 +567,12 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
     if not sw:
         cap.release()
         return None
-    seg_cx: list[float | None] = []
+    seg_faces: list[list[float]] = []        # ALL face centers seen per segment
+    seg_cx: list[float | None] = []          # largest face per segment
     all_cx: list[float] = []
     for i in range(len(bounds) - 1):
-        found = []
-        for frac in (0.35, 0.65):
+        found, here = [], []
+        for frac in (0.25, 0.5, 0.75):
             tm = bounds[i] + (bounds[i + 1] - bounds[i]) * frac
             cap.set(cv2.CAP_PROP_POS_FRAMES, int(tm * fps))
             ok, frame = cap.read()
@@ -580,10 +581,12 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = cascade.detectMultiScale(gray, scaleFactor=1.1,
                                              minNeighbors=5, minSize=(60, 60))
-            all_cx.extend((x + fw / 2) / sw for x, _, fw, _ in faces)
+            here.extend((x + fw / 2) / sw for x, _, fw, _ in faces)
             if len(faces):
                 x, _, fw, _ = max(faces, key=lambda r: r[2] * r[3])
                 found.append((x + fw / 2) / sw)
+        all_cx.extend(here)
+        seg_faces.append(sorted(here))
         found.sort()
         seg_cx.append(found[len(found) // 2] if found else None)
     cap.release()
@@ -597,9 +600,27 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
         lx, rx = left[len(left) // 2], right[len(right) // 2]
         if abs(rx - lx) < 0.12:              # faces too close — not a real 2-shot
             return None
-        return [lx if i % 2 == 0 else rx for i in range(len(bounds) - 1)]
-    # single face: fill gaps with the previous segment (camera holds position)
-    out, last = [], med
+        # Alternate host-cam/guest-cam, but the crop must land on a face that is
+        # REALLY THERE in that segment. The source itself intercuts wide 2-shots
+        # with solo close-ups; blindly applying the global left/right position to
+        # a close-up put the crop beside the speaker — the person-cut-in-half bug
+        # (user report, 2026-07-11). Per segment: snap the alternation target to
+        # the nearest face detected IN that segment; no detection → hold the
+        # previous crop (a camera hold), never a global guess.
+        out, last = [], None
+        for i, faces in enumerate(seg_faces):
+            target = lx if i % 2 == 0 else rx
+            if faces:
+                last = min(faces, key=lambda c: abs(c - target))
+            elif last is None:
+                last = target                # leading no-detection segments only
+            out.append(last)
+        return out
+    # single face: fill gaps by holding the previous segment's position (camera
+    # holds). Seed from the first real detection — the global median could sit
+    # on the OTHER person in a two-person frame.
+    seed = next((c for c in seg_cx if c is not None), med)
+    out, last = [], seed
     for c in seg_cx:
         last = c if c is not None else last
         out.append(last)
