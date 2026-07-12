@@ -470,6 +470,17 @@ def compile_episode(upload: bool = True, force: bool = False) -> Path | None:
     hero_bg = _grab_frame(db.get_source(hero["source_id"])["video_path"],
                           float(hero["start"]) + 1.0, WORK / f"ep{stamp}_hero.jpg")
 
+    # COLD OPEN (biggest long-form retention lever): don't open on a talking
+    # narrator card — open on the raw #1 moment itself, a few seconds of real
+    # footage, so the viewer sees the drama before deciding to stay. It's a TEASE:
+    # #1 pays it off in full at the end (an open loop).
+    if cfg.get("compiler.cold_open", True):
+        co = _segment(hero, WORK / f"ep{stamp}_cold.mp4",
+                      float(cfg.get("compiler.cold_open_seconds", 4)))
+        if co > 0:
+            parts.append({"path": WORK / f"ep{stamp}_cold.mp4", "dur": co,
+                          "kind": "clip", "chapter": None})
+
     d = _card(WORK / f"ep{stamp}_open.mp4", plan["cold_open"],
               plan["episode_title"],
               f"{len(segments)} moments. one verdict. stay for #1",

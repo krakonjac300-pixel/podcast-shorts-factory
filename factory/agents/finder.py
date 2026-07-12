@@ -5,6 +5,7 @@ clip-worthy moments. Results are stored as 'candidate' clips for review.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from rich.console import Console
@@ -120,6 +121,38 @@ def find(url: str) -> int:
     return n
 
 
+# While niche_lock is set, mechanically DROP candidates from another sport — the
+# Finder kept clipping the boxing guest (Whittaker: 2-9 views) despite being told
+# to stay in the football lane. Coaching wasn't enough; this is the hard gate.
+_OFF_NICHE = {
+    "football": re.compile(
+        r"\b(boxing|boxer|heavyweight|cruiserweight|welterweight|flyweight|"
+        r"knockout|\bko\b|ufc|mma|octagon|sparring|ringwalk|ring walk|"
+        r"title fight|undisputed|prizefight|jab|southpaw)\b", re.I),
+}
+_FOOTBALL = re.compile(
+    r"\b(football|soccer|goal|keeper|striker|midfield|defender|winger|penalty|"
+    r"premier league|world cup|england|pitch|manager|transfer|squad|dressing "
+    r"room|gaffer|nations league|champions league|var|offside|clean sheet)\b", re.I)
+
+
+def _niche_ok(clip: dict) -> bool:
+    """False if `clip` is clearly off-niche while niche_lock is active."""
+    lock = cfg.get("finder.niche_lock")
+    if not lock:
+        return True
+    off = _OFF_NICHE.get(lock)
+    if not off:
+        return True
+    text = f"{clip.get('title', '')} {clip.get('reason', '')} " \
+           f"{clip.get('caption', '')}"
+    if off.search(text) and not _FOOTBALL.search(text):
+        console.print(f"  [yellow]niche-lock: dropped off-{lock} clip "
+                      f"'{str(clip.get('title', ''))[:40]}'[/]")
+        return False
+    return True
+
+
 def _score_with_claude(title: str, transcript: list[dict]) -> list[dict]:
     f = cfg.finder
     schema = {
@@ -220,10 +253,11 @@ Call submit_clips with your picks, best first."""
         return out
 
     clips = _score_pass(f.get("selection_brief", ""), insist=False)
+    clips = [c for c in clips if _niche_ok(c)]
     if not clips:
         console.print("  [yellow]0 clips on the strict pass — retrying with a "
                       "relaxed brief so the day isn't empty[/]")
-        clips = _score_pass(relaxed_brief, insist=True)
+        clips = [c for c in _score_pass(relaxed_brief, insist=True) if _niche_ok(c)]
 
     clips.sort(key=lambda c: -float(c.get("score", 0)))
     return clips[:max_cand]

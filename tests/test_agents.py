@@ -890,6 +890,27 @@ class TestCompiler(unittest.TestCase):
         self.assertEqual(len(plan["segments"]), 5)
 
 
+class TestCommunityVoice(unittest.TestCase):
+    """Comments must never carry the AI fingerprint (user ask: kill the em dash)."""
+
+    def test_humanize_kills_dashes_and_tells(self):
+        from factory.agents.community import humanize
+        self.assertNotIn("—", humanize("Keane was right — sack them"))
+        self.assertNotIn("–", humanize("poor–worse"))
+        # spaced hyphen used as a dash becomes a comma
+        self.assertEqual(humanize("class, no doubt - but they bottle it"),
+                         "Class, no doubt, but they bottle it")
+        # stock chatbot opener stripped
+        self.assertNotIn("Great question", humanize("Great question! big if true"))
+        # a normal human reply is left essentially alone
+        self.assertEqual(humanize("mate no chance 😄"), "Mate no chance 😄")
+
+    def test_humanize_empty_safe(self):
+        from factory.agents.community import humanize
+        self.assertEqual(humanize(""), "")
+        self.assertEqual(humanize(None), "")
+
+
 class TestMontage(unittest.TestCase):
     """The montage experiment's pure logic."""
 

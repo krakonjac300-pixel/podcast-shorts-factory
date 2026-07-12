@@ -10,6 +10,7 @@ replies are DRAFTED into comment_drafts.md and flagged, never lost.
 from __future__ import annotations
 
 import json
+import re
 
 from rich.console import Console
 
@@ -19,6 +20,34 @@ from ..config import ROOT, cfg
 console = Console()
 DRAFTS = ROOT / "comment_drafts.md"
 
+# The channel's comment voice. Editable in config (community.persona).
+DEFAULT_PERSONA = (
+    "You're the bloke who runs the channel: a die-hard football fan with a dry, "
+    "quick sense of humour. In the comments you talk like a real person texting "
+    "his mates, not customer service. You have opinions and you pick a side. You "
+    "wind people up in a friendly way when they give a soft take. Never corporate, "
+    "never an assistant.")
+
+# AI tells to scrub AFTER generation — the model ignores 'don't use —' about half
+# the time, so we also fix it mechanically. The em dash is the #1 giveaway.
+_TELL_OPENERS = re.compile(
+    r"^\s*(great question|good question|absolutely|honestly,? this|"
+    r"i (?:completely|totally) (?:agree|get)|as an ai|great point|love this|"
+    r"haha,? (?:great|love))[\s,!.]*", re.I)
+
+
+def humanize(text: str) -> str:
+    """Strip the AI fingerprints from a comment: kill em/en dashes (the #1 tell),
+    the spaced-hyphen-as-dash, and a few stock chatbot openers. Keeps it casual."""
+    t = text or ""
+    t = re.sub(r"\s*[—–]\s*", ", ", t)          # em/en dash → comma (any spacing)
+    t = re.sub(r"\s+-\s+", ", ", t)              # " - " used as a dash → comma
+    t = _TELL_OPENERS.sub("", t, count=1)        # drop one stock opener
+    t = re.sub(r",\s*,", ", ", t)                # collapse ", ,"
+    t = re.sub(r"\s+([,.!?])", r"\1", t)         # no space before punctuation
+    t = re.sub(r"\s{2,}", " ", t).strip()
+    return (t[:1].upper() + t[1:]) if t else t   # re-cap after opener removal
+
 REPLY_TOOL = {
     "type": "object",
     "properties": {
@@ -27,17 +56,19 @@ REPLY_TOOL = {
             "items": {"type": "object", "properties": {
                 "comment_id": {"type": "string"},
                 "reply": {"type": "string",
-                          "description": "≤200 chars, human, on-brand: witty or "
-                                         "curious, never corporate; ask back when "
-                                         "natural to spark a thread"},
+                          "description": "≤180 chars, sounds like a real football "
+                                         "fan texting: casual, opinionated, a bit "
+                                         "of friendly banter. NO em dash (—), no "
+                                         "stock chatbot openers. 0-2 emojis."},
                 "skip": {"type": "boolean",
                          "description": "true for spam/hate/nothing to add"}},
                 "required": ["comment_id", "reply"]},
         },
         "seed_comment": {
             "type": "string",
-            "description": "for videos with no seed yet: ONE debate question "
-                           "≤120 chars that makes people pick a side",
+            "description": "for videos with no seed yet: ONE cheeky debate question "
+                           "≤120 chars that makes people pick a side. In-voice, no "
+                           "em dash.",
         },
     },
     "required": ["replies"],
@@ -150,21 +181,36 @@ def engage(max_videos: int = 5) -> int:
         seeded = _already_answered(f"seed:{vid['external_id']}")
         if not comments and seeded:
             continue
-        prompt = (f"{skill_block}\n"
+        persona = cfg.get("community.persona", DEFAULT_PERSONA)
+        prompt = (f"{persona}\n\n{skill_block}\n"
                   f"You run the comments for our shorts channel. Video: "
                   f"\"{vid['title']}\"\n"
                   f"What's worked before:\n{insights.learnings()}\n\n"
                   f"New viewer comments (JSON):\n{json.dumps(comments, indent=1)}\n\n"
-                  + ("Also write ONE seed_comment: a debate question for this "
-                     "video that makes people pick a side.\n" if not seeded else "")
-                  + "Reply to the comments worth replying to (skip spam). "
-                    "Sound human. Call submit_replies.")
+                  + ("Also write ONE seed_comment: a cheeky debate question for "
+                     "this video that makes people pick a side.\n" if not seeded else "")
+                  + "Reply to the comments worth replying to (skip spam/hate).\n"
+                    "VOICE RULES (this is the whole point):\n"
+                    "- Talk like a real fan, not a brand. Have an opinion, take a "
+                    "side.\n"
+                    "- Light, friendly banter is good, wind them up a little when "
+                    "they give a soft take ('mate, no chance', 'respectfully that's "
+                    "a shocking shout 😄'). Keep it playful, NEVER insult who they "
+                    "are, their looks, race, etc. Punch at the take, not the person.\n"
+                    "- BANNED: the em dash (—), 'Great question', 'Absolutely', "
+                    "'As an AI', starting with their name + colon, perfect grammar. "
+                    "Use commas and full stops. Lowercase is fine.\n"
+                    "- 0-2 emojis max. Under 180 chars.\n"
+                    "Call submit_replies.")
         result = llm.call_tool("community", prompt, "submit_replies",
                                REPLY_TOOL, max_tokens=1200)
         if not result:
             continue
         for r in result.get("replies", []):
             if r.get("skip") or not r.get("reply") or not r.get("comment_id"):
+                continue
+            r["reply"] = humanize(r["reply"])    # scrub AI tells before it posts
+            if not r["reply"]:
                 continue
             try:
                 if can_post:
@@ -180,7 +226,7 @@ def engage(max_videos: int = 5) -> int:
                     continue
             _log(r["comment_id"], vid["external_id"], "reply", r["reply"])
             actions += 1
-        seed = (result.get("seed_comment") or "").strip()
+        seed = humanize(result.get("seed_comment") or "")
         if seed and not seeded:
             try:
                 if can_post:

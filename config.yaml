@@ -51,6 +51,8 @@ finder:
   language: null               # null = auto-detect, or "en", "es", ...
   cookies_from_browser: null   # if YouTube blocks a video ("confirm you're not a bot"),
                                #   set chrome | edge | firefox (CLOSE that browser first — it locks the cookie DB)
+  niche_lock: "football"       # hard gate: drop clips from another sport (boxing/UFC/etc.)
+                               #   while set. Clear it (null) to open the channel to other niches.
   max_candidates: 8            # how many clip ideas Claude returns per podcast
   clip_min_seconds: 15         # HARD platform bounds only — the AI reasons per clip: the idea
   clip_max_seconds: 90         # decides the length (tight one-liner 20s, layered story 80s)
@@ -195,6 +197,8 @@ compiler:
   max_segments: 6
   max_excerpt: 75              # hard cap per continuous source excerpt (seconds)
   min_commentary_share: 0.30   # narrator/cards fraction of runtime; below = hold back
+  cold_open: true              # open on the raw #1 moment (a few seconds) before the narrator
+  cold_open_seconds: 4         #   — the "stay to the end" open loop, top long-form retention lever
   category_id: "24"            # 24 = Entertainment (17 = Sports)
   music: true                  # continuous bed, sidechain-ducked under all speech
   music_volume: 0.30           # bed level before ducking (final loudnorm evens it out)
