@@ -55,7 +55,9 @@ finder:
                                #   while set. Clear it (null) to open the channel to other niches.
   max_candidates: 8            # how many clip ideas Claude returns per podcast
   clip_min_seconds: 15         # HARD platform bounds only — the AI reasons per clip: the idea
-  clip_max_seconds: 90         # decides the length (tight one-liner 20s, layered story 80s)
+  clip_max_seconds: 50         # Shorts hard-cap is 60s and the teaser/intro adds ~3s, so keep
+                               # source clips ≤50s (a 58s pick became 61s and got QA-blocked).
+                               # Data agrees: our winners are all 20-36s.
   auto_approve_top: 3          # for unattended/scheduled runs: auto-approve the top N candidates
   # What makes a moment "viral" — tweak to steer the AI's taste
   selection_brief: |

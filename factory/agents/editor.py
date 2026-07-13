@@ -689,9 +689,19 @@ def edit_clip(clip) -> Path:
         s = trim["stats"]
         console.print(f"  [dim]trim: {s['orig']:.1f}s → {s['trimmed']:.1f}s "
                       f"(-{s['removed']:.1f}s, {s['segments']} kept segments)[/]")
-        render_src = str(_trim_pass(source["video_path"], clip["id"], start, dur, trim))
-        render_start, render_dur = 0.0, trim["new_dur"]
-        cap_words, cap_start, cap_end = trim["new_words"], 0.0, trim["new_dur"]
+        trimmed = str(_trim_pass(source["video_path"], clip["id"], start, dur, trim))
+        # The trim pass is a best-effort optimization; it occasionally emits a
+        # broken/streamless file (a 262-byte mp4 with no audio), which then made
+        # the main render fail with "[a] matches no streams" and LOSE the clip.
+        # Validate it: only adopt the trim if it has BOTH a video and an audio
+        # stream — otherwise render the raw range untrimmed.
+        if _has_av_streams(trimmed):
+            render_src = trimmed
+            render_start, render_dur = 0.0, trim["new_dur"]
+            cap_words, cap_start, cap_end = trim["new_words"], 0.0, trim["new_dur"]
+        else:
+            console.print("  [yellow]trim output was invalid (no A/V streams) — "
+                          "rendering the untrimmed clip instead[/]")
 
     # timing helper: plan times are pre-trim; remap them onto the trimmed timeline
     tscale = (render_dur / dur) if dur > 0 else 1.0
@@ -1000,6 +1010,19 @@ def _probe_duration(path: Path) -> float:
                         "format=duration", "-of", "csv=p=0", str(path)],
                        capture_output=True, text=True)
     return float(p.stdout.strip() or 0)
+
+
+def _has_av_streams(path: str) -> bool:
+    """True only if `path` holds BOTH a video and an audio stream — a cheap guard
+    against a subprocess that 'succeeded' but wrote a streamless/corrupt file."""
+    try:
+        p = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+                            "stream=codec_type", "-of", "csv=p=0", str(path)],
+                           capture_output=True, text=True)
+        kinds = p.stdout.split()
+        return any("video" in k for k in kinds) and any("audio" in k for k in kinds)
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _qa_render(out: Path, expect_dur: float, clip_id) -> None:
