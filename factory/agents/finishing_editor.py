@@ -297,8 +297,14 @@ def review_clip(clip) -> tuple[str, list[dict]]:
     dur = _probe_duration(path)
     issues: list[dict] = []
 
+    # A broken render (streamless / zero-duration mp4) must FAIL, not slip through:
+    # a 0-duration file would otherwise skip the duration check below and 'pass'.
+    if dur < 1.0:
+        return "FLAG", [{"kind": "broken render", "sev": "critical",
+                         "msg": "file has no playable video/audio (zero duration)"}]
+
     lo = cfg.get("finder.min_seconds", 12)
-    if dur and not (lo - 2 <= dur <= 61):
+    if not (lo - 2 <= dur <= 61):
         issues.append({"kind": "duration", "sev": "critical",
                        "msg": f"{dur:.0f}s is outside the Shorts window ({lo}-60s)"})
     if chk("black"):

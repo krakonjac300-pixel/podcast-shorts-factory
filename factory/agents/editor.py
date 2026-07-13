@@ -998,6 +998,14 @@ def edit_clip(clip) -> Path:
             console.print(f"  [yellow]intro card overlay skipped:[/] "
                           f"{ex.stderr.decode(errors='ignore')[-160:]}")
 
+    # Final gate: a post-step (teaser concat / intro-card overlay) can silently
+    # emit a streamless file on exit 0, which would then be marked 'edited' and
+    # slip past QA (a 0-duration file skips the duration check). Refuse to return
+    # a broken render — raising here makes edit_all skip the clip and the produce
+    # backfill fill the slot with a good one instead.
+    if not _has_av_streams(str(out)) or _probe_duration(out) < 1.0:
+        raise RuntimeError(f"clip {clip['id']} render produced an invalid file "
+                           f"(no A/V streams or zero duration)")
     if e.get("qa", True):
         _qa_render(out, total_dur, clip["id"])
     if e.get("make_cover", True):
@@ -1088,5 +1096,7 @@ def edit_all() -> int:
         except subprocess.CalledProcessError as ex:
             console.print(f"[red]ffmpeg failed on clip {clip['id']}[/]: "
                           f"{ex.stderr.decode(errors='ignore')[-500:]}")
+        except RuntimeError as ex:               # invalid render caught by the gate
+            console.print(f"[red]clip {clip['id']} skipped:[/] {ex}")
     console.print(f"[green]✓ {n} clips rendered to output/[/]")
     return n
