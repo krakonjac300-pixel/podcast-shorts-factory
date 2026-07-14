@@ -121,19 +121,36 @@ def find(url: str) -> int:
     return n
 
 
-# While niche_lock is set, mechanically DROP candidates from another sport — the
-# Finder kept clipping the boxing guest (Whittaker: 2-9 views) despite being told
-# to stay in the football lane. Coaching wasn't enough; this is the hard gate.
+# While niche_lock is set, mechanically DROP candidates that clearly belong to a
+# DIFFERENT topic — the Finder kept clipping the boxing guest (Whittaker: 2-9
+# views) despite being told to stay in lane. Coaching wasn't enough; this is the
+# hard gate. Each niche has an OFF list (other-topic red flags) + a KEEP lexicon
+# (this-niche terms); a clip is dropped only if it hits OFF and misses KEEP.
 _OFF_NICHE = {
     "football": re.compile(
         r"\b(boxing|boxer|heavyweight|cruiserweight|welterweight|flyweight|"
         r"knockout|\bko\b|ufc|mma|octagon|sparring|ringwalk|ring walk|"
         r"title fight|undisputed|prizefight|jab|southpaw)\b", re.I),
+    # money channel: drop clips that are really about sport/football or pure
+    # health/relationships with no money angle (DOAC etc. mix topics)
+    "money": re.compile(
+        r"\b(football|soccer|penalty|midfield|boxing|ufc|world cup|premier "
+        r"league|goalkeeper|striker|workout|reps|calories|protein)\b", re.I),
 }
-_FOOTBALL = re.compile(
-    r"\b(football|soccer|goal|keeper|striker|midfield|defender|winger|penalty|"
-    r"premier league|world cup|england|pitch|manager|transfer|squad|dressing "
-    r"room|gaffer|nations league|champions league|var|offside|clean sheet)\b", re.I)
+_NICHE_KEEP = {
+    "football": re.compile(
+        r"\b(football|soccer|goal|keeper|striker|midfield|defender|winger|"
+        r"penalty|premier league|world cup|england|pitch|manager|transfer|squad|"
+        r"dressing room|gaffer|nations league|champions league|var|offside|"
+        r"clean sheet)\b", re.I),
+    "money": re.compile(
+        r"\b(money|cash|dollar|debt|income|salary|invest|investing|business|"
+        r"entrepreneur|millionaire|billionaire|rich|wealth|wealthy|broke|budget|"
+        r"savings?|credit|loan|mortgage|profit|revenue|startup|finance|financial|"
+        r"bank|retire|retirement|portfolio|stocks?|crypto|side hustle|net worth|"
+        r"bankrupt|paycheck|expenses?|afford|price|cost|\$|percent|interest)\b",
+        re.I),
+}
 
 
 def _niche_ok(clip: dict) -> bool:
@@ -141,12 +158,12 @@ def _niche_ok(clip: dict) -> bool:
     lock = cfg.get("finder.niche_lock")
     if not lock:
         return True
-    off = _OFF_NICHE.get(lock)
-    if not off:
+    off, keep = _OFF_NICHE.get(lock), _NICHE_KEEP.get(lock)
+    if not off or not keep:
         return True
     text = f"{clip.get('title', '')} {clip.get('reason', '')} " \
            f"{clip.get('caption', '')}"
-    if off.search(text) and not _FOOTBALL.search(text):
+    if off.search(text) and not keep.search(text):
         console.print(f"  [yellow]niche-lock: dropped off-{lock} clip "
                       f"'{str(clip.get('title', ''))[:40]}'[/]")
         return False

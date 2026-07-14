@@ -72,8 +72,8 @@ PLAN_SCHEMA = {
                                "description": "3-6 word title card for this segment (no "
                                               "numbering — we add the countdown #)"},
                 "narration": {"type": "string",
-                              "description": "narrator script BEFORE this clip: 1-2 PUNCHY "
-                                             "spoken sentences, ≤20 words. React to the "
+                              "description": "narrator script BEFORE this clip: 2 PUNCHY "
+                                             "spoken sentences, ~30 words. React to the "
                                              "previous moment, set up this one with a take. "
                                              "Never describe — argue."}},
                 "required": ["clip_id", "card_title", "narration"]},
@@ -435,9 +435,10 @@ RULES — these keep the episode monetizable AND watchable:
 - RETENTION CONTRACT: the cold_open makes ONE concrete PROMISE about #1 ("by the
   end you'll hear X — and whether he's right"); the outro DELIVERS it and then
   OVERDELIVERS with a bonus receipt/stat/take the promise didn't include.
-- Narration is 1-2 PUNCHY sentences per segment (≤20 words) — react, disagree,
+- Narration is 2-3 PUNCHY sentences per segment (~40 words) — react, disagree,
   connect; never describe. Every card is a spot viewers can leave, so keep them
-  SHORT and get to the clip fast. Punchy and opinionated.
+  TIGHT and get to the clip fast, but say something real — this narration is the
+  MONETIZABLE commentary and must stay clearly above 30% of runtime. Opinionated.
 - episode_title: NAME + angle/question, ≤70 chars, no clickbait lies.
 - music_mood + thumbnail_text (2-4 ALL-CAPS words) are required.
 Call submit_episode."""
