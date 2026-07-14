@@ -175,6 +175,31 @@ def cmd_produce(force: bool = False):
     → top N clips rendered and left as 'edited' for staggered posting.
     force=True bypasses the catch-up guard (used to deliberately pre-load a day
     that's already partly scheduled — new clips roll into the next free slots)."""
+    # SINGLE-INSTANCE LOCK — the #1 cause of the "produce dies mid-transcription"
+    # failures (2026-07-10..15) was TWO runs colliding: the 6AM/startup task, the
+    # logon catch-up, and manual triggers could all fire minutes apart, then fight
+    # over the same workdir files and kill each other. A stale-tolerant lockfile
+    # lets exactly one produce run at a time; extras exit cleanly.
+    import os
+    import time
+    from factory.config import ROOT
+    lock = ROOT / "workdir" / ".produce.lock"
+    lock.parent.mkdir(exist_ok=True)
+    if lock.exists() and time.time() - lock.stat().st_mtime < 1800:
+        console.print("[yellow]produce: another run is already in progress — "
+                      "exiting to avoid a collision.[/]")
+        return
+    try:
+        lock.write_text(str(os.getpid()))
+    except OSError:
+        pass
+    try:
+        _run_produce(force)
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def _run_produce(force: bool):
     # Catch-up guard: PSF-Produce also fires at machine startup (the PC is often
     # off at 6AM and Windows' missed-run catch-up proved unreliable, 2026-07-10/11).
     # If today's posts are already locked in server-side, this run is a no-op —
