@@ -23,7 +23,10 @@ Editor and Uploader run. Nothing is posted without your `approve` step.
    word-level timestamps (faster-whisper), and asks Claude to score the most clip-worthy
    moments. Candidates land in a local SQLite DB for your review.
 2. **Editor** (`factory/agents/editor.py`) — cuts each approved clip with ffmpeg, reframes to
-   vertical 9:16, burns in animated captions, and mixes background music.
+   vertical 9:16, burns in animated captions, and mixes background music. Its planner also
+   maps the clip line-by-line (scene-mapping skill): crucial lines get an AI-designed,
+   on-brand animated scene (free Pollinations image + ffmpeg zoom, `factory/utils/design_scenes.py`);
+   breather lines stay pure subtitles so the viewer rests on the speaker.
 3. **Uploader** (`factory/agents/uploader.py`) — publishes to YouTube Shorts (official API),
    and prepares TikTok / Instagram Reels (see platform notes below).
 4. **Manager** (`factory/agents/manager.py`) — pulls engagement metrics, figures out which

@@ -40,7 +40,7 @@ models:
 # prompts. Add/remove names freely; run `python run.py skills` to list all.
 skills:
   finder:   [editorial-standards, editor-craft, short-form-strategy, hooks, storytelling, marketing-psychology, viral-patterns, engagement-tactics, platform-algorithms, series-and-loops, growth-strategy, youtube-monetization]
-  editor:   [editorial-standards, editor-craft, video-editing, hooks, storytelling, sound-design, visual-effects, captions-craft, pacing, trending-audio, thumbnail-design, series-and-loops, growth-strategy, youtube-monetization]
+  editor:   [editorial-standards, editor-craft, video-editing, hooks, storytelling, sound-design, visual-effects, scene-mapping, captions-craft, pacing, trending-audio, thumbnail-design, series-and-loops, growth-strategy, youtube-monetization]
   uploader: [editorial-standards, copywriting, titles-thumbnails, hashtags-seo, marketing-psychology, thumbnail-design, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
   community: [editorial-standards, engagement-tactics, copywriting, marketing-psychology, platform-algorithms]
   manager:  [editorial-standards, editor-craft, analytics-optimization, marketing-psychology, short-form-strategy, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
@@ -105,6 +105,15 @@ editor:
   broll: true                  # overlay Pexels stock photos at the planner's b-roll moments
   max_broll: 2                 # at most this many b-roll images per clip (needs PEXELS_API_KEY in .env)
   broll_video: true            # prefer moving stock VIDEO b-roll (Pexels) over still photos
+  # Designed scenes (scene-mapping skill): the planner maps every clip line-by-line
+  # into 'visual' (crucial line → AI-designed on-brand scene, animated with a slow
+  # zoom) and 'breather' (pure subtitles — NOTHING else on screen) segments.
+  # Designs are generated free via Pollinations (no key), cached, and fall back to
+  # stock b-roll if generation fails. Breathers also suppress memes/b-roll there.
+  design_scenes: true
+  max_design_scenes: 3         # at most this many designed visuals per clip
+  brand_style: "clean minimal flat illustration, bold simple shapes, dramatic lighting, editorial sports-graphic look"
+  brand_colors: ["white", "deep green", "black"]   # matches the channel logo set in brand/
   track_face_per_shot: true    # re-center the crop on the face at every camera cut
   speaker_cuts: true           # 2-person shots: alternate host-cam / guest-cam crops
   camera_cuts: true            # fake-multicam: hard zoom cuts (wide<->close) at sentence ends + whoosh

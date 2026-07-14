@@ -15,7 +15,7 @@ from rich.console import Console
 
 from .. import db, notify
 from ..config import ROOT, WORK, cfg
-from ..utils import broll, captions, remotion_intro, trimmer, voice
+from ..utils import broll, captions, design_scenes, remotion_intro, trimmer, voice
 from . import planner
 
 console = Console()
@@ -788,6 +788,51 @@ def edit_clip(clip) -> Path:
     inputs = ["-i", render_src]
     idx = 1
     vparts, vlabel = [f"[0:v]{vf}[v0]"], "v0"
+
+    # Breather discipline (scene-mapping skill): segments the planner marked
+    # 'breather' stay PURE subtitles — no b-roll, no memes, no design scenes.
+    # Rest is a retention tool; anything on screen there fights the speaker.
+    breathers = [(float(s.get("start", 0)) * tscale, float(s.get("end", 0)) * tscale)
+                 for s in plan.get("scene_map", []) if s.get("role") == "breather"]
+
+    def _in_breather(t: float, span: float = 2.6) -> bool:
+        return any(bs < t + span and t < be for bs, be in breathers)
+
+    # 1d0. designed scenes (scene_map 'visual' segments) — an AI-designed,
+    #      on-brand still animated with a slow zoom, overlaid where the planner
+    #      says the viewer NEEDS a visual to understand the line. Falls back to
+    #      generic stock b-roll below when generation fails.
+    covered: list[float] = []            # visual times already served, so stock
+    if design_scenes.available():        # b-roll doesn't double-cover the line
+        bh = int(h * 0.62) // 2 * 2
+        dused = 0
+        for seg in plan.get("scene_map", []):
+            if dused >= int(e.get("max_design_scenes", 3)):
+                break
+            if seg.get("role") != "visual":
+                continue
+            t = float(seg.get("start", 0)) * tscale
+            if not 2.5 < t < render_dur - 3.0:      # never cover hook or ending
+                continue
+            vid = design_scenes.fetch(seg.get("design_brief", ""), w, bh,
+                                      seg.get("overlay_text", ""))
+            if not vid:
+                continue
+            inputs += ["-ss", "0", "-t", "3.2", "-an", "-i", str(vid)]
+            vparts.append(
+                f"[{idx}:v]format=yuva420p,"
+                f"fade=t=in:st=0:d=0.3:alpha=1,fade=t=out:st=2.6:d=0.4:alpha=1,"
+                f"setpts=PTS+{t:.2f}/TB[d{dused}]")
+            vparts.append(
+                f"[{vlabel}][d{dused}]overlay=0:(H-h)/2:"
+                f"enable='between(t\\,{t:.2f}\\,{t + 3.0:.2f})'[v{200 + dused}]")
+            vlabel = f"v{200 + dused}"
+            covered.append(t)
+            idx += 1
+            dused += 1
+        if dused:
+            console.print(f"  [dim]design scenes: {dused} branded visual(s) overlaid[/]")
+
     if e.get("broll", True) and broll.available():
         bh = int(h * 0.62) // 2 * 2
         used = 0
@@ -797,6 +842,10 @@ def edit_clip(clip) -> Path:
             t = float(item.get("time", 0)) * tscale
             if not 2.5 < t < render_dur - 3.0:      # never cover hook or ending
                 continue
+            if _in_breather(t):                     # breathers stay captions-only
+                continue
+            if any(abs(t - c) < 3.5 for c in covered):   # a design scene is
+                continue                                  # already on this line
             suggestion = item.get("suggestion", "")
             vid = broll.fetch_video(suggestion) if e.get("broll_video", True) else None
             img = None if vid else broll.fetch(suggestion)
@@ -831,6 +880,8 @@ def edit_clip(clip) -> Path:
                 break
             t = float(item.get("time", 0)) * tscale
             if not 2.5 < t < render_dur - 3.0:
+                continue
+            if _in_breather(t, span=2.2):           # breathers stay captions-only
                 continue
             m = _resolve_meme(item.get("emotion", ""), mdir)
             if not m:

@@ -90,6 +90,34 @@ PLAN_TOOL = {
                 "description": "0-2 full-width meme/reaction inserts at emotional "
                                "peaks (burst-sequence style). Less is more.",
             },
+            "scene_map": {
+                "type": "array",
+                "items": {"type": "object", "properties": {
+                    "start": {"type": "number"},
+                    "end": {"type": "number"},
+                    "role": {"type": "string", "enum": ["visual", "breather"],
+                             "description": "visual = this line is crucial, it gets "
+                             "a designed scene; breather = pure subtitles so the "
+                             "viewer rests and reconnects with the speaker (NOTHING "
+                             "else may appear on screen during a breather)"},
+                    "design_brief": {"type": "string",
+                                     "description": "visual segments only: a CONCRETE "
+                                     "image that literally depicts the line (e.g. "
+                                     "'person stepping out of a line of identical "
+                                     "grey figures'). Describe the IMAGE only — no "
+                                     "text/words in it. Never abstract concepts."},
+                    "overlay_text": {"type": "string",
+                                     "description": "visual segments only: 1-4 words "
+                                     "taken from the line itself, burned crisply over "
+                                     "the design (e.g. 'EXTRAORDINARY')."}},
+                    "required": ["start", "end", "role"]},
+                "description": "line-by-line edit map covering the WHOLE clip: "
+                               "hook = breather (viewer locks onto the speaker), "
+                               "then alternate visual scenes on the value lines "
+                               "with breathers between them; a list in the script "
+                               "is ONE visual showing all items; the final payoff "
+                               "line gets a visual with the lesson written out.",
+            },
         },
         "required": ["hook_text", "music_mood", "emphasis_words"],
     },
@@ -109,7 +137,8 @@ def _default_plan(clip) -> dict:
     return {"hook_text": _short_hook(clip["title"]), "cover_text": clip["title"],
             "music_mood": "none", "emphasis_words": [],
             "sfx_cues": [], "broll": [], "transitions": [],
-            "narrator_intro": "", "teaser_times": [], "memes": []}
+            "narrator_intro": "", "teaser_times": [], "memes": [],
+            "scene_map": []}
 
 
 def plan_clip(clip, words: list[dict]) -> dict:
@@ -151,11 +180,16 @@ positive reveal). A sound where nothing happens is worse than no sound — when 
 doubt, leave it out. Transitions only at real topic shifts, and pick the ONE key
 word per important line for emphasis. Loop rate is a ranking signal: if the clip's
 last line relates to its first, note it in the hook design so the ending flows
-straight back into the opening. Call submit_edit_plan."""
+straight back into the opening.
+scene_map: go through the transcript LINE BY LINE asking one question — is this
+line crucial for the viewer to understand? Crucial → 'visual' segment with a
+concrete design_brief; everything else → 'breather' (pure subtitles, the viewer
+rests on the speaker). The hook is always a breather. 2-4 visual segments per
+clip, never back-to-back without a breather between clusters. Call submit_edit_plan."""
 
     try:
         result = llm.call_tool("editor", prompt, "submit_edit_plan",
-                               PLAN_TOOL["input_schema"], max_tokens=1500)
+                               PLAN_TOOL["input_schema"], max_tokens=2000)
         if result:
             plan = _default_plan(clip)
             plan.update(result)
@@ -185,4 +219,10 @@ def render_notes(clip, plan: dict) -> str:
         lines.append("\n## Transitions")
         for t in plan["transitions"]:
             lines.append(f"- {t['time']:.1f}s — {t['type']}")
+    if plan.get("scene_map"):
+        lines.append("\n## Scene map (visual = designed scene, breather = pure subtitles)")
+        for s in plan["scene_map"]:
+            what = s.get("design_brief", "") if s.get("role") == "visual" else "rest on speaker"
+            lines.append(f"- {s.get('start', 0):.1f}–{s.get('end', 0):.1f}s "
+                         f"[{s.get('role', '?')}] {what}")
     return "\n".join(lines) + "\n"
