@@ -170,9 +170,11 @@ def cmd_daily():
     cmd_auto(url, assume_yes=True)
 
 
-def cmd_produce():
+def cmd_produce(force: bool = False):
     """Make the day's clips into the post queue (no posting). Scout → fresh video
-    → top N clips rendered and left as 'edited' for staggered posting."""
+    → top N clips rendered and left as 'edited' for staggered posting.
+    force=True bypasses the catch-up guard (used to deliberately pre-load a day
+    that's already partly scheduled — new clips roll into the next free slots)."""
     # Catch-up guard: PSF-Produce also fires at machine startup (the PC is often
     # off at 6AM and Windows' missed-run catch-up proved unreliable, 2026-07-10/11).
     # If today's posts are already locked in server-side, this run is a no-op —
@@ -181,7 +183,7 @@ def cmd_produce():
     from factory.agents.uploader import _taken_slots
     today = [t for t in _taken_slots()
              if t.date() == datetime.now().astimezone().date()]
-    if len(today) >= 2:
+    if not force and len(today) >= 2:
         console.print(f"[dim]produce: {len(today)} post(s) already scheduled for "
                       f"today — day covered, skipping (catch-up guard).[/]")
         return
@@ -279,7 +281,7 @@ def main(argv: list[str]):
     elif cmd == "daily":
         cmd_daily()
     elif cmd == "produce":
-        cmd_produce()
+        cmd_produce(force="--force" in rest)
     elif cmd == "comments":
         community.engage()
     elif cmd == "digest":

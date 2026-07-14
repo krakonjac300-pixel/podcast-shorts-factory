@@ -358,8 +358,12 @@ def _write_learnings(rows: list[dict]):
               "## Experiment for the next clip\n(ONE concrete thing to try differently, "
               "so every day teaches us something new)\n"
               "Be specific — cite the data. No filler.")
-    text = llm.call_text("manager", prompt, max_tokens=1500)
-    if not text or not text.strip():
+    text = _clean_learnings(llm.call_text("manager", prompt, max_tokens=1500))
+    if not text:
+        # Free models sometimes emit raw chain-of-thought instead of the asked-for
+        # sections; never overwrite learnings.md (every agent reads it) with that.
+        console.print("[yellow]Manager: learnings output had no usable sections "
+                      "(raw reasoning?) — keeping the previous learnings.[/]")
         return
     out = ROOT / cfg.get("manager.learnings_file", "learnings.md")
     # Team-meeting doctrine lives between PINNED markers and survives every
@@ -370,8 +374,25 @@ def _write_learnings(rows: list[dict]):
         old = out.read_text(encoding="utf-8")
         if pin_start in old and pin_end in old:
             pinned = old[old.index(pin_start):old.index(pin_end) + len(pin_end)] + "\n\n"
-    out.write_text(pinned + text.strip() + "\n", encoding="utf-8")
+    out.write_text(pinned + text + "\n", encoding="utf-8")
     console.print(f"[green]✓ Updated {out.name}[/] — every agent reads this next run.")
+
+
+def _clean_learnings(text: str) -> str:
+    """Keep only the structured directives the model was asked to write. Free
+    models sometimes return raw chain-of-thought ('Let me analyze...') or wrap it
+    in <think> tags instead of the answer; that must never land in learnings.md,
+    which is injected into EVERY agent's prompt. Returns '' if the output has no
+    usable '## For the' section, so the caller keeps the previous good file."""
+    import re
+    t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S | re.I).strip()
+    i = t.find("## For the")
+    if i == -1:                                    # no expected structure at all
+        return ""
+    t = t[i:]
+    # trim any trailing raw-reasoning tail the model appended after the sections
+    tail = re.search(r"\n(?:Let me |First,|Key observations|In summary)\b", t)
+    return (t[:tail.start()] if tail else t).strip()
 
 
 def _ypp_progress() -> dict:

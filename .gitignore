@@ -25,3 +25,4 @@ comment_drafts.md
 remotion/node_modules/
 remotion/out/
 .tmp/
+graphify-out/

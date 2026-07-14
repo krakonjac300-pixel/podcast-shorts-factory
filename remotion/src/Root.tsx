@@ -2,6 +2,7 @@ import "./index.css";
 import { Composition, CalculateMetadataFunction } from "remotion";
 import { Captions, CaptionsProps } from "./Captions";
 import { IntroHook } from "./IntroHook";
+import { AgentsExplainer } from "./AgentsExplainer";
 
 const FPS = 30;
 
@@ -55,6 +56,14 @@ export const RemotionRoot: React.FC = () => {
           fontSize: 118,
           accentWords: ["WRONG"],
         }}
+      />
+      <Composition
+        id="AgentsExplainer"
+        component={AgentsExplainer}
+        durationInFrames={600}
+        fps={FPS}
+        width={1080}
+        height={1920}
       />
     </>
   );
