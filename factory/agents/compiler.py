@@ -72,8 +72,8 @@ PLAN_SCHEMA = {
                                "description": "3-6 word title card for this segment (no "
                                               "numbering — we add the countdown #)"},
                 "narration": {"type": "string",
-                              "description": "narrator script BEFORE this clip: 2-3 PUNCHY "
-                                             "spoken sentences, ≤35 words. React to the "
+                              "description": "narrator script BEFORE this clip: 1-2 PUNCHY "
+                                             "spoken sentences, ≤20 words. React to the "
                                              "previous moment, set up this one with a take. "
                                              "Never describe — argue."}},
                 "required": ["clip_id", "card_title", "narration"]},
@@ -203,6 +203,27 @@ def _sfx_file(kind: str) -> Path | None:
     return hits[0] if hits else None
 
 
+def _burn_hook(path: Path, text: str, dur: float) -> None:
+    """Overlay the episode hook as big text over the cold-open footage, so the
+    open is raw drama + a promise — never a static talking slate (the drop-zone)."""
+    out = path.with_name(path.stem + "_hk.mp4")
+    font = _font()
+    lines = _wrap(text.upper(), 20)[:2]
+    draws = []
+    for i, ln in enumerate(lines):
+        draws.append(f"drawtext=fontfile='{font}':text='{_esc(ln)}':fontsize=76"
+                     f":fontcolor=white:borderw=6:bordercolor=black"
+                     f":box=1:boxcolor=black@0.35:boxborderw=14"
+                     f":x=(w-tw)/2:y={110 + i * 96}")
+    try:
+        _run(["ffmpeg", "-y", "-i", str(path), "-vf", ",".join(draws),
+              "-c:a", "copy", "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+              str(out)])
+        _replace(out, path)
+    except Exception:  # noqa: BLE001 - hook text is a bonus, keep the raw cold open
+        out.unlink(missing_ok=True)
+
+
 def _card(out: Path, vo_text: str, title: str, sub: str = "",
           bg_frame: Path | None = None) -> float:
     """Narrator card v2 — built to NOT be boring: blurred slow-zooming footage
@@ -213,7 +234,7 @@ def _card(out: Path, vo_text: str, title: str, sub: str = "",
     vdur = voice.synth(vo_text, vo, cfg.get("compiler.voice",
                                             cfg.get("editor.voice",
                                                     "en-US-ChristopherNeural")),
-                       rate="+6%")
+                       rate="+13%")           # snappier VO = shorter cards = less bleed
     if vdur <= 0:
         return 0.0
     dur = vdur + 0.9
@@ -414,9 +435,9 @@ RULES — these keep the episode monetizable AND watchable:
 - RETENTION CONTRACT: the cold_open makes ONE concrete PROMISE about #1 ("by the
   end you'll hear X — and whether he's right"); the outro DELIVERS it and then
   OVERDELIVERS with a bonus receipt/stat/take the promise didn't include.
-- Narration is 2-3 PUNCHY sentences per segment (≤35 words) — react, disagree,
-  connect; never describe. Thin narration risks demonetization; bloated
-  narration bores. Punchy and opinionated.
+- Narration is 1-2 PUNCHY sentences per segment (≤20 words) — react, disagree,
+  connect; never describe. Every card is a spot viewers can leave, so keep them
+  SHORT and get to the clip fast. Punchy and opinionated.
 - episode_title: NAME + angle/question, ≤70 chars, no clickbait lies.
 - music_mood + thumbnail_text (2-4 ALL-CAPS words) are required.
 Call submit_episode."""
@@ -470,24 +491,28 @@ def compile_episode(upload: bool = True, force: bool = False) -> Path | None:
     hero_bg = _grab_frame(db.get_source(hero["source_id"])["video_path"],
                           float(hero["start"]) + 1.0, WORK / f"ep{stamp}_hero.jpg")
 
-    # COLD OPEN (biggest long-form retention lever): don't open on a talking
-    # narrator card — open on the raw #1 moment itself, a few seconds of real
-    # footage, so the viewer sees the drama before deciding to stay. It's a TEASE:
-    # #1 pays it off in full at the end (an open loop).
+    # COLD OPEN — the whole ballgame for long-form retention. Data (2026-07-15):
+    # the old narrator-card open lost 43% of viewers in the first 17s. So open on
+    # the raw #1 moment itself with the HOOK burned on as text (no talking slate
+    # to bail on), then go straight into the countdown. The spoken "promise" card
+    # is OFF by default now (compiler.intro_card).
     if cfg.get("compiler.cold_open", True):
         co = _segment(hero, WORK / f"ep{stamp}_cold.mp4",
-                      float(cfg.get("compiler.cold_open_seconds", 4)))
+                      float(cfg.get("compiler.cold_open_seconds", 7)))
         if co > 0:
+            _burn_hook(WORK / f"ep{stamp}_cold.mp4",
+                       plan.get("hook_text") or plan["episode_title"], co)
             parts.append({"path": WORK / f"ep{stamp}_cold.mp4", "dur": co,
-                          "kind": "clip", "chapter": None})
+                          "kind": "clip", "chapter": "Cold open"})
 
-    d = _card(WORK / f"ep{stamp}_open.mp4", plan["cold_open"],
-              plan["episode_title"],
-              f"{len(segments)} moments. one verdict. stay for #1",
-              bg_frame=hero_bg)
-    if d > 0:
-        parts.append({"path": WORK / f"ep{stamp}_open.mp4", "dur": d,
-                      "kind": "card", "chapter": "The promise"})
+    if cfg.get("compiler.intro_card", False):
+        d = _card(WORK / f"ep{stamp}_open.mp4", plan["cold_open"],
+                  plan["episode_title"],
+                  f"{len(segments)} moments. one verdict. stay for #1",
+                  bg_frame=hero_bg)
+        if d > 0:
+            parts.append({"path": WORK / f"ep{stamp}_open.mp4", "dur": d,
+                          "kind": "card", "chapter": "The promise"})
 
     used_sources = []
     for i, seg in enumerate(segments):

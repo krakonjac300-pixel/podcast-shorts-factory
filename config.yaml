@@ -61,6 +61,12 @@ finder:
   auto_approve_top: 3          # for unattended/scheduled runs: auto-approve the top N candidates
   # What makes a moment "viral" — tweak to steer the AI's taste
   selection_brief: |
+    #1 DATA SIGNAL (football channel, 2026-07-15): our BIGGEST hit by far is
+    Trent Alexander-Arnold's "What Have I Done Wrong?" — 21,780 views, 104%
+    watched. That is a STAR being emotionally VULNERABLE/RAW, not just angry.
+    So the top target = a HOUSEHOLD-NAME player (Keane, Bellingham, Trent,
+    Neville, Rooney…) in a moment of raw emotion — vulnerability, a confession,
+    hurt, a fear, being called out. Emotion + a famous face beats generic drama.
     DATA-BACKED PRIORITY (from our real channel: the ONE clip that got 7.5x the
     views was high-drama/action "Street Racer baits cops, 1000HP"; every
     history/science-fact/abstract clip flopped at 1-2 views). So:
@@ -199,8 +205,10 @@ compiler:
   max_segments: 6
   max_excerpt: 75              # hard cap per continuous source excerpt (seconds)
   min_commentary_share: 0.30   # narrator/cards fraction of runtime; below = hold back
-  cold_open: true              # open on the raw #1 moment (a few seconds) before the narrator
-  cold_open_seconds: 4         #   — the "stay to the end" open loop, top long-form retention lever
+  cold_open: true              # open on the raw #1 moment before anything else — retention data
+  cold_open_seconds: 7         #   (2026-07-15) showed 43% bail in 17s on the OLD narrator-card open
+  intro_card: false            # the spoken "promise" slate was the #1 drop-zone → OFF; the cold
+                               #   open now carries the hook as burned TEXT over real footage
   category_id: "24"            # 24 = Entertainment (17 = Sports)
   music: true                  # continuous bed, sidechain-ducked under all speech
   music_volume: 0.30           # bed level before ducking (final loudnorm evens it out)
