@@ -87,13 +87,15 @@ def _pool(max_rows: int = 30) -> list[dict]:
     """Moments a montage can reuse: any REGULAR scored clip whose source video
     is still on disk. Already-posted moments are fine — the montage is a new
     transformative recombination, and micro-slices don't compete with the post."""
-    with db.conn() as c:
+    since = cfg.get("scheduler.content_since", "")   # niche-flip watershed:
+    with db.conn() as c:                             # old-era moments stay out
         rows = c.execute("""
             SELECT cl.id, cl.title, cl.reason, cl.score, cl.start, cl.end,
                    cl.source_id, s.video_path, s.channel
             FROM clips cl JOIN sources s ON s.id = cl.source_id
             WHERE cl.kind IS NULL AND cl.status != 'flagged'
-            ORDER BY cl.score DESC LIMIT ?""", (max_rows,)).fetchall()
+              AND cl.created_at >= ?
+            ORDER BY cl.score DESC LIMIT ?""", (since, max_rows)).fetchall()
     return [dict(r) for r in rows if Path(r["video_path"] or "").exists()]
 
 
