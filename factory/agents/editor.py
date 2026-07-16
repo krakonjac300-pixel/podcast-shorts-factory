@@ -736,13 +736,17 @@ def edit_clip(clip) -> Path:
     if mode in ("smart", "face"):
         cx, sw, sh, nfaces, face_frac = _face_center(render_src)
         static_vf = _vf_face(w, h, sw, sh, cx)
-        if mode == "smart" and cx is not None and face_frac < 0.02:
-            # tiny face = screen-share / PiP layout (host reacting to a video):
-            # punching in would crop a random slice of the collage — show it all
+        if mode == "smart" and cx is not None and face_frac < 0.02 and nfaces < 2:
+            # ONE tiny face = screen-share / PiP layout (host reacting to a
+            # video): punching in would crop a random slice of the collage.
+            # Multiple tiny faces is NOT a collage — it's a wide multi-person
+            # podcast shot (The Overlap's 4-man table: faces ~1.5% of frame) and
+            # it must be punched, not blur-fitted; that mistake produced the
+            # letterboxed 'mess' viewers roasted (2026-07-16).
             vf = _vf_vertical(w, h, bg)
             static_vf = None
-            console.print(f"  [dim]reframe: face only {face_frac * 100:.1f}% of frame "
-                          f"→ screen layout, full-frame fit[/]")
+            console.print(f"  [dim]reframe: single face only {face_frac * 100:.1f}% "
+                          f"of frame → screen layout, full-frame fit[/]")
         elif mode == "smart" and nfaces >= 2:
             # ALWAYS punch in on people. The old fallback for multi-face shots was
             # full-frame blur-fit — a tiny letterboxed strip in a blur sandwich —

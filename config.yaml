@@ -102,7 +102,10 @@ editor:
   motion_amount: 0.10          # how far it zooms over the clip (0.10 = 10%); 0 or motion_zoom:false to disable
   punch_zoom: true             # quick zoom PUNCH when an emphasis word is spoken (retention spike)
   flash_transitions: true      # white-flash accents at the planner's topic shifts (hard-cut feel)
-  broll: true                  # overlay Pexels stock photos at the planner's b-roll moments
+  broll: false                 # OFF (2026-07-16): random stock/AI-artifact images over talking
+                               # heads read as spam ("what a mess" comments) — the Manager's own
+                               # directive says zero b-roll on talking-head clips. Re-enable only
+                               # for content that shows things (tactics, places, products).
   max_broll: 2                 # at most this many b-roll images per clip (needs PEXELS_API_KEY in .env)
   broll_video: true            # prefer moving stock VIDEO b-roll (Pexels) over still photos
   # Designed scenes (scene-mapping skill): the planner maps every clip line-by-line
