@@ -497,6 +497,9 @@ def _motion(w: int, h: int, dur: float, amount: float, punches=(),
             if level:
                 expr += (f"+{level}*gte(ld(0)\\,{bounds[i]:.2f})"
                          f"*lt(ld(0)\\,{bounds[i + 1]:.2f})")
+        for t in cuts:                       # snap transient AT each cut so the
+            if 0.3 < t < d - 0.3:            # shot change HITS, not drifts
+                expr += f"+0.06*max(0\\,1-abs(ld(0)-{t:.2f})/0.12)"
         z = f"st(0\\,if(isnan(t)\\,0\\,t));min(0.45\\,{expr})"
     return (f"crop=w='iw-iw*({z})':h='ih-ih*({z})':"
             f"x='(iw-ow)/2':y='(ih-oh)/2',scale={w}:{h}")
@@ -741,14 +744,29 @@ def edit_clip(clip) -> Path:
             console.print(f"  [dim]reframe: face only {face_frac * 100:.1f}% of frame "
                           f"→ screen layout, full-frame fit[/]")
         elif mode == "smart" and nfaces >= 2:
+            # ALWAYS punch in on people. The old fallback for multi-face shots was
+            # full-frame blur-fit — a tiny letterboxed strip in a blur sandwich —
+            # and viewers roasted it in the comments ("what a mess of a clip",
+            # "who edited this bs", 2026-07-16) on our two most-served videos.
+            # Chain: host/guest alternation → largest-face-per-shot punch →
+            # static face punch. Blur-fit survives ONLY for screen-share layouts
+            # (handled above via face_frac) or when no face is ever detected.
             seg_cx = (_segment_face_cxs(render_src, bounds, two_face=True)
                       if e.get("speaker_cuts", True) and cuts else None)
+            how = "host/guest camera alternation"
+            if not seg_cx and cuts:
+                seg_cx = _segment_face_cxs(render_src, bounds)
+                how = "largest-face punch per shot"
             vf = _vf_face_steps(w, h, sw, sh, seg_cx, bounds) if seg_cx else None
             if vf:
-                console.print(f"  [dim]reframe: 2 faces → host/guest camera "
-                              f"alternation across {len(bounds) - 1} shots[/]")
+                console.print(f"  [dim]reframe: {nfaces} faces → {how} "
+                              f"across {len(bounds) - 1} shots[/]")
+            elif static_vf:
+                vf = static_vf
+                console.print(f"  [dim]reframe: {nfaces} faces → static face "
+                              f"punch-in (per-shot tracking unavailable)[/]")
             else:
-                vf = _vf_vertical(w, h, bg)  # fallback: show everyone
+                vf = _vf_vertical(w, h, bg)  # no face found at all: show frame
                 static_vf = None
                 console.print(f"  [dim]reframe: {nfaces} faces → full-frame fit[/]")
         else:
@@ -969,10 +987,13 @@ def edit_clip(clip) -> Path:
                     continue
                 at = float(c.get("time", 0)) * tscale
             planner_cues.append((at, c.get("type", ""), sfx_vol))
-        # camera-cut whooshes are already render-time — quieter, read as texture
-        cut_cues = [(t, "swoosh", sfx_vol * 0.45) for t in cuts]
+        # emphasis punch-ins get a bass IMPACT so the zoom lands with weight —
+        # viewers called the old near-silent edit out ("what a mess", 2026-07-16)
+        planner_cues += [(t, "impact", sfx_vol * 0.55) for t in punches]
+        # camera-cut whooshes at render-time — now actually audible, not texture
+        cut_cues = [(t, "swoosh", sfx_vol * 0.65) for t in cuts]
         cue_list = _dedupe_sfx(planner_cues, cut_cues, render_dur,
-                               cap=e.get("sfx_max", 6))
+                               cap=e.get("sfx_max", 8))
         for i, (t, kind, vol) in enumerate(cue_list):
             f = _resolve_sfx(kind, sfx_dir)
             if not f:
