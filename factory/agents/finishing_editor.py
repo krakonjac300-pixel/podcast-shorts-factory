@@ -173,10 +173,7 @@ def _check_face_edge(path: Path, samples: int = 24) -> list[dict]:
     on an absolute count — a 40s clip with one bad 3s shot must still flag."""
     try:
         import cv2
-        cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-        if cascade.empty():
-            return []
+        from ..utils import faces as faces_util
         cap = cv2.VideoCapture(str(path))
         if not cap.isOpened():
             return []
@@ -191,9 +188,8 @@ def _check_face_edge(path: Path, samples: int = 24) -> list[dict]:
         ok, frame = cap.read()
         if not ok:
             continue
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = cascade.detectMultiScale(gray, 1.1, 5, minSize=(70, 70))
-        if not len(faces):
+        faces = [f for f in faces_util.detect(frame) if f[2] >= 70]
+        if not faces:
             continue
         seen += 1
         if any(x <= 4 or x + w >= fw - 4 for x, _, w, _ in faces):
@@ -213,10 +209,7 @@ def _check_face_captions(path: Path, band: tuple[int, int],
     caption band. Degrades to a no-op if OpenCV is unavailable."""
     try:
         import cv2
-        cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-        if cascade.empty():
-            return []
+        from ..utils import faces as faces_util
         cap = cv2.VideoCapture(str(path))
         if not cap.isOpened():
             return []
@@ -231,8 +224,7 @@ def _check_face_captions(path: Path, band: tuple[int, int],
         if not ok:
             continue
         seen += 1
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = cascade.detectMultiScale(gray, 1.1, 5, minSize=(80, 80))
+        faces = [f for f in faces_util.detect(frame) if f[2] >= 80]
         if any(_overlap_frac(tuple(f), band) > 0.35 for f in faces):
             hits += 1
     cap.release()

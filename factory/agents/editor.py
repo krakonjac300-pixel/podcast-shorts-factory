@@ -15,7 +15,9 @@ from rich.console import Console
 
 from .. import db, notify
 from ..config import ROOT, WORK, cfg
-from ..utils import broll, captions, design_scenes, remotion_intro, trimmer, voice
+from ..utils import (broll, captions, design_scenes, remotion_intro, trimmer,
+                     voice)
+from ..utils import faces as faces_util
 from . import planner
 
 console = Console()
@@ -381,13 +383,6 @@ def _face_center(video_path: str, samples: int = 16):
     Safe if OpenCV is unavailable."""
     try:
         import cv2
-        # opencv 5.0 removed cv2.CascadeClassifier from the default namespace;
-        # guard it so a bad opencv version degrades to blur-fit instead of
-        # crashing the whole render.
-        cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-        if cascade.empty():
-            return None, 0, 0, 0, 0.0
     except Exception:  # noqa: BLE001 - no face detection → reframe falls back to fit
         return None, 0, 0, 0, 0.0
     cap = cv2.VideoCapture(str(video_path))
@@ -403,12 +398,10 @@ def _face_center(video_path: str, samples: int = 16):
         ok, frame = cap.read()
         if not ok:
             continue
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5,
-                                         minSize=(60, 60))
-        counts.append(len(faces))
-        if len(faces) and sw:
-            x, _, fw, fh = max(faces, key=lambda r: r[2] * r[3])  # largest face
+        detected = faces_util.detect(frame)          # YuNet (Haar fallback)
+        counts.append(len(detected))
+        if detected and sw:
+            x, _, fw, fh = max(detected, key=lambda r: r[2] * r[3])  # largest
             centers.append((x + fw / 2) / sw)
             fracs.append((fw * fh) / float(sw * sh))
     cap.release()
@@ -556,11 +549,7 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
     per segment (a 2-shot becomes host-cam / guest-cam cuts)."""
     try:
         import cv2
-        cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-        if cascade.empty():
-            return None
-    except Exception:  # noqa: BLE001 - bad opencv → per-shot tracking disabled
+    except Exception:  # noqa: BLE001 - no opencv → per-shot tracking disabled
         return None
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -572,27 +561,46 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
         return None
     seg_faces: list[list[float]] = []        # ALL face centers seen per segment
     seg_cx: list[float | None] = []          # largest face per segment
+    seg_w: list[float] = []                  # its width (px) — spurious filter
+    seg_asd: list[float | None] = []         # ACTIVE SPEAKER (mouth motion)
     all_cx: list[float] = []
     for i in range(len(bounds) - 1):
-        found, here = [], []
+        found, here, samples = [], [], []
         for frac in (0.25, 0.5, 0.75):
             tm = bounds[i] + (bounds[i + 1] - bounds[i]) * frac
             cap.set(cv2.CAP_PROP_POS_FRAMES, int(tm * fps))
             ok, frame = cap.read()
             if not ok:
                 continue
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = cascade.detectMultiScale(gray, scaleFactor=1.1,
-                                             minNeighbors=5, minSize=(60, 60))
+            faces = faces_util.detect(frame)         # YuNet (Haar fallback)
             here.extend((x + fw / 2) / sw for x, _, fw, _ in faces)
-            if len(faces):
+            if faces:
+                samples.append((cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), faces))
                 x, _, fw, _ = max(faces, key=lambda r: r[2] * r[3])
-                found.append((x + fw / 2) / sw)
+                found.append(((x + fw / 2) / sw, fw))
         all_cx.extend(here)
         seg_faces.append(sorted(here))
+        # who is TALKING in this shot? lips-motion beats size/rhythm guessing
+        seg_asd.append(faces_util.active_speaker_cx(samples, sw))
         found.sort()
-        seg_cx.append(found[len(found) // 2] if found else None)
+        if found:
+            c, fw = found[len(found) // 2]
+            seg_cx.append(seg_asd[-1] if seg_asd[-1] is not None else c)
+            seg_w.append(fw)
+        else:
+            seg_cx.append(None)
+            seg_w.append(0.0)
     cap.release()
+    # Spurious-detection filter (the 'crop parked on a lamp' bug, 2026-07-17):
+    # a segment whose best face is far smaller than the clip's typical face is
+    # a false positive or a background head — treat it as no detection so the
+    # crop HOLDS on the previous real speaker instead of jumping to furniture.
+    real = sorted(wd for wd in seg_w if wd > 0)
+    if real:
+        med_w = real[len(real) // 2]
+        for i, wd in enumerate(seg_w):
+            if wd and wd < 0.45 * med_w:
+                seg_cx[i] = None
     if not all_cx:
         return None
     all_cx.sort()
@@ -613,7 +621,9 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
         out, last = [], None
         for i, faces in enumerate(seg_faces):
             target = lx if i % 2 == 0 else rx
-            if faces:
+            if seg_asd[i] is not None:       # lips moving = the shot belongs to
+                last = seg_asd[i]            # the SPEAKER, not the rhythm guess
+            elif faces:
                 last = min(faces, key=lambda c: abs(c - target))
             elif last is None:
                 last = target                # leading no-detection segments only

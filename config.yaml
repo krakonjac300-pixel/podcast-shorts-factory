@@ -113,7 +113,9 @@ editor:
   # zoom) and 'breather' (pure subtitles — NOTHING else on screen) segments.
   # Designs are generated free via Pollinations (no key), cached, and fall back to
   # stock b-roll if generation fails. Breathers also suppress memes/b-roll there.
-  design_scenes: true
+  design_scenes: false         # OFF (2026-07-17): AI-generated stills over talking heads read as
+                               # slop (garbled pseudo-text artifacts; part of the 'what a mess'
+                               # roast) and are exactly YouTube's inauthentic-content fingerprint.
   max_design_scenes: 3         # at most this many designed visuals per clip
   brand_style: "clean minimal flat illustration, bold simple shapes, dramatic lighting, editorial sports-graphic look"
   brand_colors: ["white", "deep green", "black"]   # matches the channel logo set in brand/
