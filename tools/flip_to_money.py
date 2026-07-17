@@ -26,18 +26,21 @@ CONFIG = ROOT / "config.yaml"
 
 MONEY_BRIEF = '''  selection_brief: |
     MONEY/BUSINESS CHANNEL (flipped 2026-07-20; growth+monetization only).
-    Our #1 proven lesson carries over from the football era: EMOTION + a
-    shocking STAKE wins (a star being raw/vulnerable got 21k). For money:
-    STRONGLY FAVOR: a shocking NUMBER said out loud ("$300k in debt", "makes
-    $2M a year at 24", "spent $80k on that"), financial trainwrecks / people
-    confronted about terrible money habits, rags-to-riches, wealth flexes,
-    "you're doing money wrong", controversial money takes ("renting is smarter",
-    "college is a scam"), raw money emotion (breaking down over debt, bragging).
-    The OPENING LINE must contain a number or a bold claim - open ON it, no
-    wind-up. STRONGLY AVOID: dry theory, slow setups, generic advice with no
-    number/stakes, non-money tangents (sport, health) - the niche-lock drops those.
-    Target 20-40s, end on a comment-bait question ("Would you do this?",
-    "Is this crazy or smart?").
+    Apply the MILLION-VIEW 5-BEAT FORMULA (reverse-engineered from 1M+ view
+    money clips - see money-formula skill): (1) open on a QUESTION-HOOK with
+    stakes ("How much debt is your girlfriend in?"), (2) a NUMBER TO THE CENT
+    spoken by ~5s ("$15,586.97" beats "$15k"), (3) an ESCALATION LADDER - each
+    reveal worse than the last, (4) the EMOTIONAL TURN - money becomes human
+    conflict (hidden debt from a partner, shame, ultimatums, tears), (5) END
+    UNRESOLVED so the comments finish the story.
+    STRONGLY FAVOR: debt confrontations, hidden-debt relationship drama, absurd
+    spending exposed, forbidden money knowledge ("bankruptcy wipes hospital
+    bills"), rich-people absurdity, archetype money clashes.
+    STRONGLY AVOID: dry theory, slow setups, generic advice with no number or
+    stakes, non-money tangents (sport, health) - the niche-lock drops those.
+    LENGTH: confrontation arcs with an escalation ladder earn 35-55s; single-
+    beat moments 20-40s. Open ON the question/number - zero wind-up. Prefer
+    take windows that include the LISTENER'S REACTION to the bombshell.
 '''
 
 MONEY_SOURCES = '''  sources:
@@ -81,6 +84,26 @@ def flip() -> bool:
                             f'  content_since: "{date.today().isoformat()}"'
                             "   # niche flip watershed: montage/compiler only use clips after this\n", 1)
 
+    # 6. trainer studies the MONEY winners from now on (from the 2026-07-17
+    #    teardown: 900k-287k views/video channels)
+    text = re.sub(
+        r"  study_channels:\n(?:    - .*\n|    #.*\n)*",
+        "  study_channels:\n"
+        "    # Money-niche winners (teardown 2026-07-17, views/video)\n"
+        '    - "UCLe_q9axMaeTbjN0hy1Z9xA"   # Caleb Hammer (902k)\n'
+        '    - "UCV6KDgJskWaEckne5aPA0aQ"   # Graham Stephan (868k)\n'
+        '    - "UC7eBNeDW1GQf2NJQ6G6gAxw"   # The Ramsey Show Highlights (287k)\n'
+        '    - "UCmMsCFzAufSYef6tA8h1hzQ"   # You Should Know Podcast (399k)\n'
+        '    - "UCeBQ24VfikOriqSdKtomh0w"   # The Iced Coffee Hour Clips (125k)\n',
+        text)
+    text = re.sub(r'study_queries: \[[^\]]*\]',
+                  'study_queries: ["financial audit clips", "money podcast '
+                  'shorts", "debt confrontation clips"]', text)
+
+    # 7. the million-view money formula joins the working agents' skill decks
+    for agent in ("finder", "editor", "uploader"):
+        text = re.sub(rf"(  {agent}: +\[)", r"\1money-formula, ", text, count=1)
+
     CONFIG.write_text(text, encoding="utf-8")
 
     # validate the result parses and the keys landed
@@ -90,6 +113,11 @@ def flip() -> bool:
     assert any("CalebHammer" in s for s in d["scheduler"]["sources"])
     assert "MONEY" in d["finder"]["selection_brief"][:60]
     assert d["scheduler"]["content_since"]
+    assert any("UCLe_q9axMaeTbjN0hy1Z9xA" in c
+               for c in d["trainer"]["study_channels"])
+    assert "money-formula" in d["skills"]["finder"]
+    assert "money-formula" in d["skills"]["editor"]
+    assert "money-formula" in d["skills"]["uploader"]
     print("flip applied + config validates: niche=money, 4 money sources, "
           f"content_since={d['scheduler']['content_since']}")
 
