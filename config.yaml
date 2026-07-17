@@ -153,7 +153,7 @@ editor:
                                # money clips run a PRESENT bass-y bed, not wallpaper.
   loudnorm_i: -12              # master loudness target; viral shorts master hot (-10 to -12)
   captions:
-    words_per_page: 3          # words per caption page (2 = ultra-punchy MrBeast style)
+    words_per_page: 2          # 1-2 word pages (million-view standard; numbers page SOLO)
     enabled: true
     font: "Arial"
     font_size: 90

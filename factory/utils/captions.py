@@ -89,10 +89,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     pop = "\\fscx70\\fscy70\\t(0,80,\\fscx100\\fscy100)"
 
     # page the words: up to words_per_page per page, but END a page early at
-    # sentence punctuation so fragments like "IT. SO THEY" never happen
+    # sentence punctuation so fragments like "IT. SO THEY" never happen.
+    # NUMBERS GET A SOLO PAGE (measured on a 1.35M-view money clip: "$15,586.97"
+    # fills the screen alone, and a count-up is captioned digit by digit) — a
+    # number sharing a page with filler words loses its punch.
     group_size = max(1, int(style.get("words_per_page", 3)))
+
+    def _is_number(w: str) -> bool:
+        return any(ch.isdigit() for ch in w) or "$" in w or "%" in w
+
     groups, cur = [], []
     for wd in local:
+        if _is_number(wd["word"]) and style.get("solo_numbers", True):
+            if cur:
+                groups.append(cur)
+            groups.append([wd])              # the number stands alone
+            cur = []
+            continue
         cur.append(wd)
         if len(cur) >= group_size or wd["word"].rstrip()[-1:] in ".?!":
             groups.append(cur)

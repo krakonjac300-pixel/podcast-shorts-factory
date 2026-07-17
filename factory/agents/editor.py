@@ -427,18 +427,25 @@ _SHOT_CYCLE = (0.0, 0.14, 0.07, 0.14)
 
 def _cut_points(cap_words, cap_start: float, dur: float,
                 min_len: float = 2.0, max_len: float = 3.5) -> list[float]:
-    """Camera-cut times (clip-local): at sentence ends / speech pauses, min
-    segment length enforced, forced cut when a segment runs long. This is what
-    makes a single static podcast angle feel like a multicam edit."""
+    """Camera-cut times (clip-local): at sentence ends / speech pauses. This is
+    what makes a single static podcast angle feel like a multicam edit.
+
+    BURST-THEN-HOLD rhythm (measured on a 1.35M-view money clip, 2026-07-17):
+    the winners cut every 0.8-1.1s through the HOOK (first ~5s: four cuts), then
+    HOLD 5-8s shots through the emotional/escalation beats with a continuous
+    push-in. A metronome bores; the rhythm must follow the story."""
     cuts, seg_start = [], 0.0
     for i, wd in enumerate(cap_words):
         t = wd["end"] - cap_start
-        if t - seg_start < min_len or t > dur - 1.5:
+        lo, hi = (0.9, 1.7) if t < 5.5 else (2.2, 5.5)   # burst → hold
+        if t - seg_start < lo or t > dur - 1.5:
             continue
         nxt = cap_words[i + 1] if i + 1 < len(cap_words) else None
         gap = (nxt["start"] - wd["end"]) if nxt else 0.0
         sentence_end = wd["word"].strip()[-1:] in ".?!"
-        if sentence_end or gap > 0.45 or t - seg_start >= max_len:
+        # in the burst window any word gap earns a cut; later only real pauses
+        pause = gap > (0.12 if t < 5.5 else 0.45)
+        if sentence_end or pause or t - seg_start >= hi:
             cut = t + min(gap / 2, 0.2)          # cut inside the pause
             cuts.append(round(cut, 2))
             seg_start = cut
@@ -494,6 +501,14 @@ def _motion(w: int, h: int, dur: float, amount: float, punches=(),
             level = _SHOT_CYCLE[i % len(_SHOT_CYCLE)]
             if level:
                 expr += (f"+{level}*gte(ld(0)\\,{bounds[i]:.2f})"
+                         f"*lt(ld(0)\\,{bounds[i + 1]:.2f})")
+            # WITHIN-HOLD PUSH-IN (measured on a 1.35M-view clip: long emotional
+            # holds carry a relentless ~3%/s creep toward the face — a static
+            # hold reads dead). Only on shots >3s; capped by the global 0.45.
+            seg_len = min(bounds[i + 1], d) - bounds[i]
+            if seg_len > 3.0:
+                expr += (f"+min(0.18\\,0.03*(ld(0)-{bounds[i]:.2f}))"
+                         f"*gte(ld(0)\\,{bounds[i]:.2f})"
                          f"*lt(ld(0)\\,{bounds[i + 1]:.2f})")
         for t in cuts:                       # snap transient AT each cut so the
             if 0.3 < t < d - 0.3:            # shot change HITS, not drifts

@@ -119,9 +119,23 @@ class TestEditorFraming(unittest.TestCase):
         self.assertAlmostEqual(cuts[0], 3.6, delta=0.2)   # after 'First.'
 
     def test_cut_points_respect_min_length(self):
-        words = [{"word": "Hi.", "start": 0.0, "end": 0.5},
-                 {"word": "Yo.", "start": 0.7, "end": 1.0}]
+        # even in the burst window, shots under ~0.9s are never created
+        words = [{"word": "Hi.", "start": 0.0, "end": 0.3},
+                 {"word": "Yo.", "start": 0.4, "end": 0.6}]
         self.assertEqual(self.ed._cut_points(words, 0.0, 30.0), [])
+
+    def test_cut_points_burst_then_hold(self):
+        # hook window (<5.5s) cuts on ~1s rhythm; later only on real pauses
+        words = ([{"word": f"w{i}.", "start": i * 1.0, "end": i * 1.0 + 0.9}
+                  for i in range(5)]                       # dense sentence ends
+                 + [{"word": f"x{i}", "start": 6 + i * 0.5,
+                     "end": 6 + i * 0.5 + 0.45} for i in range(20)])  # no pauses
+        cuts = self.ed._cut_points(words, 0.0, 30.0)
+        burst = [c for c in cuts if c < 5.5]
+        self.assertGreaterEqual(len(burst), 3)             # fast hook cuts
+        hold = [c for c in cuts if c >= 5.5]
+        for a, b in zip(hold, hold[1:]):                   # long-hold spacing
+            self.assertGreaterEqual(b - a, 2.2)
 
     def test_motion_with_cuts_steps_zoom(self):
         m = self.ed._motion(1080, 1920, 30.0, 0.10, cuts=[6.0, 12.0])
@@ -183,6 +197,19 @@ class TestCaptions(unittest.TestCase):
         self.assertIn("[Events]", ass)
         self.assertIn("Dialogue:", ass)
         self.assertIn("PlayResX: 1080", ass)
+
+    def test_numbers_get_solo_caption_pages(self):
+        from factory.utils import captions
+        words = [{"word": "she", "start": 0.0, "end": 0.3},
+                 {"word": "owes", "start": 0.3, "end": 0.6},
+                 {"word": "$15,586.97", "start": 0.6, "end": 1.4},
+                 {"word": "in", "start": 1.4, "end": 1.6},
+                 {"word": "debt", "start": 1.6, "end": 2.0}]
+        ass = captions.build_ass(words, 0.0, 3.0, {"words_per_page": 2})
+        # the dollar amount must appear on a page WITHOUT neighbors
+        solo_lines = [ln for ln in ass.splitlines()
+                      if "$15,586.97" in ln and "OWES" not in ln and "IN" not in ln.split("}")[-1]]
+        self.assertTrue(solo_lines, "number should page alone")
 
     def test_words_outside_clip_excluded(self):
         from factory.utils import captions

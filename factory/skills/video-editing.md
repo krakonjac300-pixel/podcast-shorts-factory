@@ -26,3 +26,19 @@ Turning a raw clip into a finished vertical short.
 - **Clean beats busy.** Remove dead space and make each second intentional — but random
   overlays (stock photos, AI-art stills) over talking heads read as SLOP and get roasted.
   No decoration that competes with the speaker's face.
+
+## The million-view visual grammar (measured frame-by-frame, 2026-07-17)
+Source: cut-by-cut breakdown of a 1.35M-view money confrontation clip (42s).
+- **BURST-THEN-HOLD rhythm**: four cuts in the first 5 seconds (0.8-1.1s shots)
+  through the hook and number reveal; then LONG 5-8s holds through the emotional
+  beats. The rhythm follows the story — a metronome (uniform 2-3s cuts) reads
+  robotic. Our editor now does this automatically.
+- **The relentless push-in**: long holds are never static — a continuous ~3%/s
+  zoom creep toward the face runs through every hold. Movement without a cut.
+- **1-2 word caption pages; NUMBERS PAGE ALONE**: "$15,586.97" fills the screen
+  solo; a count-up gets captioned digit by digit ("1" ... "7"). A number sharing
+  a page with filler words loses its punch. Red for money words, yellow/white
+  for the rest.
+- **Reaction shots carry the bombshells**: while one person reads the numbers,
+  the cut is on the OTHER person's face reacting.
+- Zero decorative overlays. Faces + captions + rhythm — that's the whole kit.
