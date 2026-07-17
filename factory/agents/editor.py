@@ -164,6 +164,11 @@ def _trim_pass(src: str, clip_id, start: float, dur: float, trim: dict) -> Path:
 # Map whatever name the AI invents for a sound onto a file we actually have,
 # so cues never get silently dropped. Keys are substrings matched in the cue type.
 _SFX_SYNONYMS = {
+    # money sounds FIRST — most specific wins ('coin drop' must hit coin, not
+    # the generic 'drop'->impact rule below; dict order is the match order)
+    "cash": "cash", "register": "cash", "cha-ching": "cash", "chaching": "cash",
+    "kaching": "cash", "ka-ching": "cash", "money": "cash", "dollar": "cash",
+    "coin": "coin", "coins": "coin", "clink": "coin", "tick": "pop",
     "whoosh": "whoosh", "woosh": "whoosh", "swoosh": "swoosh", "swipe": "swoosh",
     "transition": "swoosh", "slide": "swoosh", "air": "whoosh",
     "riser": "riser", "rise": "riser", "build": "riser", "suspense": "riser",
@@ -1021,7 +1026,11 @@ def edit_clip(clip) -> Path:
     vgraph = ";".join(vparts)
     # broadcast loudness (-14 LUFS = what YouTube normalizes to) so every clip
     # sounds consistent regardless of how quiet the source podcast was
-    ln = ",loudnorm=I=-14:TP=-1.5:LRA=11" if e.get("loudnorm", True) else ""
+    # -12 LUFS: viral shorts master HOT (the 1.35M-view exemplar measures -10.4
+    # dB mean). YouTube normalizes loud audio DOWN gracefully, but a quiet
+    # master (-14) just sounds thin next to the feed. Configurable.
+    tgt = e.get("loudnorm_i", -12)
+    ln = f",loudnorm=I={tgt}:TP=-1.5:LRA=11" if e.get("loudnorm", True) else ""
     if len(mix) == 1:                       # voice only — no music/sfx to mix
         filter_complex = vgraph + f";[0:a]{afmt}{ln}[a]"
     else:

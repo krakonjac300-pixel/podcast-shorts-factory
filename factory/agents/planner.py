@@ -42,10 +42,13 @@ PLAN_TOOL = {
                                "before a big statement, whoosh only at a real topic "
                                "change). No anchor = the sound is dropped."},
                     "type": {"type": "string",
-                             "enum": ["whoosh", "swoosh", "riser", "impact", "ding", "pop"],
+                             "enum": ["whoosh", "swoosh", "riser", "impact",
+                                      "ding", "pop", "cash", "coin"],
                              "description": "one of the available pack sounds: "
                              "whoosh/swoosh (transition), riser (build tension), "
-                             "impact (emphasis hit), ding (positive/reveal), pop (quick accent)"},
+                             "impact (deep boom on a bombshell), ding (positive/"
+                             "reveal), pop (quick accent), cash (register — a "
+                             "money amount is REVEALED), coin (small money beat)"},
                     "note": {"type": "string"}},
                     "required": ["anchor", "type"]},
             },
