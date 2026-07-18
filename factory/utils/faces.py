@@ -16,6 +16,50 @@ _det = None            # lazy singleton (cv2 import stays inside functions)
 _det_failed = False
 
 
+def detect_scored(frame) -> list[tuple[int, int, int, int, float]]:
+    """Face boxes WITH YuNet's confidence: [(x, y, w, h, score), ...].
+
+    The score is what separates a genuinely distant person (a real face, small
+    because the camera is wide) from a false positive on furniture. Size alone
+    cannot tell those apart, and treating every small face as spurious left the
+    subject as an unwatchable speck in every wide shot.
+
+    Haar has no comparable score, so it reports 0.0 and callers fall back to
+    size-only reasoning. Returns [] on any failure.
+    """
+    try:
+        import cv2
+    except Exception:  # noqa: BLE001
+        return []
+    _ensure_detector()
+    if _det is None:
+        return [(x, y, w, h, 0.0) for x, y, w, h in detect(frame)]
+    try:
+        h, w = frame.shape[:2]
+        _det.setInputSize((w, h))
+        _, faces = _det.detect(frame)
+        if faces is None:
+            return []
+        return [(int(f[0]), int(f[1]), int(f[2]), int(f[3]), float(f[-1]))
+                for f in faces if f[2] > 0 and f[3] > 0]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _ensure_detector() -> None:
+    """Create the YuNet detector once (shared by detect/detect_scored)."""
+    global _det, _det_failed
+    try:
+        import cv2
+    except Exception:  # noqa: BLE001
+        return
+    if _det is None and not _det_failed and MODEL.exists():
+        try:
+            _det = cv2.FaceDetectorYN_create(str(MODEL), "", (320, 320), 0.6)
+        except Exception:  # noqa: BLE001 - old cv2 → Haar fallback
+            _det_failed = True
+
+
 def detect(frame) -> list[tuple[int, int, int, int]]:
     """Face boxes [(x, y, w, h), ...] for a BGR frame, best detector available.
     Returns [] on any failure — callers already treat no-faces gracefully."""

@@ -68,8 +68,28 @@ class TestEditorFraming(unittest.TestCase):
 
     def test_motion_zoom_filter_shape(self):
         m = self.ed._motion(1080, 1920, 30.0, 0.10)
-        self.assertIn("crop=", m)
-        self.assertIn("scale=1080:1920", m)
+        self.assertIn("crop=1080:1920", m)
+        self.assertIn("eval=frame", m)
+
+    def test_zoom_is_animated_not_frozen(self):
+        """REGRESSION (2026-07-18): the zoom must live on `scale`, never on
+        `crop`'s w/h.
+
+        ffmpeg evaluates crop w/h ONCE at init (t is NaN there), so the old
+        `crop=w='iw-iw*(z)'` form pinned every zoom at its t=0 value and
+        silently disabled Ken Burns, the emphasis punches, the shot cycle and
+        the push-in — while still rendering a perfectly valid-looking video.
+        Nothing failed; the motion just quietly wasn't there. Verified against
+        a STATIC source: with an animated one, frames differ anyway and the bug
+        hides."""
+        m = self.ed._motion(1080, 1920, 30.0, 0.10, punches=[5.0], cuts=[10.0])
+        self.assertIn("eval=frame", m,
+                      "time-varying zoom needs scale's eval=frame")
+        crop = m[m.index("crop="):]
+        self.assertNotIn("iw-iw*", crop,
+                         "zoom moved back onto crop w/h — it will be frozen")
+        # the crop that follows must be a fixed output size
+        self.assertTrue(crop.startswith("crop=1080:1920:"), crop[:40])
 
     def test_merge_cuts_thins_and_unions(self):
         # union of sentence cuts + real scene cuts, thinned to >= 1.4s apart
@@ -85,7 +105,7 @@ class TestEditorFraming(unittest.TestCase):
         m = self.ed._motion(1080, 1920, 30.0, 0.10, punches=[5.0, 12.5])
         self.assertIn("abs(ld(0)-5.00)", m)
         self.assertIn("abs(ld(0)-12.50)", m)
-        self.assertIn("min(0.4", m)                     # zoom is capped
+        self.assertIn("min(0.26", m)                    # zoom is capped
         self.assertIn("isnan(t)", m)                    # init-time NaN guard
 
     def test_punch_times_from_emphasis_words(self):

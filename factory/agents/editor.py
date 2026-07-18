@@ -423,7 +423,22 @@ def _face_center(video_path: str, samples: int = 16):
 
 # Fake-multicam shot pattern: zoom level per segment, cycled. 0 = wide,
 # 0.14 = close-up, 0.07 = medium. Alternating reads as camera cuts.
-_SHOT_CYCLE = (0.0, 0.14, 0.07, 0.14)
+# Shot-cycle zoom levels. RETUNED DOWN 2026-07-18 (were 0.14/0.07): these were
+# picked by eye while the zoom was silently frozen at 1.0x, so they had never
+# actually been seen. Once live, that much zoom against a single per-shot face
+# anchor drifted off a moving subject and left them out of frame entirely.
+# Restraint is the point: the viewer should feel the camera, not fight it.
+_SHOT_CYCLE = (0.0, 0.07, 0.035, 0.07)
+
+# A small face the detector is CONFIDENT about is a real person filmed wide,
+# not furniture. Measured on clip 52: distant faces scored 0.84-0.94 while the
+# close-ups scored 0.78, so 0.75 cleanly separates "punch into this" from
+# "ignore this". Below it, a small detection is still treated as spurious.
+WIDE_SHOT_CONF = 0.75
+# Target face size after the punch. Our close-ups sit at ~42% of frame width and
+# read well on a phone; wide shots at ~10% do not. 0.24 pulls a distant subject
+# to a comfortable mid-shot without the mush of a 4x upscale.
+WIDE_SHOT_TARGET = 0.24
 
 
 def _cut_points(cap_words, cap_start: float, dur: float,
@@ -483,11 +498,31 @@ def _merge_cuts(*lists, min_gap: float = 1.4) -> list[float]:
     return out
 
 
+def _wide_boost(fw_frac: float) -> float:
+    """Extra zoom needed to pull a distant subject up to a comfortable size.
+
+    Zoom `z` crops to (1-z) of the frame, so magnification is 1/(1-z) and
+    z = 1 - actual/target. Capped at 0.55 (about 2.2x): beyond that we are
+    upscaling a small region of a 1080p source and the softness costs more than
+    the framing gains.
+    """
+    if fw_frac <= 0 or fw_frac >= WIDE_SHOT_TARGET:
+        return 0.0
+    return min(0.55, 1.0 - (fw_frac / WIDE_SHOT_TARGET))
+
+
 def _motion(w: int, h: int, dur: float, amount: float, punches=(),
-            cuts=()) -> str:
+            cuts=(), wide=None) -> str:
     """The whole 'camera' in one crop: slow Ken Burns push (amount), quick zoom
     PUNCHES on key words, and hard zoom CUTS at sentence boundaries (fake
-    multicam: wide ↔ close-up). Applied BEFORE captions so text stays sharp."""
+    multicam: wide ↔ close-up). Applied BEFORE captions so text stays sharp.
+
+    `wide` is an optional per-segment [(boost, cy), ...] aligned to the segments
+    formed by `cuts`. It PUNCHES INTO WIDE SHOTS: when the source cuts to an
+    establishing wide, the subject would otherwise stay a speck (measured: 12%
+    of frame width vs 42% in our close-ups), so we zoom in on them and anchor
+    the crop on their face height instead of the frame's dead centre.
+    """
     d = max(dur, 0.1)
     if not punches and not cuts:
         z = f"{amount}*min(t/{d}\\,1)"
@@ -499,6 +534,11 @@ def _motion(w: int, h: int, dur: float, amount: float, punches=(),
             expr += f"+0.16*max(0\\,1-abs(ld(0)-{t:.2f})/0.25)"
         bounds = [0.0] + list(cuts) + [d + 1]
         for i in range(len(bounds) - 1):
+            # A wide-shot segment's framing is already decided by its boost —
+            # stacking the shot cycle and the push-in on top of it overshot to
+            # 3.5x and threw the subject clean out of frame. Boost wins alone.
+            if _seg_boost(wide, i) > 0:
+                continue
             level = _SHOT_CYCLE[i % len(_SHOT_CYCLE)]
             if level:
                 expr += (f"+{level}*gte(ld(0)\\,{bounds[i]:.2f})"
@@ -507,16 +547,87 @@ def _motion(w: int, h: int, dur: float, amount: float, punches=(),
             # holds carry a relentless ~3%/s creep toward the face — a static
             # hold reads dead). Only on shots >3s; capped by the global 0.45.
             seg_len = min(bounds[i + 1], d) - bounds[i]
-            if seg_len > 3.0:
-                expr += (f"+min(0.18\\,0.03*(ld(0)-{bounds[i]:.2f}))"
+            if seg_len > 3.0 and _seg_boost(wide, i) <= 0:
+                # Gentler creep with a hard 0.07 ceiling (was 0.03/s to 0.18):
+                # the anchor is one fixed point per shot, so a long push-in
+                # accumulates error against a subject who leans or shifts, and
+                # at the old strength it walked clean off them.
+                expr += (f"+min(0.07\\,0.012*(ld(0)-{bounds[i]:.2f}))"
                          f"*gte(ld(0)\\,{bounds[i]:.2f})"
                          f"*lt(ld(0)\\,{bounds[i + 1]:.2f})")
         for t in cuts:                       # snap transient AT each cut so the
             if 0.3 < t < d - 0.3:            # shot change HITS, not drifts
                 expr += f"+0.06*max(0\\,1-abs(ld(0)-{t:.2f})/0.12)"
-        z = f"st(0\\,if(isnan(t)\\,0\\,t));min(0.45\\,{expr})"
-    return (f"crop=w='iw-iw*({z})':h='ih-ih*({z})':"
-            f"x='(iw-ow)/2':y='(ih-oh)/2',scale={w}:{h}")
+        # WIDE-SHOT PUNCH: extra zoom only on the segments that need it.
+        for i in range(len(bounds) - 1):
+            boost = _seg_boost(wide, i)
+            if boost > 0:
+                expr += (f"+{boost:.3f}*gte(ld(0)\\,{bounds[i]:.2f})"
+                         f"*lt(ld(0)\\,{bounds[i + 1]:.2f})")
+        cap = max(0.26, min(0.58, max((_seg_boost(wide, i)
+                                       for i in range(len(bounds) - 1)),
+                                      default=0.0)))
+        z = f"st(0\\,if(isnan(t)\\,0\\,t));min({cap}\\,{expr})"
+    ypos = _wide_y_expr(wide, list(cuts), d)
+    # ZOOM MUST LIVE ON `scale`, NOT `crop` (bug found 2026-07-18).
+    # ffmpeg evaluates crop's w/h ONCE at filter init, where t is NaN — so the
+    # old `crop=w='iw-iw*(z)'` form pinned the zoom at its t=0 value (z=0) and
+    # every zoom this function produced was silently DEAD: no Ken Burns push, no
+    # punch on emphasis words, no wide/close shot cycle, no push-in on holds.
+    # (crop's x/y DO evaluate per frame, which is why per-shot re-centering
+    # always worked and hid the problem.) `scale` with eval=frame re-evaluates
+    # every frame, so we magnify by 1/(1-z) there and crop a fixed window out of
+    # the enlarged frame — the crop x/y stay animated for the wide-shot anchor.
+    mag = f"1/(1-({z}))"
+    return (f"scale=w='max({w}\\,trunc(iw*({mag})/2)*2)':"
+            f"h='max({h}\\,trunc(ih*({mag})/2)*2)':eval=frame,"
+            f"crop={w}:{h}:x='(iw-ow)/2':y='{ypos}'")
+
+
+def _seg_boost(wide, i: int) -> float:
+    """Zoom boost for segment i, or 0 when there is none."""
+    try:
+        return float(wide[i][0])
+    except (TypeError, IndexError, KeyError, ValueError):
+        return 0.0
+
+
+# Where the face should sit in the finished frame. Dead centre reads oddly and
+# wastes headroom; a little above centre is how the shot is actually composed.
+FACE_Y_TARGET = 0.42
+
+
+def _wide_y_expr(wide, cuts: list, d: float) -> str:
+    """Vertical crop position: rides the subject's face on EVERY zoomed segment.
+
+    This has to apply to all zoom, not just the wide-shot punch. Faces in this
+    footage sit around 27-43% of frame height, so any centre-anchored zoom
+    crops the head off — which is exactly what appeared the moment the zoom
+    started working (it had been frozen at 1.0x, so nothing was ever cropped
+    and the bad anchoring stayed invisible).
+
+    Segments with no zoom are unaffected: their crop fills the frame, so
+    oh == ih and the clip() pins y to 0 regardless.
+    """
+    if not wide:
+        return "(ih-oh)/2"
+    bounds = [0.0] + list(cuts) + [d + 1]
+    terms = []
+    for i in range(len(bounds) - 1):
+        try:
+            cy = float(wide[i][1])
+        except (TypeError, IndexError, ValueError):
+            continue
+        if not (0.0 < cy < 1.0):
+            continue
+        # put the face at FACE_Y_TARGET of the output, as a delta from centre
+        terms.append(f"+(ih*{cy:.3f}-oh*{FACE_Y_TARGET}-(ih-oh)/2)"
+                     f"*gte(ld(1)\\,{bounds[i]:.2f})"
+                     f"*lt(ld(1)\\,{bounds[i + 1]:.2f})")
+    if not terms:
+        return "(ih-oh)/2"
+    return (f"st(1\\,if(isnan(t)\\,0\\,t));"
+            f"clip((ih-oh)/2{''.join(terms)}\\,0\\,ih-oh)")
 
 
 def _punch_times(cap_words, cap_start: float, emphasis_words, dur: float,
@@ -564,10 +675,15 @@ def _vf_face(w: int, h: int, sw: int, sh: int, cx) -> str | None:
 
 
 def _segment_face_cxs(video_path: str, bounds: list[float],
-                      two_face: bool = False) -> list[float] | None:
+                      two_face: bool = False,
+                      shots_out: list | None = None) -> list[float] | None:
     """Face x-position (0..1) per camera segment. `bounds` are segment edges
     in seconds. two_face=True → alternate the LEFT and RIGHT face positions
-    per segment (a 2-shot becomes host-cam / guest-cam cuts)."""
+    per segment (a 2-shot becomes host-cam / guest-cam cuts).
+
+    Pass `shots_out` to also receive per-segment geometry (cx, cy, face width
+    as a fraction of frame, detector score) — that is what drives the wide-shot
+    punch-in."""
     try:
         import cv2
     except Exception:  # noqa: BLE001 - no opencv → per-shot tracking disabled
@@ -577,12 +693,15 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
         return None
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     sw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 0
-    if not sw:
+    sh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 0
+    if not sw or not sh:
         cap.release()
         return None
     seg_faces: list[list[float]] = []        # ALL face centers seen per segment
     seg_cx: list[float | None] = []          # largest face per segment
     seg_w: list[float] = []                  # its width (px) — spurious filter
+    seg_cy: list[float | None] = []          # its vertical center (0-1)
+    seg_score: list[float] = []              # detector confidence (real vs lamp)
     seg_asd: list[float | None] = []         # ACTIVE SPEAKER (mouth motion)
     all_cx: list[float] = []
     for i in range(len(bounds) - 1):
@@ -593,35 +712,54 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
             ok, frame = cap.read()
             if not ok:
                 continue
-            faces = faces_util.detect(frame)         # YuNet (Haar fallback)
+            scored = faces_util.detect_scored(frame)   # YuNet (Haar fallback)
+            faces = [(x, y, fw, fh) for x, y, fw, fh, _ in scored]
             here.extend((x + fw / 2) / sw for x, _, fw, _ in faces)
             if faces:
                 samples.append((cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), faces))
-                x, _, fw, _ = max(faces, key=lambda r: r[2] * r[3])
-                found.append(((x + fw / 2) / sw, fw))
+                x, y, fw, fh, sc = max(scored, key=lambda r: r[2] * r[3])
+                found.append(((x + fw / 2) / sw, fw, (y + fh / 2) / sh, sc))
         all_cx.extend(here)
         seg_faces.append(sorted(here))
         # who is TALKING in this shot? lips-motion beats size/rhythm guessing
         seg_asd.append(faces_util.active_speaker_cx(samples, sw))
         found.sort()
         if found:
-            c, fw = found[len(found) // 2]
+            c, fw, cy, sc = found[len(found) // 2]
             seg_cx.append(seg_asd[-1] if seg_asd[-1] is not None else c)
             seg_w.append(fw)
+            seg_cy.append(cy)
+            seg_score.append(sc)
         else:
             seg_cx.append(None)
             seg_w.append(0.0)
+            seg_cy.append(None)
+            seg_score.append(0.0)
     cap.release()
-    # Spurious-detection filter (the 'crop parked on a lamp' bug, 2026-07-17):
-    # a segment whose best face is far smaller than the clip's typical face is
-    # a false positive or a background head — treat it as no detection so the
-    # crop HOLDS on the previous real speaker instead of jumping to furniture.
+    # Spurious-detection filter (the 'crop parked on a lamp' bug, 2026-07-17).
+    # SIZE ALONE WAS THE WRONG TEST (2026-07-18): a person filmed in a genuine
+    # wide shot has a small face too, and discarding them left the subject a
+    # 12%-of-frame speck with no punch-in — measured on clip 52 at 20s. Use the
+    # detector's CONFIDENCE to tell the two apart: on that shot the distant
+    # faces scored 0.84-0.94, HIGHER than the close-ups (0.78), so they are
+    # unmistakably real. Only a small face the detector is also unsure about is
+    # treated as furniture.
     real = sorted(wd for wd in seg_w if wd > 0)
     if real:
         med_w = real[len(real) // 2]
         for i, wd in enumerate(seg_w):
-            if wd and wd < 0.45 * med_w:
+            if wd and wd < 0.45 * med_w and seg_score[i] < WIDE_SHOT_CONF:
                 seg_cx[i] = None
+                seg_cy[i] = None
+    # Hand the per-segment geometry back so the caller can PUNCH INTO the wide
+    # shots it just kept (a small real face is exactly what needs extra zoom).
+    if shots_out is not None:
+        shots_out.clear()
+        shots_out.extend(
+            {"cx": seg_cx[i], "cy": seg_cy[i],
+             "fw_frac": (seg_w[i] / sw) if sw else 0.0,
+             "score": seg_score[i]}
+            for i in range(len(seg_cx)))
     if not all_cx:
         return None
     all_cx.sort()
@@ -766,9 +904,17 @@ def edit_clip(clip) -> Path:
     mode = e.get("reframe", "smart")
     bg = e.get("background", "blur")
     vf, static_vf = None, None
+    shots: list[dict] = []      # per-segment face geometry → wide-shot punch
+    reframe_ratio = 1.0         # source→output face magnification of the reframe
     if mode in ("smart", "face"):
         cx, sw, sh, nfaces, face_frac = _face_center(render_src)
         static_vf = _vf_face(w, h, sw, sh, cx)
+        # The 9:16 reframe itself already magnifies: it shows only w/scaled_w of
+        # the source width, so a face measured against the SOURCE appears this
+        # many times bigger in the OUTPUT. The wide-shot punch must reason in
+        # output terms or it "fixes" every shot (a 16:9 source magnifies ~3.2x).
+        if sh:
+            reframe_ratio = max(1.0, (h * sw / sh) / w)
         if mode == "smart" and cx is not None and face_frac < 0.02 and nfaces < 2:
             # ONE tiny face = screen-share / PiP layout (host reacting to a
             # video): punching in would crop a random slice of the collage.
@@ -778,6 +924,7 @@ def edit_clip(clip) -> Path:
             # letterboxed 'mess' viewers roasted (2026-07-16).
             vf = _vf_vertical(w, h, bg)
             static_vf = None
+            reframe_ratio = 1.0
             console.print(f"  [dim]reframe: single face only {face_frac * 100:.1f}% "
                           f"of frame → screen layout, full-frame fit[/]")
         elif mode == "smart" and nfaces >= 2:
@@ -788,11 +935,12 @@ def edit_clip(clip) -> Path:
             # Chain: host/guest alternation → largest-face-per-shot punch →
             # static face punch. Blur-fit survives ONLY for screen-share layouts
             # (handled above via face_frac) or when no face is ever detected.
-            seg_cx = (_segment_face_cxs(render_src, bounds, two_face=True)
+            seg_cx = (_segment_face_cxs(render_src, bounds, two_face=True,
+                                        shots_out=shots)
                       if e.get("speaker_cuts", True) and cuts else None)
             how = "host/guest camera alternation"
             if not seg_cx and cuts:
-                seg_cx = _segment_face_cxs(render_src, bounds)
+                seg_cx = _segment_face_cxs(render_src, bounds, shots_out=shots)
                 how = "largest-face punch per shot"
             vf = _vf_face_steps(w, h, sw, sh, seg_cx, bounds) if seg_cx else None
             if vf:
@@ -805,9 +953,10 @@ def edit_clip(clip) -> Path:
             else:
                 vf = _vf_vertical(w, h, bg)  # no face found at all: show frame
                 static_vf = None
+                reframe_ratio = 1.0
                 console.print(f"  [dim]reframe: {nfaces} faces → full-frame fit[/]")
         else:
-            seg_cx = (_segment_face_cxs(render_src, bounds)
+            seg_cx = (_segment_face_cxs(render_src, bounds, shots_out=shots)
                       if e.get("track_face_per_shot", True) and cuts else None)
             vf = (_vf_face_steps(w, h, sw, sh, seg_cx, bounds) if seg_cx
                   else None) or static_vf
@@ -820,9 +969,24 @@ def edit_clip(clip) -> Path:
         vf = _vf_vertical(w, h, bg)
     # teaser reuses a STATIC reframe (its local timeline would confuse step-x)
     reframe_vf = static_vf or _vf_vertical(w, h, bg)
+    # Wide-shot punch: a real but distant subject gets extra zoom anchored on
+    # their face, so an establishing wide never leaves them a speck on a phone.
+    wide = None
+    if e.get("wide_shot_punch", True) and shots:
+        wide = [(_wide_boost(sh.get("fw_frac", 0.0) * reframe_ratio)
+                 if sh.get("cx") is not None else 0.0, sh.get("cy"))
+                for sh in shots]
+        n = sum(1 for b, _ in wide if b > 0)
+        # Keep `wide` even when nothing needs a punch: it also carries each
+        # shot's face height, which anchors EVERY zoom so no head gets cropped.
+        anchored = sum(1 for _, cy in wide if cy is not None)
+        console.print(f"  [dim]camera anchor: {anchored}/{len(wide)} shots "
+                      f"track the face vertically"
+                      + (f", punching into {n} distant shot(s)" if n else "") + "[/]")
     if e.get("motion_zoom", True) or punches or cuts:
         vf += "," + _motion(w, h, render_dur,
-                            float(e.get("motion_amount", 0.10)), punches, cuts)
+                            float(e.get("motion_amount", 0.10)), punches, cuts,
+                            wide=wide)
 
     # 1b2. cinematic grade: a touch of contrast + saturation + vignette makes
     #      flat interview footage pop on a phone screen.
