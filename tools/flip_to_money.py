@@ -104,6 +104,13 @@ def flip() -> bool:
     for agent in ("finder", "editor", "uploader"):
         text = re.sub(rf"(  {agent}: +\[)", r"\1money-formula, ", text, count=1)
 
+    # 8. launch the recurring SERIES with the new niche. 48,888 football views
+    #    converted 6 subs because nothing gave people a reason to come back; a
+    #    named, numbered series does. The flip is the moment to start one, since
+    #    numbering from #1 on day one of the new format costs nothing.
+    text = re.sub(r"(series:\n  enabled: )false", r"\1true", text)
+    text = re.sub(r'(series:\n(?:.*\n)*?  name: )""', r'\1"THE RECEIPTS"', text)
+
     CONFIG.write_text(text, encoding="utf-8")
 
     # validate the result parses and the keys landed
@@ -118,6 +125,7 @@ def flip() -> bool:
     assert "money-formula" in d["skills"]["finder"]
     assert "money-formula" in d["skills"]["editor"]
     assert "money-formula" in d["skills"]["uploader"]
+    assert d["series"]["enabled"] and d["series"]["name"] == "THE RECEIPTS"
     print("flip applied + config validates: niche=money, 4 money sources, "
           f"content_since={d['scheduler']['content_since']}")
 

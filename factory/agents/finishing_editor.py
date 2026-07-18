@@ -332,6 +332,18 @@ def review_clip(clip) -> tuple[str, list[dict]]:
     verdict = _verdict(issues)
     (OUT_DIR / f"clip_{clip['id']}.qa.md").write_text(
         _report_md(clip["id"], verdict, issues, actions), encoding="utf-8")
+
+    # Attach the defects to this clip's craft spec. A flag that keeps recurring
+    # across clips is the cheapest quality win available, so craft.py tallies
+    # them and puts the worst offenders in front of the editor every render.
+    try:
+        spec = db.edit_spec(clip["id"])
+        if spec:
+            spec["qa_flags"] = sorted({i["kind"] for i in issues})
+            spec["qa_verdict"] = verdict
+            db.record_edit_spec(clip["id"], spec, cfg.get("finder.niche_lock") or "")
+    except Exception:  # noqa: BLE001 - QA bookkeeping never blocks the verdict
+        pass
     return verdict, issues
 
 

@@ -55,9 +55,11 @@ finder:
                                #   while set. Clear it (null) to open the channel to other niches.
   max_candidates: 8            # how many clip ideas Claude returns per podcast
   clip_min_seconds: 15         # HARD platform bounds only — the AI reasons per clip: the idea
-  clip_max_seconds: 50         # Shorts hard-cap is 60s and the teaser/intro adds ~3s, so keep
-                               # source clips ≤50s (a 58s pick became 61s and got QA-blocked).
-                               # Data agrees: our winners are all 20-36s.
+  clip_max_seconds: 32         # MEASURED (craft loop, 25 clips, 2026-07-18): clips whose
+                               # finished length exceeds ~34s lose 39 RETENTION POINTS vs
+                               # shorter ones. With the ~3s teaser, a 32s source lands ~35s.
+                               # Was 50. Shorts hard-caps at 60s and the teaser adds ~3s,
+                               # so this also keeps us clear of the QA length block.
   auto_approve_top: 3          # for unattended/scheduled runs: auto-approve the top N candidates
   # What makes a moment "viral" — tweak to steer the AI's taste
   selection_brief: |
@@ -77,7 +79,11 @@ finder:
     STRONGLY AVOID: history/ancient-civilization trivia, science "did you know"
     facts, abstract philosophy/tech-futurism, anything that's merely "interesting"
     with no human stakes or emotion — these get ~0 views for us.
-    Each clip must HOOK in the first 1.5s, stand alone, target 25-45s, and end on a
+    LENGTH IS NOW MEASURED, NOT GUESSED (craft loop, 25 clips): finished clips
+    over ~34s lose 39 retention points against shorter ones, and our three
+    best-held clips ran 17.8s, 19.1s and 23.2s. TARGET 18-30s. If the moment
+    needs longer, cut the SETUP, never the payoff. Do not pad to fill time.
+    Each clip must HOOK in the first 1.5s, stand alone, and end on a
     comment-trigger (a question or hot take that makes people NEED to reply).
     CRITICAL (from real retention data): our flops lose viewers in the FIRST 5-8
     SECONDS (Mahabharata 15% watched, Algorithmic-Feeds 29%); our winner held 92%.
@@ -209,7 +215,11 @@ finisher:
 # daily clips. kind='montage' in the DB; the Manager's leaderboard carries
 # `format` so the numbers decide if the format lives.
 montage:
-  enabled: true
+  enabled: false               # RETIRED 2026-07-18 on its own data: 3 montages
+                               # averaged 15.3% retention vs 46.8% for regular
+                               # clips, on 945 avg views vs 2,277. The experiment
+                               # ran its week and answered the question: no.
+                               # Its slot goes back to a regular clip.
   take_min: 6                  # seconds per micro-moment
   take_max: 14
   score: 75                    # queue priority for the scheduler (score-ordered)
@@ -293,3 +303,23 @@ notify:
   # "+ Subscribe to topic", type the topic below — done. Keep the topic secret;
   # anyone who knows it can read these notifications.
   ntfy_topic: "clips-mania-4f437165"
+
+# The editor's self-learning loop (factory/craft.py). Every render records what
+# it actually did (cut rate, punches, SFX, hook length, reframe...) into the
+# `edit_specs` table; once those clips have retention data the loop scores each
+# choice and writes craft.md, which the planner loads into EVERY edit prompt.
+# So editing decisions come from the audience, not from taste.
+craft:
+  file: craft.md
+
+# Recurring SERIES branding — the fix for 48,888 views converting 6 subscribers.
+# A one-off clip gives nobody a reason to follow; a named, NUMBERED series turns
+# "a video I watched" into "a thing I follow", and the number implies more exist.
+# Titles become "NAME #12: ..." and a small badge burns into the top of frame.
+# Switched on by tools/flip_to_money.py with the money name (staying off for the
+# last football days so we don't start a series we're about to abandon).
+series:
+  enabled: false
+  name: ""                     # e.g. "THE RECEIPTS"
+  number_from: 1               # first episode number
+  badge: true                  # burn the series name into the top of the frame

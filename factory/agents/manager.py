@@ -12,7 +12,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from .. import db, llm, notify, skills
+from .. import craft, db, llm, notify, skills
 from ..config import ROOT, cfg
 
 console = Console()
@@ -494,3 +494,10 @@ def refresh_learnings() -> None:
     rows = _leaderboard()
     if rows:
         _write_learnings(rows)
+    # Re-score the EDIT itself against the metrics we just pulled. learnings.md
+    # says what to clip; craft.md says how to cut it, and both are rebuilt from
+    # the same fresh numbers so the editor improves on evidence, every day.
+    try:
+        craft.update()
+    except Exception as ex:  # noqa: BLE001 - never block the posting path
+        console.print(f"[yellow]craft update skipped:[/] {ex}")

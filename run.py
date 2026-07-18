@@ -14,6 +14,7 @@ Commands:
   auth-youtube   Connect your YouTube channel (OAuth) and cache the token
   auto <url>     Full semi-auto pipeline (pauses at review + upload)
                  add --yes to auto-approve the top N clips and post unattended
+  craft          Score our own edits vs retention → craft.md (the editor's learning loop)
   daily          Unattended: scout + newest video from scheduler.source_url + auto --yes
   produce        Make the day's clips into the post queue (no posting)
   post-next      Post the single best queued clip (for staggered 3x/day posting)
@@ -26,7 +27,7 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 
-from factory import db, notify, skills
+from factory import craft, db, notify, skills
 from factory.agents import (community, compiler, editor, finder,
                             finishing_editor, manager, montage, trainer,
                             trend_scout, uploader)
@@ -317,6 +318,9 @@ def main(argv: list[str]):
         community.engage()
     elif cmd == "digest":
         manager.weekly_digest()
+    elif cmd == "craft":
+        # Re-score our own edits against measured retention and rewrite craft.md
+        console.print(craft.update())
     elif cmd == "post-next":
         manager.refresh_learnings()  # fresh metrics + re-reasoned team directives
         if not uploader.upload_one(assume_yes=True):

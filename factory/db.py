@@ -54,6 +54,19 @@ CREATE TABLE IF NOT EXISTS metrics (
     measured_at TEXT,
     FOREIGN KEY(upload_id) REFERENCES uploads(id)
 );
+-- What the editor ACTUALLY did to each clip (cut rate, punch count, SFX count,
+-- hook length, reframe mode...). Without this the channel can measure that a
+-- clip held 82% but never learn WHICH craft choices earned it, so every
+-- "learning" stays an opinion. factory/craft.py joins this against `metrics`
+-- to score individual editing decisions on real retention.
+CREATE TABLE IF NOT EXISTS edit_specs (
+    id INTEGER PRIMARY KEY,
+    clip_id INTEGER UNIQUE,
+    niche TEXT,
+    spec_json TEXT,
+    created_at TEXT,
+    FOREIGN KEY(clip_id) REFERENCES clips(id)
+);
 """
 
 
@@ -164,3 +177,64 @@ def record_upload(clip_id, platform, external_id, url) -> int:
             (clip_id, platform, external_id, url, now()),
         )
         return cur.lastrowid
+
+
+# ── craft feedback loop ───────────────────────────────────────────
+def record_edit_spec(clip_id: int, spec: dict, niche: str = "") -> None:
+    """Save the measured craft parameters of a finished render.
+
+    Re-rendering a clip (a Manager bounce) REPLACES the row, so the spec always
+    describes the cut that actually shipped.
+    """
+    with conn() as c:
+        c.execute(
+            """INSERT INTO edit_specs(clip_id,niche,spec_json,created_at)
+               VALUES(?,?,?,?)
+               ON CONFLICT(clip_id) DO UPDATE SET
+                 spec_json=excluded.spec_json, niche=excluded.niche,
+                 created_at=excluded.created_at""",
+            (clip_id, niche, json.dumps(spec, sort_keys=True), now()),
+        )
+
+
+def edit_spec(clip_id: int) -> dict:
+    with conn() as c:
+        r = c.execute("SELECT spec_json FROM edit_specs WHERE clip_id=?",
+                      (clip_id,)).fetchone()
+    return json.loads(r[0]) if r else {}
+
+
+def specs_with_metrics(niche: str = "") -> list[dict]:
+    """Every clip that has BOTH a recorded edit spec and measured performance.
+
+    Uses the most recent metrics row per upload (retention keeps moving for days
+    after publish, so an early sample would understate every clip equally but
+    add noise). Returns one dict per clip: spec fields + views/retention.
+    """
+    q = """SELECT s.clip_id, s.niche, s.spec_json, c.title,
+                  m.views, m.likes, m.comments, m.avg_watch_pct
+             FROM edit_specs s
+             JOIN clips   c ON c.id = s.clip_id
+             JOIN uploads u ON u.clip_id = s.clip_id
+             JOIN metrics m ON m.upload_id = u.id
+            WHERE m.id = (SELECT MAX(m2.id) FROM metrics m2
+                           WHERE m2.upload_id = u.id)"""
+    args: tuple = ()
+    if niche:
+        q += " AND s.niche = ?"
+        args = (niche,)
+    with conn() as c:
+        rows = c.execute(q, args).fetchall()
+
+    out = []
+    for r in rows:
+        try:
+            spec = json.loads(r["spec_json"])
+        except (ValueError, TypeError):
+            continue
+        spec.update({"clip_id": r["clip_id"], "title": r["title"],
+                     "niche": r["niche"], "views": r["views"] or 0,
+                     "likes": r["likes"] or 0, "comments": r["comments"] or 0,
+                     "retention": r["avg_watch_pct"]})
+        out.append(spec)
+    return out

@@ -21,3 +21,16 @@ def trends() -> str:
     if f.exists():
         return f.read_text(encoding="utf-8").strip()
     return "(no trend scan yet)"
+
+
+def craft() -> str:
+    """Editing rules measured on our own clips (see factory/craft.py).
+
+    `learnings()` says what to CLIP; this says how to CUT it. Written from the
+    join of recorded edit specs and real retention, so the editor's craft comes
+    from the audience rather than from whoever last edited the config.
+    """
+    f = ROOT / cfg.get("craft.file", "craft.md")
+    if f.exists():
+        return f.read_text(encoding="utf-8").strip()
+    return "(no craft measurements yet — follow the skill files)"

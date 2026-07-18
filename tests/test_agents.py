@@ -1049,3 +1049,157 @@ class TestBlockOnFailFloor(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestCraftLoop(unittest.TestCase):
+    """The editor's self-learning loop (factory/craft.py).
+
+    The loop's whole value depends on it being HONEST: on a young channel most
+    apparent effects are noise, and a loop that mints rules from noise actively
+    degrades the edit while sounding confident. So these tests care as much
+    about what it refuses to claim as about what it finds.
+    """
+
+    @staticmethod
+    def _rows(n, field, lo_ret, hi_ret, **extra):
+        """n clips, half with field=1 / half with field=9, given retentions."""
+        out = []
+        for i in range(n):
+            high = i >= n // 2
+            r = {field: 9 if high else 1,
+                 "retention": hi_ret if high else lo_ret,
+                 "views": 100, "title": f"clip {i}"}
+            r.update(extra)
+            out.append(r)
+        return out
+
+    def test_refuses_to_rule_on_thin_data(self):
+        from factory import craft
+        rows = self._rows(6, "punch_count", 40.0, 90.0)   # huge effect, tiny n
+        self.assertIsNone(craft._numeric_finding(rows, "punch_count", "lo", "hi"),
+                          "6 clips must not produce a craft rule no matter how "
+                          "large the apparent effect")
+
+    def test_refuses_to_rule_on_small_effect(self):
+        from factory import craft
+        # 20 clips, but only a 2-point retention gap = noise, not craft.
+        rows = self._rows(20, "cuts_per_min", 60.0, 62.0)
+        self.assertIsNone(craft._numeric_finding(rows, "cuts_per_min", "lo", "hi"))
+
+    def test_finds_a_real_effect(self):
+        from factory import craft
+        rows = self._rows(20, "cuts_per_min", 55.0, 80.0)
+        f = craft._numeric_finding(rows, "cuts_per_min", "slower cutting",
+                                   "faster cutting")
+        self.assertIsNotNone(f)
+        self.assertIn("faster cutting", f["text"])
+        self.assertAlmostEqual(f["effect"], 25.0, places=1)
+
+    def test_direction_is_reported_correctly(self):
+        """When the LOW side wins the rule must say so, not blindly praise more."""
+        from factory import craft
+        rows = self._rows(20, "sfx_count", 85.0, 55.0)   # fewer SFX is better
+        f = craft._numeric_finding(rows, "sfx_count", "fewer sound effects",
+                                   "more sound effects")
+        self.assertIsNotNone(f)
+        self.assertTrue(f["text"].startswith("**fewer sound effects**"), f["text"])
+
+    def test_constant_knob_yields_nothing(self):
+        """A knob that never varies can't correlate — it must not be reported."""
+        from factory import craft
+        rows = [{"punch_count": 5, "retention": 50.0 + i, "views": 1}
+                for i in range(20)]
+        self.assertIsNone(craft._numeric_finding(rows, "punch_count", "lo", "hi"))
+
+    def test_categorical_needs_two_populated_groups(self):
+        from factory import craft
+        rows = [{"reframe": "smart", "retention": 80.0} for _ in range(12)]
+        self.assertIsNone(craft._categorical_finding(rows, "reframe", "reframe mode"))
+        rows += [{"reframe": "blur", "retention": 50.0} for _ in range(5)]
+        f = craft._categorical_finding(rows, "reframe", "reframe mode")
+        self.assertIsNotNone(f)
+        self.assertIn("smart", f["text"])
+
+    def test_defects_are_tallied_worst_first(self):
+        from factory import craft
+        rows = [{"qa_flags": ["captions on face", "audio too quiet"]},
+                {"qa_flags": ["captions on face"]},
+                {"qa_flags": ["captions on face", "face at edge"]}]
+        self.assertEqual(craft._defects(rows)[0], ("captions on face", 3))
+
+    def test_report_says_still_measuring_when_thin(self):
+        from factory import craft
+        txt = craft.render({"n": 3, "scope": "money", "findings": [],
+                            "exemplars": [], "defects": []})
+        self.assertIn("Still measuring", txt)
+        self.assertIn("do NOT invent rules", txt)
+
+    def test_report_lists_rules_when_proven(self):
+        from factory import craft
+        txt = craft.render({"n": 20, "scope": "money",
+                            "findings": [{"field": "cuts_per_min", "effect": 25.0,
+                                          "n": 20, "text": "**faster cutting** wins"}],
+                            "exemplars": [], "defects": []})
+        self.assertIn("faster cutting", txt)
+        self.assertIn("the measurement wins", txt)
+
+    def test_spec_round_trips_and_upserts(self):
+        """Re-rendering a bounced clip must REPLACE its spec, not duplicate it."""
+        import sqlite3, tempfile, pathlib
+        from factory import db as fdb
+        old = fdb.DB_PATH
+        try:
+            fdb.DB_PATH = pathlib.Path(tempfile.mkdtemp()) / "t.db"
+            with fdb.conn() as c:
+                c.execute("INSERT INTO clips(id,title) VALUES(1,'x')")
+            fdb.record_edit_spec(1, {"punch_count": 3}, "money")
+            fdb.record_edit_spec(1, {"punch_count": 7}, "money")
+            self.assertEqual(fdb.edit_spec(1)["punch_count"], 7)
+            with fdb.conn() as c:
+                n = c.execute("SELECT COUNT(*) FROM edit_specs").fetchone()[0]
+            self.assertEqual(n, 1, "re-render must upsert, not append")
+        finally:
+            fdb.DB_PATH = old
+
+
+class TestSeriesBranding(unittest.TestCase):
+    """Named+numbered series titles (the 6-subscribers-per-48k-views fix)."""
+
+    def _with(self, **over):
+        from factory.config import cfg
+        saved = dict(cfg._d.get("series", {}))
+        cfg._d.setdefault("series", {}).update(over)
+        return saved
+
+    def _restore(self, saved):
+        from factory.config import cfg
+        cfg._d["series"] = saved
+
+    def test_disabled_leaves_title_untouched(self):
+        from factory.agents import uploader
+        saved = self._with(enabled=False, name="THE RECEIPTS")
+        try:
+            self.assertEqual(uploader._series_title("Keane loses it"),
+                             "Keane loses it")
+        finally:
+            self._restore(saved)
+
+    def test_enabled_prefixes_name_and_number(self):
+        from factory.agents import uploader
+        saved = self._with(enabled=True, name="THE RECEIPTS")
+        try:
+            t = uploader._series_title("He owes 40k")
+            self.assertTrue(t.startswith("THE RECEIPTS #"), t)
+            self.assertTrue(t.endswith(": He owes 40k"), t)
+        finally:
+            self._restore(saved)
+
+    def test_never_double_prefixes(self):
+        """A re-upload must not become 'THE RECEIPTS #4: THE RECEIPTS #3: ...'."""
+        from factory.agents import uploader
+        saved = self._with(enabled=True, name="THE RECEIPTS")
+        try:
+            already = "THE RECEIPTS #3: He owes 40k"
+            self.assertEqual(uploader._series_title(already), already)
+        finally:
+            self._restore(saved)

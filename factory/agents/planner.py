@@ -184,6 +184,11 @@ Clip transcript (times are seconds from the START of the clip; the clip is {dur:
 What's working on our channel so far (learn from this):
 {insights.learnings()}
 
+CRAFT RULES MEASURED ON OUR OWN EDITS (these outrank generic best practice --
+they are computed from the retention our real clips earned, so where they
+contradict a skill file above, FOLLOW THE MEASUREMENT):
+{insights.craft()}
+
 Design the edit. Apply the skills above. Times must be within 0–{dur:.0f}s.
 hook_text: include the SPEAKER'S NAME when it fits (names stop the scroll — "KEANE:
 SACK THEM" beats "SACK THEM"). The first frame must show a name + a stake.

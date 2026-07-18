@@ -123,6 +123,31 @@ def authenticate() -> bool:
         return False
 
 
+def _series_number() -> int:
+    """Next episode number in the running series (1-based, counts real uploads)."""
+    start = int(cfg.get("series.number_from", 1))
+    with db.conn() as c:
+        n = c.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube'"
+                      ).fetchone()[0]
+    return start + int(n)
+
+
+def _series_title(title: str) -> str:
+    """Prefix the title with the recurring series name and episode number.
+
+    48,888 views converted 6 subscribers because a one-off clip gives nobody a
+    reason to come back. A NAMED, NUMBERED series does: it turns 'a video I
+    watched' into 'a thing I follow', and the number itself implies there are
+    more. Skipped if the title already carries the series name.
+    """
+    if not cfg.get("series.enabled", False):
+        return title
+    name = (cfg.get("series.name", "") or "").strip()
+    if not name or name.lower() in title.lower():
+        return title
+    return f"{name} #{_series_number()}: {title}"
+
+
 def _safe_title(title: str) -> str:
     """YouTube rejects '<' and '>' in titles (invalidTitle 400). Turn the
     common comparison shorthand into words and strip any stray brackets."""
@@ -142,7 +167,7 @@ def upload_youtube(clip, publish_at=None) -> dict | None:
     yt = build("youtube", "v3", credentials=creds)
     copy = post_copy(clip, "youtube")
     tags = [h.lstrip("#") for h in copy["hashtags"]]
-    title = _safe_title(copy["title"])[:95] + " #Shorts"
+    title = _series_title(_safe_title(copy["title"]))[:95] + " #Shorts"
     status = {"privacyStatus": cfg.get("uploader.privacy", "private"),
               "selfDeclaredMadeForKids": False}
     if publish_at is not None:

@@ -741,7 +741,9 @@ def edit_clip(clip) -> Path:
     tscale = (render_dur / dur) if dur > 0 else 1.0
 
     # 0c. camera-cut plan first — the reframe below re-centers per shot
-    punches, cuts = [], []
+    #     (seg_cx is seeded here so the craft-spec record at the end of the
+    #      render is always bound, whichever reframe branch ran)
+    punches, cuts, seg_cx = [], [], []
     if e.get("punch_zoom", True):
         punches = _punch_times(cap_words, cap_start,
                                plan.get("emphasis_words", []), render_dur)
@@ -1001,6 +1003,16 @@ def edit_clip(clip) -> Path:
                         y=str(h - 420), enable=f"gt(t,{render_dur - 2.2:.2f})")
         post = f"{post},{cta}" if post else cta
 
+    # 3b1. SERIES BADGE — small, persistent, top of frame. Titles carry the
+    # series name but the Shorts feed hides titles behind a tap, so without an
+    # in-frame mark a scroller never learns this is a recurring thing. Kept
+    # small and high so it never fights the captions (lower third) or the face.
+    if cfg.get("series.enabled", False) and cfg.get("series.badge", True):
+        sname = (cfg.get("series.name", "") or "").strip()
+        if sname:
+            badge = _drawtext(sname, size=34, y=str(int(h * 0.045)))
+            post = f"{post},{badge}" if post else badge
+
     # 3b2. the DEBATE QUESTION on screen (comments were 19 per 48,888 views).
     # The Finder already ends every caption with a forced-choice question, but it
     # only lived in the description where nobody reads it. Burning it over the
@@ -1165,7 +1177,41 @@ def edit_clip(clip) -> Path:
         _qa_render(out, total_dur, clip["id"])
     if e.get("make_cover", True):
         _make_cover(clip, plan, source, start, dur, w, h)
+
+    # Record WHAT THIS EDIT ACTUALLY DID so the craft loop can score it against
+    # the retention it earns (factory/craft.py). Never let bookkeeping break a
+    # finished render.
+    try:
+        _record_spec(clip, plan, e, total_dur, render_dur, cuts, punches, seg_cx)
+    except Exception as ex:  # noqa: BLE001
+        console.print(f"  [yellow]craft spec not recorded:[/] {ex}")
     return out
+
+
+def _record_spec(clip, plan, e, total_dur, render_dur, cuts, punches, seg_cx) -> None:
+    """Snapshot the measurable craft parameters of a finished cut.
+
+    Only things that VARY between clips are worth storing: a knob that is
+    constant across the library can never correlate with anything, it just
+    dilutes the report.
+    """
+    switches = sum(1 for a, b in zip(seg_cx, seg_cx[1:])
+                   if a is not None and b is not None and abs(a - b) > 0.06)
+    spec = {
+        "duration": round(total_dur, 1),
+        "cuts_per_min": round(len(cuts) / (render_dur / 60), 1) if render_dur else 0,
+        "shot_count": len(cuts) + 1,
+        "punch_count": len(punches),
+        "sfx_count": len(plan.get("sfx_cues") or []),
+        "hook_words": len((plan.get("hook_text") or "").split()),
+        "caption_wpp": e.get("words_per_page", cfg.get("captions.words_per_page", 2)),
+        "speaker_switches": switches,
+        "teaser_dur": round(max(0.0, total_dur - render_dur), 1),
+        "reframe": e.get("reframe", "smart"),
+        "music_mood": (plan.get("music_mood") or "none").lower().strip(),
+        "has_comment_q": bool((plan.get("comment_question") or "").strip()),
+    }
+    db.record_edit_spec(clip["id"], spec, cfg.get("finder.niche_lock") or "")
 
 
 def _probe_duration(path: Path) -> float:
