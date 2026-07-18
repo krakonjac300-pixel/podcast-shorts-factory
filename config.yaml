@@ -174,7 +174,8 @@ editor:
 uploader:
   schedule_mode: true          # upload the whole day at produce time; YouTube publishes
                                # each post server-side at post_times — PC can be off all day
-  post_times: ["09:00", "14:00", "19:00"]
+  post_times: ["09:00", "14:00", "21:30"]   # UK is 66% of viewers (1h behind us): 14:00=UK lunch
+                               #   (our best slot, 2-4x), 21:30=UK 20:30 prime. 19:00 local was UK 18:00 = weakest.
   ai_optimize: true             # rewrite title/caption/hashtags per platform using copywriting skills
   platforms: ["youtube", "tiktok", "instagram"]
   privacy: "public"             # auto-uploads post live to YouTube (hands-off)
