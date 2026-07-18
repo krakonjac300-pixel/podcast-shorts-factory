@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -977,11 +978,55 @@ def edit_clip(clip) -> Path:
                                enable="lt(t,2.2)")
         post = f"{post},{hook}" if post else hook
 
-    # 3b. end CTA — the follow ask, on screen for the last ~2s
+    # 3b. SUBSCRIBE ask at the PEAK, not the exit. Analytics 2026-07-18: 48,888
+    # views -> 6 subscribers (0.012%). The only ask was this end-card, which
+    # lands in the last 2s when the viewer is already swiping. Subscribers are
+    # the binding YPP constraint, so the ask now fires mid-clip at the emotional
+    # peak (just after the last emphasis punch, else ~58% through) while
+    # attention is still high — then a short end reinforcement.
     if e.get("cta", True) and render_dur > 12:
+        peak = None
+        if punches:
+            cand = [p for p in punches if 0.35 * render_dur < p < 0.8 * render_dur]
+            peak = (cand[-1] if cand else None)
+        if peak is None:
+            peak = render_dur * 0.58
+        peak = min(peak + 0.6, render_dur - 4.0)      # just AFTER the beat lands
+        if peak > 3.0:
+            mid = _drawtext(e.get("cta_mid_text", "SUBSCRIBE"), size=54,
+                            y=str(int(h * 0.11)),
+                            enable=f"between(t,{peak:.2f},{peak + 2.0:.2f})")
+            post = f"{post},{mid}" if post else mid
         cta = _drawtext(e.get("cta_text", "FOLLOW FOR MORE"), size=58,
                         y=str(h - 420), enable=f"gt(t,{render_dur - 2.2:.2f})")
         post = f"{post},{cta}" if post else cta
+
+    # 3b2. the DEBATE QUESTION on screen (comments were 19 per 48,888 views).
+    # The Finder already ends every caption with a forced-choice question, but it
+    # only lived in the description where nobody reads it. Burning it over the
+    # last beats turns a passive watch into a reply.
+    if e.get("comment_prompt", True) and render_dur > 12:
+        # the planner now returns a dedicated comment_question (required field).
+        # Fall back to a question parsed out of the caption, then to a generic
+        # ask — only 16% of captions actually carried one, which is why we saw
+        # 19 comments per 48,888 views.
+        q = (plan.get("comment_question") or "").strip()
+        if not q:
+            try:
+                for part in re.split(r"(?<=\?)\s+", (clip["caption"] or "").strip()):
+                    if part.strip().endswith("?") and 12 <= len(part.strip()) <= 60:
+                        q = part.strip()
+            except (KeyError, IndexError, TypeError):
+                q = ""
+        if not q:
+            q = e.get("comment_prompt_default", "AGREE?")
+        if len(q) > 60:
+            q = ""
+        if q:
+            qs = _drawtext_block(q, size=46, y_top=int(h * 0.20), max_chars=22,
+                                 max_lines=2,
+                                 enable=f"gt(t,{render_dur - 4.5:.2f})")
+            post = f"{post},{qs}" if post else qs
 
     # 3c. retention progress bar along the bottom (dark track + white fill)
     if e.get("progress_bar", True):

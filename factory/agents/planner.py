@@ -25,6 +25,14 @@ PLAN_TOOL = {
                            "description": "3-5 HUGE words for the thumbnail/cover; complements (not duplicates) the hook"},
             "music_mood": {"type": "string",
                            "description": "e.g. tense, upbeat, lofi, none — matches the emotion"},
+            "comment_question": {
+                "type": "string",
+                "description": "REQUIRED. A binary/forced-choice question about THIS "
+                               "clip, ≤6 words, burned on screen at the end to drive "
+                               "replies (comments are a top ranking signal and our "
+                               "weakest metric). e.g. 'Keane or Neville?', 'Overrated "
+                               "or elite?', 'Would you pay it?'. No hashtags.",
+            },
             "emphasis_words": {
                 "type": "array", "items": {"type": "string"},
                 "description": "the single most important word from each key line, to enlarge in captions",
@@ -122,7 +130,8 @@ PLAN_TOOL = {
                                "line gets a visual with the lesson written out.",
             },
         },
-        "required": ["hook_text", "music_mood", "emphasis_words"],
+        "required": ["hook_text", "music_mood", "emphasis_words",
+                     "comment_question"],
     },
 }
 
@@ -140,6 +149,7 @@ def _default_plan(clip) -> dict:
     return {"hook_text": _short_hook(clip["title"]), "cover_text": clip["title"],
             "music_mood": "none", "emphasis_words": [],
             "sfx_cues": [], "broll": [], "transitions": [],
+            "comment_question": "AGREE?",
             "narrator_intro": "", "teaser_times": [], "memes": [],
             "scene_map": []}
 

@@ -125,7 +125,12 @@ editor:
   scene_cuts: true             # cut on the source's REAL camera changes (PySceneDetect), not just sentence ends
   grade: true                  # cinematic color grade (contrast + saturation + vignette)
   progress_bar: true           # thin retention bar filling along the bottom
-  cta: true                    # end call-to-action text for the last ~2s
+  cta: true                    # subscribe ask — fires at the emotional PEAK (mid-clip) plus a
+                               # short end card. 2026-07-18 analytics: 48,888 views -> 6 subs
+                               # (0.012%) with an end-only ask; subs are the binding YPP gate.
+  cta_mid_text: "SUBSCRIBE"    # the peak-moment ask (short — it must not compete with captions)
+  comment_prompt: true         # burn the caption's forced-choice question on screen at the end
+                               # (comments were 19 per 48,888 views — they only lived in the description)
   cta_text: "FOLLOW FOR MORE"
   teaser: true                 # narrator cold-open: flash-preview of the payoff before the clip
   voiceover: true              # free AI narrator (Edge TTS, no key needed)
