@@ -16,8 +16,8 @@ from rich.console import Console
 
 from .. import db, notify
 from ..config import ROOT, WORK, cfg
-from ..utils import (broll, captions, design_scenes, remotion_intro, trimmer,
-                     voice)
+from ..utils import (broll, captions, design_scenes, media, remotion_intro,
+                     trimmer, voice)
 from ..utils import faces as faces_util
 from . import planner
 
@@ -852,6 +852,21 @@ def edit_clip(clip) -> Path:
             console.print("  [dim]intro: animated hook card ready[/]")
         else:
             console.print("  [yellow]intro card failed → keeping static hook[/]")
+
+    # 0a2. CAPTION REFINEMENT — re-transcribe just this clip's window with a
+    # stronger model. Captions are burned in permanently, so a mangled proper
+    # noun ships forever ("Kop end" went out as "Coppen"), but running the big
+    # model over the whole episode would cost ~99 minutes and blow the produce
+    # window. Over one 40s window it costs seconds. Done BEFORE the trim so the
+    # trim and the captions both work from the better words.
+    if cfg.get("finder.refine_clips", False):
+        refined = media.refine_words(source["video_path"], start, end)
+        if refined:
+            outside = [w for w in words
+                       if w["end"] <= start or w["start"] >= end]
+            words = sorted(outside + refined, key=lambda w: w["start"])
+            console.print(f"  [dim]captions: refined {len(refined)} words with "
+                          f"{cfg.get('finder.refine_model', 'medium')}[/]")
 
     # 0b. trim pass — cut filler words + dead air, then style the tightened clip
     render_src, render_start, render_dur = source["video_path"], start, dur

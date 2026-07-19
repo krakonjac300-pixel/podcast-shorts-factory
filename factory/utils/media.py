@@ -104,6 +104,68 @@ def extract_audio(video: Path) -> Path:
     return audio
 
 
+_REFINE_CACHE: dict = {}
+
+
+def refine_words(video: str, start: float, end: float) -> list[dict]:
+    """Re-transcribe ONLY a clip's window with a stronger model.
+
+    We transcribe a whole 90-minute episode but burn captions from about 90
+    seconds of it, so paying full-episode cost for caption-grade accuracy is
+    backwards. Measured on this machine: small runs 0.4x realtime and medium
+    1.1x, so medium over a full episode costs ~99 minutes and would eat the
+    produce window, while medium over three 40s windows costs about 2 minutes.
+
+    Returns words on the SOURCE timeline (timestamps shifted back by `start`)
+    so callers can splice them straight into the episode transcript. Returns []
+    on any failure, which leaves the original words in place.
+    """
+    import subprocess
+    import tempfile
+
+    model_name = cfg.get("finder.refine_model", "medium")
+    dur = max(0.0, float(end) - float(start))
+    if dur <= 0:
+        return []
+    try:
+        from faster_whisper import WhisperModel
+    except Exception:  # noqa: BLE001
+        return []
+
+    tmp = Path(tempfile.gettempdir()) / f"refine_{abs(hash((video, start, end)))}.wav"
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-ss", str(start), "-t", str(dur), "-i", str(video),
+             "-vn", "-ac", "1", "-ar", "16000", str(tmp)],
+            check=True, capture_output=True)
+
+        if model_name not in _REFINE_CACHE:      # loading medium costs ~5s
+            _REFINE_CACHE[model_name] = WhisperModel(
+                model_name, device=cfg.get("finder.whisper_device", "cpu"),
+                compute_type="float16"
+                if cfg.get("finder.whisper_device", "cpu") == "cuda" else "int8")
+        model = _REFINE_CACHE[model_name]
+
+        segments, _ = model.transcribe(
+            str(tmp), language=cfg.get("finder.language"), word_timestamps=True,
+            vad_filter=False,          # the window is already the moment we want
+            initial_prompt=(cfg.get("finder.vocabulary") or "").strip() or None,
+            beam_size=int(cfg.get("finder.whisper_beam", 5)),
+            condition_on_previous_text=False)
+
+        out = []
+        for seg in segments:
+            for w in (seg.words or []):
+                out.append({"start": float(w.start) + start,
+                            "end": float(w.end) + start, "word": w.word,
+                            "p": round(float(getattr(w, "probability", 1.0) or 1.0), 3)})
+        return out
+    except Exception:  # noqa: BLE001 - refinement is an upgrade, never a gate
+        return []
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def transcribe(audio: Path) -> list[dict]:
     """Word-level transcript: [{start, end, text, words:[{start,end,word}]}]."""
     from faster_whisper import WhisperModel

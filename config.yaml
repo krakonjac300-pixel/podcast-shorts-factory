@@ -65,6 +65,15 @@ finder:
     Trent Alexander-Arnold, Thomas Tuchel, Liverpool, Manchester United,
     Premier League, Champions League, penalty, the Overlap.
   whisper_beam: 5              # beam search beats greedy on proper nouns
+  # TWO-PASS CAPTIONS: pass 1 (whisper_model above) transcribes the whole episode
+  # so the finder can locate moments; pass 2 re-transcribes ONLY the chosen clip
+  # windows with refine_model, which is what actually gets burned on screen.
+  # Measured here: small 0.4x realtime, medium 1.1x. Medium over a 90-min episode
+  # = ~99 min and eats the produce window; medium over 3x40s windows = ~2 min.
+  # OFF until the niche flip has landed (enabled by tools/enable_refine.py) so
+  # the flip run changes one thing at a time.
+  refine_clips: false
+  refine_model: "medium"       # tiny | base | small | medium | large-v3
   max_candidates: 8            # how many clip ideas Claude returns per podcast
   clip_min_seconds: 15         # HARD platform bounds only — the AI reasons per clip: the idea
   clip_max_seconds: 32         # MEASURED (craft loop, 25 clips, 2026-07-18): clips whose

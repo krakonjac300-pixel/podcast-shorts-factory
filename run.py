@@ -294,6 +294,14 @@ def main(argv: list[str]):
         from factory.config import ROOT as _root
         _sp.run([_sys.executable, str(_root / "tools" / "flip_to_money.py")],
                 check=True)
+    elif cmd == "enable-refine":
+        # two-pass captions ON — scheduled a day after the flip so a failure
+        # has one cause, not five
+        import subprocess as _sp
+        import sys as _sys
+        from factory.config import ROOT as _root
+        _sp.run([_sys.executable, str(_root / "tools" / "enable_refine.py")],
+                check=True)
     elif cmd == "upload":
         uploader.upload_all(assume_yes="--yes" in rest)
     elif cmd == "stats":
