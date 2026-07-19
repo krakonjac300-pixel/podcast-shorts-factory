@@ -1197,7 +1197,7 @@ class TestSeriesBranding(unittest.TestCase):
 
     def test_disabled_leaves_title_untouched(self):
         from factory.agents import uploader
-        saved = self._with(enabled=False, name="THE RECEIPTS")
+        saved = self._with(enabled=False, name="MUGSHOT")
         try:
             self.assertEqual(uploader._series_title("Keane loses it"),
                              "Keane loses it")
@@ -1206,10 +1206,10 @@ class TestSeriesBranding(unittest.TestCase):
 
     def test_enabled_prefixes_name_and_number(self):
         from factory.agents import uploader
-        saved = self._with(enabled=True, name="THE RECEIPTS")
+        saved = self._with(enabled=True, name="MUGSHOT")
         try:
             t = uploader._series_title("He owes 40k")
-            self.assertTrue(t.startswith("THE RECEIPTS #"), t)
+            self.assertTrue(t.startswith("MUGSHOT #"), t)
             self.assertTrue(t.endswith(": He owes 40k"), t)
         finally:
             self._restore(saved)
@@ -1217,9 +1217,9 @@ class TestSeriesBranding(unittest.TestCase):
     def test_never_double_prefixes(self):
         """A re-upload must not become 'THE RECEIPTS #4: THE RECEIPTS #3: ...'."""
         from factory.agents import uploader
-        saved = self._with(enabled=True, name="THE RECEIPTS")
+        saved = self._with(enabled=True, name="MUGSHOT")
         try:
-            already = "THE RECEIPTS #3: He owes 40k"
+            already = "MUGSHOT #3: He owes 40k"
             self.assertEqual(uploader._series_title(already), already)
         finally:
             self._restore(saved)

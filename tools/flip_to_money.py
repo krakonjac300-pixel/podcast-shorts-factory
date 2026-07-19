@@ -120,7 +120,11 @@ def flip() -> bool:
     #    named, numbered series does. The flip is the moment to start one, since
     #    numbering from #1 on day one of the new format costs nothing.
     text = re.sub(r"(series:\n  enabled: )false", r"\1true", text)
-    text = re.sub(r'(series:\n(?:.*\n)*?  name: )""', r'\1"THE RECEIPTS"', text)
+    # Series name matches the new channel brand. It was briefly "THE RECEIPTS"
+    # until an availability check found an existing YouTube channel by that
+    # name plus the well-known UK "The Receipts Podcast" — and 66% of our
+    # viewers are British, so that collision would land on our own audience.
+    text = re.sub(r'(series:\n(?:.*\n)*?  name: )""', r'\1"MUGSHOT"', text)
 
     CONFIG.write_text(text, encoding="utf-8")
 
@@ -136,7 +140,7 @@ def flip() -> bool:
     assert "money-formula" in d["skills"]["finder"]
     assert "money-formula" in d["skills"]["editor"]
     assert "money-formula" in d["skills"]["uploader"]
-    assert d["series"]["enabled"] and d["series"]["name"] == "THE RECEIPTS"
+    assert d["series"]["enabled"] and d["series"]["name"] == "MUGSHOT"
     assert "credit score" in d["finder"]["vocabulary"]
     print("flip applied + config validates: niche=money, 4 money sources, "
           f"content_since={d['scheduler']['content_since']}")
