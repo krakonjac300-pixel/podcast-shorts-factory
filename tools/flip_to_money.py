@@ -149,9 +149,14 @@ def flip() -> bool:
         from factory import notify
         notify.notify(
             "CHANNEL FLIPPED TO MONEY/BUSINESS",
-            "The factory now clips CalebHammer/Ramsey/DOAC/MFM. Your one manual "
-            "step: rename the channel + new logo in YouTube Studio (money brand). "
-            "First finance batch schedules at the next produce run.")
+            "Clips now come from CalebHammer/Ramsey/DOAC/MFM, and videos already "
+            "say MUGSHOT #N on screen. YOUR ONE MANUAL STEP in YouTube Studio "
+            "(Customisation > Branding + Basic info):\n"
+            "  1. Name: Money Mugshots\n"
+            "  2. Handle: @moneymugshots (verified free 2026-07-19)\n"
+            "  3. Picture: assets/brand/logo_800.png\n"
+            "  4. Banner: assets/brand/banner_2048.png\n"
+            "Until you do it the videos are branded and the channel is not.")
     except Exception:  # noqa: BLE001
         pass
     return True
