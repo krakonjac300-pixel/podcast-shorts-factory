@@ -97,8 +97,20 @@ def find(url: str) -> int:
     console.print("[bold cyan]FINDER[/] extracting audio + transcribing "
                   f"(whisper={cfg.get('finder.whisper_model')})…")
     audio = media.extract_audio(video)
-    transcript = media.transcribe(audio)
-    console.print(f"  ↳ {len(transcript)} segments")
+    info: dict = {}
+    transcript = media.transcribe(audio, info_out=info)
+    console.print(f"  ↳ {len(transcript)} segments"
+                  + (f"  [dim](lang={info.get('language')} "
+                     f"{info.get('language_probability', 0):.0%})[/]"
+                     if info.get("language") else ""))
+
+    # GATE 1 — LANGUAGE. The cheapest, hardest signal that we downloaded the
+    # wrong video entirely. On 2026-07-19 a mislabelled source fed us a Hindi
+    # vlog; the topic gates below never fired because they only knew how to
+    # reject the wrong SPORT, and clips reached the queue. Language is not a
+    # matter of taste, so it is checked first and aborts the whole source.
+    if not _language_ok(info, title):
+        return 0
 
     source_id = db.upsert_source(url, title, video, transcript, channel=channel)
 
@@ -153,19 +165,65 @@ _NICHE_KEEP = {
 }
 
 
+def _language_ok(info: dict, title: str) -> bool:
+    """False if the episode is not in the language this channel publishes in.
+
+    Aborts the SOURCE, not just the clip: if the language is wrong, every
+    moment in it is wrong, and continuing only burns an hour of transcription
+    and rendering to produce something unpostable.
+    """
+    want = (cfg.get("finder.expect_language", "en") or "").strip().lower()
+    got = (info.get("language") or "").strip().lower()
+    if not want or not got:
+        return True                      # nothing to compare — don't block
+    if got == want:
+        return True
+    # Only act when Whisper is actually sure; a noisy intro can produce a
+    # low-confidence guess we should not trust enough to throw an episode away.
+    conf = float(info.get("language_probability", 0.0) or 0.0)
+    if conf < float(cfg.get("finder.language_min_conf", 0.6)):
+        console.print(f"  [yellow]language looks like '{got}' but only "
+                      f"{conf:.0%} confident — continuing[/]")
+        return True
+    console.print(f"  [red]LANGUAGE GATE: '{got}' ({conf:.0%}) is not "
+                  f"'{want}' — dropping this source entirely[/]")
+    notify.notify(
+        "Wrong-language source dropped",
+        f"'{title[:60]}' transcribed as '{got}' ({conf:.0%}), not '{want}'. "
+        "No clips were made. Check scheduler.sources for a wrong channel URL.")
+    return False
+
+
 def _niche_ok(clip: dict) -> bool:
-    """False if `clip` is clearly off-niche while niche_lock is active."""
+    """False if `clip` does not positively belong to the locked niche.
+
+    This used to be a BLOCKLIST: drop only if the text hit a known off-topic
+    pattern (boxing on a football channel). That silently allowed anything it
+    had never heard of, which is how a Hindi shopping vlog produced four clips
+    on 2026-07-19 — it matched no football terms AND no boxing terms, so it
+    read as "not known to be bad" and passed.
+
+    It is now an ALLOWLIST: while a lock is active a clip must show positive
+    evidence of the niche. Unrecognised content is rejected, not admitted. That
+    is the right default for an unattended pipeline, where the cost of dropping
+    a good clip is one empty slot and the cost of admitting a bad one is a
+    published video that does not belong on the channel.
+    """
     lock = cfg.get("finder.niche_lock")
     if not lock:
         return True
     off, keep = _OFF_NICHE.get(lock), _NICHE_KEEP.get(lock)
-    if not off or not keep:
-        return True
+    if not keep:
+        return True                      # no lexicon defined for this niche
     text = f"{clip.get('title', '')} {clip.get('reason', '')} " \
            f"{clip.get('caption', '')}"
-    if off.search(text) and not keep.search(text):
+    if off is not None and off.search(text) and not keep.search(text):
         console.print(f"  [yellow]niche-lock: dropped off-{lock} clip "
                       f"'{str(clip.get('title', ''))[:40]}'[/]")
+        return False
+    if not keep.search(text):
+        console.print(f"  [yellow]niche-lock: dropped clip with no {lock} "
+                      f"signal '{str(clip.get('title', ''))[:40]}'[/]")
         return False
     return True
 

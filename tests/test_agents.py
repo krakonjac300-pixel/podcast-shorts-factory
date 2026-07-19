@@ -868,8 +868,13 @@ class TestFinderResilience(unittest.TestCase):
         def fake_call_tool(agent, prompt, tool, schema, max_tokens=4000):
             calls["n"] += 1
             if "do NOT return an empty list" in prompt:      # relaxed/insist pass
-                return {"clips": [{"start": 0, "end": 20, "title": "X",
-                                   "reason": "r", "score": 70, "caption": "c"}]}
+                # realistic on-niche content: placeholder text ("X"/"r"/"c")
+                # is now correctly dropped by the niche ALLOWLIST, which would
+                # make this test fail for a reason it is not about
+                return {"clips": [{"start": 0, "end": 20,
+                                   "title": "Keane blasts the midfield",
+                                   "reason": "football drama", "score": 70,
+                                   "caption": "premier league row"}]}
             return {"clips": []}                              # strict pass: nothing
 
         orig = finder.llm.call_tool
@@ -1223,3 +1228,77 @@ class TestSeriesBranding(unittest.TestCase):
             self.assertEqual(uploader._series_title(already), already)
         finally:
             self._restore(saved)
+
+
+class TestWrongVideoGates(unittest.TestCase):
+    """Guards against clipping the wrong video entirely.
+
+    2026-07-19: a source URL commented "# Rio Ferdinand" actually pointed at a
+    Hindi vlog channel. Four clips were produced from it and one reached the
+    upload step. The topic gate never fired because it was a BLOCKLIST that only
+    knew how to reject the wrong sport, so unrecognised content read as "not
+    known to be bad" and passed.
+    """
+
+    # the real titles the finder generated from that vlog
+    BAD = [{"title": "First Salary = Closet Full of Clothes That Don't Fit",
+            "reason": "relatable", "caption": "shopping haul"},
+           {"title": "Creator Truth Bomb: 'No Money = No Video'",
+            "reason": "creator life", "caption": "vlog"},
+           {"title": "20 for ONE Glass of Sherbet? Sarojini Prices Broke Me",
+            "reason": "price shock", "caption": "market prices"}]
+
+    def _lock(self, niche):
+        from factory.config import cfg
+        prev = cfg._d["finder"].get("niche_lock")
+        cfg._d["finder"]["niche_lock"] = niche
+        return prev
+
+    def test_topic_gate_is_an_allowlist_not_a_blocklist(self):
+        """Unrecognised content must be REJECTED, not admitted by default."""
+        from factory.agents import finder
+        from factory.config import cfg
+        prev = self._lock("football")
+        try:
+            for clip in self.BAD:
+                self.assertFalse(finder._niche_ok(clip),
+                                 f"off-niche clip passed: {clip['title']}")
+            # a real football clip must still survive the stricter gate
+            self.assertTrue(finder._niche_ok(
+                {"title": "Keane slams Bellingham", "reason": "drama",
+                 "caption": "premier league row"}))
+        finally:
+            cfg._d["finder"]["niche_lock"] = prev
+
+    def test_language_gate_is_what_actually_catches_this(self):
+        """Under a MONEY lock the topic gate cannot catch that vlog: the clips
+        say "salary", "money" and "price", so they match a money lexicon. The
+        language gate is the guard that genuinely stops it, which is why it
+        aborts the whole source rather than filtering clip by clip."""
+        from factory.agents import finder
+        from factory.config import cfg
+        prev = self._lock("money")
+        try:
+            passed = [c for c in self.BAD if finder._niche_ok(c)]
+            self.assertTrue(passed, "expected the money lexicon to be fooled "
+                                    "here — if not, update this reasoning")
+        finally:
+            cfg._d["finder"]["niche_lock"] = prev
+        self.assertFalse(finder._language_ok(
+            {"language": "hi", "language_probability": 0.99}, "vlog"))
+
+    def test_language_gate_keeps_english(self):
+        from factory.agents import finder
+        self.assertTrue(finder._language_ok(
+            {"language": "en", "language_probability": 0.98}, "podcast"))
+
+    def test_language_gate_needs_confidence(self):
+        """A noisy intro can yield a low-confidence guess. Throwing an episode
+        away on that would cause empty days, so we only act when sure."""
+        from factory.agents import finder
+        self.assertTrue(finder._language_ok(
+            {"language": "hi", "language_probability": 0.40}, "x"))
+
+    def test_language_gate_inert_without_detection(self):
+        from factory.agents import finder
+        self.assertTrue(finder._language_ok({}, "x"))

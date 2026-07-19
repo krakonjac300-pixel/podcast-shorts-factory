@@ -51,6 +51,16 @@ finder:
   language: null               # null = auto-detect, or "en", "es", ...
   cookies_from_browser: null   # if YouTube blocks a video ("confirm you're not a bot"),
                                #   set chrome | edge | firefox (CLOSE that browser first — it locks the cookie DB)
+  # LANGUAGE GATE — the hardest guard against clipping the wrong video at all.
+  # On 2026-07-19 a source URL labelled "# Rio Ferdinand" was actually a Hindi
+  # vlog channel; it produced 4 clips because the topic gate only knew how to
+  # reject the wrong SPORT. Language is not a judgement call, so a confident
+  # mismatch drops the whole source before anything is rendered. Note the topic
+  # gate CANNOT cover this case under a money lock: those clips said "salary",
+  # "money" and "price", so they would pass a money lexicon. This is the guard
+  # that actually stops it.
+  expect_language: "en"        # null disables; must match Whisper's detection
+  language_min_conf: 0.6       # below this we do not trust the guess enough to drop
   niche_lock: "football"       # hard gate: drop clips from another sport (boxing/UFC/etc.)
                                #   while set. Clear it (null) to open the channel to other niches.
   # VOCABULARY HINT — Whisper conditions on this before decoding, which is the

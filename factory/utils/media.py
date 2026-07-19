@@ -166,8 +166,14 @@ def refine_words(video: str, start: float, end: float) -> list[dict]:
         tmp.unlink(missing_ok=True)
 
 
-def transcribe(audio: Path) -> list[dict]:
-    """Word-level transcript: [{start, end, text, words:[{start,end,word}]}]."""
+def transcribe(audio: Path, info_out: dict | None = None) -> list[dict]:
+    """Word-level transcript: [{start, end, text, words:[{start,end,word}]}].
+
+    Pass `info_out` to also receive Whisper's detected language and its
+    confidence. That is the cheapest reliable signal that we downloaded the
+    wrong video entirely: a Hindi vlog reached the queue because the niche gate
+    only knew how to reject the wrong SPORT, not unrelated content.
+    """
     from faster_whisper import WhisperModel
 
     model_name = cfg.get("finder.whisper_model", "base")
@@ -187,13 +193,17 @@ def transcribe(audio: Path) -> list[dict]:
     beam = int(cfg.get("finder.whisper_beam", 5))
 
     def run(vad: bool) -> list[dict]:
-        segments, _ = model.transcribe(
+        segments, info = model.transcribe(
             str(audio), language=language, word_timestamps=True, vad_filter=vad,
             initial_prompt=prompt, beam_size=beam,
             # each segment re-anchors on the prompt instead of drifting on its
             # own earlier guesses, which is what turns one bad name into three
             condition_on_previous_text=False,
         )
+        if info_out is not None and info is not None:
+            info_out["language"] = getattr(info, "language", "") or ""
+            info_out["language_probability"] = float(
+                getattr(info, "language_probability", 0.0) or 0.0)
         out = []
         for seg in segments:
             words = [{"start": w.start, "end": w.end, "word": w.word,
