@@ -53,6 +53,18 @@ finder:
                                #   set chrome | edge | firefox (CLOSE that browser first — it locks the cookie DB)
   niche_lock: "football"       # hard gate: drop clips from another sport (boxing/UFC/etc.)
                                #   while set. Clear it (null) to open the channel to other niches.
+  # VOCABULARY HINT — Whisper conditions on this before decoding, which is the
+  # cheap fix for mangled proper nouns. "Anfield, Kop end" was coming out as
+  # "Anfield Coppen" and got BURNED into a published clip. Verified on that
+  # exact audio: with this hint the line transcribes correctly, at +0.6s per
+  # clip. Names are what our hooks are built on, so they must be right.
+  # Swapped to money terms by tools/flip_to_money.py.
+  vocabulary: >
+    Anfield, the Kop, Kop end, Steven Gerrard, Peter Crouch, Roy Keane,
+    Gary Neville, Jamie Carragher, Wayne Rooney, Jude Bellingham,
+    Trent Alexander-Arnold, Thomas Tuchel, Liverpool, Manchester United,
+    Premier League, Champions League, penalty, the Overlap.
+  whisper_beam: 5              # beam search beats greedy on proper nouns
   max_candidates: 8            # how many clip ideas Claude returns per podcast
   clip_min_seconds: 15         # HARD platform bounds only — the AI reasons per clip: the idea
   clip_max_seconds: 32         # MEASURED (craft loop, 25 clips, 2026-07-18): clips whose
@@ -288,7 +300,6 @@ scheduler:
     # World Cup 2026 lean (talking-podcast discussion only — NEVER match footage).
     # Listed first so they're picked while the tournament is live (through ~Jul 19).
     - "https://www.youtube.com/@TheOverlap/videos"       # Gary Neville — Stick to Football
-    - "https://www.youtube.com/@VibeWithFive/videos"      # Rio Ferdinand
     - "https://www.youtube.com/@joerogan/videos"
     - "https://www.youtube.com/@TheDiaryOfACEO/videos"
     - "https://www.youtube.com/@CalebHammer/videos"

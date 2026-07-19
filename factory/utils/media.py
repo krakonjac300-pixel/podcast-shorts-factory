@@ -116,13 +116,27 @@ def transcribe(audio: Path) -> list[dict]:
     compute = "float16" if device == "cuda" else "int8"
     model = WhisperModel(model_name, device=device, compute_type=compute)
 
+    # Proper nouns are where Whisper fails us, and they are exactly the words
+    # our hooks are built on. A vocabulary hint conditions the decoder toward
+    # the names it is about to hear ("Copenhagen" came out as "COPPEN" and got
+    # burned into a published clip). Beam search over greedy decoding buys
+    # accuracy for a modest amount of time on short podcast clips.
+    prompt = (cfg.get("finder.vocabulary") or "").strip() or None
+    beam = int(cfg.get("finder.whisper_beam", 5))
+
     def run(vad: bool) -> list[dict]:
         segments, _ = model.transcribe(
             str(audio), language=language, word_timestamps=True, vad_filter=vad,
+            initial_prompt=prompt, beam_size=beam,
+            # each segment re-anchors on the prompt instead of drifting on its
+            # own earlier guesses, which is what turns one bad name into three
+            condition_on_previous_text=False,
         )
         out = []
         for seg in segments:
-            words = [{"start": w.start, "end": w.end, "word": w.word}
+            words = [{"start": w.start, "end": w.end, "word": w.word,
+                      # kept so captions can flag what the model was unsure of
+                      "p": round(float(getattr(w, "probability", 1.0) or 1.0), 3)}
                      for w in (seg.words or [])]
             out.append({"start": seg.start, "end": seg.end,
                         "text": seg.text.strip(), "words": words})

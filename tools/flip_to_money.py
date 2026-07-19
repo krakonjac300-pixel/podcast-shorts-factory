@@ -104,6 +104,17 @@ def flip() -> bool:
     for agent in ("finder", "editor", "uploader"):
         text = re.sub(rf"(  {agent}: +\[)", r"\1money-formula, ", text, count=1)
 
+    # 7b. money vocabulary for Whisper — the football names would actively
+    #     mislead the decoder once every clip is about debt and credit scores.
+    text = re.sub(
+        r"  vocabulary: >\n(?:    .*\n)+",
+        "  vocabulary: >\n"
+        "    credit score, FICO, APR, minimum payment, collections,\n"
+        "    401k, Roth IRA, index fund, S&P 500, compound interest,\n"
+        "    Caleb Hammer, Dave Ramsey, Graham Stephan, debt snowball,\n"
+        "    net worth, take-home pay, overdraft, repossession, escrow.\n",
+        text)
+
     # 8. launch the recurring SERIES with the new niche. 48,888 football views
     #    converted 6 subs because nothing gave people a reason to come back; a
     #    named, numbered series does. The flip is the moment to start one, since
@@ -126,6 +137,7 @@ def flip() -> bool:
     assert "money-formula" in d["skills"]["editor"]
     assert "money-formula" in d["skills"]["uploader"]
     assert d["series"]["enabled"] and d["series"]["name"] == "THE RECEIPTS"
+    assert "credit score" in d["finder"]["vocabulary"]
     print("flip applied + config validates: niche=money, 4 money sources, "
           f"content_since={d['scheduler']['content_since']}")
 
