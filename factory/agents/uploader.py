@@ -124,11 +124,24 @@ def authenticate() -> bool:
 
 
 def _series_number() -> int:
-    """Next episode number in the running series (1-based, counts real uploads)."""
+    """Next episode number in the running series.
+
+    Counts only uploads since the series STARTED, not all-time. Counting every
+    upload ever would have debuted the new series at #32, which tells a viewer
+    they missed 31 episodes that do not exist and wastes the one thing the
+    number is for: making the thing feel worth following from the start.
+    """
     start = int(cfg.get("series.number_from", 1))
+    since = (cfg.get("series.started")
+             or cfg.get("scheduler.content_since") or "")
     with db.conn() as c:
-        n = c.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube'"
-                      ).fetchone()[0]
+        if since:
+            n = c.execute("""SELECT COUNT(*) FROM uploads
+                              WHERE platform='youtube' AND created_at >= ?""",
+                          (str(since),)).fetchone()[0]
+        else:
+            n = c.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube'"
+                          ).fetchone()[0]
     return start + int(n)
 
 

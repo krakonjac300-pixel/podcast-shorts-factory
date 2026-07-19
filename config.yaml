@@ -333,4 +333,7 @@ series:
   enabled: false
   name: ""                     # e.g. "THE RECEIPTS"
   number_from: 1               # first episode number
+  started: ""                  # ISO date the series began; numbering counts only
+                               # uploads on/after it (set by the flip). Empty =
+                               # falls back to scheduler.content_since.
   badge: true                  # burn the series name into the top of the frame
