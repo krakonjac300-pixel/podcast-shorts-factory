@@ -1302,3 +1302,74 @@ class TestWrongVideoGates(unittest.TestCase):
     def test_language_gate_inert_without_detection(self):
         from factory.agents import finder
         self.assertTrue(finder._language_ok({}, "x"))
+
+
+class TestNeverReplyToOurself(unittest.TestCase):
+    """The channel must not answer its own comments.
+
+    We seed a pinned debate question on every video, and that comment comes back
+    from the same commentThreads endpoint we read to find viewers to reply to.
+    Measured 2026-07-19 across 4 recent videos: 3 of the top-level comments were
+    OURS and 1 was a viewer's, and two of ours had replies from us. In public
+    that reads as a channel performing an audience it does not have.
+    """
+
+    class _FakeYT:
+        """Minimal stand-in for the YouTube client."""
+        def __init__(self, items):
+            self._items = items
+
+        def channels(self):
+            outer = self
+            class _C:
+                def list(self, **kw):
+                    class _R:
+                        def execute(self_inner):
+                            return {"items": [{"id": "UC_OURS"}]}
+                    return _R()
+            return _C()
+
+        def commentThreads(self):
+            outer = self
+            class _T:
+                def list(self, **kw):
+                    class _R:
+                        def execute(self_inner):
+                            return {"items": outer._items}
+                    return _R()
+            return _T()
+
+    @staticmethod
+    def _thread(cid, author_id, text):
+        return {"snippet": {"totalReplyCount": 0,
+                            "topLevelComment": {
+                                "id": cid,
+                                "snippet": {"authorDisplayName": "x",
+                                            "authorChannelId": {"value": author_id},
+                                            "textDisplay": text}}}}
+
+    def setUp(self):
+        from factory.agents import community
+        community._OWN_CHANNEL_ID = None      # don't leak between tests
+
+    def tearDown(self):
+        from factory.agents import community
+        community._OWN_CHANNEL_ID = None
+
+    def test_our_own_comments_are_filtered_out(self):
+        from factory.agents import community
+        yt = self._FakeYT([
+            self._thread("c1", "UC_OURS", "Brave or brainless?"),   # our seed
+            self._thread("c2", "UC_VIEWER", "Keane was right"),     # a real one
+        ])
+        got = community._fetch_comments(yt, "vid")
+        self.assertEqual([c["comment_id"] for c in got], ["c2"],
+                         "our own seeded comment must never be returned")
+
+    def test_all_ours_yields_nothing_to_reply_to(self):
+        from factory.agents import community
+        yt = self._FakeYT([self._thread("c1", "UC_OURS", "seed one"),
+                           self._thread("c2", "UC_OURS", "seed two")])
+        self.assertEqual(community._fetch_comments(yt, "vid"), [],
+                         "a video with only our own comments must produce no "
+                         "reply targets, not a conversation with ourselves")

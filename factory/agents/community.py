@@ -109,6 +109,21 @@ def _recent_videos(yt, limit: int = 6) -> list[dict]:
     return vids[:limit]
 
 
+_OWN_CHANNEL_ID: str | None = None
+
+
+def _own_channel_id(yt) -> str:
+    """Our own channel id, fetched once per process."""
+    global _OWN_CHANNEL_ID
+    if _OWN_CHANNEL_ID is None:
+        try:
+            r = yt.channels().list(part="id", mine=True).execute()
+            _OWN_CHANNEL_ID = (r.get("items") or [{}])[0].get("id", "") or ""
+        except Exception:  # noqa: BLE001
+            _OWN_CHANNEL_ID = ""
+    return _OWN_CHANNEL_ID
+
+
 def _fetch_comments(yt, video_id: str, limit: int = 20) -> list[dict]:
     try:
         resp = yt.commentThreads().list(
@@ -116,12 +131,22 @@ def _fetch_comments(yt, video_id: str, limit: int = 20) -> list[dict]:
             order="time", textFormat="plainText").execute()
     except Exception:  # noqa: BLE001 - comments disabled / none yet
         return []
+
+    # NEVER return our own comments. We seed a pinned debate question on every
+    # video, which comes back in this same list, so without this filter the
+    # agent finds its own comment and replies to it — the channel talking to
+    # itself in public, which is worse than staying quiet.
+    mine = _own_channel_id(yt)
     out = []
     for item in resp.get("items", []):
         top = item["snippet"]["topLevelComment"]
         s = top["snippet"]
+        author_id = (s.get("authorChannelId") or {}).get("value", "")
+        if mine and author_id == mine:
+            continue
         out.append({"comment_id": top["id"],
                     "author": s.get("authorDisplayName", ""),
+                    "author_id": author_id,
                     "text": s.get("textDisplay", "")[:300],
                     "replies": item["snippet"].get("totalReplyCount", 0)})
     return out
