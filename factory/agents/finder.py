@@ -110,6 +110,12 @@ def find(url: str) -> int:
     # reject the wrong SPORT, and clips reached the queue. Language is not a
     # matter of taste, so it is checked first and aborts the whole source.
     if not _language_ok(info, title):
+        # Record it FIRST. processed_urls() reads the sources table, so returning
+        # before the upsert meant the same wrong-language video was picked again
+        # the next day: another full download and Whisper pass, every day, until
+        # the channel happened to publish something newer. pick_next also returns
+        # on the first source, so one bad video could block the whole list.
+        db.upsert_source(url, title, video, transcript, channel=channel)
         return 0
 
     source_id = db.upsert_source(url, title, video, transcript, channel=channel)

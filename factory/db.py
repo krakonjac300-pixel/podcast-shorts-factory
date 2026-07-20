@@ -215,7 +215,7 @@ def specs_with_metrics(niche: str = "") -> list[dict]:
                   m.views, m.likes, m.comments, m.avg_watch_pct
              FROM edit_specs s
              JOIN clips   c ON c.id = s.clip_id
-             JOIN uploads u ON u.clip_id = s.clip_id
+             JOIN uploads u ON u.clip_id = s.clip_id AND u.platform = 'youtube'
              JOIN metrics m ON m.upload_id = u.id
             WHERE m.id = (SELECT MAX(m2.id) FROM metrics m2
                            WHERE m2.upload_id = u.id)"""

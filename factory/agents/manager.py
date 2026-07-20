@@ -374,7 +374,17 @@ def _write_learnings(rows: list[dict]):
         old = out.read_text(encoding="utf-8")
         if pin_start in old and pin_end in old:
             pinned = old[old.index(pin_start):old.index(pin_end) + len(pin_end)] + "\n\n"
-    out.write_text(pinned + text + "\n", encoding="utf-8")
+    # Preserve the daily meeting block as well as the pinned one. This kept ONLY
+    # the pinned region, so the 13:00 meeting was silently deleted by the next
+    # post-next run a few hours later and never reached the agents it was written
+    # for — while _splice_meeting's docstring claimed a rewrite "can never eat"
+    # it. Verified by simulating team_meeting() then refresh_learnings().
+    meeting = ""
+    prev = out.read_text(encoding="utf-8") if out.exists() else ""
+    if MEETING_HEAD in prev and MEETING_TAIL in prev:
+        inner = prev.split(MEETING_HEAD, 1)[1].split(MEETING_TAIL, 1)[0]
+        meeting = f"{MEETING_HEAD}{inner}{MEETING_TAIL}\n\n"
+    out.write_text(pinned + meeting + text + "\n", encoding="utf-8")
     console.print(f"[green]✓ Updated {out.name}[/] — every agent reads this next run.")
 
 

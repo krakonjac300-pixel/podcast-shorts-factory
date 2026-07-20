@@ -31,6 +31,12 @@ from .config import ROOT, cfg
 MIN_CLIPS = 10          # total measured clips before any rule is claimed
 MIN_SIDE = 4            # clips required on EACH side of a median split
 MIN_EFFECT = 4.0        # retention points; below this it is noise, not craft
+MIN_VIEWS = 50          # a clip nobody watched has no opinion worth learning from.
+                        # Without this the loop scored 4 zero-view clips and held a
+                        # 9-VIEW clip up as "copy what this did" in every edit prompt,
+                        # inflating the headline effect size by 68% (-31.9 vs -19.0
+                        # points once filtered). _deterministic_meeting already used
+                        # this exact floor; craft.py simply never applied it.
 MAX_RULES = 8           # keep craft.md small enough to sit in every prompt
 
 # The knobs worth scoring, and how to phrase each direction in plain English.
@@ -128,13 +134,15 @@ def _defects(rows: list[dict]) -> list[tuple[str, int]]:
 
 def analyse(niche: str = "") -> dict:
     """Score every craft knob against measured retention."""
-    rows = db.specs_with_metrics(niche)
+    rows = [r for r in db.specs_with_metrics(niche)
+            if int(r.get("views") or 0) >= MIN_VIEWS]
     # Not enough inside the current niche yet? Learn from everything rather than
     # nothing, but say so, since craft transfers across niches better than topic
     # choice does.
     scope = niche or "all"
     if niche and len(rows) < MIN_CLIPS:
-        allrows = db.specs_with_metrics()
+        allrows = [r for r in db.specs_with_metrics()
+                   if int(r.get("views") or 0) >= MIN_VIEWS]
         if len(allrows) > len(rows):
             rows, scope = allrows, f"all niches (too few {niche} clips yet)"
 

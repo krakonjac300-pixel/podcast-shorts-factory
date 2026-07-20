@@ -1389,6 +1389,11 @@ def _record_spec(clip, plan, e, total_dur, render_dur, cuts, punches, seg_cx) ->
     constant across the library can never correlate with anything, it just
     dilutes the report.
     """
+    # seg_cx is seeded to [] but three reframe branches reassign it to None when
+    # there are no cuts / no opencv / no faces. Subscripting None raised here and
+    # the broad except above swallowed it, so ~1 in 4 renders silently recorded
+    # NO craft spec: the loop was starved exactly on the clips it most wants.
+    seg_cx = seg_cx or []
     switches = sum(1 for a, b in zip(seg_cx, seg_cx[1:])
                    if a is not None and b is not None and abs(a - b) > 0.06)
     spec = {
