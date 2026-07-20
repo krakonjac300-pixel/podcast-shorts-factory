@@ -501,3 +501,189 @@ def refresh_learnings() -> None:
         craft.update()
     except Exception as ex:  # noqa: BLE001 - never block the posting path
         console.print(f"[yellow]craft update skipped:[/] {ex}")
+
+
+# ── daily team meeting ────────────────────────────────────────────
+MEETING_HEAD = "<!-- DAILY MEETING:START -->"
+MEETING_TAIL = "<!-- DAILY MEETING:END -->"
+
+
+def _splice_meeting(existing: str, block: str) -> str:
+    """Put the meeting block into learnings.md without touching anything else.
+
+    learnings.md already carries a PINNED strategy block that must survive, and
+    the Manager's own daily directives below it. The meeting gets its own
+    delimited region so a daily rewrite can never eat either one.
+    """
+    stamped = f"{MEETING_HEAD}\n{block.strip()}\n{MEETING_TAIL}"
+    if MEETING_HEAD in existing and MEETING_TAIL in existing:
+        pre = existing.split(MEETING_HEAD)[0]
+        post = existing.split(MEETING_TAIL, 1)[1]
+        return f"{pre}{stamped}{post}"
+    # first run: sit directly under the PINNED block if there is one
+    marker = "<!-- PINNED:END -->"
+    if marker in existing:
+        pre, post = existing.split(marker, 1)
+        return f"{pre}{marker}\n\n{stamped}\n{post}"
+    return f"{stamped}\n\n{existing}"
+
+
+def _craft_text() -> str:
+    """The craft loop's current findings, for the meeting prompt."""
+    f = ROOT / cfg.get("craft.file", "craft.md")
+    return f.read_text(encoding="utf-8").strip() if f.exists() else "(none yet)"
+
+
+def _meeting_complete(body: str) -> bool:
+    """A usable meeting names every agent AND ends with something to watch.
+
+    Anything less is a truncation, not a short meeting: the prompt always asks
+    for the same five sections.
+    """
+    if not body:
+        return False
+    if body.count("## For the") < 4 or "## Watch next" not in body:
+        return False
+    low = body.lower()
+    # The model echoed the TEMPLATE back verbatim ("<one specific change>") and
+    # then appended its raw reasoning ("Analysis: 1. The channel just pivoted").
+    # Both passed a naive structure check and landed in learnings.md, which is
+    # injected into every agent's prompt. Reject either outright.
+    if "<one specific" in low or "<the one" in low or "<one number" in low:
+        return False
+    for tell in ("analysis:", "rules:", "the user asks", "we must output",
+                 "let me ", "i'll cite", "need to cite"):
+        if tell in low:
+            return False
+    # every section must carry a REAL bullet, not an empty or stub header
+    import re
+    sections = re.split(r"^## ", body, flags=re.M)[1:]
+    for sec in sections:
+        bullets = [ln for ln in sec.splitlines()[1:]
+                   if ln.strip().startswith(("-", "*")) and len(ln.strip()) > 12]
+        if not bullets:
+            return False
+    return True
+
+
+def team_meeting() -> str:
+    """Daily standup: pull fresh numbers, then decide what to CHANGE tomorrow.
+
+    Deliberately not another report. `report()` and `weekly_digest()` already
+    describe what happened; the thing that was missing is a recurring moment
+    where the numbers turn into per-agent instructions the whole team reads,
+    because learnings.md is injected into every agent's prompt.
+
+    Safe to run unattended: any step can fail without taking the others down,
+    and a junk LLM response leaves the previous meeting in place rather than
+    overwriting a good one with noise.
+    """
+    console.print("[bold]DAILY MEETING[/] collecting fresh numbers…")
+    try:
+        collect()
+    except Exception as ex:  # noqa: BLE001
+        console.print(f"[yellow]metrics collect failed:[/] {ex}")
+    try:
+        craft.update()
+    except Exception as ex:  # noqa: BLE001
+        console.print(f"[yellow]craft update failed:[/] {ex}")
+
+    rows = _leaderboard()
+    ypp = _ypp_progress()
+    if not llm.available():
+        console.print("[yellow]no LLM available — meeting skipped[/]")
+        return ""
+
+    # Only the fields that should drive a decision. Feeding the model everything
+    # produces a summary; feeding it the decision-relevant slice produces a call.
+    board = [{k: r.get(k) for k in
+              ("title", "views", "likes", "comments", "avg_watch_pct",
+               "clip_seconds", "kind")} for r in rows[:12]]
+
+    prompt = (
+        # Deliberately NO skills block. Loading the Manager's 9 skill files costs
+        # ~24k chars, and the free reasoning model then spends its output budget
+        # thinking and truncates the meeting mid-sentence (seen twice live). The
+        # meeting needs today's numbers and a fixed output shape, not the library.
+
+        "You are the channel Manager running the DAILY team meeting for a "
+        "money/business shorts channel. Everyone reads your output, so write "
+        "instructions, not observations.\n\n"
+        f"Recent clips (best first):\n{json.dumps(board[:6])}\n\n"
+        f"YPP progress: {json.dumps(ypp)}\n\n"
+        f"Measured editing rules from our own clips:\n{_craft_text()[:900]}\n\n"
+        "The channel just flipped from football to money and rebranded to "
+        "Money Mugshots. The editorial rule is: DRAMA EARNS THE WATCH, THE "
+        "LESSON EARNS THE FOLLOW. Every clip must teach one concrete thing.\n\n"
+        "Write the meeting notes in this exact shape and nothing else:\n"
+        "## For the Finder\n- <one specific change to what gets picked>\n"
+        "## For the Editor\n- <one specific change to how it is cut>\n"
+        "## For the Uploader\n- <one specific change to titles/packaging>\n"
+        "## For the Community\n- <one specific change to replies/pins>\n"
+        "## Watch next\n- <the ONE number that decides if today worked>\n\n"
+        "Rules: cite a real number from the data in at least two sections. If "
+        "the data does not support a change for an agent, say 'hold, not "
+        "enough data' rather than inventing one. No preamble, no restating the "
+        "data back."
+    )
+
+    # The free model truncates: the first live run wrote a single half-finished
+    # Finder line and nothing else. learnings.md is injected into EVERY agent's
+    # prompt, so a partial meeting is actively harmful — it silently drops the
+    # instructions for four agents. Demand a COMPLETE meeting, retry once, and
+    # otherwise keep yesterday's rather than degrade the whole team's context.
+    # STRUCTURED OUTPUT, not free text. The free model is a reasoning model: in
+    # free-text mode it echoed the template back verbatim and appended its raw
+    # chain-of-thought, which then landed in learnings.md (read by every agent).
+    # Every other reliable path in this codebase uses call_tool for exactly this
+    # reason, so the meeting does too.
+    schema = {
+        "type": "object",
+        "properties": {
+            "finder": {"type": "string", "description": "ONE specific change to what gets picked"},
+            "editor": {"type": "string", "description": "ONE specific change to how it is cut"},
+            "uploader": {"type": "string", "description": "ONE specific change to titles/packaging"},
+            "community": {"type": "string", "description": "ONE specific change to replies/pins"},
+            "watch_next": {"type": "string", "description": "the ONE number that decides if today worked"},
+        },
+        "required": ["finder", "editor", "uploader", "community", "watch_next"],
+    }
+    body = ""
+    for attempt in (1, 2):
+        try:
+            r = llm.call_tool("manager", prompt, "submit_meeting", schema,
+                              max_tokens=1200)
+        except Exception as ex:  # noqa: BLE001
+            console.print(f"[yellow]meeting LLM call failed:[/] {ex}")
+            continue
+        if not r:
+            continue
+        parts = [f"## For the {label}\n- {str(r.get(key, '')).strip()}"
+                 for key, label in (("finder", "Finder"), ("editor", "Editor"),
+                                    ("uploader", "Uploader"),
+                                    ("community", "Community"))]
+        parts.append(f"## Watch next\n- {str(r.get('watch_next', '')).strip()}")
+        cand = "\n".join(parts)
+        if _meeting_complete(cand):
+            body = cand
+            break
+        console.print(f"[yellow]meeting output incomplete (attempt {attempt})[/]")
+    if not body:
+        console.print("[yellow]meeting unusable — keeping yesterday's[/]")
+        return ""
+
+    from datetime import datetime
+    stamp = datetime.now().strftime("%Y-%m-%d")
+    block = f"## DAILY MEETING {stamp}\n{body}"
+    f = ROOT / cfg.get("manager.learnings_file", "learnings.md")
+    existing = f.read_text(encoding="utf-8") if f.exists() else ""
+    f.write_text(_splice_meeting(existing, block), encoding="utf-8")
+    console.print(f"[green]meeting written to {f.name}[/]")
+
+    try:
+        first = next((ln for ln in body.splitlines() if ln.startswith("- ")), "")
+        notify.notify("Daily meeting done",
+                      f"{len(rows)} clips reviewed. {first[:130]}")
+    except Exception:  # noqa: BLE001
+        pass
+    return body
