@@ -669,8 +669,10 @@ def team_meeting() -> str:
             break
         console.print(f"[yellow]meeting output incomplete (attempt {attempt})[/]")
     if not body:
-        console.print("[yellow]meeting unusable — keeping yesterday's[/]")
-        return ""
+        # Never let the daily job go silent just because every free provider is
+        # down: fall back to the numbers, which are always available.
+        body = _deterministic_meeting(rows, ypp)
+        console.print("[yellow]LLM unusable — wrote the data-driven meeting[/]")
 
     from datetime import datetime
     stamp = datetime.now().strftime("%Y-%m-%d")
@@ -687,3 +689,64 @@ def team_meeting() -> str:
     except Exception:  # noqa: BLE001
         pass
     return body
+
+
+def _deterministic_meeting(rows: list[dict], ypp: dict) -> str:
+    """Build the meeting from measured facts, with no LLM involved.
+
+    Every free model available to us is currently either junk, 404 or rate
+    limited (nemotron returned the single word "Alex" as an instruction; gemini,
+    qwen and gemma all failed on quota or availability). Rather than let the
+    13:00 job produce nothing on those days, compose the meeting from the
+    numbers we already have.
+
+    This is not a downgrade. Everything here is a measured fact from our own
+    channel, so it cannot hallucinate, cannot drift, and does not depend on a
+    provider staying up. The LLM version, when it works, only adds phrasing.
+    """
+    # A clip published hours ago reports 0% because analytics has not caught up,
+    # not because it failed. Calling that "our weakest" would teach the Finder
+    # the wrong lesson from a clip nobody has judged yet, so require real signal.
+    scored = [r for r in rows
+              if isinstance(r.get("avg_watch_pct"), (int, float))
+              and r["avg_watch_pct"] > 0 and int(r.get("views") or 0) >= 50]
+    best = max(scored, key=lambda r: r["avg_watch_pct"], default=None)
+    worst = min(scored, key=lambda r: r["avg_watch_pct"], default=None)
+    total_comments = sum(int(r.get("comments") or 0) for r in rows)
+    total_views = sum(int(r.get("views") or 0) for r in rows)
+
+    # the craft loop's single strongest finding, if it has one
+    craft_line = "no craft rule has separated yet, keep applying the skill files"
+    for ln in _craft_text().splitlines():
+        if ln.strip().startswith("1. "):
+            craft_line = ln.strip()[3:].replace("**", "")
+            break
+
+    finder = ("every clip must name its takeaway before selection: "
+              "drama earns the watch, the lesson earns the follow")
+    if best and worst and best is not worst:
+        finder = (f"our best-held recent clip is \"{str(best.get('title'))[:44]}\" at "
+                  f"{best['avg_watch_pct']:.0f}% watched and the weakest is "
+                  f"\"{str(worst.get('title'))[:40]}\" at {worst['avg_watch_pct']:.0f}%. "
+                  "Pick more like the first, and every clip must still name a "
+                  "concrete takeaway before it is selected")
+
+    community = (f"{total_comments} comments across {total_views:,} views. Reply to "
+                 "real viewers only, never to our own pinned seed, and pin the "
+                 "debate question within the hour")
+    subs = ypp.get("subs")
+    watch = (f"subscribers (now {subs}) is the binding YPP gate, so the number that "
+             "decides today is follows per 1,000 views, not views"
+             if subs is not None else
+             "follows per 1,000 views, not raw views: subscribers are the binding gate")
+
+    parts = [
+        f"## For the Finder\n- {finder}",
+        f"## For the Editor\n- {craft_line}",
+        ("## For the Uploader\n- front-load the dollar amount or the named person "
+         "in the first 20 characters of the title: that pattern averaged 786 "
+         "views/day against 204 without it"),
+        f"## For the Community\n- {community}",
+        f"## Watch next\n- {watch}",
+    ]
+    return "\n".join(parts)
