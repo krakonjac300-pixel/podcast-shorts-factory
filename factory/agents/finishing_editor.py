@@ -89,14 +89,47 @@ def _report_md(clip_id, verdict: str, issues: list[dict],
 
 # ── ffmpeg/opencv probes (defensive: never raise) ───────────────────────────
 
-def _ff_stderr(args: list[str]) -> str:
-    """Run an ffmpeg analysis pass, return combined stderr (filters log here)."""
+def _ff_stderr(args: list[str], marker: str = "") -> str | None:
+    """Run an ffmpeg analysis pass and return its stderr, or None if it did not
+    actually run.
+
+    THIS MUST DISTINGUISH "ran, found nothing" FROM "never ran". Every detector
+    below works by counting substrings in this output, so an empty string reads
+    as zero hits, which reads as a clean clip. Returning "" on failure meant a
+    missing ffmpeg, a 180s timeout, a filter absent from this build, or a
+    non-zero exit all produced a PASS verdict on a clip nobody had inspected —
+    on a pipeline that publishes unattended three times a day.
+
+    `marker` is the filter name we expect to see initialise in the log. If the
+    filter never loaded, the pass is inconclusive rather than clean.
+    """
     try:
-        p = subprocess.run(["ffmpeg", "-hide_banner", *args, "-f", "null", "-"],
+        # -v verbose so ffmpeg names each filter it actually instantiates
+        # ("Parsed_blackdetect_0"); at the default level nothing is logged and
+        # the marker check below could never confirm the filter loaded.
+        p = subprocess.run(["ffmpeg", "-hide_banner", "-v", "verbose",
+                            *args, "-f", "null", "-"],
                            capture_output=True, text=True, timeout=180)
-        return p.stderr or ""
-    except Exception:  # noqa: BLE001 - QA must never crash the pipeline
-        return ""
+    except Exception as ex:  # noqa: BLE001 - QA must never crash the pipeline
+        console.print(f"  [yellow]QA probe could not run ({ex})[/]")
+        return None
+    err = p.stderr or ""
+    if p.returncode != 0:
+        console.print(f"  [yellow]QA probe exited {p.returncode}[/]")
+        return None
+    if marker and f"Parsed_{marker}" not in err:
+        # the filter did not initialise (not in this build / bad args)
+        console.print(f"  [yellow]QA probe '{marker}' did not initialise[/]")
+        return None
+    return err
+
+
+def _inconclusive(check: str) -> list[dict]:
+    """A check that could not run is NOT a pass. Bounce instead of publishing
+    something unverified."""
+    return [{"kind": "qa inconclusive", "sev": "critical",
+             "msg": f"the {check} check could not run — refusing to pass a clip "
+                    f"nobody inspected"}]
 
 
 def _probe_duration(path: Path) -> float:
@@ -111,7 +144,10 @@ def _probe_duration(path: Path) -> float:
 
 def _check_black(path: Path) -> list[dict]:
     out = []
-    log = _ff_stderr(["-i", str(path), "-vf", "blackdetect=d=0.5:pic_th=0.98", "-an"])
+    log = _ff_stderr(["-i", str(path), "-vf", "blackdetect=d=0.5:pic_th=0.98", "-an"],
+                     marker="blackdetect")
+    if log is None:
+        return _inconclusive("black-frame")
     spans = log.count("black_start")
     if spans:
         out.append({"kind": "black frames", "sev": "critical",
@@ -121,7 +157,10 @@ def _check_black(path: Path) -> list[dict]:
 
 def _check_freeze(path: Path) -> list[dict]:
     out = []
-    log = _ff_stderr(["-i", str(path), "-vf", "freezedetect=n=-55dB:d=2.5", "-an"])
+    log = _ff_stderr(["-i", str(path), "-vf", "freezedetect=n=-55dB:d=2.5", "-an"],
+                     marker="freezedetect")
+    if log is None:
+        return _inconclusive("frozen-frame")
     spans = log.count("freeze_start")
     if spans:
         out.append({"kind": "frozen frames", "sev": "warn",
@@ -131,7 +170,10 @@ def _check_freeze(path: Path) -> list[dict]:
 
 def _check_silence(path: Path, dur: float) -> list[dict]:
     out = []
-    log = _ff_stderr(["-i", str(path), "-af", "silencedetect=noise=-40dB:d=2.0", "-vn"])
+    log = _ff_stderr(["-i", str(path), "-af", "silencedetect=noise=-40dB:d=2.0", "-vn"],
+                     marker="silencedetect")
+    if log is None:
+        return _inconclusive("dead-air")
     gaps = log.count("silence_start")
     if gaps:
         out.append({"kind": "dead air", "sev": "warn",
@@ -143,7 +185,10 @@ def _check_levels(path: Path) -> list[dict]:
     """Peak (clipping) + mean (too quiet). Returns issues; a quiet-but-audible
     mix is marked 'fixable' with the gain needed so review_clip can auto-correct."""
     out = []
-    log = _ff_stderr(["-i", str(path), "-af", "volumedetect", "-vn"])
+    log = _ff_stderr(["-i", str(path), "-af", "volumedetect", "-vn"],
+                     marker="volumedetect")
+    if log is None:
+        return _inconclusive("audio-levels")
     mx = mean = None
     for line in log.splitlines():
         if "max_volume" in line:

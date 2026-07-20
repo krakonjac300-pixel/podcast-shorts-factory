@@ -343,23 +343,47 @@ def schedule_day(assume_yes: bool = True) -> int:
         ok = _review_and_fix(clip)
         if not ok:
             continue
+        # The upload is IRREVERSIBLE; the bookkeeping after it is not. These used
+        # to share one try block, so if record_upload threw (sqlite lock, disk
+        # full) after the video was already live on YouTube, the clip stayed
+        # 'edited' with no uploads row — and every double-post guard keys off
+        # exactly that row, so the next slot re-uploaded the same clip. The
+        # failure notice even promised "will retry at post time", advertising a
+        # double-publish as reassurance. Upload and bookkeeping are now separate.
         try:
             res = upload_youtube(ok, publish_at=when)
+        except Exception as ex:  # noqa: BLE001 - nothing reached YouTube
+            console.print(f"[red]upload of clip {ok['id']} failed: {ex}[/]")
+            notify.notify("Upload FAILED (nothing published)",
+                          f"clip {ok['id']}: {ex} — still queued, will retry")
+            continue
+
+        try:
             db.record_upload(ok["id"], "youtube", res["external_id"], res["url"])
             for p in platforms:
                 if p != "youtube":
                     r = export_for_scheduler(ok, p)
                     db.record_upload(ok["id"], p, r["external_id"], r["url"])
             db.set_clip_status(ok["id"], "uploaded")
-            scheduled += 1
-            stamp = when.strftime("%a %H:%M")
-            console.print(f"[green]✓ scheduled clip {ok['id']} for {stamp}[/] "
-                          f"→ {res['url']}")
-            notify.notify(f"Scheduled for {stamp}", ok["title"], res["url"])
-        except Exception as ex:  # noqa: BLE001
-            console.print(f"[red]scheduling clip {clip['id']} failed: {ex}[/]")
-            notify.notify("Scheduling FAILED",
-                          f"clip {clip['id']}: {ex} — will retry at post time")
+        except Exception as ex:  # noqa: BLE001 - the video IS live; we lost the record
+            # Never say "will retry": retrying would publish it a second time.
+            msg = (f"clip {ok['id']} IS scheduled on YouTube as "
+                   f"{res.get('external_id')} ({res.get('url')}) but the local "
+                   f"record failed: {ex}. Do NOT re-run scheduling for this clip "
+                   f"— delete the video on YouTube or mark it uploaded by hand.")
+            console.print(f"[red]{msg}[/]")
+            try:
+                from . import manager
+                manager.flag_attention(msg)
+            except Exception:  # noqa: BLE001
+                notify.notify("Orphaned upload — manual fix needed", msg)
+            continue
+
+        scheduled += 1
+        stamp = when.strftime("%a %H:%M")
+        console.print(f"[green]✓ scheduled clip {ok['id']} for {stamp}[/] "
+                      f"→ {res['url']}")
+        notify.notify(f"Scheduled for {stamp}", ok["title"], res["url"])
     console.print(f"[green]✓ {scheduled} post(s) locked in — YouTube publishes "
                   f"them even if this PC is off.[/]")
     return scheduled

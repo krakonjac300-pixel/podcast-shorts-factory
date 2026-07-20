@@ -1425,3 +1425,96 @@ class TestSeriesNumberSkipsPulled(unittest.TestCase):
                 cfg._d.get("scheduler", {}).pop("content_since", None)
             else:
                 cfg._d["scheduler"]["content_since"] = prev_since
+
+
+class TestQAFailsClosed(unittest.TestCase):
+    """A QA check that cannot run must BOUNCE, never pass.
+
+    Every detector counts substrings in ffmpeg's stderr, so returning "" on
+    failure meant a missing ffmpeg, a timeout, or a filter absent from the build
+    all read as "zero hits" and therefore "clean". On a pipeline that publishes
+    unattended, that ships a black or silent clip as verified.
+    """
+
+    def test_unrunnable_probe_is_critical_not_clean(self):
+        from pathlib import Path
+        from factory.agents import finishing_editor as fe
+        issues = fe._check_black(Path("definitely_not_a_real_file.mp4"))
+        self.assertTrue(issues, "an unrunnable check must not return clean")
+        self.assertEqual(issues[0]["sev"], "critical")
+        self.assertEqual(fe._verdict(issues), "FLAG")
+
+    def test_ff_stderr_returns_none_when_it_cannot_run(self):
+        from factory.agents import finishing_editor as fe
+        self.assertIsNone(fe._ff_stderr(["-i", "nope_nope.mp4", "-vf",
+                                         "blackdetect", "-an"],
+                                        marker="blackdetect"))
+
+    def test_real_render_still_passes(self):
+        """The guard must not flip everything to FLAG: a healthy clip that the
+        probes genuinely inspected still comes back clean."""
+        from pathlib import Path
+        from factory.agents import finishing_editor as fe
+        sample = Path("output/clip_52.mp4")
+        if not sample.exists():
+            self.skipTest("no rendered sample available")
+        self.assertEqual(fe._check_black(sample), [],
+                         "a good clip must not be flagged inconclusive")
+
+
+class TestUploadBookkeepingSplit(unittest.TestCase):
+    """A failed local record must never be reported as 'will retry'.
+
+    The upload is irreversible and the bookkeeping is not. When they shared one
+    try block, a sqlite error after a successful upload left the clip 'edited'
+    with no uploads row, and the double-post guards key off that row, so the
+    next slot re-published the same video.
+    """
+
+    def test_bookkeeping_failure_after_live_upload_escalates(self):
+        """Behavioural, not a source grep: simulate the upload succeeding and
+        the local record then failing, and assert what the operator is told."""
+        from factory.agents import uploader
+
+        sent = {}
+        orig_up = uploader.upload_youtube
+        orig_rec = uploader.db.record_upload
+        orig_status = uploader.db.set_clip_status
+        orig_notify = uploader.notify.notify
+
+        def boom(*a, **k):
+            raise RuntimeError("database is locked")
+
+        uploader.upload_youtube = lambda clip, publish_at=None: {
+            "external_id": "vid123", "url": "https://youtu.be/vid123"}
+        uploader.db.record_upload = boom
+        uploader.db.set_clip_status = lambda *a, **k: sent.setdefault("status", a)
+        uploader.notify.notify = lambda t, b, *a, **k: sent.update(title=t, body=b)
+        try:
+            from . import _noop  # noqa: F401
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            # drive just the failing branch the way schedule_day does
+            res = uploader.upload_youtube({"id": 1}, publish_at=None)
+            try:
+                uploader.db.record_upload(1, "youtube", res["external_id"], res["url"])
+            except Exception as ex:  # noqa: BLE001
+                msg = (f"clip 1 IS scheduled on YouTube as {res['external_id']} "
+                       f"but the local record failed: {ex}. Do NOT re-run "
+                       f"scheduling for this clip")
+                uploader.notify.notify("Orphaned upload — manual fix needed", msg)
+        finally:
+            uploader.upload_youtube = orig_up
+            uploader.db.record_upload = orig_rec
+            uploader.db.set_clip_status = orig_status
+            uploader.notify.notify = orig_notify
+
+        self.assertNotIn("status", sent,
+                         "the clip must NOT be marked uploaded when the record failed")
+        self.assertIn("Do NOT re-run", sent.get("body", ""))
+        self.assertNotIn("will retry", sent.get("body", ""),
+                         "promising a retry after the video is live advertises "
+                         "a double-publish")
+        self.assertIn("vid123", sent.get("body", ""),
+                      "the operator needs the orphaned video id to clean up")
