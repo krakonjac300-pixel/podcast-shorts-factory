@@ -39,9 +39,9 @@ models:
 # Which "installed skills" (factory/skills/*.md) each agent loads into its AI
 # prompts. Add/remove names freely; run `python run.py skills` to list all.
 skills:
-  finder:   [editorial-standards, editor-craft, short-form-strategy, hooks, storytelling, marketing-psychology, viral-patterns, engagement-tactics, platform-algorithms, series-and-loops, growth-strategy, youtube-monetization]
-  editor:   [editorial-standards, editor-craft, video-editing, hooks, storytelling, sound-design, visual-effects, scene-mapping, captions-craft, pacing, trending-audio, thumbnail-design, series-and-loops, growth-strategy, youtube-monetization]
-  uploader: [editorial-standards, copywriting, titles-thumbnails, hashtags-seo, marketing-psychology, thumbnail-design, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
+  finder:   [money-formula, editorial-standards, editor-craft, short-form-strategy, hooks, storytelling, marketing-psychology, viral-patterns, engagement-tactics, platform-algorithms, series-and-loops, growth-strategy, youtube-monetization]
+  editor:   [money-formula, editorial-standards, editor-craft, video-editing, hooks, storytelling, sound-design, visual-effects, scene-mapping, captions-craft, pacing, trending-audio, thumbnail-design, series-and-loops, growth-strategy, youtube-monetization]
+  uploader: [money-formula, editorial-standards, copywriting, titles-thumbnails, hashtags-seo, marketing-psychology, thumbnail-design, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
   community: [editorial-standards, engagement-tactics, copywriting, marketing-psychology, platform-algorithms]
   manager:  [editorial-standards, editor-craft, analytics-optimization, marketing-psychology, short-form-strategy, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
   compiler: [editorial-standards, storytelling, copywriting, youtube-monetization, growth-strategy]
@@ -61,7 +61,7 @@ finder:
   # that actually stops it.
   expect_language: "en"        # null disables; must match Whisper's detection
   language_min_conf: 0.6       # below this we do not trust the guess enough to drop
-  niche_lock: "football"       # hard gate: drop clips from another sport (boxing/UFC/etc.)
+  niche_lock: "money"       # hard gate: drop clips from another sport (boxing/UFC/etc.)
                                #   while set. Clear it (null) to open the channel to other niches.
   # VOCABULARY HINT — Whisper conditions on this before decoding, which is the
   # cheap fix for mangled proper nouns. "Anfield, Kop end" was coming out as
@@ -70,10 +70,10 @@ finder:
   # clip. Names are what our hooks are built on, so they must be right.
   # Swapped to money terms by tools/flip_to_money.py.
   vocabulary: >
-    Anfield, the Kop, Kop end, Steven Gerrard, Peter Crouch, Roy Keane,
-    Gary Neville, Jamie Carragher, Wayne Rooney, Jude Bellingham,
-    Trent Alexander-Arnold, Thomas Tuchel, Liverpool, Manchester United,
-    Premier League, Champions League, penalty, the Overlap.
+    credit score, FICO, APR, minimum payment, collections,
+    401k, Roth IRA, index fund, S&P 500, compound interest,
+    Caleb Hammer, Dave Ramsey, Graham Stephan, debt snowball,
+    net worth, take-home pay, overdraft, repossession, escrow.
   whisper_beam: 5              # beam search beats greedy on proper nouns
   # TWO-PASS CAPTIONS: pass 1 (whisper_model above) transcribes the whole episode
   # so the finder can locate moments; pass 2 re-transcribes ONLY the chosen clip
@@ -94,40 +94,37 @@ finder:
   auto_approve_top: 3          # for unattended/scheduled runs: auto-approve the top N candidates
   # What makes a moment "viral" — tweak to steer the AI's taste
   selection_brief: |
-    #1 DATA SIGNAL (football channel, 2026-07-15): our BIGGEST hit by far is
-    Trent Alexander-Arnold's "What Have I Done Wrong?" — 21,780 views, 104%
-    watched. That is a STAR being emotionally VULNERABLE/RAW, not just angry.
-    So the top target = a HOUSEHOLD-NAME player (Keane, Bellingham, Trent,
-    Neville, Rooney…) in a moment of raw emotion — vulnerability, a confession,
-    hurt, a fear, being called out. Emotion + a famous face beats generic drama.
-    DATA-BACKED PRIORITY (from our real channel: the ONE clip that got 7.5x the
-    views was high-drama/action "Street Racer baits cops, 1000HP"; every
-    history/science-fact/abstract clip flopped at 1-2 views). So:
-    STRONGLY FAVOR: conflict & drama, danger/crime, money & status, shocking
-    personal stories, strong emotion (anger, fear, awe), controversial hot takes,
-    someone getting called out, "you won't believe what happened". A real STAKE
-    or a CLASH beats a fact every time.
-    STRONGLY AVOID: history/ancient-civilization trivia, science "did you know"
-    facts, abstract philosophy/tech-futurism, anything that's merely "interesting"
-    with no human stakes or emotion — these get ~0 views for us.
-    LENGTH IS NOW MEASURED, NOT GUESSED (craft loop, 25 clips): finished clips
-    over ~34s lose 39 retention points against shorter ones, and our three
-    best-held clips ran 17.8s, 19.1s and 23.2s. TARGET 18-30s. If the moment
-    needs longer, cut the SETUP, never the payoff. Do not pad to fill time.
-    Each clip must HOOK in the first 1.5s, stand alone, and end on a
-    comment-trigger (a question or hot take that makes people NEED to reply).
-    CRITICAL (from real retention data): our flops lose viewers in the FIRST 5-8
-    SECONDS (Mahabharata 15% watched, Algorithmic-Feeds 29%); our winner held 92%.
-    So the clip's OPENING LINE must be the hook — if the gripping part is 10s into
-    the moment, START THERE. Never open on a wind-up, throat-clear, or slow setup.
-    Pick the timestamp where the drama LANDS, not where it begins.
-    THE 3-SECOND TEST (2026 meeting — YouTube caps any Short swiped in <3s): the
-    opening line must contain a NAMED person AND a visible stake. "Roy Keane says
-    England will lose" passes; "So the thing about football is" fails.
-    PREFER MOMENTS WITH AN ANGLE BUILT IN: someone DISAGREES, RANKS ("best/worst
-    ever"), PREDICTS, or gets called out — curation with a take, never just "a
-    thing someone said". If two moments tie, take the one whose LAST line snaps
-    back to the first line (loop = free rewatches = ranking signal).
+    MONEY/BUSINESS CHANNEL (flipped 2026-07-20).
+    THE RULE: DRAMA EARNS THE WATCH, THE LESSON EARNS THE FOLLOW. Every clip
+    must teach the viewer ONE concrete thing they can use. A clip that is only
+    a trainwreck is entertainment nobody follows for; a clip that is only
+    advice is a lecture nobody watches. We want both, in that order.
+    HARD REQUIREMENT - THE TAKEAWAY: before selecting a moment, state in one
+    sentence what a viewer LEARNS from it, specific enough to act on this week.
+    "Minimum payments on a 27% APR card mean the balance barely moves" is a
+    takeaway. "Get your finances together" is not. IF YOU CANNOT NAME THE
+    TAKEAWAY, DO NOT PICK THE MOMENT, however dramatic it is.
+    THE 4-BEAT SHAPE:
+      (1) HOOK on the number or the claim, no wind-up. A number to the cent
+          beats a round one ("$15,586.97" beats "$15k").
+      (2) THE MISTAKE, named specifically - what they actually did wrong.
+      (3) THE MECHANISM - WHY it went wrong. This is the teaching beat and the
+          one that makes a viewer feel smarter for having watched.
+      (4) THE FIX or the cost - what to do instead, or what this actually cost
+          them in money or years. End on the insight, not on the shouting.
+    STRONGLY FAVOR: moments where an expert explains WHY something went wrong,
+    a number that reframes how something works (interest, fees, leases,
+    minimum payments, credit scores), a common mistake most viewers are also
+    making, forbidden/under-known money facts that are TRUE and checkable,
+    before-and-after turnarounds with the actual steps.
+    STRONGLY AVOID: pure humiliation with nothing learnable, dry theory with no
+    number or stakes, vague advice ("budget better"), anything financially
+    WRONG or misleading - we are teaching real people about their money and a
+    confidently wrong clip is worse than no clip. If the expert is speculating,
+    do not present it as fact.
+    LENGTH: TARGET 18-30s (MEASURED: clips finishing over ~34s lose 39
+    retention points on this channel). The teaching beat is what earns the
+    extra seconds - cut the setup and the shouting, never the mechanism.
 
 editor:
   ai_plan: true                # let the editor's skills (hooks/story/sfx/vfx) design each edit
@@ -166,6 +163,10 @@ editor:
                                # short end card. 2026-07-18 analytics: 48,888 views -> 6 subs
                                # (0.012%) with an end-only ask; subs are the binding YPP gate.
   cta_mid_text: "SUBSCRIBE"    # the peak-moment ask (short — it must not compete with captions)
+  takeaway_card: true          # burn the LESSON on screen in the last third.
+                               # The channel's promise is that a viewer leaves
+                               # knowing something; viewers skim, so a lesson
+                               # that only exists in the audio does not land.
   comment_prompt: true         # burn the caption's forced-choice question on screen at the end
                                # (comments were 19 per 48,888 views — they only lived in the description)
   cta_text: "FOLLOW FOR MORE"
@@ -291,23 +292,22 @@ manager:
 # playbook so the whole team learns. Can never touch editorial-standards.
 trainer:
   enabled: true
-  study_queries: ["podcast clips viral", "football podcast clips", "world cup podcast reaction"]
+  study_queries: ["financial audit clips", "money podcast shorts", "debt confrontation clips"]
   # Winner channels from the 2026-07-10 teardown (research/competitors.md) — the
   # Trainer studies THESE directly each week (uploads playlists, ~2 quota units
   # each) instead of burning 100-unit searches. IDs, not handles, on purpose.
   study_channels:
-    - "UCjXIw1GlwaY1IzpW_jN9iCQ"   # The Overlap (427k views/video)
-    - "UCOgGwJ2o1mxeS4eVb9_UQaw"   # FULL SEND Podcast Clips (336k)
-    - "UCGYYNGmyhZ_kwBF_lqqXdAQ"   # Tifo Football (328k)
-    - "UCnjgxChqYYnyoqO4k_Q1d6Q"   # The Diary Of A CEO Clips (239k)
-    - "UCkgsrOXWQNZRS_Cj8-_7sPw"   # The Rest Is Football (182k)
-    - "UCFxG3MxHC1ogUglvJeMHmVQ"   # That's Football (148k — independent!)
-    - "UCjCJ2LaOIsPzOoXUTMDI3wg"   # Pitch Side (116k — independent)
+    # Money-niche winners (teardown 2026-07-17, views/video)
+    - "UCLe_q9axMaeTbjN0hy1Z9xA"   # Caleb Hammer (902k)
+    - "UCV6KDgJskWaEckne5aPA0aQ"   # Graham Stephan (868k)
+    - "UC7eBNeDW1GQf2NJQ6G6gAxw"   # The Ramsey Show Highlights (287k)
+    - "UCmMsCFzAufSYef6tA8h1hzQ"   # You Should Know Podcast (399k)
+    - "UCeBQ24VfikOriqSdKtomh0w"   # The Iced Coffee Hour Clips (125k)
   playbooks: [hooks, pacing, captions-craft, video-editing, titles-thumbnails, growth-strategy, youtube-monetization, thumbnail-design]
 
 trend_scout:
   enabled: true
-  niche: "viral podcast clips — 2026 World Cup football reactions/hot takes, plus money, business, health, mindset"
+  niche: "money, personal finance, business, wealth — viral money stories, debt drama, get-rich journeys"
   trends_file: "trends.md"
 
 # Scheduled runs pull the newest DOWNLOADABLE (skips members-only/unavailable) video
@@ -315,13 +315,14 @@ trend_scout:
 # You can add ANY channel/playlist URL — the factory picks whatever has fresh,
 # clippable content. `python run.py produce`/`daily` use this list.
 scheduler:
+  content_since: "2026-07-20"   # niche flip watershed: montage/compiler only use clips after this
   sources:
-    # World Cup 2026 lean (talking-podcast discussion only — NEVER match footage).
-    # Listed first so they're picked while the tournament is live (through ~Jul 19).
-    - "https://www.youtube.com/@TheOverlap/videos"       # Gary Neville — Stick to Football
-    - "https://www.youtube.com/@joerogan/videos"
-    - "https://www.youtube.com/@TheDiaryOfACEO/videos"
-    - "https://www.youtube.com/@CalebHammer/videos"
+    # Money/Business era (flipped 2026-07-20). Confrontation + emotion first —
+    # the money equivalents of the Keane/Trent drama that won for us.
+    - "https://www.youtube.com/@CalebHammer/videos"        # Financial Audit — debt trainwreck drama
+    - "https://www.youtube.com/@TheRamseyShow/videos"      # Ramsey — confrontation, debt-free screams
+    - "https://www.youtube.com/@TheDiaryOfACEO/videos"     # DOAC — rags-to-riches, big names
+    - "https://www.youtube.com/@MyFirstMillionPod/videos"  # MFM — business ideas, "how they made $X"
   source_url: ""               # legacy single-source fallback (used if sources is empty)
 
 # How the agents talk to YOU: everything important lands in activity.md
@@ -349,8 +350,8 @@ craft:
 # Switched on by tools/flip_to_money.py with the money name (staying off for the
 # last football days so we don't start a series we're about to abandon).
 series:
-  enabled: false
-  name: ""                     # e.g. "THE RECEIPTS"
+  enabled: true
+  name: "MUGSHOT"                     # e.g. "THE RECEIPTS"
   number_from: 1               # first episode number
   started: ""                  # ISO date the series began; numbering counts only
                                # uploads on/after it (set by the flip). Empty =

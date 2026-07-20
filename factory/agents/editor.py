@@ -1182,6 +1182,21 @@ def edit_clip(clip) -> Path:
                         y=str(h - 420), enable=f"gt(t,{render_dur - 2.2:.2f})")
         post = f"{post},{cta}" if post else cta
 
+    # 3b0. THE TAKEAWAY — the lesson, burned on screen so the value is not just
+    # implied. The channel's promise is that you leave knowing something, and a
+    # viewer skims; if the lesson only exists in the audio it does not land.
+    # Placed in the last third but clear of the closing CTA, and only when the
+    # planner actually named one (no filler card on a clip that teaches nothing).
+    tk = (plan.get("takeaway") or "").strip()
+    if e.get("takeaway_card", True) and tk and render_dur > 10:
+        t0 = max(3.0, render_dur * 0.62)
+        t1 = min(t0 + 3.2, render_dur - 2.6)
+        if t1 > t0 + 1.0:
+            card = _drawtext_block(tk.upper(), size=46, y_top=int(h * 0.17),
+                                   enable=f"between(t,{t0:.2f},{t1:.2f})",
+                                   max_chars=20, max_lines=3)
+            post = f"{post},{card}" if post else card
+
     # 3b1. SERIES BADGE — small, persistent, top of frame. Titles carry the
     # series name but the Shorts feed hides titles behind a tap, so without an
     # in-frame mark a scroller never learns this is a recurring thing. Kept

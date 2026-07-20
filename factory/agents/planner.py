@@ -33,6 +33,18 @@ PLAN_TOOL = {
                                "weakest metric). e.g. 'Keane or Neville?', 'Overrated "
                                "or elite?', 'Would you pay it?'. No hashtags.",
             },
+            "takeaway": {
+                "type": "string",
+                "description": "REQUIRED. The ONE thing a viewer LEARNS from "
+                               "this clip, as ≤8 words they can act on, burned "
+                               "on screen at the teaching beat. Must be "
+                               "specific and true: 'Minimum payments barely "
+                               "touch a 27% APR' or 'Gap insurance covers what "
+                               "the payout won't'. NOT vague filler like "
+                               "'Budget better' or 'Money matters'. Empty "
+                               "string ONLY if the clip genuinely teaches "
+                               "nothing.",
+            },
             "emphasis_words": {
                 "type": "array", "items": {"type": "string"},
                 "description": "the single most important word from each key line, to enlarge in captions",
@@ -131,7 +143,7 @@ PLAN_TOOL = {
             },
         },
         "required": ["hook_text", "music_mood", "emphasis_words",
-                     "comment_question"],
+                     "comment_question", "takeaway"],
     },
 }
 
@@ -149,7 +161,7 @@ def _default_plan(clip) -> dict:
     return {"hook_text": _short_hook(clip["title"]), "cover_text": clip["title"],
             "music_mood": "none", "emphasis_words": [],
             "sfx_cues": [], "broll": [], "transitions": [],
-            "comment_question": "AGREE?",
+            "comment_question": "AGREE?", "takeaway": "",
             "narrator_intro": "", "teaser_times": [], "memes": [],
             "scene_map": []}
 
@@ -190,6 +202,10 @@ contradict a skill file above, FOLLOW THE MEASUREMENT):
 {insights.craft()}
 
 Design the edit. Apply the skills above. Times must be within 0–{dur:.0f}s.
+takeaway: the channel's promise is that a viewer LEARNS something, so name the
+single usable lesson in this clip and keep it concrete and TRUE. Drama earns the
+watch; the lesson earns the follow. If the moment teaches nothing, say so with an
+empty string rather than inventing filler.
 hook_text: include the SPEAKER'S NAME when it fits (names stop the scroll — "KEANE:
 SACK THEM" beats "SACK THEM"). The first frame must show a name + a stake.
 SFX: at most 3, and every one MUST 'anchor' to an exact word from the transcript

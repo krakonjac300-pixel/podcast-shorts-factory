@@ -877,6 +877,13 @@ class TestFinderResilience(unittest.TestCase):
                                    "caption": "premier league row"}]}
             return {"clips": []}                              # strict pass: nothing
 
+        # Pin the niche instead of inheriting the LIVE config: this test is
+        # about the retry/fallback mechanism, and it broke the moment the
+        # channel flipped to money because its football fixture then failed the
+        # niche allowlist. A unit test must not depend on today's config.
+        from factory.config import cfg
+        prev_lock = cfg._d["finder"].get("niche_lock")
+        cfg._d["finder"]["niche_lock"] = "football"
         orig = finder.llm.call_tool
         finder.llm.call_tool = fake_call_tool
         try:
@@ -885,6 +892,7 @@ class TestFinderResilience(unittest.TestCase):
             out = finder._score_with_claude("Some Title", segs)
         finally:
             finder.llm.call_tool = orig
+            cfg._d["finder"]["niche_lock"] = prev_lock
         self.assertEqual(len(out), 1)          # recovered a clip via the fallback
         self.assertGreater(calls["n"], 1)      # it retried before giving up
 

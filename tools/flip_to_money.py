@@ -25,22 +25,37 @@ sys.path.insert(0, str(ROOT))
 CONFIG = ROOT / "config.yaml"
 
 MONEY_BRIEF = '''  selection_brief: |
-    MONEY/BUSINESS CHANNEL (flipped 2026-07-20; growth+monetization only).
-    Apply the MILLION-VIEW 5-BEAT FORMULA (reverse-engineered from 1M+ view
-    money clips - see money-formula skill): (1) open on a QUESTION-HOOK with
-    stakes ("How much debt is your girlfriend in?"), (2) a NUMBER TO THE CENT
-    spoken by ~5s ("$15,586.97" beats "$15k"), (3) an ESCALATION LADDER - each
-    reveal worse than the last, (4) the EMOTIONAL TURN - money becomes human
-    conflict (hidden debt from a partner, shame, ultimatums, tears), (5) END
-    UNRESOLVED so the comments finish the story.
-    STRONGLY FAVOR: debt confrontations, hidden-debt relationship drama, absurd
-    spending exposed, forbidden money knowledge ("bankruptcy wipes hospital
-    bills"), rich-people absurdity, archetype money clashes.
-    STRONGLY AVOID: dry theory, slow setups, generic advice with no number or
-    stakes, non-money tangents (sport, health) - the niche-lock drops those.
-    LENGTH: confrontation arcs with an escalation ladder earn 35-55s; single-
-    beat moments 20-40s. Open ON the question/number - zero wind-up. Prefer
-    take windows that include the LISTENER'S REACTION to the bombshell.
+    MONEY/BUSINESS CHANNEL (flipped 2026-07-20).
+    THE RULE: DRAMA EARNS THE WATCH, THE LESSON EARNS THE FOLLOW. Every clip
+    must teach the viewer ONE concrete thing they can use. A clip that is only
+    a trainwreck is entertainment nobody follows for; a clip that is only
+    advice is a lecture nobody watches. We want both, in that order.
+    HARD REQUIREMENT - THE TAKEAWAY: before selecting a moment, state in one
+    sentence what a viewer LEARNS from it, specific enough to act on this week.
+    "Minimum payments on a 27% APR card mean the balance barely moves" is a
+    takeaway. "Get your finances together" is not. IF YOU CANNOT NAME THE
+    TAKEAWAY, DO NOT PICK THE MOMENT, however dramatic it is.
+    THE 4-BEAT SHAPE:
+      (1) HOOK on the number or the claim, no wind-up. A number to the cent
+          beats a round one ("$15,586.97" beats "$15k").
+      (2) THE MISTAKE, named specifically - what they actually did wrong.
+      (3) THE MECHANISM - WHY it went wrong. This is the teaching beat and the
+          one that makes a viewer feel smarter for having watched.
+      (4) THE FIX or the cost - what to do instead, or what this actually cost
+          them in money or years. End on the insight, not on the shouting.
+    STRONGLY FAVOR: moments where an expert explains WHY something went wrong,
+    a number that reframes how something works (interest, fees, leases,
+    minimum payments, credit scores), a common mistake most viewers are also
+    making, forbidden/under-known money facts that are TRUE and checkable,
+    before-and-after turnarounds with the actual steps.
+    STRONGLY AVOID: pure humiliation with nothing learnable, dry theory with no
+    number or stakes, vague advice ("budget better"), anything financially
+    WRONG or misleading - we are teaching real people about their money and a
+    confidently wrong clip is worse than no clip. If the expert is speculating,
+    do not present it as fact.
+    LENGTH: TARGET 18-30s (MEASURED: clips finishing over ~34s lose 39
+    retention points on this channel). The teaching beat is what earns the
+    extra seconds - cut the setup and the shouting, never the mechanism.
 '''
 
 MONEY_SOURCES = '''  sources:
