@@ -119,8 +119,16 @@ def _own_channel_id(yt) -> str:
         try:
             r = yt.channels().list(part="id", mine=True).execute()
             _OWN_CHANNEL_ID = (r.get("items") or [{}])[0].get("id", "") or ""
-        except Exception:  # noqa: BLE001
-            _OWN_CHANNEL_ID = ""
+        except Exception as ex:  # noqa: BLE001
+            # Cache ONLY on success. Caching "" here made the failure permanent
+            # for the process AND falsy, so the self-reply filter below silently
+            # switched off and the channel went back to answering its own pinned
+            # seed in public — the exact behaviour this guard exists to stop.
+            # Returning None lets the next call retry and tells the caller to
+            # stay quiet rather than post with the filter disabled.
+            console.print(f"[yellow]could not resolve our channel id ({ex}) — "
+                          f"skipping engagement rather than risk self-replies[/]")
+            return None
     return _OWN_CHANNEL_ID
 
 
@@ -137,6 +145,8 @@ def _fetch_comments(yt, video_id: str, limit: int = 20) -> list[dict]:
     # agent finds its own comment and replies to it — the channel talking to
     # itself in public, which is worse than staying quiet.
     mine = _own_channel_id(yt)
+    if mine is None:            # identity unknown: cannot guarantee we skip ourselves
+        return []
     out = []
     for item in resp.get("items", []):
         top = item["snippet"]["topLevelComment"]
