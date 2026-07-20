@@ -1381,3 +1381,47 @@ class TestNeverReplyToOurself(unittest.TestCase):
         self.assertEqual(community._fetch_comments(yt, "vid"), [],
                          "a video with only our own comments must produce no "
                          "reply targets, not a conversation with ourselves")
+
+
+class TestSeriesNumberSkipsPulled(unittest.TestCase):
+    """A pulled clip must release its episode number.
+
+    2026-07-20: two clips were pulled before publishing, but their upload rows
+    still counted, so the brand-new series was about to debut at #2 with #1 and
+    #3 never existing. To a viewer that reads as a channel that deleted its own
+    episodes, which is the opposite of what numbering is for.
+    """
+
+    def test_pulled_and_rejected_do_not_consume_numbers(self):
+        import pathlib
+        import tempfile
+        from factory import db as fdb
+        from factory.config import cfg
+        from factory.agents import uploader
+
+        old_db = fdb.DB_PATH
+        saved = dict(cfg._d.get("series", {}))
+        prev_since = cfg._d.get("scheduler", {}).get("content_since")
+        try:
+            fdb.DB_PATH = pathlib.Path(tempfile.mkdtemp()) / "t.db"
+            cfg._d.setdefault("series", {}).update(
+                {"enabled": True, "name": "MUGSHOT", "number_from": 1,
+                 "started": ""})
+            cfg._d.setdefault("scheduler", {})["content_since"] = "2026-01-01"
+            with fdb.conn() as c:
+                for cid, status in ((1, "pulled"), (2, "uploaded"), (3, "pulled")):
+                    c.execute("INSERT INTO clips(id,title,status) VALUES(?,?,?)",
+                              (cid, f"clip {cid}", status))
+                    c.execute("""INSERT INTO uploads(clip_id,platform,external_id,
+                                 url,created_at) VALUES(?,?,?,?,?)""",
+                              (cid, "youtube", f"v{cid}", "", "2026-07-20T10:00"))
+            # one published clip exists, so the NEXT one is #2, not #4
+            self.assertTrue(uploader._series_title("x").startswith("MUGSHOT #2:"),
+                            uploader._series_title("x"))
+        finally:
+            fdb.DB_PATH = old_db
+            cfg._d["series"] = saved
+            if prev_since is None:
+                cfg._d.get("scheduler", {}).pop("content_since", None)
+            else:
+                cfg._d["scheduler"]["content_since"] = prev_since

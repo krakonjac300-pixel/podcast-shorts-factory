@@ -134,14 +134,23 @@ def _series_number() -> int:
     start = int(cfg.get("series.number_from", 1))
     since = (cfg.get("series.started")
              or cfg.get("scheduler.content_since") or "")
+    # Count only episodes that actually REACH viewers. A clip pulled before it
+    # published still had an upload row, so it kept burning its number: the
+    # series was about to debut at #2 with #1 and #3 never existing, which reads
+    # like a channel that deleted its own episodes. Pulled and rejected clips
+    # release their number back.
+    live = "AND c.status NOT IN ('pulled','rejected')"
     with db.conn() as c:
         if since:
-            n = c.execute("""SELECT COUNT(*) FROM uploads
-                              WHERE platform='youtube' AND created_at >= ?""",
+            n = c.execute(f"""SELECT COUNT(*) FROM uploads u
+                                JOIN clips c ON c.id = u.clip_id
+                               WHERE u.platform='youtube'
+                                 AND u.created_at >= ? {live}""",
                           (str(since),)).fetchone()[0]
         else:
-            n = c.execute("SELECT COUNT(*) FROM uploads WHERE platform='youtube'"
-                          ).fetchone()[0]
+            n = c.execute(f"""SELECT COUNT(*) FROM uploads u
+                                JOIN clips c ON c.id = u.clip_id
+                               WHERE u.platform='youtube' {live}""").fetchone()[0]
     return start + int(n)
 
 
