@@ -514,3 +514,53 @@ def upload_one(assume_yes: bool = True) -> bool:
             return True
     console.print("[yellow]No clip in the queue passed the Manager's review.[/]")
     return False
+
+
+def videos_for_day(day=None) -> list[dict]:
+    """Videos live OR scheduled for `day` (default today, local time).
+
+    Reads the uploads PLAYLIST, not search(). search() is eventually consistent
+    and routinely omits videos uploaded minutes ago, so a 200 response with a
+    short list is not proof the day is empty — and it costs 100 quota units
+    against a 10,000 daily budget versus 1 here.
+
+    Returns [] only when the day is genuinely empty; raises if it could not
+    check, so callers can tell "nothing scheduled" from "could not tell".
+    """
+    from datetime import datetime, timedelta, timezone
+    from googleapiclient.discovery import build
+
+    tz = timezone(timedelta(hours=cfg.get("scheduler.utc_offset", 2)))
+    day = day or datetime.now(tz).date()
+
+    yt = build("youtube", "v3", credentials=_youtube_credentials())
+    ch = yt.channels().list(part="contentDetails", mine=True).execute()["items"][0]
+    playlist = ch["contentDetails"]["relatedPlaylists"]["uploads"]
+
+    ids, token = [], None
+    for _ in range(3):                      # newest ~150 is plenty for one day
+        r = yt.playlistItems().list(part="contentDetails", playlistId=playlist,
+                                    maxResults=50, pageToken=token).execute()
+        ids += [i["contentDetails"]["videoId"] for i in r.get("items", [])]
+        token = r.get("nextPageToken")
+        if not token:
+            break
+
+    out = []
+    for i in range(0, len(ids), 50):
+        v = yt.videos().list(part="status,snippet",
+                             id=",".join(ids[i:i + 50])).execute()
+        for it in v.get("items", []):
+            st = it["status"]
+            # publishAt for a scheduled video, publishedAt once it is live
+            stamp = st.get("publishAt") or it["snippet"].get("publishedAt")
+            if not stamp:
+                continue
+            when = datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(tz)
+            if when.date() == day and st["privacyStatus"] in ("public", "private"):
+                # a private video with no publishAt was PULLED — it does not count
+                if st["privacyStatus"] == "private" and not st.get("publishAt"):
+                    continue
+                out.append({"id": it["id"], "when": when,
+                            "title": it["snippet"]["title"][:50]})
+    return sorted(out, key=lambda x: x["when"])

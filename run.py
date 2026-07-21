@@ -160,6 +160,41 @@ def _pick_source_video():
     return url
 
 
+
+def _ensure_day_covered(target: int | None = None) -> int:
+    """Confirm the day really has `target` Shorts live or scheduled, and if not,
+    produce to fill the gap.
+
+    The pipeline's promise is 3 posts a day. Nothing was actually CHECKING that:
+    produce ran at 06:00 and whatever it managed became the day. When produce
+    died (it was being killed by the battery policy for days) the day silently
+    went to zero, and post-next reported "already scheduled on YouTube's side".
+    """
+    target = target or len(cfg.get("uploader.post_times", []) or []) or 3
+    try:
+        have = uploader.videos_for_day()
+    except Exception as ex:  # noqa: BLE001 - never let the check break posting
+        console.print(f"[yellow]could not verify today's coverage: {ex}[/]")
+        return -1
+
+    if len(have) >= target:
+        console.print(f"[green]day covered: {len(have)}/{target} shorts live or "
+                      f"scheduled[/]")
+        return len(have)
+
+    short = target - len(have)
+    msg = (f"only {len(have)}/{target} shorts are live or scheduled today — "
+           f"producing {short} more")
+    console.print(f"[yellow]{msg}[/]")
+    notify.notify("Day under-filled, recovering", msg)
+    try:
+        _run_produce(force=True)
+    except Exception as ex:  # noqa: BLE001
+        notify.notify("Recovery produce FAILED",
+                      f"{msg}, but the recovery run failed: {ex}")
+    return len(have)
+
+
 def cmd_daily():
     """Unattended scheduled run: trends → fresh video from sources → full pipeline."""
     console.rule("[bold]Trend Scout")
@@ -337,9 +372,12 @@ def main(argv: list[str]):
         manager.refresh_learnings()  # fresh metrics + re-reasoned team directives
         if not uploader.upload_one(assume_yes=True):
             if cfg.get("uploader.schedule_mode", True):
-                # normal in schedule mode: the day was locked in at produce time
-                console.print("[dim]queue empty — today's posts are already "
-                              "scheduled on YouTube's side.[/]")
+                # An empty queue used to be treated as proof the day was already
+                # locked in. It is not: it is ALSO what a failed produce looks
+                # like, and the two were indistinguishable, so 2026-07-21 went
+                # completely empty in silence. Verify against YouTube instead of
+                # assuming, and recover rather than just reporting.
+                _ensure_day_covered()
             else:
                 notify.notify("Nothing to post",
                               "The queue is empty — did the 6AM produce run fail?")
