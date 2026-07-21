@@ -82,7 +82,7 @@ finder:
   # = ~99 min and eats the produce window; medium over 3x40s windows = ~2 min.
   # OFF until the niche flip has landed (enabled by tools/enable_refine.py) so
   # the flip run changes one thing at a time.
-  refine_clips: false
+  refine_clips: true
   refine_model: "medium"       # tiny | base | small | medium | large-v3
   max_candidates: 8            # how many clip ideas Claude returns per podcast
   clip_min_seconds: 15         # HARD platform bounds only — the AI reasons per clip: the idea
@@ -192,6 +192,14 @@ editor:
     fillers: [um, uh, uhh, uhm, erm, hmm, mm, mmm, ah, er]
     phrases: []                # multi-word fillers, e.g. ["you know", "i mean"]
   music_dir: "assets/music"    # drop royalty-free tracks here; one is picked at random
+  music_duck: true             # sidechain-duck the music under the voice.
+                               # Was a flat level, so the bed masked speech during
+                               # dense narration. Broadcast standard is a 9-12 dB
+                               # duck: threshold 0.03 + ratio 8 lands there.
+  duck_threshold: 0.03
+  duck_ratio: 8
+  duck_attack: 20              # ms, fast enough to catch a syllable
+  duck_release: 300            # ms, slow enough not to pump between words
   music_volume: 0.16           # 0 = off, 1 = full. Raised 0.12→0.16 (2026-07-17): million-view
                                # money clips run a PRESENT bass-y bed, not wallpaper.
   loudnorm_i: -12              # master loudness target; viral shorts master hot (-10 to -12)

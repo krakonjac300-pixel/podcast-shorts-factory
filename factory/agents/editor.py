@@ -1250,12 +1250,30 @@ def edit_clip(clip) -> Path:
     afmt = "aformat=sample_rates=44100:channel_layouts=stereo"
     music = _pick_music(plan.get("music_mood", ""))
     music_vol = e.get("music_volume", 0.12)
-    parts = [f"[0:a]{afmt}[a0]"]
+    duck = e.get("music_duck", True)
+    # The music bed was a FLAT level under the voice with no ducking, so it
+    # masked speech exactly when narration got dense. Sidechain-compress the
+    # music off the voice instead: broadcast practice is a 9-12 dB duck, fast
+    # enough to catch a syllable and slow enough not to pump between words.
+    # threshold 0.03 + ratio 8 lands in that range; attack 20ms / release 300ms
+    # are the standard dialogue values. The long-form compiler already did this;
+    # the Shorts path never did.
+    if music and music_vol > 0 and duck:
+        parts = [f"[0:a]{afmt},asplit=2[a0][a0sc]"]
+    else:
+        parts = [f"[0:a]{afmt}[a0]"]
     mix = ["[a0]"]
 
     if music and music_vol > 0:
         inputs += ["-stream_loop", "-1", "-i", str(music)]
-        parts.append(f"[{idx}:a]volume={music_vol},{afmt}[am]")
+        if duck:
+            parts.append(f"[{idx}:a]volume={music_vol},{afmt}[amraw]")
+            parts.append(
+                f"[amraw][a0sc]sidechaincompress=threshold={e.get('duck_threshold', 0.03)}"
+                f":ratio={e.get('duck_ratio', 8)}:attack={e.get('duck_attack', 20)}"
+                f":release={e.get('duck_release', 300)}[am]")
+        else:
+            parts.append(f"[{idx}:a]volume={music_vol},{afmt}[am]")
         mix.append("[am]"); idx += 1
 
     if e.get("mix_sfx", True):
