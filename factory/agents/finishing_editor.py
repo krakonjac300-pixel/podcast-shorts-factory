@@ -117,11 +117,32 @@ def _ff_stderr(args: list[str], marker: str = "") -> str | None:
     if p.returncode != 0:
         console.print(f"  [yellow]QA probe exited {p.returncode}[/]")
         return None
-    if marker and f"Parsed_{marker}" not in err:
-        # the filter did not initialise (not in this build / bad args)
-        console.print(f"  [yellow]QA probe '{marker}' did not initialise[/]")
-        return None
     return err
+
+
+_FILTERS: set[str] | None = None
+
+
+def _filter_available(name: str) -> bool:
+    """Is this filter compiled into the local ffmpeg? Cached.
+
+    Replaces a per-run check that looked for a "Parsed_<filter>" line in the
+    log. blackdetect emits one and freezedetect does not, so that check reported
+    freezedetect as broken on EVERY clip and, now that QA fails closed, flagged
+    three perfectly good clips and emptied the day. Asking ffmpeg what it has is
+    the reliable question; the exit code above is what catches a probe that
+    genuinely failed on a given file.
+    """
+    global _FILTERS
+    if _FILTERS is None:
+        try:
+            r = subprocess.run(["ffmpeg", "-hide_banner", "-filters"],
+                               capture_output=True, text=True, timeout=30)
+            _FILTERS = {ln.split()[1] for ln in r.stdout.splitlines()
+                        if len(ln.split()) > 2}
+        except Exception:  # noqa: BLE001
+            _FILTERS = set()
+    return not _FILTERS or name in _FILTERS
 
 
 def _inconclusive(check: str) -> list[dict]:
@@ -145,8 +166,14 @@ def _probe_duration(path: Path) -> float:
 def _check_black(path: Path) -> list[dict]:
     out = []
     log = _ff_stderr(["-i", str(path), "-vf", "blackdetect=d=0.5:pic_th=0.98", "-an"],
-                     marker="blackdetect")
+                     marker="")
     if log is None:
+        # a filter this build does not have is a MISSING capability, not a
+        # suspect clip: warn once and skip rather than blocking every render
+        if not _filter_available("blackdetect"):
+            console.print(f"  [yellow]blackdetect unavailable in this ffmpeg — "
+                          f"black-frame check skipped[/]")
+            return []
         return _inconclusive("black-frame")
     spans = log.count("black_start")
     if spans:
@@ -158,8 +185,14 @@ def _check_black(path: Path) -> list[dict]:
 def _check_freeze(path: Path) -> list[dict]:
     out = []
     log = _ff_stderr(["-i", str(path), "-vf", "freezedetect=n=-55dB:d=2.5", "-an"],
-                     marker="freezedetect")
+                     marker="")
     if log is None:
+        # a filter this build does not have is a MISSING capability, not a
+        # suspect clip: warn once and skip rather than blocking every render
+        if not _filter_available("freezedetect"):
+            console.print(f"  [yellow]freezedetect unavailable in this ffmpeg — "
+                          f"frozen-frame check skipped[/]")
+            return []
         return _inconclusive("frozen-frame")
     spans = log.count("freeze_start")
     if spans:
@@ -171,8 +204,14 @@ def _check_freeze(path: Path) -> list[dict]:
 def _check_silence(path: Path, dur: float) -> list[dict]:
     out = []
     log = _ff_stderr(["-i", str(path), "-af", "silencedetect=noise=-40dB:d=2.0", "-vn"],
-                     marker="silencedetect")
+                     marker="")
     if log is None:
+        # a filter this build does not have is a MISSING capability, not a
+        # suspect clip: warn once and skip rather than blocking every render
+        if not _filter_available("silencedetect"):
+            console.print(f"  [yellow]silencedetect unavailable in this ffmpeg — "
+                          f"dead-air check skipped[/]")
+            return []
         return _inconclusive("dead-air")
     gaps = log.count("silence_start")
     if gaps:
@@ -186,8 +225,14 @@ def _check_levels(path: Path) -> list[dict]:
     mix is marked 'fixable' with the gain needed so review_clip can auto-correct."""
     out = []
     log = _ff_stderr(["-i", str(path), "-af", "volumedetect", "-vn"],
-                     marker="volumedetect")
+                     marker="")
     if log is None:
+        # a filter this build does not have is a MISSING capability, not a
+        # suspect clip: warn once and skip rather than blocking every render
+        if not _filter_available("volumedetect"):
+            console.print(f"  [yellow]volumedetect unavailable in this ffmpeg — "
+                          f"audio-levels check skipped[/]")
+            return []
         return _inconclusive("audio-levels")
     mx = mean = None
     for line in log.splitlines():
