@@ -308,6 +308,9 @@ manager:
 # playbook so the whole team learns. Can never touch editorial-standards.
 trainer:
   enabled: true
+  study_window_days: 180       # look back this far for a channel's biggest hits
+  study_channels_per_run: 3    # search costs 100 quota units each; rotate rather
+                               # than query every channel every week
   study_queries: ["financial audit clips", "money podcast shorts", "debt confrontation clips"]
   # Winner channels from the 2026-07-10 teardown (research/competitors.md) — the
   # Trainer studies THESE directly each week (uploads playlists, ~2 quota units

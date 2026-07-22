@@ -70,18 +70,36 @@ def _top_shorts(max_results: int = 12) -> list[dict]:
         ids = []
         chans = cfg.get("trainer.study_channels", []) or []
         if chans:
-            r = yt.channels().list(part="contentDetails",
-                                   id=",".join(chans[:10])).execute()
-            for it in r.get("items", []):
-                pl = it["contentDetails"]["relatedPlaylists"]["uploads"]
+            # MOST-VIEWED, not most-recent. This used to take each channel's
+            # newest 7 uploads and rank those by views, so the actual viral
+            # outliers — the only videos worth reverse-engineering — never
+            # entered the sample at all. order=viewCount asks YouTube for the
+            # channel's biggest hits directly. Costs 100 quota units per channel
+            # against a 10,000 daily budget, and the trainer runs weekly.
+            days = int(cfg.get("trainer.study_window_days", 180))
+            after = (datetime.utcnow() - timedelta(days=days)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ")
+            for ch in chans[:int(cfg.get("trainer.study_channels_per_run", 3))]:
                 try:
-                    p = yt.playlistItems().list(part="contentDetails",
-                                                playlistId=pl,
-                                                maxResults=7).execute()
-                    ids += [x["contentDetails"]["videoId"]
-                            for x in p.get("items", [])]
+                    r = yt.search().list(part="id", channelId=ch, type="video",
+                                         videoDuration="short",
+                                         order="viewCount", publishedAfter=after,
+                                         maxResults=6).execute()
+                    ids += [i["id"]["videoId"] for i in r.get("items", [])
+                            if i.get("id", {}).get("videoId")]
                 except Exception:  # noqa: BLE001 - one channel failing is fine
                     continue
+        if not ids and chans:
+            # CURATED CHANNELS ARE A DECISION, NOT A HINT. If they were
+            # configured and returned nothing (usually search quota 403), do NOT
+            # silently fall back to keyword search: that returns whatever is
+            # viral on YouTube, which on 2026-07-22 meant Bugatti and diamond
+            # channels heading into the agents' playbooks. Learning from the
+            # wrong niche is worse than not training this week.
+            console.print("[yellow]study channels returned nothing (quota?) — "
+                          "skipping training rather than learning from random "
+                          "viral content[/]")
+            return out
         if not ids:
             after = (datetime.utcnow() - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ")
             queries = cfg.get("trainer.study_queries",
@@ -99,10 +117,19 @@ def _top_shorts(max_results: int = 12) -> list[dict]:
                              id=",".join(ids[:50])).execute()
         for it in v.get("items", []):
             sn, st = it["snippet"], it.get("statistics", {})
+            views = int(st.get("viewCount", 0))
+            likes = int(st.get("likeCount", 0))
+            cmts = int(st.get("commentCount", 0))
             out.append({"_id": it["id"], "title": sn["title"],
                         "channel": sn["channelTitle"],
                         "duration": it["contentDetails"]["duration"],
-                        "views": int(st.get("viewCount", 0)),
+                        "views": views, "likes": likes, "comments_n": cmts,
+                        # ratios travel across channel sizes; raw views do not,
+                        # so these are what actually say "this one over-performed"
+                        "like_per_1k": round(likes / views * 1000, 1) if views else 0,
+                        "cmt_per_1k": round(cmts / views * 1000, 1) if views else 0,
+                        "published": sn.get("publishedAt", "")[:10],
+                        "desc": (sn.get("description") or "")[:180],
                         "comments": []})
         out.sort(key=lambda r: -r["views"])
         out = out[:max_results]

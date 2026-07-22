@@ -28,9 +28,11 @@ from .config import ROOT, cfg
 
 # Evidence bar. Tuned for a small channel: loose enough to ever fire, strict
 # enough that a coin-flip run of good luck cannot mint a rule.
-MIN_CLIPS = 10          # total measured clips before any rule is claimed
+MIN_CLIPS = 18          # total measured clips before any rule is claimed
+                        # (was 10: too permissive, rules flipped on new data)
 MIN_SIDE = 4            # clips required on EACH side of a median split
-MIN_EFFECT = 4.0        # retention points; below this it is noise, not craft
+MIN_EFFECT = 8.0        # retention points; below this it is noise, not craft
+                        # (was 4.0: a 4-point gap on ~20 clips is not a finding)
 MIN_VIEWS = 50          # a clip nobody watched has no opinion worth learning from.
                         # Without this the loop scored 4 zero-view clips and held a
                         # 9-VIEW clip up as "copy what this did" in every edit prompt,
@@ -46,12 +48,23 @@ NUMERIC = [
     ("punch_count", "fewer zoom punches", "more zoom punches"),
     ("sfx_count", "fewer sound effects", "more sound effects"),
     ("hook_words", "a shorter on-screen hook", "a longer on-screen hook"),
-    ("duration", "shorter clips", "longer clips"),
     ("caption_wpp", "fewer words per caption page", "more words per caption page"),
     ("speaker_switches", "staying on one face", "cutting between faces"),
     ("teaser_dur", "no/short cold-open teaser", "a longer cold-open teaser"),
 ]
 CATEGORICAL = [("reframe", "reframe mode"), ("music_mood", "music mood")]
+
+# DURATION IS DELIBERATELY NOT SCORED HERE.
+# percent-watched is mechanically a function of length: finishing an 18s clip
+# takes less commitment than finishing a 45s one. Correlating retention against
+# duration therefore measures arithmetic, not craft, and the loop proved it by
+# flipping its own conclusion twice on n<25 as the clip mix changed:
+#   "shorter wins by 39"  (inflated: zero-view clips were voting)
+#   "shorter wins by 18"  (after the view floor)
+#   "longer wins by 27"   (once money clips replaced football)
+# Worse, it then contradicted finder.clip_max_seconds and the selection brief,
+# and every agent received BOTH. Length is an editorial decision made against
+# the brief; this loop scores the choices where retention is a fair measure.
 
 
 def _mean(xs) -> float:
