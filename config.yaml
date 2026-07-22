@@ -14,7 +14,15 @@ llm:
   fallbacks: [gemini]          # tried in order when the primary is rate-limited/errors
                                #   (gemini-2.5-flash — separate free quota, no more default-plan nights)
   timeout_s: 45                # per-call timeout — a hanging provider fails fast → fallback fires
-  model: nvidia/nemotron-3-ultra-550b-a55b:free   # free + tool-capable (verified live)
+  # PAID, and worth it. The free tier had stopped working: nemotron returned the
+  # single word "Alex" as a Manager instruction, then went 429; gemini's quota is
+  # exhausted; qwen 404s; gemma 429s. The daily meeting could not run at all.
+  # Measured on our real prompts: ~94k in / ~10k out per produce day.
+  #   kimi-k2        $0.077/day   $2.31/month   <- chosen
+  #   claude-sonnet  $0.434/day   $13.02/month
+  # Deliberately the NON-thinking variant: a reasoning model dumping its
+  # chain-of-thought into learnings.md is exactly what broke the meeting before.
+  model: moonshotai/kimi-k2
   vision_model: "google/gemma-4-26b-a4b-it:free"   # Manager's eyes (fallback: nvidia/nemotron-nano-12b-v2-vl:free)
   # other verified-free OpenRouter fallbacks if this one is rate-limited:
   #   google/gemma-4-26b-a4b-it:free
