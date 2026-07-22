@@ -94,11 +94,16 @@ finder:
   refine_model: "medium"       # tiny | base | small | medium | large-v3
   max_candidates: 8            # how many clip ideas Claude returns per podcast
   clip_min_seconds: 15         # HARD platform bounds only — the AI reasons per clip: the idea
-  clip_max_seconds: 32         # MEASURED (craft loop, 25 clips, 2026-07-18): clips whose
-                               # finished length exceeds ~34s lose 39 RETENTION POINTS vs
-                               # shorter ones. With the ~3s teaser, a 32s source lands ~35s.
-                               # Was 50. Shorts hard-caps at 60s and the teaser adds ~3s,
-                               # so this also keeps us clear of the QA length block.
+  clip_max_seconds: 42         # RAISED from 32 (2026-07-23). The 32 figure came
+                               # from a duration correlation later shown to be
+                               # confounded (retired from the craft loop), and
+                               # both studied outliers ran 35.6s and 44.4s.
+                               # Completeness now governs the cut: sentence
+                               # snapping + a self-check extend past the cap
+                               # slightly rather than end mid-thought.
+  verify_complete: true        # after sentence snapping, the finder asks the
+                               # model whether the thought is actually finished
+                               # at the cut, and extends the end if not
   auto_approve_top: 3          # for unattended/scheduled runs: auto-approve the top N candidates
   # What makes a moment "viral" — tweak to steer the AI's taste
   selection_brief: |
@@ -130,9 +135,12 @@ finder:
     WRONG or misleading - we are teaching real people about their money and a
     confidently wrong clip is worse than no clip. If the expert is speculating,
     do not present it as fact.
-    LENGTH: TARGET 18-30s (MEASURED: clips finishing over ~34s lose 39
-    retention points on this channel). The teaching beat is what earns the
-    extra seconds - cut the setup and the shouting, never the mechanism.
+    LENGTH: TARGET 25-40s. The studied million-view outliers ran 35.6s and
+    44.4s; the old shorter-is-better rule was measured on inflated data and is
+    retired. COMPLETENESS BEATS LENGTH: before locking a window, ask whether
+    the thing being talked about is actually OVER at the cut. Never end a clip
+    mid-thought, mid-sentence or before the punchline; extend a few seconds to
+    let the speaker finish instead.
 
 editor:
   ai_plan: true                # let the editor's skills (hooks/story/sfx/vfx) design each edit

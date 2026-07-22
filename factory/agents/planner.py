@@ -54,6 +54,24 @@ PLAN_TOOL = {
                                "from trimming, because the pause is the "
                                "product. Empty for ADVICE/WISDOM.",
             },
+            "action_captions": {
+                "type": "array", "maxItems": 2,
+                "items": {"type": "object", "properties": {
+                    "anchor": {"type": "string",
+                               "description": "the EXACT transcript words "
+                               "spoken right BEFORE the physical action"},
+                    "text": {"type": "string",
+                             "description": "the action, 2-4 words, e.g. "
+                                            "'SLAMS THE TABLE', 'WALKS OFF', "
+                                            "'RIPS THE STATEMENT'"}},
+                    "required": ["anchor", "text"]},
+                "description": "0-2 PHYSICAL actions that happen without "
+                               "speech (from the 3M-view reference edit: "
+                               "*MOVES MIC* *WALKS AWAY* captioned in red keep "
+                               "the caption rhythm alive when nobody talks). "
+                               "ONLY actions clearly implied by the "
+                               "transcript; when unsure, none.",
+            },
             "takeaway": {
                 "type": "string",
                 "description": "REQUIRED. The ONE thing a viewer LEARNS from "
@@ -184,6 +202,7 @@ def _default_plan(clip) -> dict:
             "sfx_cues": [], "broll": [], "transitions": [],
             "comment_question": "AGREE?", "takeaway": "",
             "moment_type": "ADVICE", "payoff_anchor": "",
+            "action_captions": [],
             "narrator_intro": "", "teaser_times": [], "memes": [],
             "scene_map": []}
 

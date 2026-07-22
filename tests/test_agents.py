@@ -1570,3 +1570,65 @@ class TestMomentTypeRouting(unittest.TestCase):
         plan = planner._default_plan({"title": "x"})
         self.assertEqual(plan["moment_type"], "ADVICE")
         self.assertEqual(plan["payoff_anchor"], "")
+
+
+class TestSentenceCompleteCuts(unittest.TestCase):
+    """Clips must not open or close mid-sentence. Recent live clips did both
+    ('encourage chicken account' opened one; 'I hope when um' closed another)."""
+
+    WORDS = [{"word": "Before.", "start": 8.0, "end": 8.4},
+             {"word": "The", "start": 9.0, "end": 9.2},
+             {"word": "debt", "start": 9.3, "end": 9.6},
+             {"word": "was", "start": 9.7, "end": 9.9},
+             {"word": "huge.", "start": 10.0, "end": 10.4},
+             {"word": "He", "start": 11.0, "end": 11.2},
+             {"word": "paid", "start": 11.3, "end": 11.6},
+             {"word": "it", "start": 11.7, "end": 11.8},
+             {"word": "off.", "start": 12.0, "end": 12.4},
+             {"word": "Next", "start": 13.0, "end": 13.3}]
+
+    def test_end_extends_to_sentence_close(self):
+        from factory.agents import finder
+        c = {"start": 9.0, "end": 11.5}          # cuts inside 'He paid it off.'
+        out = finder._snap_to_sentence(c, self.WORDS, max_len=42)
+        self.assertGreaterEqual(out["end"], 12.4)
+
+    def test_start_walks_back_to_sentence_open(self):
+        from factory.agents import finder
+        c = {"start": 9.5, "end": 10.6}          # opens inside 'The debt was huge.'
+        out = finder._snap_to_sentence(c, self.WORDS, max_len=42)
+        self.assertLessEqual(out["start"], 9.0)
+
+    def test_clean_boundaries_untouched(self):
+        from factory.agents import finder
+        c = {"start": 8.9, "end": 10.6}          # already sentence-aligned
+        out = finder._snap_to_sentence(c, self.WORDS, max_len=42)
+        self.assertAlmostEqual(out["start"], 8.9, delta=0.01)
+        self.assertAlmostEqual(out["end"], 10.6, delta=0.01)
+
+
+class TestQuestionHighlight(unittest.TestCase):
+    """Second caption color: question pages highlight cyan, statements yellow."""
+
+    def test_question_page_uses_cyan(self):
+        from factory.utils import captions
+        words = [{"word": "Would", "start": 0.2, "end": 0.5},
+                 {"word": "you?", "start": 0.6, "end": 1.0},
+                 {"word": "Never.", "start": 1.5, "end": 2.0}]
+        ass = captions.build_ass(words, 0.0, 3.0, {"words_per_page": 2})
+        self.assertIn("&H00FFFF00", ass, "question page must carry cyan")
+        self.assertIn("&H0000F0FF", ass, "statement page keeps yellow")
+
+
+class TestFootageAgent(unittest.TestCase):
+    def test_empty_query_returns_none_without_network(self):
+        from factory.agents import footage
+        self.assertIsNone(footage.find_clip(""))
+
+    def test_cache_key_is_stable_and_query_specific(self):
+        from factory.agents import footage
+        a = footage._cache_path("roulette casino", 2.4)
+        b = footage._cache_path("roulette casino", 2.4)
+        c = footage._cache_path("empty fridge", 2.4)
+        self.assertEqual(a, b)
+        self.assertNotEqual(a, c)

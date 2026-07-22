@@ -35,6 +35,10 @@ def build_ass(words: list[dict], clip_start: float, clip_end: float,
     highlight = style.get("highlight_color", "&H0000F0FF")
     # RED for the key emphasis words (the pro-clip look — matches top DOAC edits)
     emphasis = style.get("emphasis_color", "&H000000FF")
+    # CYAN for question pages (second highlight color, from the 3M-view
+    # reference edit: yellow carries key nouns, cyan carries questions and
+    # commands, so the eye learns two kinds of important).
+    question = style.get("question_color", "&H00FFFF00")
     outline = style.get("outline", 6)
     # Vertical placement. "lower" (default) sits in the lower-third — below a
     # punched-in face's chin but above the CTA/progress bar — so captions never
@@ -123,6 +127,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         g_size = min(size, int((w - 170) / (0.62 * max(chars, 1))))
         g_emph = int(g_size * 1.3)
 
+        # question pages flip the active-word highlight to cyan
+        is_q = group[-1]["word"].rstrip().endswith("?")
+
         # one dialogue per active word so the highlight moves
         for j, active in enumerate(group):
             seg_start = active["start"]
@@ -132,7 +139,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 word = x["word"]
                 emph = _norm(word) in emph_set
                 if x is active:                  # spoken NOW: color + pop
-                    col = emphasis if emph else highlight   # key word → RED
+                    col = (emphasis if emph else
+                           (question if is_q else highlight))
                     fs = f"\\fs{g_emph}" if emph else ""
                     return (f"{{\\c{col}{fs}{pop}}}{word}"
                             f"{{\\c{primary}\\fs{g_size}\\fscx100\\fscy100}}")

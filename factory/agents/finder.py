@@ -124,7 +124,11 @@ def find(url: str) -> int:
     candidates = _score_with_claude(title, transcript)
 
     n = 0
+    flat = [w for seg in transcript for w in seg["words"]]
+    max_len = float(cfg.get("finder.clip_max_seconds", 42))
     for c in candidates:
+        c = _snap_to_sentence(c, flat, max_len)
+        c = _thought_complete(c, flat, max_len)
         db.add_clip(source_id, c["start"], c["end"], c["title"],
                     c["reason"], c["score"], c["caption"], c.get("hashtags", []))
         n += 1
@@ -232,6 +236,95 @@ def _niche_ok(clip: dict) -> bool:
                       f"signal '{str(clip.get('title', ''))[:40]}'[/]")
         return False
     return True
+
+
+def _sentence_end(w: dict) -> bool:
+    return w["word"].rstrip()[-1:] in ".?!"
+
+
+def _snap_to_sentence(c: dict, words: list[dict], max_len: float) -> dict:
+    """Land both cut points on finished thoughts.
+
+    Recent clips opened and closed mid-sentence ("encourage chicken account"
+    opened one; "I hope when um" closed another). The transcript already knows
+    where sentences end; use it. The end may extend up to 8s to let the
+    speaker finish; the start walks back up to 4s to the start of its
+    sentence, but only when a real sentence boundary is found there.
+    """
+    s0, e0 = float(c["start"]), float(c["end"])
+    inside = [w for w in words if w["end"] > s0 and w["start"] < e0]
+    if not inside:
+        return c
+    # END: never cut a thought in half
+    if not _sentence_end(inside[-1]):
+        for w in words:
+            if w["start"] < e0 - 0.05:
+                continue
+            if w["end"] - s0 > max_len + 8:
+                break
+            e0 = w["end"] + 0.15
+            if _sentence_end(w):
+                break
+    # START: if we open mid-sentence, walk back to where the sentence begins
+    head = [w for w in words if w["start"] < s0 + 0.05]
+    if head and not _sentence_end(head[-1]):
+        k = len(head) - 1
+        while k > 0 and not _sentence_end(head[k - 1]) \
+                and s0 - head[k - 1]["start"] <= 4.0:
+            k -= 1
+        if k > 0 and _sentence_end(head[k - 1]) and e0 - head[k]["start"] <= max_len + 8:
+            s0 = max(0.0, head[k]["start"] - 0.1)
+    c["start"], c["end"] = round(s0, 2), round(e0, 2)
+    return c
+
+
+THOUGHT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "complete": {"type": "boolean",
+                     "description": "true only if the clip ENDS after the "
+                                    "speaker finishes the thought"},
+        "better_end": {"type": "number",
+                       "description": "if not complete: the absolute time (s) "
+                                      "where the thought actually finishes"},
+    },
+    "required": ["complete"],
+}
+
+
+def _thought_complete(c: dict, words: list[dict], max_len: float) -> dict:
+    """Ask the model to QUESTION ITSELF: is the thing being talked about over
+    before the cut? Punctuation snapping catches sentences; this catches the
+    thought that spans several sentences (a story whose punchline is one line
+    later). Skipped silently on any model failure."""
+    if not cfg.get("finder.verify_complete", True) or not llm.available():
+        return c
+    s0, e0 = float(c["start"]), float(c["end"])
+    ctx = " ".join(
+        f"[{w['start']:.1f}] {w['word'].strip()}"
+        for w in words if s0 - 4 <= w["start"] <= e0 + 12)
+    prompt = (
+        "A short clip is being cut from a podcast. It runs from "
+        f"{s0:.1f}s to {e0:.1f}s. Transcript with timestamps (the clip's end "
+        f"is at {e0:.1f}):\n{ctx[:2600]}\n\n"
+        "Is the thing being talked about actually FINISHED at the cut point, "
+        "or does the thought complete shortly after? A clip must never end "
+        "mid-story or before the punchline. Call submit_check.")
+    try:
+        r = llm.call_tool("finder", prompt, "submit_check", THOUGHT_SCHEMA,
+                          max_tokens=300)
+    except Exception:  # noqa: BLE001
+        return c
+    if r and not r.get("complete"):
+        try:
+            be = float(r.get("better_end") or 0)
+        except (TypeError, ValueError):
+            return c
+        if e0 < be <= e0 + 12 and be - s0 <= max_len + 10:
+            console.print(f"  [dim]finder self-check: thought unfinished, "
+                          f"end {e0:.1f}s -> {be:.1f}s[/]")
+            c["end"] = round(be, 2)
+    return c
 
 
 def _score_with_claude(title: str, transcript: list[dict]) -> list[dict]:

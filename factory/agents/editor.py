@@ -1216,6 +1216,50 @@ def edit_clip(clip) -> Path:
         if mused:
             console.print(f"  [dim]memes: {mused} reaction insert(s)[/]")
 
+    # 1f. FOOTAGE INSERTS (Agent 10): when the speaker names something
+    # concrete, cut to ~2s of real footage of that thing while the audio
+    # continues, then return to the face. Every studied outlier does this.
+    # Kept OFF the hook and OFF the protected payoff beat, capped per clip,
+    # and a weak match is skipped entirely: a wrong insert reads as spam.
+    if e.get("broll_video", True) and plan.get("broll"):
+        from . import footage
+        bused = 0
+        bmax = int(e.get("broll_video_max", 2))
+        bdur = float(e.get("broll_video_secs", 2.2))
+        ppt_r = None
+        if protect_abs:
+            _pa = _anchor_time(plan.get("payoff_anchor") or "", cap_words)
+            if _pa is not None:
+                ppt_r = _pa - cap_start
+        for cue in plan.get("broll", []):
+            if bused >= bmax:
+                break
+            t = float(cue.get("time", 0) or 0) * tscale
+            if t < 2.8 or t > render_dur - bdur - 1.0:
+                continue
+            if ppt_r is not None and abs(ppt_r - t) < 2.5:
+                continue
+            fp = footage.find_clip(str(cue.get("suggestion", "")),
+                                   secs=bdur + 0.3)
+            if not fp:
+                continue
+            inputs += ["-i", str(fp)]
+            j = f"br{bused}"
+            vparts.append(
+                f"[{idx}:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
+                f"crop={w}:{h},format=yuva420p,"
+                f"fade=t=in:st=0:d=0.12:alpha=1,"
+                f"fade=t=out:st={bdur - 0.2:.2f}:d=0.2:alpha=1,"
+                f"setpts=PTS+{t:.2f}/TB[{j}]")
+            vparts.append(
+                f"[{vlabel}][{j}]overlay=0:0:"
+                f"enable='between(t\,{t:.2f}\,{t + bdur:.2f})'[vbr{bused}]")
+            vlabel = f"vbr{bused}"
+            idx += 1
+            bused += 1
+        if bused:
+            console.print(f"  [dim]footage: {bused} real-clip insert(s)[/]")
+
     # 2. captions overlay (.ass burned in), with skill-chosen emphasis words —
     #    applied AFTER b-roll so text always stays on top.
     post = ""
@@ -1282,6 +1326,22 @@ def edit_clip(clip) -> Path:
                              enable=f"between(t,{nt:.2f},{nt + 1.6:.2f})",
                              color="0xFFD700")
             post = f"{post},{card}" if post else card
+
+    # 3b0c. ACTION CAPTIONS: physical beats without speech get captioned as
+    # *ACTIONS* in red (3M-view reference: *MOVES MIC* *WALKS AWAY* keep the
+    # caption rhythm alive when nobody talks).
+    for ac in (plan.get("action_captions") or [])[:2]:
+        at = _anchor_time(str(ac.get("anchor", "")), cap_words)
+        txt = str(ac.get("text", "")).strip().strip("*").upper()
+        if at is None or not txt or len(txt) > 28:
+            continue
+        t0 = at - cap_start + 0.15
+        if t0 < 1.0 or t0 > render_dur - 1.4:
+            continue
+        card = _drawtext(f"*{txt}*", size=62, y=str(int(h * 0.31)),
+                         enable=f"between(t,{t0:.2f},{t0 + 1.5:.2f})",
+                         color="0xFF4444")
+        post = f"{post},{card}" if post else card
 
     # 3b1. SERIES BADGE — small, persistent, top of frame. Titles carry the
     # series name but the Shorts feed hides titles behind a tap, so without an
