@@ -17,7 +17,8 @@ def _norm(word: str) -> str:
     return re.sub(r"[^\w]", "", word).lower()
 
 
-def compute(words: list[dict], start: float, end: float, conf: dict) -> dict | None:
+def compute(words: list[dict], start: float, end: float, conf: dict,
+            protect: list[tuple[float, float]] | None = None) -> dict | None:
     """Return {expr, new_words, new_dur, stats} or None if nothing worth trimming.
 
     `expr` ranges are CLIP-LOCAL (relative to `start`) for ffmpeg input-seek.
@@ -62,6 +63,21 @@ def compute(words: list[dict], start: float, end: float, conf: dict) -> dict | N
             if len(norm[i]) >= 3 and (gap < 0.4 or dur > 1.2):
                 remove[i] = True
 
+    # PROTECT WINDOWS (absolute times): inside them, nothing is removed and
+    # pauses are kept. A study of 50 viral money clips: for confession/reveal
+    # moments the hesitation before the payoff IS the product, and compressing
+    # it is the most common clipper mistake. The planner marks the payoff; we
+    # keep our hands off the surrounding beat.
+    protect = protect or []
+
+    def _protected(t0: float, t1: float) -> bool:
+        return any(t0 < pb and t1 > pa for pa, pb in protect)
+
+    if protect:
+        for i, w in enumerate(sub):
+            if _protected(w["start"], w["end"]):
+                remove[i] = False
+
     kept = [w for w, r in zip(sub, remove) if not r]
     if len(kept) < 3:
         return None
@@ -78,8 +94,11 @@ def compute(words: list[dict], start: float, end: float, conf: dict) -> dict | N
     intervals.sort()
     merged = [intervals[0]]
     for a, b in intervals[1:]:
-        if a - merged[-1][1] <= max_gap:        # short pause → keep it
+        gap_a, gap_b = merged[-1][1], a
+        if gap_b - gap_a <= max_gap:            # short pause → keep it
             merged[-1][1] = max(merged[-1][1], b)
+        elif protect and _protected(gap_a, gap_b):
+            merged[-1][1] = max(merged[-1][1], b)   # protected beat: keep it
         else:                                    # long pause → cut it out
             merged.append([a, b])
 

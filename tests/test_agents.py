@@ -1520,3 +1520,53 @@ class TestUploadBookkeepingSplit(unittest.TestCase):
                          "a double-publish")
         self.assertIn("vid123", sent.get("body", ""),
                       "the operator needs the orphaned video id to clean up")
+
+
+class TestMomentTypeRouting(unittest.TestCase):
+    """The 50-clip study's core spec: classify the moment, route the edit.
+
+    Compression editing suits ADVICE; tension editing suits CONFESSION/
+    CONFLICT/REVEAL, where the hesitation before the payoff IS the product and
+    trimming it is the most common clipper mistake. Our sources are Ramsey and
+    Financial Audit, i.e. mostly tension content.
+    """
+
+    def test_protect_window_keeps_the_payoff_pause(self):
+        from factory.utils import trimmer
+        w = [{"word": "I", "start": 100.0, "end": 100.2},
+             {"word": "owe", "start": 100.3, "end": 100.5},
+             {"word": "um", "start": 100.6, "end": 100.8},
+             {"word": "$50,000", "start": 101.0, "end": 101.8},
+             {"word": "Wow", "start": 103.0, "end": 103.3},
+             {"word": "Okay", "start": 103.4, "end": 103.8}]
+        plain = trimmer.compute(w, 100.0, 104.0, {"enabled": True})
+        kept = trimmer.compute(w, 100.0, 104.0, {"enabled": True},
+                               protect=[(100.3, 103.3)])
+        self.assertIsNotNone(plain, "unprotected trim should remove the pause")
+        self.assertIsNone(kept, "the protected stunned pause and the 'um' "
+                                "hesitation must survive untouched")
+
+    def test_money_times_finds_spoken_figures(self):
+        from factory.agents import editor
+        words = [{"word": "You", "start": 3.0, "end": 3.2},
+                 {"word": "$4,978", "start": 5.0, "end": 5.6},
+                 {"word": "$411", "start": 6.5, "end": 7.0},     # <3s gap
+                 {"word": "1,000,000", "start": 10.0, "end": 10.8},
+                 {"word": "word", "start": 12.0, "end": 12.2}]
+        got = editor._money_times(words, 0.0, 20.0)
+        self.assertEqual([t for t, _ in got], [5.0, 10.0],
+                         "close figures are spaced; plain words ignored")
+        self.assertEqual(got[0][1], "$4,978")
+
+    def test_money_times_keeps_hook_zone_clean(self):
+        from factory.agents import editor
+        words = [{"word": "$999", "start": 1.0, "end": 1.4}]
+        self.assertEqual(editor._money_times(words, 0.0, 20.0), [],
+                         "figures in the first 2.5s stay with the hook card")
+
+    def test_default_plan_routes_to_advice(self):
+        """No LLM must mean the SAFE route: current behavior, no protection."""
+        from factory.agents import planner
+        plan = planner._default_plan({"title": "x"})
+        self.assertEqual(plan["moment_type"], "ADVICE")
+        self.assertEqual(plan["payoff_anchor"], "")

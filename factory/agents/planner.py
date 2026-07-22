@@ -33,6 +33,27 @@ PLAN_TOOL = {
                                "weakest metric). e.g. 'Keane or Neville?', 'Overrated "
                                "or elite?', 'Would you pay it?'. No hashtags.",
             },
+            "moment_type": {
+                "type": "string",
+                "enum": ["ADVICE", "CONFESSION", "CONFLICT", "REVEAL", "WISDOM"],
+                "description": "REQUIRED. What KIND of moment this is; it "
+                               "routes the whole edit. ADVICE = expert "
+                               "explaining or teaching. CONFESSION = someone "
+                               "admitting their own situation. CONFLICT = "
+                               "confrontation between people. REVEAL = a "
+                               "number or fact being dramatically disclosed. "
+                               "WISDOM = a quotable aphorism that needs no "
+                               "editing energy.",
+            },
+            "payoff_anchor": {
+                "type": "string",
+                "description": "For CONFESSION/CONFLICT/REVEAL: the EXACT "
+                               "words from the transcript where the payoff "
+                               "lands (the number, the admission, the snap). "
+                               "The silence AROUND these words is protected "
+                               "from trimming, because the pause is the "
+                               "product. Empty for ADVICE/WISDOM.",
+            },
             "takeaway": {
                 "type": "string",
                 "description": "REQUIRED. The ONE thing a viewer LEARNS from "
@@ -143,7 +164,7 @@ PLAN_TOOL = {
             },
         },
         "required": ["hook_text", "music_mood", "emphasis_words",
-                     "comment_question", "takeaway"],
+                     "comment_question", "takeaway", "moment_type"],
     },
 }
 
@@ -162,6 +183,7 @@ def _default_plan(clip) -> dict:
             "music_mood": "none", "emphasis_words": [],
             "sfx_cues": [], "broll": [], "transitions": [],
             "comment_question": "AGREE?", "takeaway": "",
+            "moment_type": "ADVICE", "payoff_anchor": "",
             "narrator_intro": "", "teaser_times": [], "memes": [],
             "scene_map": []}
 
@@ -202,6 +224,14 @@ contradict a skill file above, FOLLOW THE MEASUREMENT):
 {insights.craft()}
 
 Design the edit. Apply the skills above. Times must be within 0–{dur:.0f}s.
+moment_type: classify FIRST, because it routes the whole edit. A study of 50
+viral money clips found two OPPOSITE editing philosophies that both work, but
+only when matched to content: ADVICE clips want compression (cut every pause),
+while CONFESSION/CONFLICT/REVEAL clips want tension (the hesitation before the
+number IS the product, and cutting it is the most common clipper mistake).
+WISDOM clips want almost no editing at all: the words are treated as scripture.
+For the tension types you MUST also give payoff_anchor, the exact transcript
+words where the payoff lands, so the edit protects the silence around them.
 takeaway: the channel's promise is that a viewer LEARNS something, so name the
 single usable lesson in this clip and keep it concrete and TRUE. Drama earns the
 watch; the lesson earns the follow. If the moment teaches nothing, say so with an

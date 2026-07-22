@@ -91,12 +91,13 @@ def _font_escaped() -> str:
     return fp.replace("\\", "/").replace(":", "\\:")
 
 
-def _drawtext(text: str, *, size: int, y: str, enable: str | None = None) -> str:
+def _drawtext(text: str, *, size: int, y: str, enable: str | None = None,
+              color: str = "white") -> str:
     """Build a drawtext filter fragment with a real fontfile (Windows-safe)."""
     safe = text.replace("'", "").replace(":", " ").replace("\\", "")
     font = _font_escaped()
     frag = (f"drawtext=" + (f"fontfile='{font}':" if font else "")
-            + f"text='{safe}':fontcolor=white:fontsize={size}:"
+            + f"text='{safe}':fontcolor={color}:fontsize={size}:"
             f"borderw=6:bordercolor=black:box=1:boxcolor=black@0.55:"
             f"boxborderw=22:x=(w-text_w)/2:y={y}")
     if enable:
@@ -203,6 +204,38 @@ def _resolve_sfx(name: str, sfx_dir: Path) -> Path | None:
             if hit:
                 return hit
     return None
+
+
+_MONEY_RE = None
+
+
+def _money_times(cap_words, cap_start: float, dur: float,
+                 limit: int = 2, min_gap: float = 3.0) -> list[tuple[float, str]]:
+    """When a dollar figure is SPOKEN, so it can pop on screen at that moment.
+
+    From the 50-clip study: roughly 30 of 50 viral money clips carry a specific
+    figure, and the winning channels render the number oversized the moment it
+    lands (the Money Guy chart pattern). Returns [(render_time, text)], capped
+    and spaced so the effect stays an event rather than wallpaper.
+    """
+    import re
+    global _MONEY_RE
+    if _MONEY_RE is None:
+        _MONEY_RE = re.compile(r"^\$[\d][\d,\.]*[kKmM]?$|^[\d]{1,3}(,[\d]{3})+$")
+    out: list[tuple[float, str]] = []
+    for wd in cap_words:
+        token = wd["word"].strip().rstrip(".,!?")
+        if not _MONEY_RE.match(token):
+            continue
+        t = wd["start"] - cap_start
+        if t < 2.5 or t > dur - 1.2:        # hook zone and tail stay clean
+            continue
+        if out and t - out[-1][0] < min_gap:
+            continue
+        out.append((round(t, 2), token.upper()))
+        if len(out) >= limit:
+            break
+    return out
 
 
 def _anchor_time(anchor: str, cap_words: list[dict]) -> float | None:
@@ -832,6 +865,30 @@ def edit_clip(clip) -> Path:
 
     # 0. creative plan from the editor's installed skills (hooks/story/sfx/vfx)
     plan = planner.plan_clip(clip, words)
+
+    # MOMENT-TYPE ROUTING (from the 50-clip study: this one decision is worth
+    # more than any individual effect). Two opposite philosophies both work,
+    # but only matched to the content: compression for ADVICE, tension for
+    # CONFESSION/CONFLICT/REVEAL, reverence for WISDOM. Our sources are Ramsey
+    # and Financial Audit, i.e. mostly tension content, and until now we
+    # compressed everything, which cuts the exact pause that makes a reveal
+    # land.
+    mtype = str(plan.get("moment_type") or "ADVICE").upper()
+    TENSION = ("CONFESSION", "CONFLICT", "REVEAL")
+    protect_abs: list[tuple[float, float]] = []
+    if mtype in TENSION:
+        clip_words = [w for w in words if w["end"] > start and w["start"] < end]
+        pt = _anchor_time(plan.get("payoff_anchor") or "", clip_words)
+        if pt is not None:
+            protect_abs = [(pt - 1.5, pt + 1.5)]
+        plan["music_mood"] = "none"         # viral money clips run voice-only;
+        console.print(f"  [dim]moment: {mtype}"  # vocal clarity beats vibes
+                      + (f", payoff beat protected at {pt - start:.1f}s"
+                         if pt is not None else ", no payoff anchor found")
+                      + "[/]")
+    elif mtype == "WISDOM":
+        plan["sfx_cues"] = []               # reverence edit: get out of the way
+        console.print("  [dim]moment: WISDOM (reverence edit, no punches/sfx)[/]")
     (OUT_DIR / f"clip_{clip['id']}.notes.md").write_text(
         planner.render_notes(clip, plan), encoding="utf-8")
     console.print(f"  [dim]plan: hook='{plan['hook_text']}' "
@@ -861,17 +918,29 @@ def edit_clip(clip) -> Path:
     # trim and the captions both work from the better words.
     if cfg.get("finder.refine_clips", False):
         refined = media.refine_words(source["video_path"], start, end)
-        if refined:
+        inside = [w for w in words if w["end"] > start and w["start"] < end]
+        # Refinement is an upgrade, never a gate, and that has to include the
+        # QUALITY of its output: on clip 67 the medium pass returned 14 words
+        # for 14.9s of dense speech (about a quarter of what pass 1 heard), the
+        # splice trusted it, and the trimmer then read the wordless stretches
+        # as dead air and cut a 15s clip to 8s. If the refiner hears far fewer
+        # words than pass 1 did, it is the refiner that is wrong.
+        if refined and len(refined) >= 0.6 * max(len(inside), 1):
             outside = [w for w in words
                        if w["end"] <= start or w["start"] >= end]
             words = sorted(outside + refined, key=lambda w: w["start"])
             console.print(f"  [dim]captions: refined {len(refined)} words with "
                           f"{cfg.get('finder.refine_model', 'medium')}[/]")
+        elif refined:
+            console.print(f"  [yellow]caption refinement heard only "
+                          f"{len(refined)} words vs {len(inside)} in pass 1 — "
+                          f"keeping the original transcript[/]")
 
     # 0b. trim pass — cut filler words + dead air, then style the tightened clip
     render_src, render_start, render_dur = source["video_path"], start, dur
     cap_words, cap_start, cap_end = words, start, end
-    trim = trimmer.compute(words, start, end, e.get("trim", {}))
+    trim = trimmer.compute(words, start, end, e.get("trim", {}),
+                           protect=protect_abs)
     if trim:
         s = trim["stats"]
         console.print(f"  [dim]trim: {s['orig']:.1f}s → {s['trimmed']:.1f}s "
@@ -897,9 +966,16 @@ def edit_clip(clip) -> Path:
     #     (seg_cx is seeded here so the craft-spec record at the end of the
     #      render is always bound, whichever reframe branch ran)
     punches, cuts, seg_cx = [], [], []
-    if e.get("punch_zoom", True):
+    if e.get("punch_zoom", True) and mtype != "WISDOM":
         punches = _punch_times(cap_words, cap_start,
                                plan.get("emphasis_words", []), render_dur)
+        if mtype in TENSION and protect_abs:
+            # no zoom punch inside the protected beat: the payoff pause plays
+            # straight, which is the entire point of protecting it
+            ppt = _anchor_time(plan.get("payoff_anchor") or "", cap_words)
+            if ppt is not None:
+                pr = ppt - cap_start
+                punches = [t for t in punches if abs(t - pr) > 1.5]
     if e.get("camera_cuts", True):
         cuts = _cut_points(cap_words, cap_start, render_dur)
         if e.get("scene_cuts", True):
@@ -1195,6 +1271,16 @@ def edit_clip(clip) -> Path:
             card = _drawtext_block(tk.upper(), size=46, y_top=int(h * 0.17),
                                    enable=f"between(t,{t0:.2f},{t1:.2f})",
                                    max_chars=20, max_lines=3)
+            post = f"{post},{card}" if post else card
+
+    # 3b0b. NUMBER CARDS: when a dollar figure is spoken, it pops oversized at
+    # that exact moment (the Money Guy pattern; ~30 of 50 studied viral money
+    # clips carry a figure). Yellow to match the caption highlight.
+    if e.get("number_cards", True):
+        for nt, ntext in _money_times(cap_words, cap_start, render_dur):
+            card = _drawtext(ntext, size=118, y=str(int(h * 0.24)),
+                             enable=f"between(t,{nt:.2f},{nt + 1.6:.2f})",
+                             color="0xFFD700")
             post = f"{post},{card}" if post else card
 
     # 3b1. SERIES BADGE — small, persistent, top of frame. Titles carry the

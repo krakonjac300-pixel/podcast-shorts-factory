@@ -171,6 +171,9 @@ editor:
                                # short end card. 2026-07-18 analytics: 48,888 views -> 6 subs
                                # (0.012%) with an end-only ask; subs are the binding YPP gate.
   cta_mid_text: "SUBSCRIBE"    # the peak-moment ask (short — it must not compete with captions)
+  number_cards: true           # spoken dollar figures pop oversized at the
+                               # moment they land (Money Guy pattern; ~30 of 50
+                               # studied viral money clips carry a figure)
   takeaway_card: true          # burn the LESSON on screen in the last third.
                                # The channel's promise is that a viewer leaves
                                # knowing something; viewers skim, so a lesson
@@ -185,7 +188,7 @@ editor:
   memes_dir: "assets/memes"    # drop your favorite reaction clips here (see README inside)
   loudnorm: true               # broadcast loudness (-14 LUFS, YouTube standard) on the final mix
   qa: true                     # self-check every render (duration + audible audio) before it can post
-  font_file: "C:/Windows/Fonts/arialbd.ttf"   # used for on-screen hook + cover text (Windows)
+  font_file: "C:/Windows/Fonts/ariblk.ttf"    # Arial Black: overlays match the heavier captions
   make_cover: true             # also export a thumbnail/cover image per clip
   mix_sfx: true                # play the planner's SFX cues (assets/sfx/<type>.wav) in the render
   sfx_dir: "assets/sfx"
@@ -214,7 +217,10 @@ editor:
   captions:
     words_per_page: 2          # 1-2 word pages (million-view standard; numbers page SOLO)
     enabled: true
-    font: "Arial"
+    font: "Arial Black"        # heavier face per the 50-clip study: every
+                               # documented caption system runs a heavy
+                               # geometric sans; Arial Bold read one weight
+                               # too light next to the reference clips
     font_size: 90
     primary_color: "&H00FFFFFF"      # white (ASS BGR hex)
     highlight_color: "&H0000F0FF"    # active-word highlight (yellow-ish)
