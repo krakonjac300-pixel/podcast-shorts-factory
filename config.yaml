@@ -364,4 +364,8 @@ series:
   started: ""                  # ISO date the series began; numbering counts only
                                # uploads on/after it (set by the flip). Empty =
                                # falls back to scheduler.content_since.
+  in_titles: false             # OFF: the "MUGSHOT #N: " prefix ate the first 12
+                               # characters of every title, which is exactly where
+                               # the dollar amount or the name needs to be. The
+                               # on-screen badge still carries the series identity.
   badge: true                  # burn the series name into the top of the frame

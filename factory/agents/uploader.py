@@ -164,6 +164,13 @@ def _series_title(title: str) -> str:
     """
     if not cfg.get("series.enabled", False):
         return title
+    # The badge on screen and the prefix in the title are separate decisions.
+    # "MUGSHOT #9: " spends the first 12 characters of the title on branding,
+    # and our own data says front-loading the dollar amount or the named person
+    # in the first 20 characters is worth roughly 4x (786 vs 204 views/day).
+    # The badge already carries the series identity where it costs nothing.
+    if not cfg.get("series.in_titles", True):
+        return title
     name = (cfg.get("series.name", "") or "").strip()
     if not name or name.lower() in title.lower():
         return title

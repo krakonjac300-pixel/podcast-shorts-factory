@@ -1201,7 +1201,9 @@ class TestSeriesBranding(unittest.TestCase):
     def _with(self, **over):
         from factory.config import cfg
         saved = dict(cfg._d.get("series", {}))
-        cfg._d.setdefault("series", {}).update(over)
+        # pin in_titles: the live channel now has the prefix OFF, and a unit
+        # test of the prefix mechanism must not depend on today's config
+        cfg._d.setdefault("series", {}).update({"in_titles": True, **over})
         return saved
 
     def _restore(self, saved):
@@ -1406,7 +1408,7 @@ class TestSeriesNumberSkipsPulled(unittest.TestCase):
             fdb.DB_PATH = pathlib.Path(tempfile.mkdtemp()) / "t.db"
             cfg._d.setdefault("series", {}).update(
                 {"enabled": True, "name": "MUGSHOT", "number_from": 1,
-                 "started": ""})
+                 "started": "", "in_titles": True})
             cfg._d.setdefault("scheduler", {})["content_since"] = "2026-01-01"
             with fdb.conn() as c:
                 for cid, status in ((1, "pulled"), (2, "uploaded"), (3, "pulled")):
