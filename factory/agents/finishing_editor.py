@@ -35,8 +35,8 @@ console = Console()
 # qa.md report and in the clip's edit spec, so an audit can always say "these
 # passes happened under v2, before the freeze check was fixed". Bump on any
 # change to a check's threshold, coverage or verdict mapping.
-QA_RULES_VERSION = "3"          # v1 fail-open era; v2 fail-closed (over-fired
-                                # on freezedetect); v3 filter-availability split
+QA_RULES_VERSION = "4"          # v3 filter-availability split; v4 freezedetect
+                                # recalibrated to a human label (-45dB, d=1.0)
 
 OUT_DIR = ROOT / "output"
 OUT_DIR.mkdir(exist_ok=True)
@@ -194,7 +194,14 @@ def _check_black(path: Path) -> list[dict]:
 
 def _check_freeze(path: Path) -> list[dict]:
     out = []
-    log = _ff_stderr(["-i", str(path), "-vf", "freezedetect=n=-55dB:d=2.5", "-an"],
+    # CALIBRATED AGAINST A HUMAN LABEL (qa audit 2026-07-22). The owner labelled
+    # clip 73 frozen; at the old n=-55dB the check saw nothing because real
+    # freezes carry compression noise between frames, and -55dB demands
+    # near-identical pixels. Swept against all 20 labelled clips:
+    #   n=-45dB d=1.0  catches the labelled freeze, 0 false flags on 19 clean
+    #   n=-35dB        catches it but false-flags 6 clean clips
+    #   d=1.5          misses it (the real freeze ran 1.0s)
+    log = _ff_stderr(["-i", str(path), "-vf", "freezedetect=n=-45dB:d=1.0", "-an"],
                      marker="")
     if log is None:
         # a filter this build does not have is a MISSING capability, not a
@@ -207,7 +214,7 @@ def _check_freeze(path: Path) -> list[dict]:
     spans = log.count("freeze_start")
     if spans:
         out.append({"kind": "frozen frames", "sev": "warn",
-                    "msg": f"{spans} frozen stretch(es) ≥2.5s (check b-roll / a stall)"})
+                    "msg": f"{spans} frozen stretch(es) ≥1s (check b-roll / a stall)"})
     return out
 
 
