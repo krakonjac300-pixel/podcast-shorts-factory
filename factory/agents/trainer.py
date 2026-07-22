@@ -134,19 +134,187 @@ def _top_shorts(max_results: int = 12) -> list[dict]:
         out.sort(key=lambda r: -r["views"])
         out = out[:max_results]
         for row in out:                     # comments only for the final top-N
-            try:
+            row["id"] = row.pop("_id")      # keep it: the breakdown layer
+            try:                            # downloads the video by this id
                 c = yt.commentThreads().list(part="snippet",
-                                             videoId=row.pop("_id"),
+                                             videoId=row["id"],
                                              order="relevance", maxResults=2,
                                              textFormat="plainText").execute()
                 row["comments"] = [
                     x["snippet"]["topLevelComment"]["snippet"]["textDisplay"][:120]
                     for x in c.get("items", [])]
             except Exception:  # noqa: BLE001 - comments may be disabled
-                row.pop("_id", None)
+                pass
     except Exception as ex:  # noqa: BLE001 - study is best-effort
         console.print(f"[yellow]top-shorts study failed (continuing): {ex}[/]")
     return out
+
+
+REFS_MD = ROOT / "research" / "viral_refs.md"
+
+
+def _download_ref(video_id: str):
+    """Fetch one reference Short with yt-dlp for ANALYSIS ONLY (deleted once
+    the breakdown lands). No API quota is spent; capped at 720p and ~3 minutes
+    so a mislabelled long video cannot eat the disk."""
+    import yt_dlp
+    refs = ROOT / "workdir" / "refs"
+    refs.mkdir(parents=True, exist_ok=True)
+    out = refs / f"{video_id}.mp4"
+    if out.exists():
+        return out
+    opts = {"format": "bv*[height<=720]+ba/b[height<=720]",
+            "merge_output_format": "mp4",
+            "outtmpl": str(refs / "%(id)s.%(ext)s"),
+            "quiet": True, "no_warnings": True,
+            "match_filter": yt_dlp.utils.match_filter_func("duration < 200")}
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+        return out if out.exists() else None
+    except Exception:  # noqa: BLE001 - one missing ref is fine
+        return None
+
+
+def _measure_ref(path) -> dict:
+    """Objective numbers the tagger cannot hallucinate: what the video actually
+    says in its first seconds, how fast it talks, how often it cuts."""
+    import subprocess
+    from ..utils import media
+
+    def probe(pp):
+        try:
+            r = subprocess.run(["ffprobe", "-v", "quiet", "-show_entries",
+                                "format=duration", "-of", "csv=p=0", str(pp)],
+                               capture_output=True, text=True)
+            return float(r.stdout.strip() or 0)
+        except Exception:  # noqa: BLE001
+            return 0.0
+
+    dur = probe(path)
+    if dur <= 0:
+        return {}
+    audio = media.extract_audio(path)
+    segs = media.transcribe(audio)
+    words = [w for sg in segs for w in sg["words"]]
+    hook3 = " ".join(w["word"] for w in words if w["start"] < 3.0).strip()
+    hook8 = " ".join(w["word"] for w in words if w["start"] < 8.0).strip()
+    full = " ".join(w["word"] for w in words).strip()
+    try:
+        r = subprocess.run(["ffmpeg", "-i", str(path), "-vf",
+                            "select='gt(scene,0.4)',showinfo", "-f", "null", "-"],
+                           capture_output=True, text=True)
+        cuts = r.stderr.count("pts_time:")
+    except Exception:  # noqa: BLE001
+        cuts = 0
+    return {"duration_s": round(dur, 1),
+            "hook_first_3s": hook3[:220],
+            "hook_first_8s": hook8[:400],
+            "words_per_min": round(len(words) / dur * 60) if dur else 0,
+            "cuts_per_min": round(cuts / (dur / 60), 1) if dur else 0,
+            "transcript": full[:1500]}
+
+
+BREAKDOWN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "hook_type": {"type": "string",
+                      "description": "shock-stat | contrarian | question | "
+                                     "confession | callout | number-reveal | other"},
+        "promise": {"type": "string",
+                    "description": "what the first 3s promises the viewer, one line"},
+        "structure": {"type": "string",
+                      "description": "beat-by-beat shape in one line, e.g. "
+                                     "'number, escalation, turn, lesson'"},
+        "why_viral": {"type": "string",
+                      "description": "the single strongest reason THIS one "
+                                     "outperformed, grounded in the transcript"},
+        "tactics": {"type": "array", "items": {"type": "string"},
+                    "description": "3-6 concrete, replicable tactics (hook "
+                                   "phrasing, pacing, title pattern, payoff "
+                                   "placement). Each must be actionable by our "
+                                   "agents, not a vague observation."},
+        "title_pattern": {"type": "string",
+                          "description": "the reusable shape of the title, "
+                                         "e.g. '[$amount] [asset] at [%rate]'"},
+    },
+    "required": ["hook_type", "promise", "structure", "why_viral", "tactics",
+                 "title_pattern"],
+}
+
+
+def _breakdown_refs(refs: list[dict], max_n: int = 3) -> list[dict]:
+    """Reverse-engineer the top outliers: download, MEASURE, then tag.
+
+    This is the layer the trainer was missing. It used to study metadata
+    (title, views, two comments) and never watched a single video, so its
+    lessons were guesses about content it had not seen. Now the biggest
+    outliers are transcribed and measured, and the tagger reasons over the
+    video's actual words and pace. Results accumulate in research/viral_refs.md
+    so knowledge builds week over week instead of evaporating per run.
+    """
+    import json
+    REFS_MD.parent.mkdir(parents=True, exist_ok=True)
+    seen = REFS_MD.read_text(encoding="utf-8") if REFS_MD.exists() else ""
+    tagged = []
+    for ref in refs[:max_n]:
+        vid = ref.get("id")
+        if not vid:
+            continue
+        if f"<!-- ref:{vid} -->" in seen:
+            continue                        # already analyzed a past week
+        path = _download_ref(vid)
+        if not path:
+            continue
+        m = _measure_ref(path)
+        if not m:
+            continue
+        stats = {k: m[k] for k in ("duration_s", "words_per_min", "cuts_per_min")}
+        prompt = (
+            "You are reverse-engineering a VIRAL money/finance Short. Ground "
+            "every claim in the measured data below; do not invent visuals you "
+            "cannot see.\n\n"
+            f"title: {ref.get('title')}\nchannel: {ref.get('channel')}\n"
+            f"views: {ref.get('views'):,}  likes/1k: {ref.get('like_per_1k')}  "
+            f"comments/1k: {ref.get('cmt_per_1k')}\n"
+            f"measured: {json.dumps(stats)}\n"
+            f"first 3s (verbatim): {m['hook_first_3s']}\n"
+            f"first 8s (verbatim): {m['hook_first_8s']}\n"
+            f"transcript: {m['transcript']}\n\n"
+            "Call submit_breakdown.")
+        try:
+            r = llm.call_tool("manager", prompt, "submit_breakdown",
+                              BREAKDOWN_SCHEMA, max_tokens=900)
+        except Exception:  # noqa: BLE001
+            r = None
+        if not r:
+            continue
+        r.update({"id": vid, "title": ref.get("title"),
+                  "views": ref.get("views"), "measured": m})
+        tagged.append(r)
+        stamp = datetime.now().strftime("%Y-%m-%d")
+        hookq = m["hook_first_3s"][:120]
+        entry = (f"\n<!-- ref:{vid} -->\n"
+                 f"## {ref.get('title')}  ({ref.get('views'):,} views, {stamp})\n"
+                 f"- channel: {ref.get('channel')}  |  {m['duration_s']}s, "
+                 f"{m['words_per_min']} wpm, {m['cuts_per_min']} cuts/min, "
+                 f"L/1k={ref.get('like_per_1k')} C/1k={ref.get('cmt_per_1k')}\n"
+                 f'- hook ({r["hook_type"]}): "{hookq}"\n'
+                 f"- promise: {r['promise']}\n"
+                 f"- structure: {r['structure']}\n"
+                 f"- why it won: {r['why_viral']}\n"
+                 f"- title pattern: {r['title_pattern']}\n"
+                 + "".join(f"- tactic: {t}\n" for t in r.get("tactics", [])[:6]))
+        with REFS_MD.open("a", encoding="utf-8") as f:
+            f.write(entry)
+        try:                                # analysis done: drop the footage
+            path.unlink(missing_ok=True)
+            path.with_suffix(".wav").unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+        console.print(f"  [dim]broke down: {str(ref.get('title'))[:50]} "
+                      f"({ref.get('views'):,} views)[/]")
+    return tagged
 
 
 def _meta_scan() -> str:
@@ -234,6 +402,7 @@ def train() -> bool:
     console.print(f"[bold cyan]TRAINER[/] studying the winners ({llm.describe()})…")
 
     top = _top_shorts()
+    tagged = _breakdown_refs(top)
     meta = _meta_scan()
     back = _backtest()
     best = _our_best()
@@ -246,6 +415,12 @@ for US — and teach it by updating one craft playbook.
 
 TOP-PERFORMING RECENT SHORTS IN OUR NICHE (title/channel/duration/views/top comments):
 {json.dumps(top, indent=1)[:4000] or '(API unavailable this week)'}
+
+DEEP BREAKDOWNS OF THE BIGGEST OUTLIERS (we downloaded, transcribed and
+measured these; every tactic is grounded in the video's actual words and pace):
+{json.dumps([dict((k, t[k]) for k in ('title', 'views', 'hook_type', 'promise',
+'structure', 'why_viral', 'tactics', 'title_pattern')) for t in tagged],
+indent=1)[:3500] if tagged else '(none new this week; see research/viral_refs.md)'}
 
 FRESH POLICY & EDITING-META RESEARCH:
 {meta or '(no web results)'}

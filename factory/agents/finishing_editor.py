@@ -29,6 +29,15 @@ from ..config import ROOT, cfg
 
 console = Console()
 
+# Version every change to the QA rules. A reviewer named the failure mode: a
+# config or Trainer change could silently LOOSEN this gate, and nobody would
+# know which clips were judged under which rules. The version lands in every
+# qa.md report and in the clip's edit spec, so an audit can always say "these
+# passes happened under v2, before the freeze check was fixed". Bump on any
+# change to a check's threshold, coverage or verdict mapping.
+QA_RULES_VERSION = "3"          # v1 fail-open era; v2 fail-closed (over-fired
+                                # on freezedetect); v3 filter-availability split
+
 OUT_DIR = ROOT / "output"
 OUT_DIR.mkdir(exist_ok=True)
 
@@ -71,7 +80,8 @@ def _verdict(issues: list[dict]) -> str:
 def _report_md(clip_id, verdict: str, issues: list[dict],
                actions: list[str]) -> str:
     icon = {"PASS": "✅", "PASS*": "✅", "FIX": "🔧", "FLAG": "🚩"}.get(verdict, "•")
-    lines = [f"# Finishing-editor QA — clip {clip_id}: {icon} {verdict}\n"]
+    lines = [f"# Finishing-editor QA — clip {clip_id}: {icon} {verdict}  "
+             f"(rules v{QA_RULES_VERSION})\n"]
     if not issues:
         lines.append("No problems found — captions, frames, audio and duration "
                      "all clean.")
@@ -431,6 +441,7 @@ def review_clip(clip) -> tuple[str, list[dict]]:
         if spec:
             spec["qa_flags"] = sorted({i["kind"] for i in issues})
             spec["qa_verdict"] = verdict
+            spec["qa_rules"] = QA_RULES_VERSION
             db.record_edit_spec(clip["id"], spec, cfg.get("finder.niche_lock") or "")
     except Exception:  # noqa: BLE001 - QA bookkeeping never blocks the verdict
         pass
