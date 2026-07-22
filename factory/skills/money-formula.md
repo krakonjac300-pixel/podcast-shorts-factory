@@ -44,3 +44,32 @@ $15,000 DEBT", 42s). This is the grammar of money clips that hit MILLIONS.
 EXACT number + relationship stake + a caught/exposed verb, ≤60 chars:
 "Girlfriend CAUGHT Hiding $15,000 DEBT" / "She Spent $1,000 More Than She MADE".
 Number in the first 30 chars. One emoji max, usually none.
+
+## OWNER REFERENCE CLIP: the 3M-view story edit (studied 2026-07-23)
+"When Dana White FAKED Hating Podcasts?" (Strike Sports): 3.08M views from a
+228k-sub channel, a 13x outlier. 35.6s, 244 wpm, 28.7 cuts/min, zero silence
+over 0.8s, mastered hot. Full breakdown in research/viral_refs.md. Apply its
+lessons through OUR tools as follows:
+
+1. FINDER: the strongest story windows carry MISDIRECTION. This clip opens on
+   what looks like real anger, then reveals it was staged, then twists again.
+   When scanning a money episode, prefer a window where the situation REVERSES
+   (the broke guest turns out to have savings; the confident plan collapses;
+   the accused explains). A reversal is a built-in reason to finish the clip.
+2. FINDER: an off-screen DEMAND is a hook ("Answer that, answer that").
+   Prefer windows that OPEN on the host demanding an answer over windows that
+   open on the answer itself. The interrogation is the hook; classify these
+   CONFLICT so the payoff beat is protected.
+3. EDITOR/PLANNER: cut rate is NOT the lesson; information per cut is. That
+   clip earns 28.7 cuts/min because nearly every cut shows NEW referenced
+   footage (receipts). On our single-source clips, extra cuts add nothing new,
+   which is why our own measured rule (at or below ~9.8 cuts/min) still stands
+   for us. If the source itself shows a receipt on screen (Financial Audit's
+   bank statements, spreadsheet closeups), TREAT THAT WINDOW AS GOLD: the
+   show's own graphics are our receipts footage.
+4. EDITOR: speech may pause; AUDIO must not. The dramatic beat rides room
+   sound, never digital silence. Our tension windows already preserve the
+   pause; never gate or duck the ambient under it.
+5. UPLOADER: title the twist as a QUESTION that accuses ("When X FAKED
+   Y?"). It names a star, implies deception, and cannot be answered without
+   watching. Pattern: "When [NAME] FAKED [thing]?" / "Did [NAME] really [X]?"
