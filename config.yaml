@@ -1,0 +1,227 @@
+# ── Podcast Shorts Factory configuration ──────────────────────────────
+
+# WHICH AI PROVIDER runs the agents. Default "anthropic" (Claude, paid, best
+# taste). To run FREE, pick one below, add its key to .env, set a model, done.
+#   provider   free?  get a key at                 good free model
+#   ─────────  ─────  ──────────────────────────   ───────────────────────────
+#   anthropic   no    console.anthropic.com        (uses the `models:` block below)
+#   groq        yes   console.groq.com/keys        llama-3.3-70b-versatile
+#   nvidia      yes   build.nvidia.com             meta/llama-3.3-70b-instruct
+#   gemini      yes   aistudio.google.com/apikey   gemini-2.0-flash
+#   ollama      yes   (local, install ollama)      llama3.1   (needs a good GPU)
+llm:
+  provider: anthropic          # anthropic | openrouter | groq | nvidia | gemini | ollama | openai
+  fallbacks: []                # e.g. [gemini] — tried in order when the primary is rate-limited/errors
+                               #   (each fallback needs its own key in .env)
+  timeout_s: 45                # per-call timeout — a hanging provider fails fast → fallback fires
+  model: nvidia/nemotron-3-ultra-550b-a55b:free   # free + tool-capable (verified live)
+  vision_model: "google/gemma-4-26b-a4b-it:free"   # Manager's eyes (fallback: nvidia/nemotron-nano-12b-v2-vl:free)
+  # other verified-free OpenRouter fallbacks if this one is rate-limited:
+  #   google/gemma-4-26b-a4b-it:free
+  #   qwen/qwen3-next-80b-a3b-instruct:free
+  #   nvidia/nemotron-3-nano-30b-a3b:free
+
+# Per-agent Claude model (only used when llm.provider = anthropic). Smart split:
+# a capable model for taste-sensitive work
+# (finding clips, creative planning, analysis) and the cheap one for mechanical
+# caption tweaks. Change `default` to bill everything at one rate.
+#   claude-haiku-4-5  ($1/$5)   cheapest
+#   claude-sonnet-4-6 ($3/$15)  balanced  ← default
+#   claude-opus-4-8   ($5/$25)  smartest
+models:
+  default:     claude-sonnet-4-6
+  finder:      claude-sonnet-4-6
+  editor:      claude-sonnet-4-6
+  uploader:    claude-haiku-4-5
+  manager:     claude-sonnet-4-6
+  trend_scout: claude-sonnet-4-6
+
+# Which "installed skills" (factory/skills/*.md) each agent loads into its AI
+# prompts. Add/remove names freely; run `python run.py skills` to list all.
+skills:
+  finder:   [editorial-standards, editor-craft, short-form-strategy, hooks, storytelling, marketing-psychology, viral-patterns, engagement-tactics, platform-algorithms, series-and-loops, growth-strategy, youtube-monetization]
+  editor:   [editorial-standards, editor-craft, video-editing, hooks, storytelling, sound-design, visual-effects, captions-craft, pacing, trending-audio, thumbnail-design, series-and-loops, growth-strategy, youtube-monetization]
+  uploader: [editorial-standards, copywriting, titles-thumbnails, hashtags-seo, marketing-psychology, thumbnail-design, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
+  community: [editorial-standards, engagement-tactics, copywriting, marketing-psychology, platform-algorithms]
+  manager:  [editorial-standards, editor-craft, analytics-optimization, marketing-psychology, short-form-strategy, engagement-tactics, platform-algorithms, growth-strategy, youtube-monetization]
+  compiler: [editorial-standards, storytelling, copywriting, youtube-monetization, growth-strategy]
+
+finder:
+  whisper_model: "small"        # tiny | base | small | medium | large-v3 (bigger = slower/better)
+  language: null               # null = auto-detect, or "en", "es", ...
+  cookies_from_browser: null   # if YouTube blocks a video ("confirm you're not a bot"),
+                               #   set chrome | edge | firefox (CLOSE that browser first — it locks the cookie DB)
+  max_candidates: 8            # how many clip ideas Claude returns per podcast
+  clip_min_seconds: 15         # HARD platform bounds only — the AI reasons per clip: the idea
+  clip_max_seconds: 90         # decides the length (tight one-liner 20s, layered story 80s)
+  auto_approve_top: 3          # for unattended/scheduled runs: auto-approve the top N candidates
+  # What makes a moment "viral" — tweak to steer the AI's taste
+  selection_brief: |
+    STRONGLY FAVOR: conflict & drama, real stakes, money & status, shocking
+    personal stories, strong emotion (anger, fear, awe), controversial hot takes,
+    someone getting called out, "you won't believe what happened". A real STAKE
+    or a CLASH beats a fact every time.
+    STRONGLY AVOID: trivia, "did you know" facts, abstract philosophy — anything
+    that's merely "interesting" with no human stakes or emotion.
+    Each clip must HOOK in the first 1.5s, stand alone, target 25-45s, and end on a
+    comment-trigger (a question or hot take that makes people NEED to reply).
+    CRITICAL: flops lose viewers in the FIRST 5-8 SECONDS. The clip's OPENING LINE
+    must be the hook — if the gripping part is 10s into the moment, START THERE.
+    Never open on a wind-up, throat-clear, or slow setup. Pick the timestamp where
+    the drama LANDS, not where it begins.
+    THE 3-SECOND TEST (platforms cap any Short swiped away in <3s): the opening
+    line must contain a NAMED person AND a visible stake. "Roy Keane says England
+    will lose" passes; "So the thing about football is" fails.
+    PREFER MOMENTS WITH AN ANGLE BUILT IN: someone DISAGREES, RANKS ("best/worst
+    ever"), PREDICTS, or gets called out — curation with a take, never just "a
+    thing someone said". If two moments tie, take the one whose LAST line snaps
+    back to the first line (loop = free rewatches = ranking signal).
+
+editor:
+  ai_plan: true                # let the editor's skills (hooks/story/sfx/vfx) design each edit
+  resolution: [1080, 1920]     # 9:16 vertical
+  reframe: "smart"             # smart = don't crop 2-person shots (show both, phone-friendly); punch in only on a lone face
+                               #   "face" = always punch-in crop;  "blur"/"black" = always fit whole frame
+  background: "blur"           # blur | black  (the fitted-frame style: blurred fill vs black bars)
+  motion_zoom: true            # gentle slow zoom-in (Ken Burns) so talking-head footage feels alive
+  motion_amount: 0.10          # how far it zooms over the clip (0.10 = 10%); 0 or motion_zoom:false to disable
+  punch_zoom: true             # quick zoom PUNCH when an emphasis word is spoken (retention spike)
+  flash_transitions: true      # white-flash accents at the planner's topic shifts (hard-cut feel)
+  broll: true                  # overlay Pexels stock photos at the planner's b-roll moments
+  max_broll: 2                 # at most this many b-roll images per clip (needs PEXELS_API_KEY in .env)
+  broll_video: true            # prefer moving stock VIDEO b-roll (Pexels) over still photos
+  track_face_per_shot: true    # re-center the crop on the face at every camera cut
+  speaker_cuts: true           # 2-person shots: alternate host-cam / guest-cam crops
+  camera_cuts: true            # fake-multicam: hard zoom cuts (wide<->close) at sentence ends + whoosh
+  scene_cuts: true             # cut on the source's REAL camera changes (PySceneDetect), not just sentence ends
+  grade: true                  # cinematic color grade (contrast + saturation + vignette)
+  progress_bar: true           # thin retention bar filling along the bottom
+  cta: true                    # end call-to-action text for the last ~2s
+  cta_text: "FOLLOW FOR MORE"
+  teaser: true                 # narrator cold-open: flash-preview of the payoff before the clip
+  voiceover: true              # free AI narrator (Edge TTS, no key needed)
+  voice: "en-US-ChristopherNeural"   # try en-US-GuyNeural, en-GB-RyanNeural, en-US-AriaNeural
+  memes: true                  # meme/reaction inserts at emotional peaks
+  memes_dir: "assets/memes"    # drop your favorite reaction clips here (see README inside)
+  loudnorm: true               # broadcast loudness (-14 LUFS, YouTube standard) on the final mix
+  qa: true                     # self-check every render (duration + audible audio) before it can post
+  font_file: "C:/Windows/Fonts/arialbd.ttf"   # used for on-screen hook + cover text (Windows)
+  make_cover: true             # also export a thumbnail/cover image per clip
+  mix_sfx: true                # play the planner's SFX cues (assets/sfx/<type>.wav) in the render
+  sfx_dir: "assets/sfx"
+  sfx_volume: 0.5
+  trim:                        # cut filler words + dead air (the pro-vs-amateur lever)
+    enabled: true
+    remove_fillers: true
+    max_gap: 0.45              # silences longer than this get tightened
+    pad: 0.05                  # keep this much around each kept word
+    min_removed: 0.2           # skip the extra encode pass if it'd save less than this
+    # conservative by default; add risky ones ("like","so","right") only if you want
+    fillers: [um, uh, uhh, uhm, erm, hmm, mm, mmm, ah, er]
+    phrases: []                # multi-word fillers, e.g. ["you know", "i mean"]
+  music_dir: "assets/music"    # drop royalty-free tracks here; one is picked at random
+  music_volume: 0.12           # 0 = off, 1 = full
+  captions:
+    words_per_page: 3          # words per caption page (2 = ultra-punchy MrBeast style)
+    enabled: true
+    font: "Arial"
+    font_size: 90
+    primary_color: "&H00FFFFFF"      # white (ASS BGR hex)
+    highlight_color: "&H0000F0FF"    # active-word highlight (yellow-ish)
+    outline: 6
+    position: "lower"                # center | lower | bottom
+  add_intro_hook: true          # overlay the clip title for the first ~2s
+  intro_card: false             # PREMIUM (optional): animated kinetic-typography hook card via
+                                # Remotion. Needs Node 18+: run `npm install` inside remotion/
+                                # once, then set true. Without it the normal static hook is used.
+
+uploader:
+  schedule_mode: true          # upload the whole day at produce time; YouTube publishes
+                               # each post server-side at post_times — PC can be off all day
+  post_times: ["09:00", "14:00", "19:00"]
+  ai_optimize: true             # rewrite title/caption/hashtags per platform using copywriting skills
+  platforms: ["youtube", "tiktok", "instagram"]
+  privacy: "public"             # auto-uploads post live to YouTube (hands-off)
+  hashtags: ["#podcast", "#shorts", "#clips"]
+
+manager:
+  lookback_days: 28
+  learnings_file: "learnings.md"
+  review_before_post: true     # Manager reviews every clip pre-upload; bounces weak ones
+                               # back to the Editor with notes (1 retry, then reject+alert you)
+
+# Finishing Editor (Agent 8) — the assistant editor / QA reviewer. Runs after the
+# Editor and before posting: watches each finished clip for the flaws a human
+# catches on playback (captions on a face, black/frozen frames, dead air, clipped
+# or too-quiet audio, wrong duration), auto-fixes the cheap ones and pings your
+# phone on anything broken. Optional last-stage 'film look' pass.
+finisher:
+  enabled: true
+  block_on_fail: true          # true = a critically-broken clip is held back (status 'flagged') instead of posting.
+                               # Produce backfills the freed slot with the next-best fresh clip, so blocking never
+                               # thins the day's schedule (see finder.produce_target / min_queue below).
+  min_queue: 1                 # last-ditch floor: if EVERY clip failed QA, keep the least-bad one so the channel is
+                               # never fully dark on a day. 0 = allow an empty day (pure block, may miss all posts).
+  autofix_quiet: true          # gain-up a too-quiet mix automatically
+  film_finish: false           # optional final film-grain + micro-sharpen pass (extra encode; Editor already grades)
+  checks:
+    black: true                # fully-black stretches (broken render)
+    freeze: true               # frozen/stuck frames
+    silence: true              # dead-air gaps mid-clip
+    levels: true               # clipped or too-quiet audio
+    face_captions: true        # captions overlapping the speaker's face
+
+# Compiler (Agent 9) — the showrunner. Weekly 16:9 long-form episode stitched from
+# the week's best moments with an AI narrator carrying a real editorial spine
+# (thesis → per-clip setup/analysis → verdict). Monetization-safe by construction:
+# commentary share is MEASURED on the finished cut and episodes under the floor are
+# never uploaded (2026 reused-content rules put the review trigger around 30%).
+compiler:
+  enabled: true
+  publish_day: "sun"           # weekly slot (server-side publishAt — PC can be off)
+  publish_time: "15:00"
+  min_segments: 4              # skip the week if fewer good moments are available
+  max_segments: 6
+  max_excerpt: 75              # hard cap per continuous source excerpt (seconds)
+  min_commentary_share: 0.30   # narrator/cards fraction of runtime; below = hold back
+  category_id: "24"            # 24 = Entertainment (17 = Sports)
+  music: true                  # continuous bed, sidechain-ducked under all speech
+  music_volume: 0.30           # bed level before ducking (final loudnorm evens it out)
+
+# Trend Scout — uses Claude's web search to pull current short-form trends and
+# write trends.md, which the Finder reads to bias selection toward what's hot.
+# Trainer — the team's coach. Weekly: studies the top-performing Shorts in the
+# niche (YouTube API) + their comments, researches policy/meta changes, backtests
+# the Finder's predictions, then (with the Manager's approval) updates ONE craft
+# playbook so the whole team learns. Can never touch editorial-standards.
+trainer:
+  enabled: true
+  study_queries: ["podcast clips viral", "joe rogan clips", "business health podcast shorts"]
+  playbooks: [hooks, pacing, captions-craft, video-editing, titles-thumbnails, growth-strategy, youtube-monetization, thumbnail-design]
+
+trend_scout:
+  enabled: true
+  niche: "viral podcast clips — money, business, health, mindset, comedy"   # set this to YOUR channel's niche
+  trends_file: "trends.md"
+
+# Scheduled runs pull the newest DOWNLOADABLE (skips members-only/unavailable) video
+# from these channels, rotating through them and skipping ones already processed.
+# You can add ANY channel/playlist URL — the factory picks whatever has fresh,
+# clippable content. `python run.py produce`/`daily` use this list.
+scheduler:
+  sources:
+    # Put the channels/playlists for YOUR niche here — pick shows whose owners
+    # allow clipping, or your own content. Two popular examples to replace:
+    - "https://www.youtube.com/@joerogan/videos"
+    - "https://www.youtube.com/@TheDiaryOfACEO/videos"
+  source_url: ""               # legacy single-source fallback (used if sources is empty)
+
+# How the agents talk to YOU: everything important lands in activity.md
+# (newest first), and toast: true also pops Windows notifications for posts,
+# failures, and the morning "queue ready" message.
+notify:
+  toast: true
+  # PHONE push (free): install the "ntfy" app (Play Store / App Store), open it,
+  # "+ Subscribe to topic", type the topic below — done. Keep the topic secret;
+  # anyone who knows it can read these notifications.
+  ntfy_topic: ""               # set your OWN unique topic (e.g. "myclips-<random>"); leave "" to disable phone push
