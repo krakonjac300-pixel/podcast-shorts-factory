@@ -1653,3 +1653,36 @@ class TestFootageAgent(unittest.TestCase):
         c = footage._cache_path("empty fridge", 2.4)
         self.assertEqual(a, b)
         self.assertNotEqual(a, c)
+
+
+class TestZapCapGating(unittest.TestCase):
+    """ZapCap must be OFF unless BOTH the config flag and the key are set, and
+    must read the correct nested config path (editor.captions.provider)."""
+
+    def test_off_by_default(self):
+        from factory.utils import zapcap
+        from factory.config import cfg
+        prev = cfg._d.get("editor", {}).get("captions", {}).get("provider")
+        try:
+            cfg._d.setdefault("editor", {}).setdefault("captions", {})["provider"] = "internal"
+            self.assertFalse(zapcap.active())
+        finally:
+            if prev is not None:
+                cfg._d["editor"]["captions"]["provider"] = prev
+
+    def test_flag_without_key_stays_off(self):
+        """Flipping the provider on with no key must NOT activate — otherwise a
+        clip would render with our captions skipped and none from ZapCap."""
+        import os
+        from factory.utils import zapcap
+        from factory.config import cfg
+        prev = cfg._d.get("editor", {}).get("captions", {}).get("provider")
+        had = os.environ.pop("ZAPCAP_API_KEY", None)
+        try:
+            cfg._d.setdefault("editor", {}).setdefault("captions", {})["provider"] = "zapcap"
+            self.assertFalse(zapcap.active(), "no key must mean inactive")
+        finally:
+            if prev is not None:
+                cfg._d["editor"]["captions"]["provider"] = prev
+            if had is not None:
+                os.environ["ZAPCAP_API_KEY"] = had

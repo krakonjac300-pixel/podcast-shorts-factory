@@ -19,6 +19,7 @@ from ..config import ROOT, WORK, cfg
 from ..utils import (broll, captions, design_scenes, media, remotion_intro,
                      trimmer, voice)
 from ..utils import faces as faces_util
+from ..utils import zapcap
 from . import planner
 
 console = Console()
@@ -1324,13 +1325,20 @@ def edit_clip(clip) -> Path:
     # 2. captions overlay (.ass burned in), with skill-chosen emphasis words —
     #    applied AFTER b-roll so text always stays on top.
     post = ""
+    # ZapCap (optional, paid) owns the caption layer when enabled: we skip our
+    # own caption burn AND the number/action cards (its keyword highlighting
+    # covers emphasis, and burning both would double the on-screen text), then
+    # hand the finished clip to ZapCap at the end. Everything else stays ours.
+    _zap = zapcap.active()
+    _ass_path = None
     if e.get("captions", {}).get("enabled", True):
-        ass_path = WORK / f"clip_{clip['id']}.ass"
-        captions.write_ass(ass_path, cap_words, cap_start, cap_end,
+        _ass_path = WORK / f"clip_{clip['id']}.ass"
+        captions.write_ass(_ass_path, cap_words, cap_start, cap_end,
                            e.get("captions", {}), res=(w, h),
                            emphasis_words=plan.get("emphasis_words", []))
-        ass_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:")
-        post += f"subtitles='{ass_escaped}'"
+        if not _zap:                     # internal provider: burn it in-line now
+            ass_escaped = str(_ass_path).replace("\\", "/").replace(":", "\\:")
+            post += f"subtitles='{ass_escaped}'"
 
     # 3. on-screen hook for first ~2s (AI-written by the planner), wrapped so it
     #    always fits the frame. Skipped ONLY when the animated intro card was
@@ -1381,7 +1389,7 @@ def edit_clip(clip) -> Path:
     # 3b0b. NUMBER CARDS: when a dollar figure is spoken, it pops oversized at
     # that exact moment (the Money Guy pattern; ~30 of 50 studied viral money
     # clips carry a figure). Yellow to match the caption highlight.
-    if e.get("number_cards", True):
+    if e.get("number_cards", True) and not _zap:
         for nt, ntext in _money_times(cap_words, cap_start, render_dur):
             card = _drawtext(ntext, size=118, y=str(int(h * 0.24)),
                              enable=f"between(t,{nt:.2f},{nt + 1.6:.2f})",
@@ -1391,7 +1399,7 @@ def edit_clip(clip) -> Path:
     # 3b0c. ACTION CAPTIONS: physical beats without speech get captioned as
     # *ACTIONS* in red (3M-view reference: *MOVES MIC* *WALKS AWAY* keep the
     # caption rhythm alive when nobody talks).
-    for ac in (plan.get("action_captions") or [])[:2]:
+    for ac in ((plan.get("action_captions") or [])[:2] if not _zap else []):
         at = _anchor_time(str(ac.get("anchor", "")), cap_words)
         txt = str(ac.get("text", "")).strip().strip("*").upper()
         if at is None or not txt or len(txt) > 28:
@@ -1583,6 +1591,30 @@ def edit_clip(clip) -> Path:
         except subprocess.CalledProcessError as ex:
             console.print(f"  [yellow]intro card overlay skipped:[/] "
                           f"{ex.stderr.decode(errors='ignore')[-160:]}")
+
+    # ZapCap caption layer (only when captions.provider == zapcap and the key is
+    # present). Runs on the fully-composed clip; on any failure the clip keeps
+    # whatever it already has, so ZapCap can never block a render or a post.
+    if _zap:
+        if zapcap.caption_video(out, out):
+            console.print("  [dim]captions: ZapCap viral-template layer[/]")
+        elif _ass_path and _ass_path.exists():
+            # ZapCap failed: never ship a caption-less clip — burn ours instead
+            esc = str(_ass_path).replace("\\", "/").replace(":", "\\:")
+            fb = out.with_suffix(".cap.mp4")
+            try:
+                subprocess.run(["ffmpeg", "-y", "-i", str(out), "-vf",
+                                f"subtitles='{esc}'", "-c:a", "copy",
+                                "-c:v", "libx264", "-preset", "medium",
+                                "-crf", "20", "-pix_fmt", "yuv420p", str(fb)],
+                               check=True, capture_output=True)
+                fb.replace(out)
+                console.print("  [yellow]ZapCap failed — fell back to our own "
+                              "captions[/]")
+            except Exception as ex:  # noqa: BLE001
+                fb.unlink(missing_ok=True)
+                console.print(f"  [red]ZapCap and caption fallback both failed: "
+                              f"{str(ex)[:60]}[/]")
 
     # Final gate: a post-step (teaser concat / intro-card overlay) can silently
     # emit a streamless file on exit 0, which would then be marked 'edited' and

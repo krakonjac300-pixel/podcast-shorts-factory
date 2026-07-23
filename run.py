@@ -16,6 +16,7 @@ Commands:
                  add --yes to auto-approve the top N clips and post unattended
   meeting        Daily standup: scan analytics -> per-agent instructions in learnings.md
   pull <id>      Pull a clip: private on YouTube + series number released
+  zapcap-test <id> Verify the ZapCap key on one rendered clip
   craft          Score our own edits vs retention → craft.md (the editor's learning loop)
   daily          Unattended: scout + newest video from scheduler.source_url + auto --yes
   produce        Make the day's clips into the post queue (no posting)
@@ -404,6 +405,25 @@ def main(argv: list[str]):
         # filter in _series_number was advertised but nothing ever set
         # status='pulled'; this is the code path that does.
         uploader.pull_clip(int(rest[0]))
+    elif cmd == "zapcap-test":
+        # verify the ZapCap key end-to-end on one already-rendered clip, so it
+        # can be proven before flipping captions.provider to zapcap
+        from factory.utils import zapcap
+        if not zapcap.available():
+            console.print("[red]ZAPCAP_API_KEY not set in .env[/]")
+        elif not rest:
+            console.print("[yellow]usage: python run.py zapcap-test <clip_id>[/]")
+        else:
+            c = db.clip_by_id(int(rest[0]))
+            src = c["rendered_path"] if c else None
+            if not src:
+                console.print("[red]no rendered clip with that id[/]")
+            else:
+                from pathlib import Path as _P
+                out = _P(src).with_name(f"zapcap_test_{rest[0]}.mp4")
+                ok = zapcap.caption_video(src, out)
+                console.print(f"[{'green' if ok else 'red'}]ZapCap test "
+                              f"{'succeeded → ' + str(out) if ok else 'failed'}[/]")
     elif cmd == "craft":
         # Re-score our own edits against measured retention and rewrite craft.md
         console.print(craft.update())

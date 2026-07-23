@@ -230,6 +230,14 @@ editor:
                                # money clips run a PRESENT bass-y bed, not wallpaper.
   loudnorm_i: -12              # master loudness target; viral shorts master hot (-10 to -12)
   captions:
+    provider: internal         # internal | zapcap. zapcap ($0.10/min) burns
+                               # professional viral-template captions: set
+                               # ZAPCAP_API_KEY in .env and flip this to zapcap.
+                               # OFF by default; on failure we fall back to our
+                               # own captions so a ZapCap outage never ships a
+                               # caption-less clip.
+    zapcap_template: ""        # a specific ZapCap templateId, or "" for the
+                               # account default (GET /templates)
     words_per_page: 2          # 1-2 word pages (million-view standard; numbers page SOLO)
     enabled: true
     font: "Arial Black"        # heavier face per the 50-clip study: every
