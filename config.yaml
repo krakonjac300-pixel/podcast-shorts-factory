@@ -236,10 +236,10 @@ editor:
                                # documented caption system runs a heavy
                                # geometric sans; Arial Bold read one weight
                                # too light next to the reference clips
-    font_size: 90
+    font_size: 104
     primary_color: "&H00FFFFFF"      # white (ASS BGR hex)
     highlight_color: "&H0000F0FF"    # active-word highlight (yellow-ish)
-    outline: 6
+    outline: 9
     position: "lower"               # center | bottom
   add_intro_hook: true          # overlay the clip title for the first ~2s
   intro_card: true              # animated Remotion kinetic-typography hook card (needs remotion/
