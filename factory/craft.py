@@ -192,15 +192,6 @@ def render(report: dict) -> str:
         out += ["", "Apply these over generic best practice: they are measured "
                 "on this channel, this audience. Where a rule contradicts a "
                 "skill file, the measurement wins.", ""]
-        if any(f["field"] == "duration" for f in report["findings"]):
-            out += [
-                "> **Read the duration rule carefully.** Percent-watched is "
-                "mechanically easier to score on a short clip (finishing 18s "
-                "takes less commitment than finishing 45s), so part of that gap "
-                "is arithmetic, not craft. It is still worth acting on, because "
-                "the Shorts feed ranks on exactly this biased number. But do "
-                "NOT amputate a great moment to hit a target length: cut the "
-                "SETUP, not the payoff. A tight 30s beats a gutted 18s.", ""]
     else:
         out += ["## No knob has separated yet", "",
                 f"{report['n']} clips measured and no editing choice moved "

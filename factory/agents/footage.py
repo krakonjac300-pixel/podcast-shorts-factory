@@ -31,6 +31,7 @@ from ..config import ROOT, cfg
 
 console = Console()
 CACHE = ROOT / "assets" / "broll_cache"
+_AUTH_WARNED = False
 _UA = {"User-Agent": "PodcastShortsFactory/1.0"}
 
 
@@ -101,7 +102,6 @@ def find_clip(query: str, secs: float = 2.4) -> Path | None:
              "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
              "-pix_fmt", "yuv420p", str(out)],
             capture_output=True, timeout=120)
-        raw.unlink(missing_ok=True)
         if p.returncode != 0 or not out.exists() or out.stat().st_size < 10_000:
             out.unlink(missing_ok=True)
             return None
@@ -109,6 +109,29 @@ def find_clip(query: str, secs: float = 2.4) -> Path | None:
                       f"({out.stat().st_size // 1024}KB)[/]")
         return out
     except Exception as ex:  # noqa: BLE001 - an insert is never worth a crash
-        console.print(f"  [dim]footage lookup failed for '{query[:30]}': "
-                      f"{str(ex)[:60]}[/]")
+        msg = str(ex)
+        if "401" in msg or "403" in msg:
+            # an invalid key fails EVERY query forever and would otherwise be
+            # indistinguishable from "no good stock match"; that is a config
+            # defect, not a search miss
+            global _AUTH_WARNED
+            if not _AUTH_WARNED:
+                _AUTH_WARNED = True
+                try:
+                    from .. import notify
+                    notify.notify("Pexels key rejected",
+                                  "footage inserts are OFF until the key is "
+                                  "fixed (HTTP 401/403 on search)")
+                except Exception:  # noqa: BLE001
+                    pass
+            console.print("  [yellow]footage: Pexels rejected the key "
+                          "(401/403) - inserts disabled this run[/]")
+        else:
+            console.print(f"  [dim]footage lookup failed for '{query[:30]}': "
+                          f"{msg[:60]}[/]")
         return None
+    finally:
+        try:
+            raw.unlink(missing_ok=True)     # failed downloads must not pile up
+        except (NameError, OSError):
+            pass

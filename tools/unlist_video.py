@@ -61,9 +61,17 @@ def unlist(target_id: str, replacement_id: str) -> int:
                    "selfDeclaredMadeForKids": st.get("selfDeclaredMadeForKids",
                                                      False)}}).execute()
 
-    # verify: the API accepts writes it then ignores
-    after = yt.videos().list(part="status", id=target_id).execute()
-    now = after["items"][0]["status"]["privacyStatus"]
+    # verify: the API accepts writes it then ignores, AND serves stale reads
+    # right after a successful write (both observed on this channel). Re-read
+    # with a delay before declaring failure.
+    import time
+    now = ""
+    for attempt in range(3):
+        after = yt.videos().list(part="status", id=target_id).execute()
+        now = after["items"][0]["status"]["privacyStatus"]
+        if now == "unlisted":
+            break
+        time.sleep(20)
     if now != "unlisted":
         msg = f"tried to unlist {target_id} but it is still '{now}'"
         print(msg)

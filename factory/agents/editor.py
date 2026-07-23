@@ -222,10 +222,23 @@ def _money_times(cap_words, cap_start: float, dur: float,
     global _MONEY_RE
     if _MONEY_RE is None:
         _MONEY_RE = re.compile(r"^\$[\d][\d,\.]*[kKmM]?$|^[\d]{1,3}(,[\d]{3})+$")
+    MAGNITUDE = {"million", "billion", "trillion", "thousand", "grand",
+                 "k", "m", "mil"}
     out: list[tuple[float, str]] = []
-    for wd in cap_words:
+    for i, wd in enumerate(cap_words):
         token = wd["word"].strip().rstrip(".,!?")
         if not _MONEY_RE.match(token):
+            continue
+        # "$1.5 million" must never pop as "$1.5" (a six-orders-of-magnitude
+        # misstatement on a channel about money); carry the magnitude word.
+        # A bare comma-number with no $ and no magnitude ("50,000 people") is
+        # not a money figure at all: skip it.
+        nxt = ""
+        if i + 1 < len(cap_words):
+            nxt = cap_words[i + 1]["word"].strip().rstrip(".,!?").lower()
+        if nxt in MAGNITUDE:
+            token = f"{token} {nxt.upper()}"
+        elif "$" not in token:
             continue
         t = wd["start"] - cap_start
         if t < 2.5 or t > dur - 1.2:        # hook zone and tail stay clean
@@ -417,7 +430,7 @@ def _vf_vertical(w: int, h: int, background: str) -> str:
 
 
 def _face_center(video_path: str, samples: int = 16):
-    """Sample frames for faces. Returns (cx_norm_or_None, src_w, src_h, n_faces)
+    """Sample frames for faces. Returns (cx_norm_or_None, src_w, src_h, n_faces, face_frac)
     where n_faces is the typical number of faces on screen (2+ = interview shot).
     Safe if OpenCV is unavailable."""
     try:
@@ -873,6 +886,9 @@ def edit_clip(clip) -> Path:
     # and Financial Audit, i.e. mostly tension content, and until now we
     # compressed everything, which cuts the exact pause that makes a reveal
     # land.
+    if plan.get("_default"):
+        console.print("  [yellow]edit plan: DEFAULT (no AI) - compression "
+                      "route, no tension protection[/]")
     mtype = str(plan.get("moment_type") or "ADVICE").upper()
     TENSION = ("CONFESSION", "CONFLICT", "REVEAL")
     protect_abs: list[tuple[float, float]] = []
@@ -935,6 +951,10 @@ def edit_clip(clip) -> Path:
             console.print(f"  [yellow]caption refinement heard only "
                           f"{len(refined)} words vs {len(inside)} in pass 1 — "
                           f"keeping the original transcript[/]")
+        else:
+            console.print("  [yellow]caption refinement returned nothing - "
+                          "keeping pass-1 words (refine_clips is ON but "
+                          "not working)[/]")
 
     # 0b. trim pass — cut filler words + dead air, then style the tightened clip
     render_src, render_start, render_dur = source["video_path"], start, dur
@@ -1221,24 +1241,33 @@ def edit_clip(clip) -> Path:
     # continues, then return to the face. Every studied outlier does this.
     # Kept OFF the hook and OFF the protected payoff beat, capped per clip,
     # and a weak match is skipped entirely: a wrong insert reads as spam.
-    if e.get("broll_video", True) and plan.get("broll"):
+    if e.get("footage_inserts", True) and plan.get("broll"):
         from . import footage
+        if not footage.available():
+            console.print("  [yellow]footage inserts: PEXELS_API_KEY missing - "
+                          "skipping (the planner suggested "
+                          f"{len(plan.get('broll') or [])} insert(s))[/]")
         bused = 0
-        bmax = int(e.get("broll_video_max", 2))
-        bdur = float(e.get("broll_video_secs", 2.2))
+        bmax = int(e.get("footage_max", 2))
+        bdur = float(e.get("footage_secs", 2.2))
         ppt_r = None
         if protect_abs:
             _pa = _anchor_time(plan.get("payoff_anchor") or "", cap_words)
             if _pa is not None:
                 ppt_r = _pa - cap_start
         for cue in plan.get("broll", []):
-            if bused >= bmax:
+            if bused >= bmax or not footage.available():
                 break
-            t = float(cue.get("time", 0) or 0) * tscale
+            try:
+                t = float(cue.get("time", 0) or 0) * tscale
+            except (TypeError, ValueError):   # junk from a weak model
+                continue
             if t < 2.8 or t > render_dur - bdur - 1.0:
                 continue
             if ppt_r is not None and abs(ppt_r - t) < 2.5:
                 continue
+            if _in_breather(t, span=bdur):    # breathers stay captions-only,
+                continue                       # same rule the older overlays honor
             fp = footage.find_clip(str(cue.get("suggestion", "")),
                                    secs=bdur + 0.3)
             if not fp:
@@ -1255,6 +1284,7 @@ def edit_clip(clip) -> Path:
                 f"[{vlabel}][{j}]overlay=0:0:"
                 f"enable='between(t\,{t:.2f}\,{t + bdur:.2f})'[vbr{bused}]")
             vlabel = f"vbr{bused}"
+            covered.append(t)                  # other overlay systems skip this spot
             idx += 1
             bused += 1
         if bused:
@@ -1662,5 +1692,10 @@ def edit_all() -> int:
                           f"{ex.stderr.decode(errors='ignore')[-500:]}")
         except RuntimeError as ex:               # invalid render caught by the gate
             console.print(f"[red]clip {clip['id']} skipped:[/] {ex}")
+        except Exception as ex:  # noqa: BLE001 - one clip's junk plan (a string
+            # where a number should be, a missing field from a weak model) must
+            # not abandon every remaining approved clip mid-loop
+            console.print(f"[red]clip {clip['id']} failed unexpectedly, "
+                          f"continuing with the rest:[/] {ex}")
     console.print(f"[green]✓ {n} clips rendered to output/[/]")
     return n

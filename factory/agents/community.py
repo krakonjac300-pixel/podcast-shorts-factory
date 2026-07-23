@@ -118,7 +118,15 @@ def _own_channel_id(yt) -> str:
     if _OWN_CHANNEL_ID is None:
         try:
             r = yt.channels().list(part="id", mine=True).execute()
-            _OWN_CHANNEL_ID = (r.get("items") or [{}])[0].get("id", "") or ""
+            cid = (r.get("items") or [{}])[0].get("id", "") or ""
+            if not cid:
+                # zero channels back is abnormal, and caching "" would silently
+                # disable the self-reply filter ("" is falsy in its guard),
+                # which is the exact failure this function exists to prevent
+                console.print("[yellow]channel id lookup returned no channel - "
+                              "skipping engagement this run[/]")
+                return None
+            _OWN_CHANNEL_ID = cid
         except Exception as ex:  # noqa: BLE001
             # Cache ONLY on success. Caching "" here made the failure permanent
             # for the process AND falsy, so the self-reply filter below silently

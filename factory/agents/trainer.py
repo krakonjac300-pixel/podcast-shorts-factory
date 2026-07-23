@@ -87,7 +87,9 @@ def _top_shorts(max_results: int = 12) -> list[dict]:
                                          maxResults=6).execute()
                     ids += [i["id"]["videoId"] for i in r.get("items", [])
                             if i.get("id", {}).get("videoId")]
-                except Exception:  # noqa: BLE001 - one channel failing is fine
+                except Exception as ex:  # noqa: BLE001 - one channel is fine
+                    console.print(f"  [dim]study channel {ch[:24]} failed: "
+                                  f"{str(ex)[:60]}[/]")
                     continue
         if not ids and chans:
             # CURATED CHANNELS ARE A DECISION, NOT A HINT. If they were
@@ -257,6 +259,7 @@ def _breakdown_refs(refs: list[dict], max_n: int = 3) -> list[dict]:
     REFS_MD.parent.mkdir(parents=True, exist_ok=True)
     seen = REFS_MD.read_text(encoding="utf-8") if REFS_MD.exists() else ""
     tagged = []
+    fails = {"download": 0, "measure": 0, "tag": 0}
     for ref in refs[:max_n]:
         vid = ref.get("id")
         if not vid:
@@ -265,9 +268,11 @@ def _breakdown_refs(refs: list[dict], max_n: int = 3) -> list[dict]:
             continue                        # already analyzed a past week
         path = _download_ref(vid)
         if not path:
+            fails["download"] += 1
             continue
         m = _measure_ref(path)
         if not m:
+            fails["measure"] += 1
             continue
         stats = {k: m[k] for k in ("duration_s", "words_per_min", "cuts_per_min")}
         prompt = (
@@ -288,6 +293,7 @@ def _breakdown_refs(refs: list[dict], max_n: int = 3) -> list[dict]:
         except Exception:  # noqa: BLE001
             r = None
         if not r:
+            fails["tag"] += 1
             continue
         r.update({"id": vid, "title": ref.get("title"),
                   "views": ref.get("views"), "measured": m})
@@ -314,6 +320,9 @@ def _breakdown_refs(refs: list[dict], max_n: int = 3) -> list[dict]:
             pass
         console.print(f"  [dim]broke down: {str(ref.get('title'))[:50]} "
                       f"({ref.get('views'):,} views)[/]")
+    if any(fails.values()):
+        console.print(f"  [yellow]breakdowns skipped: {fails} - if download "
+                      f"fails persist, yt-dlp likely needs an update[/]")
     return tagged
 
 
@@ -402,6 +411,12 @@ def train() -> bool:
     console.print(f"[bold cyan]TRAINER[/] studying the winners ({llm.describe()})…")
 
     top = _top_shorts()
+    if cfg.get("trainer.study_channels") and not top:
+        # the guard in _top_shorts already refused to fall back to random
+        # keyword search; honor it here too instead of coaching from thin air
+        console.print("[yellow]trainer: study channels configured but returned "
+                      "nothing (quota?) - skipping the week[/]")
+        return False
     tagged = _breakdown_refs(top)
     meta = _meta_scan()
     back = _backtest()

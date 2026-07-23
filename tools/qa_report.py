@@ -31,8 +31,10 @@ def report(day: str = "") -> int:
     day = day or date.today().isoformat()
     with db.conn() as c:
         clips = c.execute(
-            "SELECT id, title, status FROM clips WHERE created_at >= ? ORDER BY id",
-            (day,)).fetchall()
+            """SELECT id, title, status FROM clips
+               WHERE created_at >= ? AND created_at < date(?, '+1 day')
+               ORDER BY id""",
+            (day, day)).fetchall()
     if not clips:
         print(f"no clips created on {day} — produce may not have run")
         notify.notify("No clips today",

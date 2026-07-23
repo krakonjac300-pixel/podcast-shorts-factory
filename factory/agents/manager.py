@@ -651,9 +651,12 @@ def team_meeting() -> str:
 
     # Only the fields that should drive a decision. Feeding the model everything
     # produces a summary; feeding it the decision-relevant slice produces a call.
+    # _leaderboard aliases the DB's `kind` to `format`; asking for "kind"
+    # put null in every row and the clip-vs-montage signal never reached the
+    # model
     board = [{k: r.get(k) for k in
               ("title", "views", "likes", "comments", "avg_watch_pct",
-               "clip_seconds", "kind")} for r in rows[:12]]
+               "clip_seconds", "format")} for r in rows[:12]]
 
     prompt = (
         # Deliberately NO skills block. Loading the Manager's 9 skill files costs

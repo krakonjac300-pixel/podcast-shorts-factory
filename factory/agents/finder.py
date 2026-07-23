@@ -1,7 +1,7 @@
 """Agent 1 — FINDER.
 
-Downloads a podcast, transcribes it, and asks Claude to pick the most
-clip-worthy moments. Results are stored as 'candidate' clips for review.
+Downloads a podcast, transcribes it, and asks the configured model to pick the
+most clip-worthy moments. Results are stored as 'candidate' clips for review.
 """
 from __future__ import annotations
 
@@ -120,15 +120,36 @@ def find(url: str) -> int:
 
     source_id = db.upsert_source(url, title, video, transcript, channel=channel)
 
-    console.print("[bold cyan]FINDER[/] asking Claude to score moments…")
+    console.print("[bold cyan]FINDER[/] scoring moments…")
     candidates = _score_with_claude(title, transcript)
 
     n = 0
     flat = [w for seg in transcript for w in seg["words"]]
     max_len = float(cfg.get("finder.clip_max_seconds", 42))
+    stats: dict = {}
+    processed = []
     for c in candidates:
         c = _snap_to_sentence(c, flat, max_len)
-        c = _thought_complete(c, flat, max_len)
+        c = _thought_complete(c, flat, max_len, stats=stats)
+        processed.append(c)
+    if stats.get("unavailable"):
+        console.print(f"  [yellow]completeness self-check unavailable for "
+                      f"{stats['unavailable']}/{len(processed)} candidates "
+                      f"(provider down?) - clips saved unverified[/]")
+    # Snapping can stretch neighbours into each other; two clips sharing the
+    # same payoff must not both post. Keep the higher-scored one.
+    accepted: list = []
+    for c in sorted(processed, key=lambda x: -float(x.get("score", 0))):
+        clash = next((a for a in accepted
+                      if min(a["end"], c["end"]) - max(a["start"], c["start"])
+                      > 2.0), None)
+        if clash:
+            console.print(f"  [yellow]dropped overlapping candidate "
+                          f"'{str(c.get('title'))[:40]}' (shares payoff with "
+                          f"'{str(clash.get('title'))[:32]}')[/]")
+            continue
+        accepted.append(c)
+    for c in accepted:
         db.add_clip(source_id, c["start"], c["end"], c["title"],
                     c["reason"], c["score"], c["caption"], c.get("hashtags", []))
         n += 1
@@ -255,16 +276,30 @@ def _snap_to_sentence(c: dict, words: list[dict], max_len: float) -> dict:
     inside = [w for w in words if w["end"] > s0 and w["start"] < e0]
     if not inside:
         return c
-    # END: never cut a thought in half
+    # END: never cut a thought in half, but ONLY move the cut when a sentence
+    # boundary is actually found. Walking forward unconditionally turned a 14s
+    # pick into a 50s clip that STILL ended mid-sentence and then bounced off
+    # the Manager's duration gate after two wasted renders. No boundary in
+    # range means keep the model's cut; the LLM self-check can still extend it
+    # with an actual reason. (Cap is max_len+6 so source+teaser stays inside
+    # the mechanical duration gate of clip_max+10.)
+    orig_e = e0
     if not _sentence_end(inside[-1]):
+        cand, found = e0, False
         for w in words:
             if w["start"] < e0 - 0.05:
                 continue
-            if w["end"] - s0 > max_len + 8:
+            if w["end"] - s0 > max_len + 6:
                 break
-            e0 = w["end"] + 0.15
+            cand = w["end"] + 0.15
             if _sentence_end(w):
+                found = True
                 break
+        if found:
+            e0 = cand
+    if abs(e0 - orig_e) > 1.0:
+        console.print(f"  [dim]snap: end {orig_e:.1f}s -> {e0:.1f}s "
+                      f"(sentence close)[/]")
     # START: if we open mid-sentence, walk back to where the sentence begins
     head = [w for w in words if w["start"] < s0 + 0.05]
     if head and not _sentence_end(head[-1]):
@@ -292,7 +327,8 @@ THOUGHT_SCHEMA = {
 }
 
 
-def _thought_complete(c: dict, words: list[dict], max_len: float) -> dict:
+def _thought_complete(c: dict, words: list[dict], max_len: float,
+                      stats: dict | None = None) -> dict:
     """Ask the model to QUESTION ITSELF: is the thing being talked about over
     before the cut? Punctuation snapping catches sentences; this catches the
     thought that spans several sentences (a story whose punchline is one line
@@ -314,13 +350,18 @@ def _thought_complete(c: dict, words: list[dict], max_len: float) -> dict:
         r = llm.call_tool("finder", prompt, "submit_check", THOUGHT_SCHEMA,
                           max_tokens=300)
     except Exception:  # noqa: BLE001
+        r = None
+    if r is None and stats is not None:
+        # count silent unavailability: "checked and complete" and "could not
+        # check" must not look identical at the end of a run
+        stats["unavailable"] = stats.get("unavailable", 0) + 1
         return c
     if r and not r.get("complete"):
         try:
             be = float(r.get("better_end") or 0)
         except (TypeError, ValueError):
             return c
-        if e0 < be <= e0 + 12 and be - s0 <= max_len + 10:
+        if e0 < be <= e0 + 12 and be - s0 <= max_len + 6:
             console.print(f"  [dim]finder self-check: thought unfinished, "
                           f"end {e0:.1f}s -> {be:.1f}s[/]")
             c["end"] = round(be, 2)

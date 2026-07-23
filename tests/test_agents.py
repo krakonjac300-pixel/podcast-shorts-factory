@@ -1449,8 +1449,7 @@ class TestQAFailsClosed(unittest.TestCase):
     def test_ff_stderr_returns_none_when_it_cannot_run(self):
         from factory.agents import finishing_editor as fe
         self.assertIsNone(fe._ff_stderr(["-i", "nope_nope.mp4", "-vf",
-                                         "blackdetect", "-an"],
-                                        marker="blackdetect"))
+                                         "blackdetect", "-an"]))
 
     def test_real_render_still_passes(self):
         """The guard must not flip everything to FLAG: a healthy clip that the
@@ -1552,11 +1551,20 @@ class TestMomentTypeRouting(unittest.TestCase):
                  {"word": "$4,978", "start": 5.0, "end": 5.6},
                  {"word": "$411", "start": 6.5, "end": 7.0},     # <3s gap
                  {"word": "1,000,000", "start": 10.0, "end": 10.8},
-                 {"word": "word", "start": 12.0, "end": 12.2}]
+                 {"word": "people", "start": 11.0, "end": 11.4}]
         got = editor._money_times(words, 0.0, 20.0)
-        self.assertEqual([t for t, _ in got], [5.0, 10.0],
-                         "close figures are spaced; plain words ignored")
-        self.assertEqual(got[0][1], "$4,978")
+        # "$4,978" pops; "$411" is spaced out; bare "1,000,000 people" is NOT
+        # money and must not become a money card
+        self.assertEqual(got, [(5.0, "$4,978")])
+
+    def test_money_times_carries_the_magnitude_word(self):
+        """"$1.5 million" popping as "$1.5" is a six-orders-of-magnitude
+        misstatement on a channel about money."""
+        from factory.agents import editor
+        words = [{"word": "$1.5", "start": 5.0, "end": 5.4},
+                 {"word": "million", "start": 5.5, "end": 5.9}]
+        got = editor._money_times(words, 0.0, 20.0)
+        self.assertEqual(got, [(5.0, "$1.5 MILLION")])
 
     def test_money_times_keeps_hook_zone_clean(self):
         from factory.agents import editor

@@ -2,8 +2,9 @@
 
 YouTube Shorts is fully implemented (official Data API v3). TikTok and
 Instagram require approved API access; until then the uploader exports the
-finished file + metadata so you can post via a scheduler. Nothing is posted
-without your confirmation.
+finished file + metadata so you can post via a scheduler. In schedule mode
+(the default) YouTube posts go out UNATTENDED at the configured slots via
+server-side publishAt; interactive runs still confirm per platform.
 """
 from __future__ import annotations
 
@@ -240,10 +241,16 @@ def _upload_clip(clip, platforms, assume_yes: bool) -> int:
     console.print(f"\n[bold]Clip {clip['id']}[/]: {clip['title']}")
     console.print(f"  file: {clip['rendered_path']}")
     posted = 0
+    yt_live_unrecorded = False
     for platform in platforms:
         if not assume_yes and not Confirm.ask(f"  Post to [cyan]{platform}[/]?",
                                               default=False):
             continue
+        # The upload is IRREVERSIBLE; the bookkeeping after it is not. They
+        # shared one try here, so a sqlite error after the video went live left
+        # no uploads row, the tail re-queued the clip, and the next slot posted
+        # it AGAIN. schedule_day was fixed days ago; this is the path post-next
+        # actually takes, and it had the same defect.
         try:
             if platform == "youtube":
                 res = upload_youtube(clip)
@@ -251,22 +258,40 @@ def _upload_clip(clip, platforms, assume_yes: bool) -> int:
                 res = export_for_scheduler(clip, platform)
                 console.print(f"  [yellow]{platform}: exported for scheduler "
                               f"→ {res['url']}[/] (direct API not configured)")
-            if res:
-                db.record_upload(clip["id"], platform, res["external_id"], res["url"])
-                posted += 1
-                console.print(f"  [green]✓ {platform}: {res['url']}[/]")
-                if platform == "youtube":
-                    notify.notify("Posted to YouTube", clip["title"], res["url"])
-        except Exception as ex:  # noqa: BLE001 - surface any upload error
+        except Exception as ex:  # noqa: BLE001 - nothing reached the platform
             console.print(f"  [red]{platform} failed: {ex}[/]")
-            notify.notify("Post FAILED", f"{platform}: {clip['title']} — {ex}")
+            notify.notify("Post FAILED", f"{platform}: {clip['title']} - {ex}")
+            continue
+        if not res:
+            continue
+        try:
+            db.record_upload(clip["id"], platform, res["external_id"], res["url"])
+        except Exception as ex:  # noqa: BLE001 - the video may already be LIVE
+            if platform == "youtube":
+                yt_live_unrecorded = True
+                msg = (f"clip {clip['id']} IS live on YouTube as "
+                       f"{res.get('external_id')} but the local record failed: "
+                       f"{ex}. Do NOT re-post it; record the upload by hand.")
+                console.print(f"  [red]{msg}[/]")
+                try:
+                    from . import manager
+                    manager.flag_attention(msg)
+                except Exception:  # noqa: BLE001
+                    notify.notify("Orphaned upload, manual fix needed", msg)
+            continue
+        posted += 1
+        console.print(f"  [green]✓ {platform}: {res['url']}[/]")
+        if platform == "youtube":
+            notify.notify("Posted to YouTube", clip["title"], res["url"])
     # only leave the queue if the MAIN platform actually took it — a failed
     # YouTube upload must stay queued for the next slot, not vanish silently
-    yt_ok = "youtube" not in platforms or db.uploaded_to(clip["id"], "youtube")
-    db.set_clip_status(clip["id"], "uploaded" if posted and yt_ok else "edited")
-    if not (posted and yt_ok):
+    yt_ok = ("youtube" not in platforms
+             or db.uploaded_to(clip["id"], "youtube") or yt_live_unrecorded)
+    done = (posted and yt_ok) or yt_live_unrecorded
+    db.set_clip_status(clip["id"], "uploaded" if done else "edited")
+    if not done:
         notify.notify("Clip kept in queue",
-                      f"clip {clip['id']} didn't reach YouTube — will retry next slot")
+                      f"clip {clip['id']} didn't reach YouTube, will retry next slot")
     return posted
 
 
@@ -521,6 +546,46 @@ def upload_one(assume_yes: bool = True) -> bool:
             return True
     console.print("[yellow]No clip in the queue passed the Manager's review.[/]")
     return False
+
+
+def pull_clip(clip_id: int) -> bool:
+    """Pull a scheduled or live clip, releasing its series episode number.
+
+    Does BOTH halves, because doing only one caused real damage before: the
+    YouTube side (private, publishAt cleared, verified by re-read since this
+    api accepts writes it ignores) and the DB side (status='pulled', which
+    _series_number's filter needs; nothing else ever sets that status).
+    """
+    from googleapiclient.discovery import build
+    with db.conn() as c:
+        row = c.execute(
+            """SELECT external_id FROM uploads
+               WHERE clip_id=? AND platform='youtube' AND external_id IS NOT NULL
+               ORDER BY id DESC""", (clip_id,)).fetchone()
+    api_ok = True
+    if row and row["external_id"]:
+        vid = row["external_id"]
+        try:
+            yt = build("youtube", "v3", credentials=_youtube_credentials())
+            items = yt.videos().list(part="status", id=vid).execute().get("items") or []
+            if items:
+                st = items[0]["status"]
+                yt.videos().update(part="status", body={
+                    "id": vid,
+                    "status": {"privacyStatus": "private",
+                               "selfDeclaredMadeForKids":
+                                   st.get("selfDeclaredMadeForKids", False)},
+                }).execute()
+                chk = yt.videos().list(part="status", id=vid).execute()["items"][0]["status"]
+                api_ok = (chk["privacyStatus"] == "private"
+                          and not chk.get("publishAt"))
+        except Exception as ex:  # noqa: BLE001
+            console.print(f"[red]pull: YouTube update failed: {ex}[/]")
+            api_ok = False
+    db.set_clip_status(clip_id, "pulled")
+    console.print(f"[green]clip {clip_id} pulled[/] "
+                  f"(YouTube private+unscheduled: {api_ok}); series number released")
+    return api_ok
 
 
 def videos_for_day(day=None) -> list[dict]:

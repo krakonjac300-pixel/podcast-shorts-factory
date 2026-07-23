@@ -67,15 +67,17 @@ def pack(last_n: int = 20) -> int:
         return 1
 
     csv_path = AUDIT / "labels.csv"
+    file_existed = csv_path.exists()
     existing: set[str] = set()
-    if csv_path.exists():                       # never clobber human work
+    if file_existed:                            # never clobber human work
         with csv_path.open(newline="", encoding="utf-8") as f:
             existing = {row["clip_id"] for row in csv.DictReader(f)}
 
     new = 0
     with csv_path.open("a", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        if not existing:
+        if not file_existed:    # header only for a NEW file: a file with a
+            # header but zero rows must not get a second header as a data row
             w.writerow(["clip_id", "title", "agent_verdict", "qa_rules"]
                        + CLASSES + ["notes"])
         for r in rows:

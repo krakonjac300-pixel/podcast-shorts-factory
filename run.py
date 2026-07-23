@@ -15,6 +15,7 @@ Commands:
   auto <url>     Full semi-auto pipeline (pauses at review + upload)
                  add --yes to auto-approve the top N clips and post unattended
   meeting        Daily standup: scan analytics -> per-agent instructions in learnings.md
+  pull <id>      Pull a clip: private on YouTube + series number released
   craft          Score our own edits vs retention → craft.md (the editor's learning loop)
   daily          Unattended: scout + newest video from scheduler.source_url + auto --yes
   produce        Make the day's clips into the post queue (no posting)
@@ -174,7 +175,21 @@ def _ensure_day_covered(target: int | None = None) -> int:
     try:
         have = uploader.videos_for_day()
     except Exception as ex:  # noqa: BLE001 - never let the check break posting
+        # videos_for_day RAISES so this case is distinguishable from an empty
+        # day; swallowing it into a log line erased that distinction and could
+        # reproduce the silent 0/3 day this function exists to prevent (an
+        # expired OAuth token fails every slot, every day).
         console.print(f"[yellow]could not verify today's coverage: {ex}[/]")
+        notify.notify("Could not verify today's coverage",
+                      f"{ex} - check the YouTube token. If the queue is empty "
+                      f"too, today may be dark.")
+        if not db.clips_by_status("edited"):
+            console.print("[yellow]queue is ALSO empty - treating the day as "
+                          "under-filled and producing[/]")
+            try:
+                cmd_produce(force=True)
+            except Exception as ex2:  # noqa: BLE001
+                notify.notify("Recovery produce FAILED", str(ex2))
         return -1
 
     if len(have) >= target:
@@ -188,7 +203,11 @@ def _ensure_day_covered(target: int | None = None) -> int:
     console.print(f"[yellow]{msg}[/]")
     notify.notify("Day under-filled, recovering", msg)
     try:
-        _run_produce(force=True)
+        # through cmd_produce, NOT _run_produce: the single-instance lock lives
+        # there, and calling the inner function directly reintroduced the
+        # render-collision the lock was built to stop. If a produce is already
+        # running it will fill the day; this recovery then exits cleanly.
+        cmd_produce(force=True)
     except Exception as ex:  # noqa: BLE001
         notify.notify("Recovery produce FAILED",
                       f"{msg}, but the recovery run failed: {ex}")
@@ -365,6 +384,11 @@ def main(argv: list[str]):
     elif cmd == "meeting":
         # daily 13:00 standup: fresh numbers -> per-agent instructions
         manager.team_meeting()
+    elif cmd == "pull":
+        # pull a scheduled/live clip AND release its series number. The number
+        # filter in _series_number was advertised but nothing ever set
+        # status='pulled'; this is the code path that does.
+        uploader.pull_clip(int(rest[0]))
     elif cmd == "craft":
         # Re-score our own edits against measured retention and rewrite craft.md
         console.print(craft.update())

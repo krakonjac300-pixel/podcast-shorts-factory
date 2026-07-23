@@ -237,7 +237,10 @@ def build_daily(register: bool = True) -> int | None:
     """Build today's montage Short. Returns the new clip id (None = skipped).
     register=False renders to output/ without touching the DB (dry run)."""
     m = cfg.get("montage", {}) or {}
-    if not m.get("enabled", True):
+    # default False: the format is RETIRED on its own data (15.3% retention
+    # vs 46.8% for regular clips). Re-enabling must be an explicit config
+    # choice, not a side effect of a missing key.
+    if not m.get("enabled", False):
         return None
     pool = _pool()
     if len(pool) < 3:

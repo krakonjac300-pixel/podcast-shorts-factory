@@ -10,8 +10,12 @@ plan is returned so rendering still proceeds.
 """
 from __future__ import annotations
 
+from rich.console import Console
+
 from .. import insights, llm, skills
 from ..config import cfg
+
+console = Console()
 
 PLAN_TOOL = {
     "name": "submit_edit_plan",
@@ -197,7 +201,8 @@ def _short_hook(title: str, max_words: int = 6) -> str:
 
 
 def _default_plan(clip) -> dict:
-    return {"hook_text": _short_hook(clip["title"]), "cover_text": clip["title"],
+    return {"_default": True,    # marks a no-AI plan so degraded renders log it
+            "hook_text": _short_hook(clip["title"]), "cover_text": clip["title"],
             "music_mood": "none", "emphasis_words": [],
             "sfx_cues": [], "broll": [], "transitions": [],
             "comment_question": "AGREE?", "takeaway": "",
@@ -276,7 +281,10 @@ clip, never back-to-back without a breather between clusters. Call submit_edit_p
         if result:
             plan = _default_plan(clip)
             plan.update(result)
+            plan.pop("_default", None)
             return plan
+        console.print("[yellow]planner: no AI plan returned - using the "
+                      "default (compression route, no moment typing)[/]")
     except Exception:  # noqa: BLE001 - never block rendering on the planner
         pass
     return _default_plan(clip)

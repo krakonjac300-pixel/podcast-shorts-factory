@@ -19,7 +19,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-NORMAL = ["09:00", "14:00", "21:30"]
+try:                                  # the config is the source of truth;
+    from factory.config import cfg    # a hardcoded triple silently reverts
+    NORMAL = list(cfg.get("uploader.post_times") or [])  # future retimings
+except Exception:  # noqa: BLE001
+    NORMAL = []
+if not NORMAL:
+    NORMAL = ["09:00", "14:00", "21:30"]
 
 
 def restore() -> int:

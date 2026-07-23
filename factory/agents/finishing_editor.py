@@ -99,7 +99,7 @@ def _report_md(clip_id, verdict: str, issues: list[dict],
 
 # ── ffmpeg/opencv probes (defensive: never raise) ───────────────────────────
 
-def _ff_stderr(args: list[str], marker: str = "") -> str | None:
+def _ff_stderr(args: list[str]) -> str | None:
     """Run an ffmpeg analysis pass and return its stderr, or None if it did not
     actually run.
 
@@ -110,9 +110,7 @@ def _ff_stderr(args: list[str], marker: str = "") -> str | None:
     non-zero exit all produced a PASS verdict on a clip nobody had inspected —
     on a pipeline that publishes unattended three times a day.
 
-    `marker` is the filter name we expect to see initialise in the log. If the
-    filter never loaded, the pass is inconclusive rather than clean.
-    """
+"""
     try:
         # -v verbose so ffmpeg names each filter it actually instantiates
         # ("Parsed_blackdetect_0"); at the default level nothing is logged and
@@ -175,8 +173,7 @@ def _probe_duration(path: Path) -> float:
 
 def _check_black(path: Path) -> list[dict]:
     out = []
-    log = _ff_stderr(["-i", str(path), "-vf", "blackdetect=d=0.5:pic_th=0.98", "-an"],
-                     marker="")
+    log = _ff_stderr(["-i", str(path), "-vf", "blackdetect=d=0.5:pic_th=0.98", "-an"])
     if log is None:
         # a filter this build does not have is a MISSING capability, not a
         # suspect clip: warn once and skip rather than blocking every render
@@ -201,8 +198,7 @@ def _check_freeze(path: Path) -> list[dict]:
     #   n=-45dB d=1.0  catches the labelled freeze, 0 false flags on 19 clean
     #   n=-35dB        catches it but false-flags 6 clean clips
     #   d=1.5          misses it (the real freeze ran 1.0s)
-    log = _ff_stderr(["-i", str(path), "-vf", "freezedetect=n=-45dB:d=1.0", "-an"],
-                     marker="")
+    log = _ff_stderr(["-i", str(path), "-vf", "freezedetect=n=-45dB:d=1.0", "-an"])
     if log is None:
         # a filter this build does not have is a MISSING capability, not a
         # suspect clip: warn once and skip rather than blocking every render
@@ -220,8 +216,7 @@ def _check_freeze(path: Path) -> list[dict]:
 
 def _check_silence(path: Path, dur: float) -> list[dict]:
     out = []
-    log = _ff_stderr(["-i", str(path), "-af", "silencedetect=noise=-40dB:d=2.0", "-vn"],
-                     marker="")
+    log = _ff_stderr(["-i", str(path), "-af", "silencedetect=noise=-40dB:d=2.0", "-vn"])
     if log is None:
         # a filter this build does not have is a MISSING capability, not a
         # suspect clip: warn once and skip rather than blocking every render
@@ -241,8 +236,7 @@ def _check_levels(path: Path) -> list[dict]:
     """Peak (clipping) + mean (too quiet). Returns issues; a quiet-but-audible
     mix is marked 'fixable' with the gain needed so review_clip can auto-correct."""
     out = []
-    log = _ff_stderr(["-i", str(path), "-af", "volumedetect", "-vn"],
-                     marker="")
+    log = _ff_stderr(["-i", str(path), "-af", "volumedetect", "-vn"])
     if log is None:
         # a filter this build does not have is a MISSING capability, not a
         # suspect clip: warn once and skip rather than blocking every render
