@@ -12,11 +12,20 @@ The first 1–3 seconds. A clip lives or dies here.
 - **Question:** "Why do the smartest people you know seem the least busy?"
 
 **Rules:**
-- Lead with the payoff line, not the windup. Cut the "well, you know, I think that…" preamble.
+- **The first frame IS the thumbnail.** Viewers judge it as a still image before any audio
+  plays. Name + stake burned in at frame 0; never a logo, title card, or slow establishing shot.
+- The hook must land inside 0.5-1.5s: show or state the payoff/tension immediately. The 0-3s
+  window decides the swipe, and a normal Short loses 30-50% there; a weak first second caps
+  reach no matter what follows.
+- **Open mid-action.** Start where a normal edit would be 30% in; context can arrive after
+  the viewer is already committed.
+- Lead with the payoff line, not the windup. Cut the "well, you know, I think that..." preamble.
 - The on-screen text hook and the spoken hook should reinforce, not duplicate, each other.
-- Front-load motion or a strong word in the first frame.
+  On-screen hook text: 3-6 words maximum, readable muted.
 - If the strongest line is 10s in, START the clip there and let context come after.
-- Avoid generic openers: "In this video…", "Today I want to talk about…", greetings.
+- Avoid generic openers: "In this video...", "Today I want to talk about...", greetings.
+- Spend disproportionate effort here: roughly half the editing attention belongs to the first
+  3 seconds, and trims as small as 0.3s visibly reshape the retention cliff.
 
 <!-- TRAINER:START (auto-updated weekly, Manager-approved) -->
 ## Trainer's current-meta notes (2026-07-05)

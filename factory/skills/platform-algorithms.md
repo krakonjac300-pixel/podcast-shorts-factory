@@ -22,6 +22,9 @@ different signals. Tailor the cut, caption, and CTA to the platform it's going t
   swiped away inside the FIRST 3 SECONDS → reach is capped no matter what else is
   good. ~70% average retention is the rough "expand" threshold (a 35s Short clears
   the watch-time gate at ~65%).
+- 2026 UPDATE: watch time has overtaken raw swipe rate; only completed views and
+  rewatches count meaningfully now. Benchmarks: under-30s clips need 55%+ average
+  view duration, 30-60s clips need 45%+; AVD above ~80% of length triggers expansion.
 - **Loop rate is a ranking signal** — an ending that snaps back into the opening
   earns >100% watched and free distribution.
 - The first frame must not look skippable — name + stake burned in before any audio.

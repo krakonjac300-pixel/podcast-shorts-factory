@@ -3,9 +3,15 @@
 One-off clips get views; **series and loops compound them** into follows and rewatches.
 
 **Loops — drive rewatches (a top ranking signal):**
-- A clip that ends where it began makes the viewer watch twice without noticing → the
+- A clip that ends where it began makes the viewer watch twice without noticing, so the
   algorithm sees >100% completion. Engineer it: the last line should set up the first line.
-- Avoid hard stops and trailing dead air — they break the loop. Cut the instant the
+- **Engineer the seam on three layers:** (1) script: the closing line answers or re-asks the
+  opening line; (2) visual: the final frame should match the first frame in composition and
+  color so the restart is invisible; (3) audio: end on a beat that resets naturally into the
+  opening music/energy, never on a fade-out.
+- The best loops get watched 2-3 times before the viewer notices; each pass counts as extra
+  watch time. Never fake it with padding: a loop that wastes runtime reads as a cheat.
+- Avoid hard stops and trailing dead air, which break the loop. Cut the instant the
   payoff lands so it flows back to the hook.
 - Best for punchy, single-idea clips (a one-liner, a quick reveal).
 

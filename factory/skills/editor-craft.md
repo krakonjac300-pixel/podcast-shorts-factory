@@ -30,8 +30,10 @@ music, captions).
   (10–500ms) turns a harsh audio joint seamless. Cut the AUDIO gap without cutting
   the video when the frame would visibly teleport.
 - Cutting on the end of a word/sentence sounds natural; mid-word never does.
-- Something should change on screen every 2–6s, but each on-screen element must live
-  long enough to read — 2.5s of unreadable text is worse than no text.
+- Something should change on screen every 2-6s in LONG-FORM; in vertical shorts the
+  bar is every 1.5-2.0s (a cut, zoom, caption page, or number card all count). Below
+  1.2s between changes reads as noise. Each on-screen element must still live long
+  enough to read: 2.5s of unreadable text is worse than no text.
 
 ## Sound design (sfx / music)
 - Two kinds of SFX: (a) exaggerations/foley — whoosh for anything flying in/out,

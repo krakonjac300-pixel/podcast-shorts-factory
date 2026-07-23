@@ -46,12 +46,22 @@ def _fetch_retention(creds, external_id: str) -> dict:
     return {"avg_watch_pct": None, "avg_watch_sec": None}
 
 
+_NO_CURVE = {"hook_hold": None, "drop_point": None, "end_hold": None,
+             "dip_at_pct": None, "dip_size": None, "shape": None}
+
+
 def _retention_curve(creds, external_id: str) -> dict:
     """The drop-off CURVE (100 points across the video) → the exact spot clips
-    lose viewers. Returns {hook_hold, drop_point} where hook_hold = % still
-    watching at the 15% mark (the make-or-break hook window) and drop_point =
-    the first % of the video where we fall below 70% audience. This turns the
-    vague 'flops die early' into a measured, per-clip number the team can act on."""
+    lose viewers. Beyond hook_hold (% still watching at the 15% mark) and
+    drop_point (first % of the video below 70% audience), this reads the curve
+    the way a retention editor does:
+      end_hold    — % still there at the final frame; >100 means loop rewatches,
+                    low means the ending drags past the payoff.
+      dip_at_pct  — position of the sharpest mid-video drop (after the hook
+                    zone): that exact beat is boring, confusing, or a hard edit.
+      shape       — cliff | dip | fade | plateau, each with a known fix
+                    (cliff→open harder, dip→cut that beat, fade→pacing,
+                    plateau→ship more of this)."""
     try:
         from googleapiclient.discovery import build
         ya = build("youtubeAnalytics", "v2", credentials=creds)
@@ -61,13 +71,32 @@ def _retention_curve(creds, external_id: str) -> dict:
             filters=f"video=={external_id}").execute()
         rows = sorted(r.get("rows") or [], key=lambda x: x[0])
         if not rows:
-            return {"hook_hold": None, "drop_point": None}
+            return dict(_NO_CURVE)
         hook = next((w for t, w in rows if t >= 0.15), rows[-1][1])
         drop = next((t for t, w in rows if t > 0.03 and w < 0.70), None)
+        end = rows[-1][1]
+        # sharpest single-step drop after the hook zone = the broken beat
+        dip_at, dip_size = None, 0.0
+        mid = [(t, w) for t, w in rows if t >= 0.15]
+        for (t0, w0), (_, w1) in zip(mid, mid[1:]):
+            if w0 - w1 > dip_size:
+                dip_at, dip_size = t0, w0 - w1
+        if hook < 0.60:
+            shape = "cliff"          # opening fails: viewers swipe before 15%
+        elif dip_size >= 0.10:
+            shape = "dip"            # one specific beat bleeds viewers
+        elif end >= 0.60 and hook >= 0.70:
+            shape = "plateau"        # the algorithm favorite: clone this clip
+        else:
+            shape = "fade"           # no single villain: pacing/length problem
         return {"hook_hold": round(hook * 100, 0),
-                "drop_point": round(drop * 100, 0) if drop is not None else None}
+                "drop_point": round(drop * 100, 0) if drop is not None else None,
+                "end_hold": round(end * 100, 0),
+                "dip_at_pct": round(dip_at * 100, 0) if dip_at is not None else None,
+                "dip_size": round(dip_size * 100, 0),
+                "shape": shape}
     except Exception:  # noqa: BLE001 - curve needs the analytics API + some data
-        return {"hook_hold": None, "drop_point": None}
+        return dict(_NO_CURVE)
 
 
 def _fetch_youtube_metrics(external_id: str) -> dict | None:
@@ -338,14 +367,30 @@ def _write_learnings(rows: list[dict]):
               "Data per clip (clip_seconds = length; avg_watch_pct = % watched; "
               "hook_hold = % of viewers still there at the 15% mark; drop_point = "
               "the % of the video where we fall below 70% audience — LOW drop_point "
-              "means the HOOK is failing; predicted = Finder's 0-100 guess):\n\n"
+              "means the HOOK is failing; end_hold = % still watching the final "
+              "frame; dip_at_pct/dip_size = position and depth of the sharpest "
+              "mid-video drop; shape = curve diagnosis; predicted = Finder's "
+              "0-100 guess):\n\n"
               f"{json.dumps(rows, indent=2)}\n\n"
+              "CURVE SHAPES have known fixes — apply the right one, not a generic "
+              "note: cliff = first frame/second fails, tell the Finder to start "
+              "the clip later and harder (even 0.3s earlier payoff reshapes it); "
+              "dip = the beat at dip_at_pct is boring/confusing or a hard edit, "
+              "name what happens at that point of the clip and cut or replace "
+              "that beat type; fade = no single villain, pacing or length, "
+              "tighten gaps and shorten; plateau = the winner shape, name what "
+              "it did and order more of exactly that. Benchmarks: under-30s "
+              "clips want 55%+ avg_watch_pct, 30-60s want 45%+; hook_hold under "
+              "70 is a swipe problem before anything else. HIGH end_hold with a "
+              "matching open/close beat = the loop is working; call it out so "
+              "the Finder keeps flagging loopable moments.\n\n"
               "REASON step by step before concluding:\n"
-              "1. HOOK: look at hook_hold + drop_point. If clips drop below 70% "
-              "before the 20% mark, the OPENING is failing — the fix is the Finder "
-              "starting clips on the drama, not a wind-up. Name the worst offenders.\n"
-              "2. RETENTION: where avg_watch_pct exists, compare it to clip length. "
-              "Under ~50% = we lose people; what do those clips share? Best LENGTHS?\n"
+              "1. HOOK: look at hook_hold + drop_point + shape. If clips drop "
+              "below 70% before the 20% mark, the OPENING is failing — the fix "
+              "is the Finder starting clips on the drama, not a wind-up. Name "
+              "the worst offenders.\n"
+              "2. RETENTION: where avg_watch_pct exists, compare it to clip length "
+              "against the benchmarks above. What do the losers share? Best LENGTHS?\n"
               "2. PREDICTION ERROR: where did the Finder's `predicted` score most "
               "disagree with reality? What does that teach about our taste?\n"
               "3. SOURCE: which podcast channels/topics overperform?\n"
@@ -744,7 +789,10 @@ def _deterministic_meeting(rows: list[dict], ypp: dict) -> str:
     community = (f"{total_comments} comments across {total_views:,} views. Reply to "
                  "real viewers only, never to our own pinned seed, and pin the "
                  "debate question within the hour")
-    subs = ypp.get("subs")
+    # _ypp_progress returns the count as "subscribers"; this read "subs"
+    # and therefore ALWAYS fell through to the generic wording, on the
+    # exact days (all providers down) this fallback exists for
+    subs = ypp.get("subscribers")
     watch = (f"subscribers (now {subs}) is the binding YPP gate, so the number that "
              "decides today is follows per 1,000 views, not views"
              if subs is not None else
