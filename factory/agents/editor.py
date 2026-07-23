@@ -436,14 +436,14 @@ def _face_center(video_path: str, samples: int = 16):
     try:
         import cv2
     except Exception:  # noqa: BLE001 - no face detection → reframe falls back to fit
-        return None, 0, 0, 0, 0.0
+        return None, 0, 0, 0, 0.0, 0.0, 0.5
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
-        return None, 0, 0, 0, 0.0
+        return None, 0, 0, 0, 0.0, 0.0, 0.5
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
     sw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 0
     sh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 0
-    centers, counts, fracs = [], [], []
+    centers, counts, fracs, heights, cys = [], [], [], [], []
     idxs = [int(total * i / (samples + 1)) for i in range(1, samples + 1)] if total else []
     for fi in idxs:
         cap.set(cv2.CAP_PROP_POS_FRAMES, fi)
@@ -453,18 +453,21 @@ def _face_center(video_path: str, samples: int = 16):
         detected = faces_util.detect(frame)          # YuNet (Haar fallback)
         counts.append(len(detected))
         if detected and sw:
-            x, _, fw, fh = max(detected, key=lambda r: r[2] * r[3])  # largest
+            x, y, fw, fh = max(detected, key=lambda r: r[2] * r[3])  # largest
             centers.append((x + fw / 2) / sw)
             fracs.append((fw * fh) / float(sw * sh))
+            heights.append(fh / float(sh))          # face-box height fraction
+            cys.append((y + fh / 2) / float(sh))    # face vertical center
     cap.release()
-    counts.sort()
-    fracs.sort()
+    counts.sort(); fracs.sort(); heights.sort(); cys.sort()
     n_faces = counts[len(counts) // 2] if counts else 0     # typical (median) count
     face_frac = fracs[len(fracs) // 2] if fracs else 0.0    # typical face size
+    fhf = heights[len(heights) // 2] if heights else 0.0    # typical face height
+    cy = cys[len(cys) // 2] if cys else 0.5                 # typical face y
     if not centers:
-        return None, sw, sh, n_faces, face_frac
+        return None, sw, sh, n_faces, face_frac, fhf, cy
     centers.sort()
-    return centers[len(centers) // 2], sw, sh, n_faces, face_frac
+    return centers[len(centers) // 2], sw, sh, n_faces, face_frac, fhf, cy
 
 
 # Fake-multicam shot pattern: zoom level per segment, cycled. 0 = wide,
@@ -704,20 +707,47 @@ def _flashes(times: list[float], dur: float, limit: int = 3) -> str:
     return ",".join(frags)
 
 
-def _vf_face(w: int, h: int, sw: int, sh: int, cx) -> str | None:
+# Head-and-shoulders framing targets (from studying viral clips: the face
+# fills roughly half the frame at the upper-third eye line, not a tiny head
+# floating over a desk).
+FRAME_FACE_H = 0.42        # target face-box height as a fraction of output height
+FRAME_EYE_Y = 0.40         # the face CENTRE sits here (eyes ~upper third)
+FRAME_MAX_UPSCALE = 1.9    # never enlarge a source region beyond this (softness)
+
+
+def _frame_geom(w: int, h: int, sw: int, sh: int, fhf: float):
+    """(scaled_w, scaled_h) after zooming so the face reaches FRAME_FACE_H,
+    bounded by the resolution budget. z=1 means the old full-height scale."""
+    base = h / sh                          # scale that matches source height
+    z = FRAME_FACE_H / fhf if fhf and fhf > 0.01 else 1.0
+    z = max(1.0, min(z, max(1.0, FRAME_MAX_UPSCALE / base)))
+    scaled_h = int(round(h * z)); scaled_h -= scaled_h % 2
+    scaled_w = int(round(sw * (scaled_h / sh))); scaled_w -= scaled_w % 2
+    return scaled_w, scaled_h
+
+
+def _frame_crop(w: int, h: int, sw: int, sh: int, cx, cy=None,
+                fhf: float = 0.0) -> str | None:
+    """Head-and-shoulders 9:16 crop: face ~FRAME_FACE_H tall at the eye line,
+    which crops the desk/mic dead-space out instead of scaling it in."""
+    if not sw or not sh:
+        return None
+    scaled_w, scaled_h = _frame_geom(w, h, sw, sh, fhf)
+    if scaled_w < w or scaled_h < h:
+        return None
+    cxn = 0.5 if cx is None else cx
+    cyn = 0.5 if cy is None else cy
+    crop_x = max(0, min(int(cxn * scaled_w - w / 2), scaled_w - w))
+    crop_y = max(0, min(int(cyn * scaled_h - FRAME_EYE_Y * h), scaled_h - h))
+    return f"scale={scaled_w}:{scaled_h},crop={w}:{h}:{crop_x}:{crop_y}"
+
+
+def _vf_face(w: int, h: int, sw: int, sh: int, cx, cy=None,
+             fhf: float = 0.0) -> str | None:
     """Punch-in 9:16 crop centered on the speaker's face (fills frame, no bars)."""
     if not sw or not sh:
         return None
-    scaled_w = int(round(h * sw / sh))
-    scaled_w -= scaled_w % 2
-    if scaled_w < w:                       # source narrower than 9:16 — can't crop
-        return None
-    if cx is None:
-        cropx = (scaled_w - w) // 2
-    else:
-        cropx = int(cx * scaled_w - w / 2)
-        cropx = max(0, min(cropx, scaled_w - w))
-    return f"scale={scaled_w}:{h},crop={w}:{h}:{cropx}:0"
+    return _frame_crop(w, h, sw, sh, cx, cy, fhf)
 
 
 def _segment_face_cxs(video_path: str, bounds: list[float],
@@ -846,23 +876,24 @@ def _segment_face_cxs(video_path: str, bounds: list[float],
 
 
 def _vf_face_steps(w: int, h: int, sw: int, sh: int,
-                   seg_cx: list[float], bounds: list[float]) -> str | None:
+                   seg_cx: list[float], bounds: list[float],
+                   fhf: float = 0.0, fcy: float = 0.5) -> str | None:
     """Punch-in crop whose x RE-CENTERS per camera segment — every cut reframes
     on the subject like an operator following the speaker."""
     if not sw or not sh or not seg_cx:
         return None
-    scaled_w = int(round(h * sw / sh))
-    scaled_w -= scaled_w % 2
-    if scaled_w < w:
+    scaled_w, scaled_h = _frame_geom(w, h, sw, sh, fhf)
+    if scaled_w < w or scaled_h < h:
         return None
+    crop_y = max(0, min(int(fcy * scaled_h - FRAME_EYE_Y * h), scaled_h - h))
     xs = [max(0, min(int(cx * scaled_w - w / 2), scaled_w - w)) for cx in seg_cx]
     if len(set(xs)) == 1:                    # nothing moves — use the simple crop
-        return f"scale={scaled_w}:{h},crop={w}:{h}:{xs[0]}:0"
+        return f"scale={scaled_w}:{scaled_h},crop={w}:{h}:{xs[0]}:{crop_y}"
     terms = "+".join(
         f"{x}*gte(ld(0)\\,{bounds[i]:.2f})*lt(ld(0)\\,{bounds[i + 1]:.2f})"
         for i, x in enumerate(xs))
     expr = f"st(0\\,if(isnan(t)\\,0\\,t));({terms})"
-    return f"scale={scaled_w}:{h},crop=w={w}:h={h}:x='{expr}':y=0"
+    return f"scale={scaled_w}:{scaled_h},crop=w={w}:h={h}:x='{expr}':y={crop_y}"
 
 
 def edit_clip(clip) -> Path:
@@ -1018,8 +1049,8 @@ def edit_clip(clip) -> Path:
     shots: list[dict] = []      # per-segment face geometry → wide-shot punch
     reframe_ratio = 1.0         # source→output face magnification of the reframe
     if mode in ("smart", "face"):
-        cx, sw, sh, nfaces, face_frac = _face_center(render_src)
-        static_vf = _vf_face(w, h, sw, sh, cx)
+        cx, sw, sh, nfaces, face_frac, fhf, fcy = _face_center(render_src)
+        static_vf = _vf_face(w, h, sw, sh, cx, cy=fcy, fhf=fhf)
         # The 9:16 reframe itself already magnifies: it shows only w/scaled_w of
         # the source width, so a face measured against the SOURCE appears this
         # many times bigger in the OUTPUT. The wide-shot punch must reason in
@@ -1053,7 +1084,7 @@ def edit_clip(clip) -> Path:
             if not seg_cx and cuts:
                 seg_cx = _segment_face_cxs(render_src, bounds, shots_out=shots)
                 how = "largest-face punch per shot"
-            vf = _vf_face_steps(w, h, sw, sh, seg_cx, bounds) if seg_cx else None
+            vf = _vf_face_steps(w, h, sw, sh, seg_cx, bounds, fhf=fhf, fcy=fcy) if seg_cx else None
             if vf:
                 console.print(f"  [dim]reframe: {nfaces} faces → {how} "
                               f"across {len(bounds) - 1} shots[/]")
@@ -1069,7 +1100,7 @@ def edit_clip(clip) -> Path:
         else:
             seg_cx = (_segment_face_cxs(render_src, bounds, shots_out=shots)
                       if e.get("track_face_per_shot", True) and cuts else None)
-            vf = (_vf_face_steps(w, h, sw, sh, seg_cx, bounds) if seg_cx
+            vf = (_vf_face_steps(w, h, sw, sh, seg_cx, bounds, fhf=fhf, fcy=fcy) if seg_cx
                   else None) or static_vf
             if vf:
                 where = f"{cx:.2f}" if cx is not None else "n/a → centered"

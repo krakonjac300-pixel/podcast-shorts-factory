@@ -55,6 +55,13 @@ skills:
   compiler: [editorial-standards, storytelling, copywriting, youtube-monetization, growth-strategy]
 
 finder:
+  source_max_height: 1440      # download sources up to 1440p. A 9:16 reframe
+                               # punches INTO the source, so 1080p leaves no room
+                               # to crop the desk out and fill the frame with the
+                               # face (measured: face stays ~24%% of frame).
+                               # Channels that upload 4K (Caleb Hammer) now give a
+                               # sharp head-and-shoulders punch; Ramsey (1080p max)
+                               # stays resolution-bound.
   whisper_model: "small"        # tiny | base | small | medium | large-v3 (bigger = slower/better)
   language: null               # null = auto-detect, or "en", "es", ...
   cookies_from_browser: null   # if YouTube blocks a video ("confirm you're not a bot"),

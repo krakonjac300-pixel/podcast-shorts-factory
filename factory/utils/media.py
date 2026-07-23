@@ -15,6 +15,9 @@ def _cookie_opts() -> dict:
     return {"cookiesfrombrowser": (browser,)} if browser else {}
 
 
+_MAXH = int(cfg.get("finder.source_max_height", 1440))
+
+
 def download(url: str) -> tuple[Path, str, str]:
     """Download a YouTube video as mp4. Returns (path, title, channel_handle).
     The channel handle (e.g. '@joerogan') feeds the Manager's per-channel
@@ -23,7 +26,11 @@ def download(url: str) -> tuple[Path, str, str]:
 
     out_tmpl = str(WORK / "%(id)s.%(ext)s")
     opts = {
-        "format": "bv*[height<=1080]+ba/b[height<=1080]",
+        # up to 1440p: a 9:16 reframe punches INTO the source, so 1080p leaves
+        # no room to crop the desk out and fill the frame with the face. Capped
+        # at 1440 not 2160 to keep decode/render inside the produce window;
+        # channels that only offer 1080 (Ramsey) still work, just tighter-bound.
+        "format": (f"bv*[height<={_MAXH}]+ba/b[height<={_MAXH}]"),
         "merge_output_format": "mp4",
         "outtmpl": out_tmpl,
         "quiet": True,

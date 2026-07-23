@@ -34,11 +34,24 @@ class TestEditorFraming(unittest.TestCase):
         from factory.agents import editor
         self.ed = editor
 
-    def test_face_center_missing_file_returns_5tuple(self):
-        cx, sw, sh, n, frac = self.ed._face_center("does_not_exist.mp4")
+    def test_face_center_missing_file_returns_7tuple(self):
+        cx, sw, sh, n, frac, fhf, cy = self.ed._face_center("does_not_exist.mp4")
         self.assertIsNone(cx)
         self.assertEqual(n, 0)
         self.assertEqual(frac, 0.0)
+        self.assertEqual(fhf, 0.0)
+
+    def test_frame_crop_fills_more_on_hires_source(self):
+        """Head-and-shoulders crop: a 4K source with a 35%-tall face should
+        punch in (face -> ~42%); a 1080p source has no room and barely moves."""
+        hi = self.ed._frame_crop(1080, 1920, 3840, 2160, 0.5, cy=0.38, fhf=0.35)
+        lo = self.ed._frame_crop(1080, 1920, 1920, 1080, 0.5, cy=0.34, fhf=0.24)
+        self.assertIsNotNone(hi)
+        self.assertIsNotNone(lo)
+        # hi-res crops a taller scaled frame (more zoom) than lo-res can
+        hi_h = int(hi.split("scale=")[1].split(":")[1].split(",")[0])
+        lo_h = int(lo.split("scale=")[1].split(":")[1].split(",")[0])
+        self.assertGreater(hi_h, lo_h)
 
     def test_vf_face_centered_when_no_face(self):
         # 1920x1080 source → scaled to 1920h → width 3413 (rounded even 3412)
