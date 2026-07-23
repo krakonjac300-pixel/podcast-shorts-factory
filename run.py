@@ -155,10 +155,25 @@ def _pick_source_video():
     if not sources:
         console.print("[red]Set scheduler.sources (channel/playlist URLs) in config.yaml.[/]")
         return None
-    url = media.pick_next(_rank_sources(sources), skip_urls=db.processed_urls())
-    if not url:
-        console.print("[yellow]No fresh downloadable video across the sources right now.[/]")
-    return url
+    skip = db.processed_urls()
+    ranked = _rank_sources(sources)
+    # 4K-FIRST: try >=prefer_source_height channels before 1080p ones, because a
+    # 9:16 reframe punches into the source and 1080p frames as a tiny floating
+    # head. Resolution is probed once per channel and cached. A 1080p source is
+    # never dropped, just tried after the sharp ones.
+    prefer = int(cfg.get("scheduler.prefer_source_height", 1440))
+    hi, lo = [], []
+    for src in ranked:
+        (hi if media.source_max_height(src) >= prefer else lo).append(src)
+    if hi:
+        console.print(f"[dim]4K-first: {len(hi)} sharp source(s), "
+                      f"{len(lo)} 1080p fallback(s)[/]")
+    for group in (hi, lo):
+        url = media.pick_next(group, skip_urls=skip)
+        if url:
+            return url
+    console.print("[yellow]No fresh downloadable video across the sources right now.[/]")
+    return None
 
 
 

@@ -357,12 +357,16 @@ trend_scout:
 scheduler:
   content_since: "2026-07-20"   # niche flip watershed: montage/compiler only use clips after this
   sources:
-    # Money/Business era (flipped 2026-07-20). Confrontation + emotion first —
-    # the money equivalents of the Keane/Trent drama that won for us.
-    - "https://www.youtube.com/@CalebHammer/videos"        # Financial Audit — debt trainwreck drama
-    - "https://www.youtube.com/@TheRamseyShow/videos"      # Ramsey — confrontation, debt-free screams
-    - "https://www.youtube.com/@TheDiaryOfACEO/videos"     # DOAC — rags-to-riches, big names
-    - "https://www.youtube.com/@MyFirstMillionPod/videos"  # MFM — business ideas, "how they made $X"
+    # Money/Business era. ORDERED 4K-FIRST (2026-07-23): a 9:16 reframe punches
+    # INTO the source, so 4K channels frame far tighter and sharper than 1080p.
+    # Measured max upload resolution per channel drives this order; the picker
+    # also prefers >=1440p sources over 1080p ones (scheduler.prefer_source_height).
+    - "https://www.youtube.com/@CalebHammer/videos"        # 4K — Financial Audit, debt trainwreck (the reference channel)
+    - "https://www.youtube.com/@GrahamStephan/videos"      # 4K — money takes, net-worth reveals
+    - "https://www.youtube.com/@TheIcedCoffeeHour/videos"  # 4K — money reveals, business interviews
+    - "https://www.youtube.com/@TheDiaryOfACEO/videos"     # 4K — rags-to-riches, big names
+    - "https://www.youtube.com/@TheRamseyShow/videos"      # 1080p only — confrontation, but resolution-bound
+    - "https://www.youtube.com/@MyFirstMillionPod/videos"  # 1080p only — business ideas
   source_url: ""               # legacy single-source fallback (used if sources is empty)
 
 # How the agents talk to YOU: everything important lands in activity.md

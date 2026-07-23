@@ -88,6 +88,52 @@ def newest_downloadable(url: str, skip_urls=(), max_check: int = 12) -> str | No
     return None
 
 
+_RES_CACHE = WORK / "source_res.json"
+
+
+def source_max_height(channel_url: str) -> int:
+    """Max upload resolution a channel offers, cached (probing costs API calls
+    and a channel's resolution rarely changes). 0 if it can't be determined.
+
+    Drives the 4K-first source preference: a 9:16 reframe punches INTO the
+    source, so a 1080p channel frames as a tiny floating head while a 4K one
+    fills the frame with a sharp head-and-shoulders punch."""
+    import json
+    import yt_dlp
+    try:
+        cache = json.loads(_RES_CACHE.read_text()) if _RES_CACHE.exists() else {}
+    except Exception:  # noqa: BLE001
+        cache = {}
+    if channel_url in cache:
+        return int(cache[channel_url])
+    maxh = 0
+    try:
+        opts = {"quiet": True, "no_warnings": True, "extract_flat": True,
+                "playlist_items": "1-10", **_cookie_opts()}
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(channel_url, download=False)
+        vid = None
+        for e in (info.get("entries") or []):
+            if (e.get("duration") or 0) > 300 and e.get("availability") in (None, "public"):
+                vid = e.get("id")
+                break
+        if vid:
+            with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True,
+                                   **_cookie_opts()}) as ydl:
+                vi = ydl.extract_info(f"https://www.youtube.com/watch?v={vid}",
+                                      download=False)
+            maxh = max((f.get("height") or 0) for f in vi.get("formats", []))
+    except Exception:  # noqa: BLE001 - unknown resolution just means no preference
+        maxh = 0
+    if maxh:
+        cache[channel_url] = maxh
+        try:
+            _RES_CACHE.write_text(json.dumps(cache))
+        except Exception:  # noqa: BLE001
+            pass
+    return maxh
+
+
 def pick_next(sources, skip_urls=()) -> str | None:
     """Across a list of channel/playlist URLs, return the first fresh, downloadable
     video (rotates channels; skips already-processed ones)."""
