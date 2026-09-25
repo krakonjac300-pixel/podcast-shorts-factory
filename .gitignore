@@ -36,3 +36,6 @@ graphify-out/
 .DS_Store
 Thumbs.db
 .claude/settings.local.json
+
+# clip-campaigns plugin data (campaign briefs, submissions, earnings)
+campaigns/

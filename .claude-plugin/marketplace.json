@@ -1,0 +1,17 @@
+{
+  "name": "podcast-shorts-factory",
+  "owner": {
+    "name": "krakonjac300-pixel"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for the Podcast Shorts Factory."
+  },
+  "plugins": [
+    {
+      "name": "clip-campaigns",
+      "source": "./plugins/clip-campaigns",
+      "description": "Find, brief, produce and submit clips for paid clipping campaigns on Vyro and Clipping.net, powered by the Podcast Shorts Factory.",
+      "version": "0.1.0"
+    }
+  ]
+}

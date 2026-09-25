@@ -1,0 +1,10 @@
+{
+  "name": "clip-campaigns",
+  "version": "0.1.0",
+  "description": "Work paid clipping campaigns on Vyro (app.vyro.com) and Clipping.net: scan and rank campaigns, turn a campaign's rules into a factory brief, render compliant clips, submit posted links and track earnings.",
+  "author": {
+    "name": "krakonjac300-pixel"
+  },
+  "keywords": ["clipping", "campaigns", "vyro", "clipping.net", "shorts", "creator-economy"],
+  "license": "MIT"
+}

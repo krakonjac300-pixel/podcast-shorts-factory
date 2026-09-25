@@ -108,6 +108,22 @@ daily          Fully unattended: trends, newest video, clips, edit, post
 
 ---
 
+## Clipping campaigns plugin (Claude Code)
+
+`plugins/clip-campaigns/` is a Claude Code plugin that lets Claude work paid clipping
+campaigns on **Vyro** and **Clipping.net** with this factory: find and rank campaigns,
+turn a campaign's rules into a brief, produce compliant clips, submit links and track
+earnings. Install it in Claude Code:
+
+```
+/plugin marketplace add krakonjac300-pixel/podcast-shorts-factory
+/plugin install clip-campaigns@podcast-shorts-factory
+```
+
+See [plugins/clip-campaigns/README.md](plugins/clip-campaigns/README.md).
+
+---
+
 ## Why I am giving this away
 
 I built this over **almost a month**. It started because I wanted a channel that could run

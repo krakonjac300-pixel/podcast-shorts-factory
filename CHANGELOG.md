@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+- **clip-campaigns Claude Code plugin** (`plugins/clip-campaigns/`): scan and rank paid
+  clipping campaigns on Vyro and Clipping.net, turn a campaign's rules into a factory
+  brief, render and compliance-check clips, submit posted links (with a confirm-before-
+  submit hook) and track earnings. Install with
+  `/plugin marketplace add krakonjac300-pixel/podcast-shorts-factory`.
+- `PSF_CONFIG_OVERLAY=path.yaml` deep-merges a per-run overlay over `config.yaml`
+  without editing it.
+
 ## v2.0 — 2026-07-11
 **Two new agents — it's now a 10-agent team:**
 - **Finishing Editor (Agent 8)** — QA reviewer that WATCHES every finished render

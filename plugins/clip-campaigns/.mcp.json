@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "clip-browser": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}

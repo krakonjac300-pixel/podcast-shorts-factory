@@ -51,11 +51,27 @@ for _v in ("TMPDIR", "TEMP", "TMP"):
     os.environ[_v] = str(_TMP)
 
 
+def _deep_merge(base: dict, extra: dict) -> None:
+    """Merge `extra` into `base` in place; nested dicts merge, everything else replaces."""
+    for k, v in extra.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+
+
 class Config:
     def __init__(self, path: str | Path = ROOT / "config.yaml"):
         load_dotenv(ROOT / ".env")
         with open(path, "r", encoding="utf-8") as f:
             self._d = yaml.safe_load(f)
+        # Optional per-run overlay (e.g. a clipping-campaign brief written by the
+        # clip-campaigns plugin): PSF_CONFIG_OVERLAY=path/to/overlay.yaml is
+        # deep-merged on top of config.yaml without touching it.
+        overlay = os.environ.get("PSF_CONFIG_OVERLAY")
+        if overlay:
+            with open(overlay, "r", encoding="utf-8") as f:
+                _deep_merge(self._d, yaml.safe_load(f) or {})
 
     # dotted access: cfg.get("finder.whisper_model")
     def get(self, dotted: str, default=None):
