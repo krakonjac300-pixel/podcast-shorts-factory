@@ -26,6 +26,7 @@ to YouTube Shorts. It can run completely unattended on a daily schedule.
 | 8 | **Finishing Editor** | The quality gate. It watches every finished render the way a picky human editor would, and catches captions covering a speaker's face, black or frozen frames, dead air, clipped or too-quiet audio, and wrong durations. It auto-fixes the cheap problems and blocks broken clips from ever being posted. |
 | 9 | **Trainer** | The team's coach. Weekly, it studies the top-performing Shorts in your niche and updates one craft playbook, so the whole system levels up instead of standing still. |
 | 10 | **Compiler** | The showrunner. It stitches the week's best moments into a long-form 16:9 episode with an AI-narrator editorial spine (thesis, per-clip analysis, verdict), designed to satisfy 2026 reused-content monetization rules. |
+| 11 | **Campaigner** | Works paid clipping campaigns (Whop Content Rewards, Vyro, Clipping.net and others) instead of ripping YouTube. It pulls each campaign's approved footage, clips it to the campaign's rules, and submits your live post links for per-view payouts behind a permission gate (off / review / auto). See [docs/clipping-campaigns.md](docs/clipping-campaigns.md). |
 
 On top of the agents there are **24 skill playbooks** in `factory/skills/`: written craft
 knowledge on hooks, storytelling, pacing, sound design, captions, thumbnails, SEO, engagement
@@ -104,6 +105,7 @@ scout          Refresh current trends
 skills         List installed skills and which agent uses each
 auto <url>     The whole pipeline in one command
 daily          Fully unattended: trends, newest video, clips, edit, post
+campaigns ... Paid clipping campaigns: scan | pull | submit | approve | status | link
 ```
 
 ---

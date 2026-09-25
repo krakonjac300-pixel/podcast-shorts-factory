@@ -17,3 +17,6 @@ google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
 edge-tts
 scenedetect>=0.6,<0.7              # scene-aware cut placement; 0.7 force-installs opencv-python 5 (breaks cv2.CascadeClassifier fallback)
+
+# Optional: Google Drive FOLDER links in clipping campaigns
+# gdown>=5.0

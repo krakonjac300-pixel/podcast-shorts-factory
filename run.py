@@ -18,6 +18,13 @@ Commands:
   daily          Unattended: scout + newest video from scheduler.source_url + auto --yes
   produce        Make the day's clips into the post queue (no posting)
   post-next      Post the single best queued clip (for staggered 3x/day posting)
+  campaigns      Agent 11: paid clipping campaigns (Whop, Vyro, ...)
+                   scan               list live campaigns + which pass your policy
+                   pull [ID]          download a campaign's footage and find clips
+                   submit             queue/submit live posts (per permissions.submit)
+                   approve [--yes]    approve queued submissions
+                   status             refresh outcomes + show all submissions
+                   link <clip> <url>  register a post you made by hand (TikTok/Reels)
 """
 from __future__ import annotations
 
@@ -28,7 +35,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from factory import db, notify, skills
-from factory.agents import (community, compiler, editor, finder,
+from factory.agents import (campaigner, community, compiler, editor, finder,
                             finishing_editor, manager, trainer, trend_scout,
                             uploader)
 from factory.config import cfg
@@ -102,8 +109,9 @@ def approve_next(n: int) -> int:
     return len(take)
 
 
-def cmd_auto(url: str, assume_yes: bool = False):
-    finder.find(url)
+def cmd_auto(url: str | None, assume_yes: bool = False):
+    if url:                       # None = candidates already found (campaign footage)
+        finder.find(url)
     console.rule("[bold]Review")
     if assume_yes:
         auto_approve_top(cfg.get("finder.auto_approve_top", 3))
@@ -116,6 +124,7 @@ def cmd_auto(url: str, assume_yes: bool = False):
     finishing_editor.ensure_floor()   # never let the day go fully dark (salvage least-bad)
     console.rule("[bold]Upload")
     uploader.upload_all(assume_yes=assume_yes)
+    _campaign_submissions()
     console.rule("[bold]Stats")
     manager.collect()
     manager.report()
@@ -159,16 +168,67 @@ def _pick_source_video():
     return url
 
 
-def cmd_daily():
-    """Unattended scheduled run: trends → fresh video from sources → full pipeline."""
-    console.rule("[bold]Trend Scout")
-    trend_scout.scout()
+def _campaign_mode() -> str:
+    """Where footage comes from: youtube (scheduler.sources) | campaigns | mixed
+    (campaigns first, YouTube when no campaign has fresh footage)."""
+    if not cfg.get("campaigns.enabled", False):
+        return "youtube"
+    return (cfg.get("campaigns.source_mode", "campaigns") or "campaigns").lower()
+
+
+def _find_todays_footage() -> bool:
+    """Run the Finder on today's source — campaign footage and/or a fresh
+    YouTube video, per campaigns.source_mode. True if candidates were made."""
+    mode = _campaign_mode()
+    if mode in ("campaigns", "mixed"):
+        console.rule("[bold]Campaigns: pull footage")
+        if campaigner.pull() > 0:
+            return True
+        if mode == "campaigns":
+            return False
     console.rule("[bold]Pick source video")
     url = _pick_source_video()
     if not url:
-        return
+        return False
     console.print(f"[green]New video:[/] {url}")
-    cmd_auto(url, assume_yes=True)
+    finder.find(url)
+    return True
+
+
+def _campaign_submissions():
+    if cfg.get("campaigns.enabled", False):
+        console.rule("[bold]Campaign submissions")
+        campaigner.refresh_status()
+        campaigner.submit_due()
+
+
+def cmd_daily():
+    """Unattended scheduled run: trends → fresh footage → full pipeline."""
+    console.rule("[bold]Trend Scout")
+    trend_scout.scout()
+    if _find_todays_footage():
+        cmd_auto(None, assume_yes=True)
+
+
+def cmd_campaigns(rest: list[str]):
+    sub, *args = rest or ["scan"]
+    args = [a for a in args if not a.startswith("--")]
+    if sub == "scan":
+        campaigner.scan()
+    elif sub == "pull":
+        campaigner.pull(args[0] if args else None, refresh="--refresh" in rest)
+    elif sub == "submit":
+        campaigner.submit_due()
+    elif sub == "approve":
+        campaigner.approve(assume_yes="--yes" in rest)
+    elif sub == "status":
+        campaigner.refresh_status()
+        campaigner.report()
+    elif sub == "link" and len(args) >= 2:
+        campaigner.link(int(args[0]), args[1], args[2] if len(args) > 2 else None)
+    else:
+        console.print("[red]usage: run.py campaigns scan | pull [ID] [--refresh] | "
+                      "submit | approve [--yes] | status | link <clip_id> <url>[/]")
 
 
 def cmd_produce():
@@ -189,12 +249,8 @@ def cmd_produce():
     console.print(f"[dim]post queue has {len(db.clips_by_status('edited'))} clip(s) ready[/]")
     console.rule("[bold]Trend Scout")
     trend_scout.scout()
-    console.rule("[bold]Pick source video")
-    url = _pick_source_video()
-    if not url:
+    if not _find_todays_footage():
         return
-    console.print(f"[green]New video:[/] {url}")
-    finder.find(url)
 
     # Render up to `target` clips that PASS finishing QA. If block_on_fail holds a
     # broken clip back, backfill the freed slot with the next-best candidate — so
@@ -283,6 +339,7 @@ def main(argv: list[str]):
         manager.weekly_digest()
     elif cmd == "post-next":
         manager.refresh_learnings()  # fresh metrics + re-reasoned team directives
+        _campaign_submissions()      # earlier scheduled posts are live by now
         if not uploader.upload_one(assume_yes=True):
             if cfg.get("uploader.schedule_mode", True):
                 # normal in schedule mode: the day was locked in at produce time
@@ -293,6 +350,8 @@ def main(argv: list[str]):
                               "The queue is empty — did the 6AM produce run fail?")
     elif cmd == "schedule-day":
         uploader.schedule_day()
+    elif cmd == "campaigns":
+        cmd_campaigns(rest)
     else:
         console.print(f"[red]unknown command:[/] {cmd}")
         console.print(__doc__)

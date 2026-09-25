@@ -216,6 +216,61 @@ scheduler:
     - "https://www.youtube.com/@TheDiaryOfACEO/videos"
   source_url: ""               # legacy single-source fallback (used if sources is empty)
 
+# Campaigner (Agent 11) — run the factory on PAID CLIPPING CAMPAIGNS instead of
+# ripping YouTube channels. Creators/brands post a brief + approved footage +
+# a CPM ("$X per 1,000 views"); you cut, post on your own accounts, submit the
+# post links, and get paid on verified views. Footage is licensed for clipping,
+# so this is also the rights-safe way to run the factory.
+#   python run.py campaigns scan      → see what's live and what passes the policy
+campaigns:
+  enabled: false
+  source_mode: campaigns       # where daily/produce get footage:
+                               #   campaigns = only campaign footage
+                               #   mixed     = campaigns first, scheduler.sources when none is fresh
+                               #   youtube   = ignore campaigns for footage (still submits)
+  disclosure: "#ad"            # added to every campaign post's caption (paid promotion → disclose it)
+
+  # WHICH campaigns the agent may work on
+  selection:
+    min_cpm_usd: 0.5           # skip campaigns paying less than this per 1,000 views (when known)
+    min_budget_left_usd: 50    # skip nearly-drained campaigns (when known)
+    include_keywords: [podcast]   # campaign title/brief must mention one of these ([] = any)
+    exclude_keywords: [gambling, casino, crypto casino]
+    allowed_campaigns: []      # e.g. ["whop:bnty_123"] — if set, ONLY these
+    blocked_campaigns: []
+    videos_per_run: 1          # footage files clipped per produce/daily run
+
+  # WHAT the agent may do on your behalf — the permission gate
+  permissions:
+    submit: review             # off    = never submit post links
+                               # review = queue them; you approve with `python run.py campaigns approve`
+                               # auto   = submit by itself, inside the limits below
+    allowed_providers: [whop, manual]   # plugins allowed to submit
+    max_submissions_per_day: 10         # hard cap on API submissions per 24h
+    min_minutes_live: 30                # only submit posts that have been public this long
+
+  # Platform plugins (factory/campaigns/). Add your own by subclassing
+  # CampaignProvider in factory/campaigns/base.py.
+  providers:
+    whop:                      # Whop Content Rewards / clipping bounties (official API)
+      enabled: false           # needs WHOP_API_KEY in .env — a *user* token; account keys can't submit
+      country: null            # e.g. "US" — only campaigns workable from your country
+      query: null              # optional title filter
+    manual:                    # Vyro, Clipping.net, ClipAffiliates, Discord servers, direct deals:
+      enabled: false           #   no public submit API, so you paste the link (the agent lists them
+      campaigns: []            #   in campaign_submissions.md and pings your phone). Example:
+      # - id: vyro-example
+      #   platform: vyro
+      #   title: "Example podcast clips"
+      #   page_url: "https://app.vyro.com/campaigns/..."
+      #   cpm_usd: 3
+      #   source_urls: ["https://drive.google.com/drive/folders/..."]
+      #   platforms: [youtube, tiktok, instagram]
+      #   required_hashtags: ["#examplepod"]
+      #   required_caption: "@examplepod"
+      #   brief: |
+      #     Paste the campaign's rules here verbatim — the Finder obeys them.
+
 # How the agents talk to YOU: everything important lands in activity.md
 # (newest first), and toast: true also pops Windows notifications for posts,
 # failures, and the morning "queue ready" message.

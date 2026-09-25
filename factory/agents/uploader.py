@@ -30,9 +30,34 @@ def _hashtags(clip) -> list[str]:
 
 
 def post_copy(clip, platform: str) -> dict:
-    """Title/caption/hashtags for a platform. Uses the uploader's copywriting +
-    hashtag skills to tailor per platform when ai_optimize is on; otherwise
-    falls back to what the Finder wrote. Never raises."""
+    """Title/caption/hashtags for a platform, with any clipping campaign's
+    mandatory tags/mentions/disclosure enforced AFTER the AI rewrite (the
+    copywriter may drop them; the campaign reviewers won't)."""
+    return _with_campaign_rules(clip, _post_copy(clip, platform))
+
+
+def _with_campaign_rules(clip, copy: dict) -> dict:
+    try:
+        cid = db.campaign_for_clip(clip["id"])
+        camp = db.get_campaign(cid) if cid else None
+    except Exception:  # noqa: BLE001 - copy must never fail on this
+        camp = None
+    if not camp:
+        return copy
+    tags = list(dict.fromkeys(list(copy.get("hashtags") or []) +
+                              list(camp.get("required_hashtags") or [])))
+    caption = copy.get("caption") or ""
+    for need in (camp.get("required_caption", ""),
+                 cfg.get("campaigns.disclosure", "#ad")):
+        if need and need not in caption:
+            caption = f"{caption}\n{need}".strip()
+    return {**copy, "hashtags": tags, "caption": caption}
+
+
+def _post_copy(clip, platform: str) -> dict:
+    """Uses the uploader's copywriting + hashtag skills to tailor per platform
+    when ai_optimize is on; otherwise falls back to what the Finder wrote.
+    Never raises."""
     fallback = {"title": clip["title"], "caption": clip["caption"] or "",
                 "hashtags": _hashtags(clip)}
     if not cfg.get("uploader.ai_optimize", True) or not llm.available():
@@ -298,7 +323,8 @@ def schedule_day(assume_yes: bool = True) -> int:
             continue
         try:
             res = upload_youtube(ok, publish_at=when)
-            db.record_upload(ok["id"], "youtube", res["external_id"], res["url"])
+            db.record_upload(ok["id"], "youtube", res["external_id"], res["url"],
+                             publish_at=when)
             for p in platforms:
                 if p != "youtube":
                     r = export_for_scheduler(ok, p)

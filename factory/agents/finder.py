@@ -88,10 +88,20 @@ def _chunks(transcript: list[dict]) -> list[list[dict]]:
     return out
 
 
-def find(url: str) -> int:
-    """Run the finder for one podcast URL. Returns number of candidates."""
-    console.print(f"[bold cyan]FINDER[/] downloading {url}")
-    video, title, channel = media.download(url)
+def find(url: str, *, local: tuple | None = None, brief_extra: str = "",
+         campaign_id: str | None = None) -> int:
+    """Run the finder for one podcast URL. Returns number of candidates.
+
+    Campaign footage (see agents/campaigner.py) arrives already downloaded:
+    `local` = (video_path, title, channel), `url` is then just its unique key,
+    `brief_extra` carries the campaign's rules and `campaign_id` tags the
+    source so posts cut from it get submitted to that campaign."""
+    if local:
+        video, title, channel = local
+        console.print(f"[bold cyan]FINDER[/] campaign footage {video}")
+    else:
+        console.print(f"[bold cyan]FINDER[/] downloading {url}")
+        video, title, channel = media.download(url)
     console.print(f"  ↳ {title}" + (f"  [dim]({channel})[/]" if channel else ""))
 
     console.print("[bold cyan]FINDER[/] extracting audio + transcribing "
@@ -100,10 +110,11 @@ def find(url: str) -> int:
     transcript = media.transcribe(audio)
     console.print(f"  ↳ {len(transcript)} segments")
 
-    source_id = db.upsert_source(url, title, video, transcript, channel=channel)
+    source_id = db.upsert_source(url, title, video, transcript, channel=channel,
+                                 campaign_id=campaign_id)
 
     console.print("[bold cyan]FINDER[/] asking Claude to score moments…")
-    candidates = _score_with_claude(title, transcript)
+    candidates = _score_with_claude(title, transcript, brief_extra)
 
     n = 0
     for c in candidates:
@@ -170,7 +181,8 @@ def _niche_ok(clip: dict) -> bool:
     return True
 
 
-def _score_with_claude(title: str, transcript: list[dict]) -> list[dict]:
+def _score_with_claude(title: str, transcript: list[dict],
+                       brief_extra: str = "") -> list[dict]:
     f = cfg.finder
     schema = {
         "type": "object",
@@ -269,12 +281,20 @@ Call submit_clips with your picks, best first."""
                               f"{len(got)} candidates[/]")
         return out
 
-    clips = _score_pass(f.get("selection_brief", ""), insist=False)
-    clips = [c for c in clips if _niche_ok(c)]
+    # A paid campaign's rules outrank our house taste: a clip that breaks the
+    # brief is rejected by the campaign's reviewers and earns nothing.
+    campaign = (f"\n\nPAID CAMPAIGN RULES — these OVERRIDE the brief above; never "
+                f"pick a moment that breaks them:\n{brief_extra.strip()}"
+                if brief_extra.strip() else "")
+    # the campaign already defines the topic, so the channel niche-lock is off
+    keep = (lambda c: True) if campaign else _niche_ok
+    clips = _score_pass(f.get("selection_brief", "") + campaign, insist=False)
+    clips = [c for c in clips if keep(c)]
     if not clips:
         console.print("  [yellow]0 clips on the strict pass — retrying with a "
                       "relaxed brief so the day isn't empty[/]")
-        clips = [c for c in _score_pass(relaxed_brief, insist=True) if _niche_ok(c)]
+        clips = [c for c in _score_pass(relaxed_brief + campaign, insist=True)
+                 if keep(c)]
 
     clips.sort(key=lambda c: -float(c.get("score", 0)))
     return clips[:max_cand]
