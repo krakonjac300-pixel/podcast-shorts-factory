@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Throwaway dev tool: validates PixelFontData and dumps it (plus a C#-rendered
+    reference bitmap) for render_preview.py. Not part of the Unity project.
+    Usage: ./run.sh   (or: dotnet run -c Release -p:SkipNetStandardCheck=true)
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>SecondCursor.DevTools.FontPreview</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="../../Assets/SecondCursor/Scripts/Core/Art/PixelFontData.cs" />
+  </ItemGroup>
+
+</Project>

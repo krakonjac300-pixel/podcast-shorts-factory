@@ -1,0 +1,18 @@
+<Project>
+  <!-- Compile-check harness: mirrors Unity's C# 9 / .NET Standard 2.1 compiler setup. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Scripts>$(MSBuildThisFileDirectory)../../Assets/SecondCursor/Scripts</Scripts>
+    <Deps>$(MSBuildThisFileDirectory).deps</Deps>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)bin/$(MSBuildProjectName)/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <UnityDefines>UNITY_2021_3_OR_NEWER;UNITY_2022_3_OR_NEWER;UNITY_6000_0_OR_NEWER;UNITY_STANDALONE;UNITY_STANDALONE_WIN;UNITY_64</UnityDefines>
+    <!-- Unity-ish warning noise we don't care about in the harness -->
+    <NoWarn>$(NoWarn);CS0649;CS1591</NoWarn>
+  </PropertyGroup>
+</Project>

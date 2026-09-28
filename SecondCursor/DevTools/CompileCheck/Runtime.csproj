@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Player build, legacy Input Manager active -->
+  <PropertyGroup>
+    <AssemblyName>SecondCursor.Runtime</AssemblyName>
+    <DefineConstants>$(UnityDefines);ENABLE_LEGACY_INPUT_MANAGER</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Scripts)/Runtime/**/*.cs" />
+    <ProjectReference Include="Core.csproj" />
+    <Reference Include="$(Deps)/engine/*.dll" Private="false" />
+    <Reference Include="$(Deps)/ugui/UnityEngine.UI.dll" Private="false" />
+  </ItemGroup>
+</Project>
