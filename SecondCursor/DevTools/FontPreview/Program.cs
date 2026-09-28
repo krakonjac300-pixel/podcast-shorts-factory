@@ -124,9 +124,11 @@ namespace SecondCursor.DevTools.FontPreview
                     continue;
                 }
 
-                // No blank padding columns: the first and last column must carry ink.
-                Check(errors, rows.Any(r => r[0] == '#'), $"{Describe(c)} has a blank left column");
-                Check(errors, rows.Any(r => r[width - 1] == '#'), $"{Describe(c)} has a blank right column");
+                // No blank padding columns: the first and last column must carry ink
+                // (tabular digits may keep an intentional blank column to stay 5 wide).
+                bool tabular = c >= '0' && c <= '9';
+                Check(errors, tabular || rows.Any(r => r[0] == '#'), $"{Describe(c)} has a blank left column");
+                Check(errors, tabular || rows.Any(r => r[width - 1] == '#'), $"{Describe(c)} has a blank right column");
                 Check(errors, width <= 7, $"{Describe(c)} is {width} wide (max 7)");
 
                 int top = ink.Min();

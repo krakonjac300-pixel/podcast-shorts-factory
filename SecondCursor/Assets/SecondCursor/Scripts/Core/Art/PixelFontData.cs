@@ -17,9 +17,9 @@
 //
 // '#' = ink, '.' = empty. Glyph strings carry no blank side-bearing columns
 // (apart from the space glyph); the renderer adds LetterSpacing between glyphs.
-// Digits are all 5 px wide for tabular numbers. '0' carries a centre bar so it
-// never reads as 'O', and 'I' (serifed) / 'l' (plain) / '1' (flag + foot) /
-// '|' (full height) are all distinct.
+// Digits are all 5 px wide for tabular numbers. '0' is a narrow oval with a
+// centre bar while 'O' is a wider octagon, so they never swap; 'I' (serifed) /
+// 'l' (plain) / '1' (flag + foot) / '|' (rows 0-9) are all distinct.
 //
 // Pure data + measuring helpers: no UnityEngine reference (SecondCursor.Core).
 
@@ -46,7 +46,7 @@ namespace SecondCursor.Core.Art
         public const int LineHeight = 12;
 
         /// <summary>Pen advance of a space, including the LetterSpacing that follows it.</summary>
-        public const int SpaceAdvance = 3;
+        public const int SpaceAdvance = 4;
 
         /// <summary>Blank pixels the renderer inserts between two adjacent glyphs.</summary>
         public const int LetterSpacing = 1;
@@ -188,20 +188,20 @@ namespace SecondCursor.Core.Art
                 ".....");
 
             Add('%',
-                "##..#",
-                "##..#",
-                "...#.",
-                "..#..",
-                "..#..",
-                ".#...",
-                "#..##",
-                "#..##",
-                ".....",
-                ".....");
+                "##...#",
+                "##..#.",
+                "....#.",
+                "...#..",
+                "..#...",
+                ".#....",
+                ".#..##",
+                "#...##",
+                "......",
+                "......");
 
             Add('&',
-                ".##..",
-                "#..#.",
+                ".#...",
+                "#.#..",
                 "#.#..",
                 ".#...",
                 "#.#.#",
@@ -251,8 +251,8 @@ namespace SecondCursor.Core.Art
                 "..#..",
                 "#.#.#",
                 ".###.",
-                "#.#.#",
-                "..#..",
+                ".#.#.",
+                ".....",
                 ".....",
                 ".....",
                 ".....",
@@ -280,8 +280,8 @@ namespace SecondCursor.Core.Art
                 "..",
                 "..",
                 ".#",
-                "#.",
-                "..");
+                ".#",
+                "#.");
 
             Add('-',
                 "....",
@@ -464,20 +464,20 @@ namespace SecondCursor.Core.Art
                 "..",
                 "..",
                 ".#",
-                "#.",
-                "..");
+                ".#",
+                "#.");
 
             Add('<',
-                "....",
-                "...#",
-                "..#.",
-                ".#..",
-                "#...",
-                ".#..",
-                "..#.",
-                "...#",
-                "....",
-                "....");
+                "...",
+                "...",
+                "..#",
+                ".#.",
+                "#..",
+                ".#.",
+                "..#",
+                "...",
+                "...",
+                "...");
 
             Add('=',
                 ".....",
@@ -492,16 +492,16 @@ namespace SecondCursor.Core.Art
                 ".....");
 
             Add('>',
-                "....",
-                "#...",
-                ".#..",
-                "..#.",
-                "...#",
-                "..#.",
-                ".#..",
-                "#...",
-                "....",
-                "....");
+                "...",
+                "...",
+                "#..",
+                ".#.",
+                "..#",
+                ".#.",
+                "#..",
+                "...",
+                "...",
+                "...");
 
             Add('?',
                 ".###.",
@@ -516,14 +516,14 @@ namespace SecondCursor.Core.Art
                 ".....");
 
             Add('@',
-                ".#####.",
-                "#.....#",
-                "#.###.#",
+                "..###..",
+                ".#...#.",
+                "#..##.#",
                 "#.#.#.#",
                 "#.#.#.#",
-                "#.####.",
-                "#......",
-                ".#####.",
+                "#..###.",
+                ".#.....",
+                "..####.",
                 ".......",
                 ".......");
 
@@ -698,14 +698,14 @@ namespace SecondCursor.Core.Art
                 ".....");
 
             Add('O',
-                ".####.",
+                "..##..",
+                ".#..#.",
                 "#....#",
                 "#....#",
                 "#....#",
                 "#....#",
-                "#....#",
-                "#....#",
-                ".####.",
+                ".#..#.",
+                "..##..",
                 "......",
                 "......");
 
@@ -722,14 +722,14 @@ namespace SecondCursor.Core.Art
                 ".....");
 
             Add('Q',
-                ".####.",
-                "#....#",
+                "..##..",
+                ".#..#.",
                 "#....#",
                 "#....#",
                 "#....#",
                 "#..#.#",
-                "#...#.",
-                ".###.#",
+                ".#..#.",
+                "..##.#",
                 "......",
                 "......");
 
@@ -799,9 +799,9 @@ namespace SecondCursor.Core.Art
                 "#.....#",
                 "#.....#",
                 "#..#..#",
+                "#..#..#",
                 "#.#.#.#",
-                "##...##",
-                "#.....#",
+                ".#...#.",
                 ".......",
                 ".......");
 
@@ -844,16 +844,16 @@ namespace SecondCursor.Core.Art
             // ---------------------------------------------------------------- brackets & misc
 
             Add('[',
-                "###",
-                "#..",
-                "#..",
-                "#..",
-                "#..",
-                "#..",
-                "#..",
-                "#..",
-                "###",
-                "...");
+                "##",
+                "#.",
+                "#.",
+                "#.",
+                "#.",
+                "#.",
+                "#.",
+                "#.",
+                "##",
+                "..");
 
             Add('\\',
                 "#...",
@@ -868,16 +868,16 @@ namespace SecondCursor.Core.Art
                 "....");
 
             Add(']',
-                "###",
-                "..#",
-                "..#",
-                "..#",
-                "..#",
-                "..#",
-                "..#",
-                "..#",
-                "###",
-                "...");
+                "##",
+                ".#",
+                ".#",
+                ".#",
+                ".#",
+                ".#",
+                ".#",
+                ".#",
+                "##",
+                "..");
 
             Add('^',
                 "..#..",
