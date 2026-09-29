@@ -44,7 +44,7 @@ namespace SecondCursor.Story
             _panel = null;
         }
 
-        bool SkipPressed => _clicked || _g.Input.KeyDown(GameKey.Space) || _g.Input.KeyDown(GameKey.Enter) || _g.Input.KeyDown(GameKey.Escape);
+        bool SkipPressed => !Game.PauseMenu.IsPaused && (_clicked || _g.Input.KeyDown(GameKey.Space) || _g.Input.KeyDown(GameKey.Enter));
 
         IEnumerator WaitOrSkip(float seconds)
         {
@@ -80,7 +80,23 @@ namespace SecondCursor.Story
             t.Wrap = true;
             float a = 0f;
             while (a < 1f) { a += Time.deltaTime; t.color = new Color(0.72f, 0.72f, 0.69f, a); yield return null; }
-            yield return WaitOrSkip(6.5f); // long enough to read the photosensitivity warning
+            var settings = Game.SaveSystem.LoadSettings();
+            if (!settings.flashingChosen)
+            {
+                bool chosen = false;
+                var full = UiButton.Create(p, "Full effects", a => { _g.Fx.ReduceFlashing = false; chosen = true; }, "button:FullEffects");
+                ((RectTransform)full.transform).At(ScreenRig.Width / 2 - 150, 400, 140, 24);
+                var reduced = UiButton.Create(p, "Reduce flashing", a => { _g.Fx.ReduceFlashing = true; chosen = true; }, "button:ReduceFlashing");
+                ((RectTransform)reduced.transform).At(ScreenRig.Width / 2 + 10, 400, 140, 24);
+                while (!chosen) yield return null;
+                settings.reduceFlashing = _g.Fx.ReduceFlashing;
+                settings.flashingChosen = true;
+                Game.SaveSystem.SaveSettings(settings);
+                full.gameObject.SetActive(false);
+                reduced.gameObject.SetActive(false);
+                _clicked = false;
+            }
+            else yield return WaitOrSkip(6.5f); // long enough to read the photosensitivity warning
             while (a > 0f) { a -= Time.deltaTime * 2f; t.color = new Color(0.72f, 0.72f, 0.69f, Mathf.Max(0f, a)); yield return null; }
         }
 
@@ -104,6 +120,12 @@ namespace SecondCursor.Story
             var hint = UIBuilder.Text(p, "Headphones recommended.", new Color32(0x6A, 0x6A, 0x66, 0xFF));
             hint.rectTransform.At(0, 500, ScreenRig.Width, 12);
             hint.Align = TextAlign.Center;
+            var options = UiButton.Create(p, "Options", a => Game.PauseMenu.Current?.OpenMenu(), "button:Options");
+            ((RectTransform)options.transform).At(ScreenRig.Width / 2 - 110, 420, 100, 22);
+            var quit = UiButton.Create(p, "Quit", a => Game.PauseMenu.QuitGame(), "button:QuitTitle");
+            ((RectTransform)quit.transform).At(ScreenRig.Width / 2 + 10, 420, 100, 22);
+            var version = UIBuilder.Text(p, "v" + Application.version, new Color32(0x4A, 0x4A, 0x46, 0xFF));
+            version.rectTransform.At(8, 522, 200, 12);
 
             _g.Audio.PlayLoop("drone_tension", 0.35f, 2f);
             float t = 0f;

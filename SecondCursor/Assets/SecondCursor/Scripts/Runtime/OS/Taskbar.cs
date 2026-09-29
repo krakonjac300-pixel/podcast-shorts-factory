@@ -19,6 +19,7 @@ namespace SecondCursor.OS
         const int Height = WindowManager.TaskbarHeight;
         const int ButtonMax = 150;
         const int TaskWidth = 236;
+        const int MenuWidth = 28;
 
         GameServices _g;
         RectTransform _root;
@@ -87,7 +88,7 @@ namespace SecondCursor.OS
 
             // The current task, always in view even with the Work Queue closed; click it to open the queue.
             bar._task = UiButton.Create(root, " ", a => g.Apps.Launch(AppIds.WorkQueue, a), "taskbar.task");
-            ((RectTransform)bar._task.transform).At(ScreenRig.Width - 104 - TaskWidth, 4, TaskWidth - 4, 22);
+            ((RectTransform)bar._task.transform).At(ScreenRig.Width - 104 - MenuWidth - TaskWidth, 4, TaskWidth - 4, 22);
             if (bar._task.Label != null)
             {
                 bar._task.Label.Align = TextAlign.Left;
@@ -98,7 +99,11 @@ namespace SecondCursor.OS
             bar._task.gameObject.SetActive(false);
             g.Tasks.TaskActivated += t => bar._taskFlash = 2.4f;
 
-            bar._buttonArea = UIBuilder.Rect("Window Buttons", root).Stretch(72, 4, 104 + TaskWidth, 2);
+            // Menu button: the pause menu is reachable with the mouse alone (Steam Deck, mouse-only players).
+            var menu = UiButton.Create(root, "||", a => Game.PauseMenu.Current?.OpenMenu(), "taskbar.menu", true);
+            ((RectTransform)menu.transform).At(ScreenRig.Width - 104 - MenuWidth, 4, MenuWidth - 4, 22);
+
+            bar._buttonArea = UIBuilder.Rect("Window Buttons", root).Stretch(72, 4, 104 + MenuWidth + TaskWidth, 2);
 
             g.Windows.Changed += w => bar._dirty = true;
             g.Windows.Opened += w => { bar._order.Add(w); bar._dirty = true; };

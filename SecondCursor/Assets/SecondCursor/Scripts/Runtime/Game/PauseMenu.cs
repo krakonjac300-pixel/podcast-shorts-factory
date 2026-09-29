@@ -23,6 +23,10 @@ namespace SecondCursor.Game
         float _savedScale = 1f;
 
         public static bool IsPaused { get; private set; }
+        /// <summary>The live menu (for the title screen's Options button and the taskbar menu button).</summary>
+        public static PauseMenu Current { get; private set; }
+
+        public void OpenMenu() => Pause();
 
         public static PauseMenu Create(GameServices g, Transform parent)
         {
@@ -31,12 +35,13 @@ namespace SecondCursor.Game
             var p = go.AddComponent<PauseMenu>();
             p._g = g;
             IsPaused = false;
+            Current = p;
             return p;
         }
 
         void Update()
         {
-            if (!_g.Flags.Has(Core.Story.Flags.LoggedIn)) return;
+            // Esc works from the very first screen: settings and Quit must never need a log-on.
             if (_g.Input.KeyDown(GameKey.Escape))
             {
                 if (IsPaused) Resume();
@@ -120,8 +125,7 @@ namespace SecondCursor.Game
         void ToggleDisplay()
         {
             _fullscreen = !_fullscreen;
-            if (_fullscreen) Screen.fullScreenMode = FullScreenMode.FullScreenWindow;
-            else Screen.SetResolution(1280, 720, FullScreenMode.Windowed);
+            GameRoot.Display(_fullscreen);
             _display.SetLabel(DisplayLabel());
         }
 
@@ -139,7 +143,9 @@ namespace SecondCursor.Game
             return b;
         }
 
-        static void Quit()
+        static void Quit() => QuitGame();
+
+        public static void QuitGame()
         {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -150,6 +156,7 @@ namespace SecondCursor.Game
 
         void OnDestroy()
         {
+            if (Current == this) Current = null;
             if (IsPaused)
             {
                 IsPaused = false;

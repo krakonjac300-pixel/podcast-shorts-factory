@@ -71,10 +71,11 @@ namespace SecondCursor.Game
             g.Fx.SetBlack(true); // nothing is shown until the boot sequence (or a debug jump) starts
             g.Audio = AudioManager.Create(transform);
             EnsureAudioListener();
-            var save = SaveSystem.Load();
-            g.Audio.MasterVolume = save.masterVolume;
-            g.Fx.CrtEnabled = save.crtEffects;
-            g.Fx.ReduceFlashing = save.reduceFlashing;
+            var settings = SaveSystem.LoadSettings();
+            g.Audio.MasterVolume = settings.masterVolume;
+            g.Fx.CrtEnabled = settings.crtEffects;
+            g.Fx.ReduceFlashing = settings.reduceFlashing;
+            if (!Application.isEditor && Screen.fullScreen != settings.fullscreen) Display(settings.fullscreen);
 
             // Content + simulation
             g.Content = ContentLoader.Load();
@@ -204,6 +205,26 @@ namespace SecondCursor.Game
             if (!focus) Cursor.visible = true;
         }
 
+        void LateUpdate()
+        {
+            // A hard tug-of-war yank must not fling the real pointer onto another monitor: while playing,
+            // the pointer stays inside the game window (never in the Editor, never while paused).
+            var want = !Application.isEditor && Application.isFocused && !PauseMenu.IsPaused ? CursorLockMode.Confined : CursorLockMode.None;
+            if (Cursor.lockState != want) Cursor.lockState = want;
+        }
+
+        /// <summary>Borderless fullscreen at the monitor's own resolution, or the largest whole-number window that fits.</summary>
+        public static void Display(bool fullscreen)
+        {
+            if (fullscreen)
+            {
+                Screen.SetResolution(UnityEngine.Display.main.systemWidth, UnityEngine.Display.main.systemHeight, FullScreenMode.FullScreenWindow);
+                return;
+            }
+            int scale = Mathf.Max(1, Mathf.Min((UnityEngine.Display.main.systemWidth - 80) / ScreenRig.Width, (UnityEngine.Display.main.systemHeight - 120) / ScreenRig.Height));
+            Screen.SetResolution(ScreenRig.Width * scale, ScreenRig.Height * scale, FullScreenMode.Windowed);
+        }
+
         /// <summary>Used by restart: the next GameRoot becomes the instance before this one is destroyed.</summary>
         internal static void ReleaseInstance() => Instance = null;
 
@@ -215,6 +236,7 @@ namespace SecondCursor.Game
             if (Instance != this && Instance != null) return;
             if (Instance == this) Instance = null;
             Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
             Sfx.Handler = null;
             GameLog.Output = null;
         }

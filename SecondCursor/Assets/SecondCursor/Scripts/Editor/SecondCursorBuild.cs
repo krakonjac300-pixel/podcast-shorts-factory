@@ -24,8 +24,20 @@ namespace SecondCursor.EditorTools
             PlayerSettings.productName = "SECOND CURSOR";
             // Kept stable forever: it names the save folder (AppData/LocalLow/<company>/<product>).
             PlayerSettings.companyName = "SecondCursorGame";
-            if (string.IsNullOrEmpty(PlayerSettings.bundleVersion) || PlayerSettings.bundleVersion == "0.1" || PlayerSettings.bundleVersion == "1.0")
-                PlayerSettings.bundleVersion = "0.9.0";
+            var v = PlayerSettings.bundleVersion;
+            if (string.IsNullOrEmpty(v) || v == "0.1" || v == "0.1.0" || v == "1.0") PlayerSettings.bundleVersion = "0.9.0";
+            PlayerSettings.forceSingleInstance = true;
+            PlayerSettings.SplashScreen.showUnityLogo = false;
+            // D3D11 only: nothing here needs D3D12, and it doubles every shader compile and adds 4.6 MB.
+            PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.StandaloneWindows64, false);
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.StandaloneWindows64, new[] { UnityEngine.Rendering.GraphicsDeviceType.Direct3D11 });
+            // Leftovers of the removed AI packages.
+            PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.Standalone,
+                string.Join(";", System.Array.FindAll(PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.Standalone).Split(';'),
+                    d => d.Length > 0 && d != "SENTIS_ANALYTICS_ENABLED" && d != "APP_UI_EDITOR_ONLY")));
+            EditorBuildSettings.RemoveConfigObject("com.unity.dt.app-ui");
+            // Only the game scene ships (the template's SampleScene stays out of every build).
+            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(SecondCursorProjectSetup.ScenePath, true) };
             PlayerSettings.defaultScreenWidth = 1920;
             PlayerSettings.defaultScreenHeight = 1080;
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
@@ -70,11 +82,68 @@ namespace SecondCursor.EditorTools
                    + s.totalErrors + " error(s), " + s.totalWarnings + " warning(s)\n" + ExePath;
         }
 
-        /// <summary>256x256 icon: the player's white arrow with the second, inverted arrow behind it, on CRT glass.</summary>
+        /// <summary>Icons at every size Windows asks for: drawn natively from 64 px up, box-filtered below.</summary>
         public static void GenerateIcon()
         {
-            const int size = 256, scale = 9;
+            var sizes = PlayerSettings.GetIconSizes(NamedBuildTarget.Standalone, IconKind.Any);
+            var big = RenderIcon256();
+            var icons = new Texture2D[sizes.Length];
+            for (int i = 0; i < sizes.Length; i++)
+            {
+                int size = sizes[i];
+                var px = size == 256 ? big : Resample(big, 256, size);
+                string path = size == 256 ? IconPath : IconPath.Replace(".png", "_" + size + ".png");
+                icons[i] = SaveIcon(px, size, path);
+            }
+            PlayerSettings.SetIcons(NamedBuildTarget.Standalone, icons, IconKind.Any);
+            PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icons[System.Array.IndexOf(sizes, 256) >= 0 ? System.Array.IndexOf(sizes, 256) : 0] }, IconKind.Any);
+        }
+
+        /// <summary>Box filter (downscale) or nearest (upscale) from a square RGBA buffer.</summary>
+        static Color32[] Resample(Color32[] src, int from, int to)
+        {
+            var dst = new Color32[to * to];
+            float step = from / (float)to;
+            for (int y = 0; y < to; y++)
+                for (int x = 0; x < to; x++)
+                {
+                    if (to >= from) { dst[y * to + x] = src[(int)(y * step) * from + (int)(x * step)]; continue; }
+                    int x0 = (int)(x * step), y0 = (int)(y * step), x1 = Mathf.Max(x0 + 1, (int)((x + 1) * step)), y1 = Mathf.Max(y0 + 1, (int)((y + 1) * step));
+                    float r = 0, g = 0, b = 0, a = 0; int n = 0;
+                    for (int yy = y0; yy < y1; yy++)
+                        for (int xx = x0; xx < x1; xx++) { var c = src[yy * from + xx]; float w = c.a / 255f; r += c.r * w; g += c.g * w; b += c.b * w; a += c.a; n++; }
+                    float alpha = a / n;
+                    float norm = alpha > 0 ? 255f / alpha : 0f;
+                    dst[y * to + x] = new Color32((byte)Mathf.Clamp(r / n * norm, 0, 255), (byte)Mathf.Clamp(g / n * norm, 0, 255), (byte)Mathf.Clamp(b / n * norm, 0, 255), (byte)alpha);
+                }
+            return dst;
+        }
+
+        static Texture2D SaveIcon(Color32[] px, int size, string path)
+        {
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.SetPixels32(px);
+            tex.Apply();
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? "Assets/SecondCursor/Art");
+            File.WriteAllBytes(path, tex.EncodeToPNG());
+            Object.DestroyImmediate(tex);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.filterMode = FilterMode.Point;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.mipmapEnabled = false;
+                importer.alphaIsTransparency = true;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        /// <summary>256x256: the player's white arrow with the second, inverted arrow behind it, on CRT glass.</summary>
+        static Color32[] RenderIcon256()
+        {
+            const int size = 256, scale = 9;
             var px = new Color32[size * size];
             var glassA = new Color32(0x10, 0x24, 0x22, 0xFF);
             var glassB = new Color32(0x1C, 0x3A, 0x36, 0xFF);
@@ -92,23 +161,7 @@ namespace SecondCursor.EditorTools
             // Second cursor (inverted palette), offset down-right, drawn first so yours sits on top.
             Stamp(px, size, arrow, 104, 168, scale, true);
             Stamp(px, size, arrow, 64, 218, scale, false);
-            tex.SetPixels32(px);
-            tex.Apply();
-            Directory.CreateDirectory(Path.GetDirectoryName(IconPath) ?? "Assets/SecondCursor/Art");
-            File.WriteAllBytes(IconPath, tex.EncodeToPNG());
-            Object.DestroyImmediate(tex);
-            AssetDatabase.ImportAsset(IconPath, ImportAssetOptions.ForceUpdate);
-            if (AssetImporter.GetAtPath(IconPath) is TextureImporter importer)
-            {
-                importer.textureType = TextureImporterType.Default;
-                importer.filterMode = FilterMode.Point;
-                importer.textureCompression = TextureImporterCompression.Uncompressed;
-                importer.mipmapEnabled = false;
-                importer.alphaIsTransparency = true;
-                importer.SaveAndReimport();
-            }
-            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(IconPath);
-            if (icon != null) PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+            return px;
         }
 
         /// <summary>Draws a pixel sprite into a bottom-up pixel buffer with its top-left at (left, top).</summary>
