@@ -150,7 +150,13 @@ namespace SecondCursor.Apps
 
         public void OnTyped(string text, CursorAgent by)
         {
-            if (!PlayerCanType || EntityTyping) return;
+            if (!PlayerCanType || EntityTyping)
+            {
+                // Mid-conversation keystrokes are not lost: they wait and appear on your line when it
+                // is your turn (Enter still has to be pressed then, so nothing is sent unseen).
+                if (ConversationMode) HoldKeys(text);
+                return;
+            }
             foreach (char c in text)
             {
                 LastPlayerKeyTime = Time.time;
@@ -182,6 +188,27 @@ namespace SecondCursor.Apps
             Changed(true);
         }
 
+        readonly System.Text.StringBuilder _held = new System.Text.StringBuilder();
+
+        void HoldKeys(string text)
+        {
+            foreach (char c in text)
+            {
+                LastPlayerKeyTime = Time.time;
+                if (c == '\b') { if (_held.Length > 0) _held.Length -= 1; }
+                else if (c != '\n' && _held.Length < 60) _held.Append(c);
+            }
+        }
+
+        void ReleaseHeldKeys()
+        {
+            if (_held.Length == 0 || !PlayerCanType || EntityTyping || !ConversationMode) return;
+            int room = 60 - (_text.Length - _inputStart);
+            if (room > 0) _text.Append(_held.ToString(0, Mathf.Min(room, _held.Length)));
+            _held.Clear();
+            Changed(true);
+        }
+
         /// <summary>The player's partially typed line in conversation mode.</summary>
         public string PendingInput => _text.ToString(_inputStart, _text.Length - _inputStart);
 
@@ -190,6 +217,7 @@ namespace SecondCursor.Apps
         public override void Tick(float dt)
         {
             _caretBlink += dt;
+            ReleaseHeldKeys();
             bool focused = Window.IsActive && PlayerCanType && !EntityTyping;
             bool typingCaret = EntityTyping;
             _view.SetCaret(focused || typingCaret, _text.Length, typingCaret || (_caretBlink % 1.06f) < 0.53f);

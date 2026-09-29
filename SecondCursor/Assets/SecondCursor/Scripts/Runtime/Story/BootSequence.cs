@@ -127,6 +127,8 @@ namespace SecondCursor.Story
         IEnumerator Bios(bool quick)
         {
             var p = NewPanel(Palette.Black, "BIOS");
+            // No pointer before the OS has loaded one: it comes back at the log-on screen.
+            _g.Player.Visible = false;
             var text = UIBuilder.Text(p, "", Palette.BiosText);
             text.rectTransform.Stretch(24, 20, 24, 20);
             var sb = new System.Text.StringBuilder();
@@ -200,6 +202,7 @@ namespace SecondCursor.Story
         IEnumerator Login()
         {
             var p = NewPanel(Palette.DesktopA, "Login");
+            _g.Player.Visible = true;
             var c = _g.Content;
             const int w = 360, h = 190;
             var box = UIBuilder.Rect("Log On", p).At((ScreenRig.Width - w) / 2, (ScreenRig.Height - h) / 2 - 20, w, h);

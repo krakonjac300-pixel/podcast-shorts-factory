@@ -200,7 +200,12 @@ namespace SecondCursor.OS
                 if (e.read) _read.Add(e.id);
             }
             // Oldest first, so the mail client (which lists newest deliveries on top) opens in date order.
-            _inbox.Sort((a, b) => SortDate(a).CompareTo(SortDate(b)));
+            var byDate = new List<string>(_inbox);
+            _inbox.Sort((a, b) =>
+            {
+                int c = SortDate(a).CompareTo(SortDate(b));
+                return c != 0 ? c : byDate.IndexOf(a).CompareTo(byDate.IndexOf(b)); // stable for equal dates
+            });
         }
 
         System.DateTime SortDate(string id)

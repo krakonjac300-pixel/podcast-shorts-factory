@@ -15,7 +15,9 @@ namespace SecondCursor.Game
         {
             if (Object.FindAnyObjectByType<DisableAutoBoot>() != null) return;
             if (Object.FindAnyObjectByType<GameRoot>() != null) return;
-            GameRoot.StartBeat = null; // statics survive Play sessions when domain reload is off
+            // Statics survive Play sessions when domain reload is off.
+            GameRoot.StartBeat = null;
+            Core.GameLog.ClearHistory();
             var go = new GameObject("SECOND CURSOR");
             go.AddComponent<GameRoot>();
             Debug.Log("[SYSTEM] SECOND CURSOR booted in scene '" + SceneManager.GetActiveScene().name + "'");

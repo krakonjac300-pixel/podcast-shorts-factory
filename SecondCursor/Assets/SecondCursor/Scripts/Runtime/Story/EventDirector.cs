@@ -446,7 +446,8 @@ namespace SecondCursor.Story
 
             // The second cursor enters from the right edge, carrying employee_017.dat out of nowhere.
             var start = new Vector2(ScreenRig.Width + 6f, 330f);
-            Vector2 spot = FindDropSpot(new Vector2(600f, 300f));
+            yield return FindDropSpot(new Vector2(600f, 300f));
+            Vector2 spot = _dropSpot;
             E.Teleport(start);
             yield return E.Appear(start, 0.1f, true);
             _g.Taskbar.PointingDevices = 2;
@@ -496,29 +497,38 @@ namespace SecondCursor.Story
         /// spot if its whole icon cell is visible desktop, else the most visible cell on screen (ties go
         /// to the spot nearest the preferred one). Toasts count as visible: they are gone in seconds.
         /// </summary>
-        Vector2 FindDropSpot(Vector2 preferred)
+        Vector2 _dropSpot;
+        readonly List<Interactable> _probeHits = new List<Interactable>();
+
+        IEnumerator FindDropSpot(Vector2 preferred)
         {
-            if (VisibleProbes(preferred) == DropCellProbes.Length) return preferred;
-            Vector2 best = preferred;
+            _dropSpot = preferred;
+            if (VisibleProbes(preferred) == DropCellProbes.Length) yield break;
+            // Nearest candidates first; the first fully visible cell wins. Spread over frames so the
+            // search never hitches (each probe hit-tests every interactable).
+            var candidates = new List<Vector2>();
+            for (float y = 440f; y > 120f; y -= 24f)
+                for (float x = 840f; x > 100f; x -= 24f)
+                    candidates.Add(new Vector2(x, y));
+            candidates.Sort((a, b) => (a - preferred).sqrMagnitude.CompareTo((b - preferred).sqrMagnitude));
             int bestScore = -1;
-            float bestDistance = float.MaxValue;
-            for (float y = 440f; y > 120f; y -= 20f)
-                for (float x = 840f; x > 100f; x -= 20f)
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                int score = VisibleProbes(candidates[i]);
+                if (score > bestScore)
                 {
-                    var p = new Vector2(x, y);
-                    int score = VisibleProbes(p);
-                    float distance = (p - preferred).sqrMagnitude;
-                    if (score > bestScore || (score == bestScore && distance < bestDistance))
-                    {
-                        best = p;
-                        bestScore = score;
-                        bestDistance = distance;
-                    }
+                    bestScore = score;
+                    _dropSpot = candidates[i];
+                    if (score == DropCellProbes.Length) yield break;
                 }
-            return best;
+                if (i % 40 == 39) yield return null;
+            }
         }
 
-        /// <summary>How many points of the dropped icon's cell (74 px wide, 16 px above the tip down to its label) are visible.</summary>
+        /// <summary>
+        /// How many points of the dropped icon's cell (74 px wide, 16 px above the tip down to its label) are
+        /// bare desktop. Toasts are ignored: they are gone in seconds.
+        /// </summary>
         int VisibleProbes(Vector2 tip)
         {
             int n = 0;
@@ -526,8 +536,10 @@ namespace SecondCursor.Story
             {
                 Vector2 p = tip + o;
                 if (p.x < 8f || p.x > ScreenRig.Width - 60f || p.y < WindowManager.TaskbarHeight + 8f || p.y > ScreenRig.Height - 8f) continue;
-                var hit = _g.Router.HitTest(p, E.Agent);
-                if (hit == _g.Desktop.Background || (hit != null && hit.elementId.StartsWith("toast:", StringComparison.Ordinal))) n++;
+                Interactable hit = null;
+                foreach (var h in _g.Router.HitTestAll(p, _probeHits))
+                    if (!h.elementId.StartsWith("toast:", StringComparison.Ordinal)) { hit = h; break; }
+                if (hit == _g.Desktop.Background) n++;
             }
             return n;
         }
@@ -585,6 +597,8 @@ namespace SecondCursor.Story
                 yield return Wait(1.8f);
                 _g.Fx.Glitch(0.35f, 1f);
                 _g.Audio.Play("glitch_burst", 0.8f);
+                // Re-arm "in use" first: the returned file must not be shreddable during the pause below.
+                _g.Shred.IsInUse = id => id == ContentIds.File017;
                 _g.Files.Restore(ContentIds.File017, ContentIds.FolderDesktop, Actor.Entity);
                 _g.Desktop.SetFilePosition(ContentIds.File017, new Vector2(400f, 180f));
                 _g.Flags.Set(Flags.File017Returned);

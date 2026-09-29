@@ -48,12 +48,12 @@ already includes. Built-in and URP both work, as do the old Input Manager and th
 | `Delete` | Shred the file selected in Files |
 | `Esc` | Pause menu (CRT effects on/off, volume, restart, quit) |
 
-**Developer keys:** `F1` debug panel · `F2` skip to next story beat · `F3` summon/dismiss the second cursor at your mouse ·
+**Developer keys** (Editor and development builds only): `F1` debug panel · `F2` skip to next story beat · `F3` summon/dismiss the second cursor at your mouse ·
 `F4` game speed (1x/2x/4x/0.5x) · `F5` restart the shift · `F6` CRT effects on/off.
 
 ## 3. What to test
 
-Use `F1` → **Jump to beat** to go straight to any milestone.
+Use `F1` → **Jump to beat** to go straight to any milestone (it starts a fresh shift at that beat).
 
 | Milestone | Where | Test |
 |---|---|---|

@@ -15,6 +15,7 @@ namespace SecondCursor.OS
     public sealed class WindowManager
     {
         public const int TaskbarHeight = 28;
+        const int IconColumnWidth = 86;
 
         sealed class ZoomAnim
         {
@@ -56,6 +57,51 @@ namespace SecondCursor.OS
             Opened?.Invoke(win);
             Focus(win, null);
             return win;
+        }
+
+        /// <summary>
+        /// A top-left (desktop pixels) near the requested one where a new app window covers as little of
+        /// the open windows as possible, so opening Personnel does not bury the Work Orders you are reading.
+        /// The requested spot wins when it already covers under 15% of its own area.
+        /// </summary>
+        public Vector2Int PlaceAvoidingOverlap(int x, int y, int w, int h)
+        {
+            int maxX = Mathf.Max(0, ScreenRig.Width - w);
+            int maxY = Mathf.Max(0, ScreenRig.Height - TaskbarHeight - h);
+            x = Mathf.Clamp(x, 0, maxX);
+            y = Mathf.Clamp(y, 0, maxY);
+            float requested = CoveredArea(x, y, w, h);
+            if (requested <= w * h * 0.15f) return new Vector2Int(x, y);
+            var best = new Vector2Int(x, y);
+            float bestScore = requested;
+            for (int cy = 0; cy <= maxY; cy += 16)
+                for (int cx = 0; cx <= maxX; cx += 16)
+                {
+                    // Distance costs a little, so a window only moves far when that really uncovers things.
+                    float score = CoveredArea(cx, cy, w, h) + (Mathf.Abs(cx - x) + Mathf.Abs(cy - y)) * 20f;
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        best = new Vector2Int(cx, cy);
+                    }
+                }
+            return best;
+        }
+
+        float CoveredArea(int x, int y, int w, int h)
+        {
+            // The desktop icon column counts too (a little less than a window): keep the icons clickable.
+            float iconsCovered = Mathf.Max(0f, Mathf.Min(x + w, IconColumnWidth) - x) * h;
+            float sum = iconsCovered * 0.6f;
+            foreach (var win in _windows)
+            {
+                if (win == null || win.IsClosed || win.IsMinimized || win.AlwaysOnTop) continue;
+                Vector2 tl = win.TopLeft, size = win.Size;
+                float ix = Mathf.Min(x + w, tl.x + size.x) - Mathf.Max(x, tl.x);
+                float iy = Mathf.Min(y + h, tl.y + size.y) - Mathf.Max(y, tl.y);
+                if (ix > 0f && iy > 0f) sum += ix * iy;
+            }
+            return sum;
         }
 
         /// <summary>Centered on the desktop area.</summary>

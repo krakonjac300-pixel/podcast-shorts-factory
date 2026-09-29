@@ -82,7 +82,7 @@
     { "key": "context.open", "value": "Open" },
     { "key": "context.shred", "value": "Shred" },
     { "key": "context.properties", "value": "Properties" },
-    { "key": "help.body", "value": "NEXUS OS 4.1 -- QUICK HELP\n\nOPEN: Double-click an icon or file to open it.\nMOVE A WINDOW: Drag it by its title bar.\nMOVE FILES: Drag a file onto a folder to move it there.\nSHRED: Drag a file onto the Disposal bin, then confirm.\nOPTIONS: Right-click an item to see what you can do with it.\nHELP: Press F1 at any time.\n\nNEXUS OS records all activity for quality purposes." },
+    { "key": "help.body", "value": "NEXUS OS 4.1 -- QUICK HELP\n\nOPEN: Double-click an icon or file to open it.\nMOVE A WINDOW: Drag it by its title bar.\nMOVE FILES: Drag a file onto a folder to move it there.\nSHRED: Drag a file onto the Disposal bin, then confirm.\nOPTIONS: Right-click an item to see what you can do with it.\nHELP: Double-click NEXUS Help on the desktop, or open it from the Nexus menu.\n\nNEXUS OS records all activity for quality purposes." },
     { "key": "disclaimer.body", "value": "SECOND CURSOR is a work of fiction. The game does not read your files, move your real mouse, or use your camera or microphone. Every name, company and event in it is invented. Everything that happens here happens inside the game." },
     { "key": "disclaimer.continue", "value": "Click to continue" },
     { "key": "end.card.title", "value": "SECOND CURSOR" },

@@ -57,7 +57,10 @@ namespace SecondCursor.EditorTools
         static StringBuilder _out;
         static IEnumerator _current;
         static double _nextPoll;
-        static bool _scripted = true;
+        // The real mouse drives the game unless a script is running a pointer/keyboard command
+        // (or "scriptinput" made scripted input sticky), so manual Play is never left with a dead mouse.
+        static bool _scripted;
+        static bool _sticky;
         static ScriptedInput _input;
 
         static SecondCursorTestBridge()
@@ -178,8 +181,19 @@ namespace SecondCursor.EditorTools
             File.Delete(CompileErrorsPath);
         }
 
+        static readonly HashSet<string> PointerCommands = new HashSet<string>
+        {
+            "move", "down", "up", "click", "dclick", "rclick", "drag", "scroll", "key", "type",
+            "clickid", "dclickid", "rclickid", "moveid", "dragid", "dragto", "clicktext", "dclicktext",
+        };
+
         static void Finish()
         {
+            if (!_sticky)
+            {
+                _scripted = false;
+                AttachInput();
+            }
             _out.Append("= done\n");
             File.WriteAllText(OutPath + ".tmp", _out.ToString());
             if (File.Exists(OutPath)) File.Delete(OutPath);
@@ -227,8 +241,8 @@ namespace SecondCursor.EditorTools
                 case "refresh": return Refresh();
                 case "play": return Play(true);
                 case "stop": return Play(false);
-                case "realinput": _scripted = false; AttachInput(); return Done();
-                case "scriptinput": _scripted = true; AttachInput(); return Done();
+                case "realinput": _scripted = _sticky = false; AttachInput(); return Done();
+                case "scriptinput": _scripted = _sticky = true; AttachInput(); return Done();
                 case "wait": return WaitSeconds(F(a, 1, 1f));
             }
             return GameCommand(cmd, a, rest);
@@ -246,6 +260,7 @@ namespace SecondCursor.EditorTools
                 Say("ERROR: game not running");
                 yield break;
             }
+            if (PointerCommands.Contains(cmd)) _scripted = true;
             AttachInput();
             IEnumerator inner = null;
             switch (cmd)
@@ -404,7 +419,7 @@ namespace SecondCursor.EditorTools
             var g = G;
             if (g != null)
             {
-                Say("beat=" + g.Director.CurrentBeat + " t=" + Time.time.ToString("0.0") + " scale=" + Time.timeScale + " frame=" + Time.frameCount);
+                Say("beat=" + g.Director.CurrentBeat + " t=" + Time.time.ToString("0.0") + " scale=" + Time.timeScale + " frame=" + Time.frameCount + " input=" + g.Input.GetType().Name);
                 Say("player=" + Fmt(g.Player.Position) + " entity=" + Fmt(g.Entity.Agent.Position) + " visible=" + g.Entity.IsVisible + " state=" + g.Entity.State + " action=" + (g.Entity.CurrentAction ?? "-"));
             }
             Say(ConsoleErrors.Count + " console error(s)");

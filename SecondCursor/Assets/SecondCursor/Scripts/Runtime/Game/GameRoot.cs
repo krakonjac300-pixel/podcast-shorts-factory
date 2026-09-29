@@ -124,11 +124,11 @@ namespace SecondCursor.Game
         {
             yield return G.Audio.GenerateAll();
             // A debug jump made while the sounds were generating has already started the story.
-            if (!string.IsNullOrEmpty(G.Director.CurrentBeat)) yield break;
             string beat = StartBeat;
             StartBeat = null;
-            if (string.IsNullOrEmpty(beat)) G.Director.Begin();
-            else G.Director.JumpTo(beat);
+            if (!string.IsNullOrEmpty(G.Director.CurrentBeat)) yield break;
+            if (System.Array.IndexOf(EventDirector.Beats, beat) >= 0) G.Director.JumpTo(beat);
+            else G.Director.Begin();
         }
 
         void EnsureAudioListener()

@@ -126,20 +126,37 @@ namespace SecondCursor.Apps
             _time.text = G.Clock.FormatCamera();
             _rec.enabled = signal && (_t % 1.2f) < 0.7f;
 
+            // A minimized viewer neither renders the 3D set nor animates its grain.
+            bool visible = !Window.IsMinimized;
+            if (visible != _visible)
+            {
+                _visible = visible;
+                if (G.CameraRig != null) G.CameraRig.SetViewing(visible);
+            }
+            if (!visible) return;
+
             // Animated grain: stronger on dead channels and right after switching.
             // Fine 2x2 speckle: a light constant hiss that never hides the picture, heavier on static cuts.
             float amount = !signal ? 0.9f : Mathf.Max(0.05f, _switchNoise * 3f) + (G.CameraRig != null ? G.CameraRig.ExtraNoise : 0f);
             if (G.CameraRig != null && _feed.texture != G.CameraRig.Feed) _feed.texture = G.CameraRig.Feed;
             if (_noisePixels == null) _noisePixels = new Color32[_noiseTex.width * _noiseTex.height];
             var px = _noisePixels;
+            uint threshold = (uint)(Mathf.Clamp01(amount) * 65535f);
             for (int i = 0; i < px.Length; i++)
             {
-                byte v = (byte)UnityEngine.Random.Range(0, 256);
-                px[i] = new Color32(v, v, v, (byte)(UnityEngine.Random.value < amount ? 40 + v / 4 : 0));
+                // One cheap xorshift per pixel: low byte is the grey, the next 16 bits decide coverage.
+                _noiseState ^= _noiseState << 13;
+                _noiseState ^= _noiseState >> 17;
+                _noiseState ^= _noiseState << 5;
+                byte v = (byte)_noiseState;
+                px[i] = new Color32(v, v, v, (byte)(((_noiseState >> 8) & 0xFFFF) < threshold ? 40 + v / 4 : 0));
             }
             _noiseTex.SetPixels32(px);
             _noiseTex.Apply(false, false);
         }
+
+        bool _visible = true;
+        uint _noiseState = 0x9E3779B9u;
 
         protected override void OnClosed(CursorAgent by)
         {

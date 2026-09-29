@@ -181,7 +181,8 @@ namespace SecondCursor.Apps
             CreateWindow(G.Content.Text("app.help"), "icon_help", 300, 120, 360, 240, WindowFlags.Standard, zoomFrom);
             var frame = UIBuilder.Bevel(Window.Client, BevelStyle.Sunken, "Help Text");
             frame.rectTransform.Stretch(2, 2, 2, 2);
-            var t = UIBuilder.Text(frame.rectTransform, G.Content.Text("os.name") + " " + G.Content.Text("os.version") + " Help\n\n" + G.Content.Text("help.body"), Palette.Text);
+            // help.body carries its own "NEXUS OS 4.1 -- QUICK HELP" heading.
+            var t = UIBuilder.Text(frame.rectTransform, G.Content.Text("help.body"), Palette.Text);
             t.Wrap = true;
             t.rectTransform.Stretch(8, 8, 8, 8);
         }

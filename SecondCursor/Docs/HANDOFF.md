@@ -92,6 +92,24 @@ Imported by extracting `SecondCursor.unitypackage` into a fresh URP project. Res
 - Unity 6 "fast enter play mode" (no domain reload) was audited: the game's static caches all
   null-check destroyed objects, so repeated Play presses are safe.
 
+### Polish pass 2 (includes a code review of passes 0-1)
+
+- Conflict: the "in use" guard is re-armed before the shredded file returns, so it cannot be shredded a
+  second time during the pause that follows.
+- App windows open where they cover the least of the windows already open (and of the desktop icon
+  column), so Personnel sits beside Work Orders instead of burying it.
+- Keys typed in Notepad while the second cursor is typing are held and appear on your line when it is
+  your turn (Enter still has to be pressed then).
+- F1-F5 developer keys work only in the Editor and development builds. NEXUS Help no longer tells
+  players to press F1.
+- No pointer during the BIOS and splash screens; it appears at log-on.
+- Presence drop-spot search runs nearest-first over several frames and ignores toasts. The CCTV grain is
+  a cheap xorshift and the 3D set stops rendering while the viewer is minimized.
+- A fresh Play session clears the game log (statics survive without domain reload); an unknown start
+  beat falls back to boot instead of a black screen; mail date sort is stable.
+- Bridge: scripted input only while a script runs a pointer/keyboard command (`scriptinput` makes it
+  sticky), so manual Play always has the real mouse.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

@@ -60,16 +60,20 @@ namespace SecondCursor.Game
                 foreach (var action in run) action();
             }
             var input = _g.Input;
-            if (input.KeyDown(GameKey.F1)) _open = !_open;
-            if (input.KeyDown(GameKey.F2)) _g.Director.SkipBeat();
-            if (input.KeyDown(GameKey.F3)) SummonToMouse();
-            if (input.KeyDown(GameKey.F4))
+            // Developer keys exist only in the Editor and development builds; players never see the panel.
+            if (Debug.isDebugBuild)
             {
-                _speedIndex = (_speedIndex + 1) % Speeds.Length;
-                if (!PauseMenu.IsPaused) Time.timeScale = Speeds[_speedIndex];
-                GameLog.Info(LogChannel.Debug, "Time scale " + Speeds[_speedIndex]);
+                if (input.KeyDown(GameKey.F1)) _open = !_open;
+                if (input.KeyDown(GameKey.F2)) _g.Director.SkipBeat();
+                if (input.KeyDown(GameKey.F3)) SummonToMouse();
+                if (input.KeyDown(GameKey.F4))
+                {
+                    _speedIndex = (_speedIndex + 1) % Speeds.Length;
+                    if (!PauseMenu.IsPaused) Time.timeScale = Speeds[_speedIndex];
+                    GameLog.Info(LogChannel.Debug, "Time scale " + Speeds[_speedIndex]);
+                }
+                if (input.KeyDown(GameKey.F5)) GameBootstrap.Restart();
             }
-            if (input.KeyDown(GameKey.F5)) GameBootstrap.Restart();
             if (input.KeyDown(GameKey.F6)) _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled;
             Cursor.visible = _open || !Application.isFocused;
             // Keep clicks on the panel from also clicking the fake OS underneath.

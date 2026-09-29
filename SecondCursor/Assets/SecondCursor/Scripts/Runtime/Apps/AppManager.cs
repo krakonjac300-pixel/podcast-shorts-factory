@@ -30,7 +30,8 @@ namespace SecondCursor.Apps
 
         protected OSWindow CreateWindow(string title, string icon, int x, int y, int w, int h, WindowFlags flags, Rect? zoomFrom)
         {
-            Window = G.Windows.Create(AppId, title, icon, x, y, w, h, flags, zoomFrom);
+            var at = G.Windows.PlaceAvoidingOverlap(x, y, w, h);
+            Window = G.Windows.Create(AppId, title, icon, at.x, at.y, w, h, flags, zoomFrom);
             Window.Owner = this;
             Window.Closed += (win, a) => OnClosed(a);
             return Window;
