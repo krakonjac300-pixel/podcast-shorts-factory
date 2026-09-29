@@ -67,6 +67,7 @@ namespace SecondCursor.Apps
             Register(AppIds.Camera, () => new CameraApp());
             Register(AppIds.Help, () => new HelpApp());
             Register(AppIds.Disposal, () => new DisposalApp());
+            Register(SystemMonitorApp.Id, () => new SystemMonitorApp());
         }
 
         public void Register(string appId, Func<App> factory) => _factories[appId] = factory;

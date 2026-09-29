@@ -51,6 +51,7 @@ namespace SecondCursor.OS
                 MenuItem.Of(c.Text("app.camera"), x => _g.Apps.Launch(AppIds.Camera, x), "icon_camera", elementId: "start:camera"),
                 MenuItem.Sep(),
                 MenuItem.Of(c.Text("start.documents"), x => _g.Apps.OpenFolder(ContentIds.FolderDocuments, x), "icon_folder_open", elementId: "start:documents"),
+                MenuItem.Of("System Monitor", x => _g.Apps.Launch(SecondCursor.Apps.SystemMonitorApp.Id, x), "icon_system", elementId: "start:sysmon"),
                 MenuItem.Of(c.Text("start.help"), x => _g.Apps.Launch(AppIds.Help, x), "icon_help", elementId: "start:help"),
                 MenuItem.Sep(),
                 MenuItem.Of(c.Text("start.shutdown"), ShutDown, "icon_shutdown", elementId: "start:shutdown"),
