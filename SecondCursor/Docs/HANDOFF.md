@@ -136,6 +136,20 @@ Imported by extracting `SecondCursor.unitypackage` into a fresh URP project. Res
 - Sound mix audit (all 34 generated sounds rendered and measured): effects sit around 0.1 RMS, ambience
   about 13 dB under the UI clicks, no outliers.
 
+### Polish pass 6 (full regression playthrough)
+
+A complete playthrough from a fresh Play (boot, log-on, tutorial, anomalies, presence, conflict,
+conversation, escalation, reveal, ending) passes with no errors. It found:
+
+- Reveal: after a debug jump straight to `reveal` the second cursor was never present, so it could not
+  click and the beat idled until its 150 s cap. It now appears if needed. If another window covers the
+  feed's close box, it brings the feed to the front and forces it shut. If you block the box with your
+  own cursor, it keeps losing that fight as before.
+- Notepad type-ahead: a reply typed with Enter while it is typing is sent, one line per turn, as soon as
+  it is your turn (before, the Enter was dropped and the next reply merged into it).
+- Window placement also keeps the desktop Disposal bin uncovered (weighted 8x a window pixel).
+- Bridge: `waittext TEXT [timeout]`; pointer commands aim at the visible part of a partly covered element.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

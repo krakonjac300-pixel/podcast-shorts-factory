@@ -32,7 +32,7 @@ namespace SecondCursor.EditorTools
     {
         const string Help =
             "Editor: refresh | play | stop | status | errors | clearerrors | help\n" +
-            "Game:   jump NAME (fresh shift) | beat NAME (in place) | waitbeat NAME [timeout] | waitlog TEXT [timeout] | waitflag FLAG [timeout] | waittask ID [timeout]\n" +
+            "Game:   jump NAME (fresh shift) | beat NAME (in place) | waittext TEXT [timeout] | waitbeat NAME [timeout] | waitlog TEXT [timeout] | waitflag FLAG [timeout] | waittask ID [timeout]\n" +
             "        waitidle [timeout] | wait SECONDS | speed X | crt on|off | restart | realinput | scriptinput\n" +
             "        shot NAME | gameshot NAME | dump | ids [FILTER] | texts [FILTER] | log [N] | windows\n" +
             "Mouse:  move X Y [DUR] | down | up | click X Y | dclick X Y | rclick X Y | drag X1 Y1 X2 Y2 [DUR] | scroll N\n" +
@@ -271,6 +271,14 @@ namespace SecondCursor.EditorTools
                 case "waitflag": inner = WaitFor(() => g.Flags.Has(a[1]), F(a, 2, 120f), "flag " + a[1]); break;
                 case "waittask": inner = WaitFor(() => g.Tasks.IsCompleted(a[1]), F(a, 2, 120f), "task " + a[1]); break;
                 case "waitidle": inner = WaitFor(() => !g.Entity.Busy, F(a, 1, 60f), "entity idle"); break;
+                case "waittext":
+                {
+                    // waittext TEXT... [timeout]: until that pixel text is visible on screen.
+                    bool hasTimeout = a.Length > 2 && float.TryParse(a[a.Length - 1], NumberStyles.Float, CultureInfo.InvariantCulture, out _);
+                    string wanted = hasTimeout ? string.Join(" ", a.Skip(1).Take(a.Length - 2)) : rest;
+                    inner = WaitFor(() => FindText(wanted) != null, hasTimeout ? F(a, a.Length - 1, 60f) : 60f, "text '" + wanted + "'");
+                    break;
+                }
                 case "waitlog": inner = WaitLog(a.Length > 2 && float.TryParse(a[a.Length - 1], NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? string.Join(" ", a.Skip(1).Take(a.Length - 2)) : rest, a.Length > 2 ? F(a, a.Length - 1, 60f) : 60f); break;
                 case "speed": Time.timeScale = F(a, 1, 1f); break;
                 case "crt": g.Fx.CrtEnabled = a.Length < 2 || a[1] != "off"; break;
@@ -326,7 +334,7 @@ namespace SecondCursor.EditorTools
                 {
                     var it = FindId(g, a[1]);
                     if (it == null) { Say("ERROR: no element '" + a[1] + "'"); break; }
-                    _input.MoveTo(it.Center, 0.25f);
+                    _input.MoveTo(VisiblePoint(g, it), 0.25f);
                     if (cmd == "clickid") _input.Click(1);
                     else if (cmd == "dclickid") _input.Click(2);
                     else if (cmd == "rclickid") _input.RightClick();
@@ -344,7 +352,7 @@ namespace SecondCursor.EditorTools
                     {
                         var target = FindId(g, a[2]);
                         if (target == null) { Say("ERROR: no element '" + a[2] + "'"); break; }
-                        to = target.Center;
+                        to = VisiblePoint(g, target);
                         dur = F(a, 3, 0.6f);
                     }
                     else
@@ -352,7 +360,7 @@ namespace SecondCursor.EditorTools
                         to = V(a, 2);
                         dur = F(a, 4, 0.6f);
                     }
-                    _input.MoveTo(it.Center, 0.25f);
+                    _input.MoveTo(VisiblePoint(g, it), 0.25f);
                     _input.Drag(to, dur);
                     inner = Drain();
                     break;
@@ -570,6 +578,28 @@ namespace SecondCursor.EditorTools
                 return candidates.OrderByDescending(i => Mathf.Round(i.Center.y)).ThenBy(i => i.Center.x).ElementAtOrDefault(nth);
             return candidates.Where(i => g.Router.HitTest(i.Center) == i).OrderByDescending(i => WindowOf(i) != null && WindowOf(i).IsActive).FirstOrDefault()
                    ?? candidates.FirstOrDefault();
+        }
+
+        /// <summary>Where a person would click: the centre if it is uncovered, else the visible part nearest to it.</summary>
+        static Vector2 VisiblePoint(GameServices g, Interactable it)
+        {
+            Vector2 c = it.Center;
+            if (g.Router.HitTest(c) == it) return c;
+            Rect r = it.WorldRect;
+            Vector2 best = c;
+            float bestDistance = float.MaxValue;
+            for (float y = r.yMin + 2f; y < r.yMax - 1f; y += 4f)
+                for (float x = r.xMin + 2f; x < r.xMax - 1f; x += 4f)
+                {
+                    var p = new Vector2(x, y);
+                    float d = (p - c).sqrMagnitude;
+                    if (d < bestDistance && g.Router.HitTest(p) == it)
+                    {
+                        best = p;
+                        bestDistance = d;
+                    }
+                }
+            return best;
         }
 
         static OS.OSWindow WindowOf(Interactable i) => i.Window != null ? i.Window : i.GetComponentInParent<OS.OSWindow>();

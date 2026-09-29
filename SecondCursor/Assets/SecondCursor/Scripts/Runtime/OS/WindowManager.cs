@@ -15,7 +15,11 @@ namespace SecondCursor.OS
     public sealed class WindowManager
     {
         public const int TaskbarHeight = 28;
-        const int IconColumnWidth = 86;
+        // Desktop areas new windows prefer to leave visible (desktop px, y down): the icon column and the
+        // Disposal bin, the drop target the whole shift revolves around.
+        static readonly Rect[] KeepClear = { new Rect(0f, 0f, 86f, 512f), new Rect(868f, 428f, 92f, 84f) };
+        // Relative cost per covered pixel (a window's pixels cost 1): hiding the bin is almost never worth it.
+        static readonly float[] KeepClearWeight = { 0.6f, 8f };
 
         sealed class ZoomAnim
         {
@@ -90,9 +94,14 @@ namespace SecondCursor.OS
 
         float CoveredArea(int x, int y, int w, int h)
         {
-            // The desktop icon column counts too (a little less than a window): keep the icons clickable.
-            float iconsCovered = Mathf.Max(0f, Mathf.Min(x + w, IconColumnWidth) - x) * h;
-            float sum = iconsCovered * 0.6f;
+            float sum = 0f;
+            for (int i = 0; i < KeepClear.Length; i++)
+            {
+                var k = KeepClear[i];
+                float kx = Mathf.Min(x + w, k.xMax) - Mathf.Max(x, k.xMin);
+                float ky = Mathf.Min(y + h, k.yMax) - Mathf.Max(y, k.yMin);
+                if (kx > 0f && ky > 0f) sum += kx * ky * KeepClearWeight[i];
+            }
             foreach (var win in _windows)
             {
                 if (win == null || win.IsClosed || win.IsMinimized || win.AlwaysOnTop) continue;

@@ -794,6 +794,8 @@ namespace SecondCursor.Story
                 cam = (CameraApp)_g.Apps.Launch(AppIds.Camera, E.Agent);
                 cam?.Select(ContentIds.Cam03, E.Agent);
             }
+            // It is always here for this (a debug jump straight to the reveal skips its arrival).
+            if (!E.IsVisible) yield return E.Appear(new Vector2(ScreenRig.Width * 0.62f, ScreenRig.Height * 0.5f), 0.4f, false);
             // It moves aside and waits, still, while you watch yourself.
             if (cam != null)
             {
@@ -845,7 +847,22 @@ namespace SecondCursor.Story
                         break;
                     }
                     var close = cam.Window.CloseButton;
-                    if (close != null) yield return E.ClickElement(close.Hit, MovementProfiles.Panicked, null, 4f);
+                    var closed = new bool[1];
+                    if (close != null) yield return E.ClickElement(close.Hit, MovementProfiles.Panicked, closed, 4f);
+                    // You blocking the close box is a fight it keeps losing (it tries again next time round);
+                    // anything else in the way (another window) it simply pushes past.
+                    if (!closed[0] && cam.IsOpen && !cam.Window.IsMinimized && close != null && !E.IsBlockedByPlayer(close.Hit))
+                    {
+                        cam.Window.Focus(E.Agent);
+                        yield return Wait(0.2f);
+                        if (close != null && cam.IsOpen) yield return E.ClickElement(close.Hit, MovementProfiles.Panicked, closed, 2f);
+                        if (!closed[0] && cam.IsOpen)
+                        {
+                            cam.Window.Close(E.Agent);
+                            _g.Fx.Glitch(0.15f, 0.7f);
+                            GameLog.Info(LogChannel.Entity, "Entity forced the camera feed shut");
+                        }
+                    }
                     if (panicLine < panic.Length) yield return TypeLines(new[] { panic[panicLine++] }, 6f);
                 }
                 else

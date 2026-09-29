@@ -152,9 +152,9 @@ namespace SecondCursor.Apps
         {
             if (!PlayerCanType || EntityTyping)
             {
-                // Mid-conversation keystrokes are not lost: they wait and appear on your line when it
-                // is your turn (Enter still has to be pressed then, so nothing is sent unseen).
-                if (ConversationMode) HoldKeys(text);
+                // Mid-conversation keystrokes are not lost: they are typed ahead and play out on your line
+                // when it is your turn, one line (up to its Enter) per turn.
+                if (ConversationMode) HoldKeys(text, by);
                 return;
             }
             foreach (char c in text)
@@ -189,24 +189,29 @@ namespace SecondCursor.Apps
         }
 
         readonly System.Text.StringBuilder _held = new System.Text.StringBuilder();
+        CursorAgent _heldBy;
 
-        void HoldKeys(string text)
+        void HoldKeys(string text, CursorAgent by)
         {
+            _heldBy = by;
             foreach (char c in text)
             {
                 LastPlayerKeyTime = Time.time;
-                if (c == '\b') { if (_held.Length > 0) _held.Length -= 1; }
-                else if (c != '\n' && _held.Length < 60) _held.Append(c);
+                if (c == '\b') { if (_held.Length > 0 && _held[_held.Length - 1] != '\n') _held.Length -= 1; }
+                else if (_held.Length < 120) _held.Append(c);
             }
         }
 
         void ReleaseHeldKeys()
         {
             if (_held.Length == 0 || !PlayerCanType || EntityTyping || !ConversationMode) return;
-            int room = 60 - (_text.Length - _inputStart);
-            if (room > 0) _text.Append(_held.ToString(0, Mathf.Min(room, _held.Length)));
-            _held.Clear();
-            Changed(true);
+            // One line per turn: the typed-ahead text up to and including its first Enter. Anything after
+            // it waits for the next turn, so two replies never merge or overwrite each other.
+            string all = _held.ToString();
+            int enter = all.IndexOf('\n');
+            string now = enter >= 0 ? all.Substring(0, enter + 1) : all;
+            _held.Remove(0, now.Length);
+            OnTyped(now, _heldBy);
         }
 
         /// <summary>The player's partially typed line in conversation mode.</summary>
