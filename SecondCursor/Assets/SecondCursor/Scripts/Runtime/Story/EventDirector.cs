@@ -192,10 +192,22 @@ namespace SecondCursor.Story
                 foreach (var t in new[] { ContentIds.TaskReadBriefing, ContentIds.TaskArchiveLedger, ContentIds.TaskVerify3317, ContentIds.TaskVerify3318, ContentIds.TaskShredCache })
                     g.Tasks.ForceComplete(t);
                 g.Flags.Set(Flags.TutorialDone);
+                // Leave the world the way a player who did the tutorial would have.
+                g.Mail.MarkRead(ContentIds.MailWelcome, null);
+                MoveIfIn(ContentIds.FileLedger, ContentIds.FolderIntake, ContentIds.FolderArchive);
+                if (g.Files.Exists(ContentIds.FileCache)) g.Files.Shred(ContentIds.FileCache, Actor.System);
+                foreach (var id in new[] { ContentIds.Order3317, ContentIds.Order3318 })
+                {
+                    var order = g.Content.Order(id);
+                    if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
+                }
+                if (g.Apps.FindById(AppIds.WorkQueue) == null) g.Apps.Launch(AppIds.WorkQueue, null);
             }
             if (beatIndex > 2)
             {
                 g.Mail.Deliver(ContentIds.MailIt, false);
+                foreach (var f in new[] { ContentIds.FileBatchA, ContentIds.FileBatchB, ContentIds.FileBatchC })
+                    MoveIfIn(f, ContentIds.FolderIntake, ContentIds.FolderArchive);
                 g.Tasks.ForceComplete(ContentIds.TaskArchiveBatch);
                 g.Flags.Set(Flags.FirstAnomaly);
             }
@@ -222,6 +234,11 @@ namespace SecondCursor.Story
                 g.Mail.Deliver(ContentIds.MailNoSender, false);
                 g.Files.SetFolderLocked(ContentIds.FolderRestricted, false);
             }
+        }
+
+        void MoveIfIn(string fileId, string fromFolder, string toFolder)
+        {
+            if (_g.Files.Exists(fileId) && _g.Files.FolderOf(fileId) == fromFolder) _g.Files.Move(fileId, toFolder, Actor.System);
         }
 
         void ShowDesktop()
@@ -410,9 +427,17 @@ namespace SecondCursor.Story
                 if (files == null || files.Window.IsMinimized) return false;
                 var row = files.RowFor(ContentIds.File017);
                 return row != null && Vector2.Distance(_g.Player.Position, row.Hit.Center) > 140f && _g.Player.Payload == null;
-            }, 120f);
+            }, 45f);
             var fm = _g.Apps.Find<FilesApp>();
-            var r = fm != null ? fm.RowFor(ContentIds.File017) : null;
+            var r = fm != null && !fm.Window.IsMinimized ? fm.RowFor(ContentIds.File017) : null;
+            if (r == null && _g.Player.Payload == null && _g.Files.Exists(ContentIds.File017))
+            {
+                // Nobody is looking at it, so the file manager opens by itself where the file lives.
+                fm = _g.Apps.OpenFolder(_g.Files.FolderOf(ContentIds.File017), null);
+                GameLog.Info(LogChannel.Story, "Anomaly: File Manager opened itself");
+                yield return Wait(0.9f);
+                r = fm != null && fm.IsOpen ? fm.RowFor(ContentIds.File017) : null;
+            }
             if (r != null)
             {
                 fm.SelectFile(ContentIds.File017, E.Agent);

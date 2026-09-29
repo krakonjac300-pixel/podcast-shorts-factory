@@ -119,6 +119,14 @@ Imported by extracting `SecondCursor.unitypackage` into a fresh URP project. Res
 - Real-mouse check in the Editor: clicks, double-clicks, window drags and file drags all work through the
   Input System path, not only through the bridge.
 
+### Polish pass 4 (pacing)
+
+- Anomaly beat: if nobody has File Manager showing employee_017.dat within 45 s, File Manager opens by
+  itself on the file's folder and the file selects itself. Before, closing File Manager after the batch
+  task could stall the story for up to 2 minutes.
+- Debug jumps past the tutorial now leave the world as a player would: briefing read, ledger and batch
+  files archived, temp file shredded, both work orders decided, Work Queue open.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
