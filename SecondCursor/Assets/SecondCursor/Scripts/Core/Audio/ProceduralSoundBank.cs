@@ -685,26 +685,16 @@ namespace SecondCursor.Core.Audio
             for (int i = 0; i < b.Length; i++) b[i] *= g;
         }
 
-        /// <summary>
-        /// Runs a stateful processor over a loop so the result is seamless: it is first warmed up on the
-        /// last 'warmup' samples (the audio that precedes sample 0 when looping), then run over the loop.
-        /// </summary>
-        private static void Circular(float[] b, Func<float, float> proc, int warmup)
-        {
-            int n = b.Length;
-            warmup = Math.Min(warmup, n);
-            for (int i = n - warmup; i < n; i++) proc(b[i]);
-            for (int i = 0; i < n; i++) b[i] = proc(b[i]);
-        }
+        // Seamless processing of loops. A stateful filter run over a loop must start in the state it will be in
+        // when the loop wraps around, or the seam clicks. Every loop filter below therefore runs over "virtual"
+        // indices j = -warmup .. n-1: the negative ones replay the end of the loop (the audio that precedes sample
+        // 0 when looping) to warm the state up, and only j >= 0 writes output. In place is safe: sample i is read
+        // before it is written, and the warm-up only reads. Written as plain loops (no delegates) so filters
+        // inline on every runtime.
 
-        /// <summary>Like <see cref="Circular"/>, for processors that also depend on the sample index.</summary>
-        private static void CircularIndexed(float[] b, Func<int, float, float> proc, int warmup)
-        {
-            int n = b.Length;
-            warmup = Math.Min(warmup, n);
-            for (int i = n - warmup; i < n; i++) proc(i, b[i]);
-            for (int i = 0; i < n; i++) b[i] = proc(i, b[i]);
-        }
+        /// <summary>Loop index for virtual index j in [-n, n).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Wrap(int j, int n) => j < 0 ? j + n : j;
 
         private static void LowPass(float[] b, float hz, float q = 0.7071f)
         {
@@ -721,7 +711,13 @@ namespace SecondCursor.Core.Audio
         private static void LowPass4Loop(float[] b, float hz)
         {
             var f = new Lp4(hz);
-            Circular(b, f.Process, Ms(30f));
+            int n = b.Length;
+            for (int j = -Math.Min(n, Ms(30f)); j < n; j++)
+            {
+                int i = Wrap(j, n);
+                float y = f.Process(b[i]);
+                if (j >= 0) b[i] = y;
+            }
         }
 
         /// <summary>One-shot reverb send: b = dry*b + wet*reverb(b).</summary>
@@ -745,9 +741,13 @@ namespace SecondCursor.Core.Audio
                                           float dry, float warmupSec)
         {
             var rev = new Reverb(size, feedback, damp);
-            var w = (float[])b.Clone();
-            Circular(w, rev.Process, Sec(warmupSec));
-            for (int i = 0; i < b.Length; i++) b[i] = dry * b[i] + wet * w[i];
+            int n = b.Length;
+            for (int j = -Math.Min(n, Sec(warmupSec)); j < n; j++)
+            {
+                int i = Wrap(j, n);
+                float x = b[i], w = rev.Process(x);
+                if (j >= 0) b[i] = dry * x + wet * w;
+            }
         }
 
         /// <summary>Small office at night: a few dull early reflections (desk, monitor, walls) + a faint diffuse tail.</summary>
@@ -1075,11 +1075,15 @@ namespace SecondCursor.Core.Audio
             {
                 OnePole hp = hpHz > 0f ? new OnePole(hpHz) : null;
                 Lp4 air = airHz > 0f ? new Lp4(airHz) : null;
-                Circular(b, x =>
+                int n = b.Length;
+                for (int j = -Math.Min(n, Sec(0.5f)); j < n; j++)
                 {
+                    int i = Wrap(j, n);
+                    float x = b[i];
                     if (hp != null) x = hp.Hp(x);
-                    return air != null ? air.Process(x) : x;
-                }, Math.Min(b.Length, Sec(0.5f)));
+                    if (air != null) x = air.Process(x);
+                    if (j >= 0) b[i] = x;
+                }
             }
             RemoveMean(b);
             Normalize(b, rmsDb, false);
@@ -1619,30 +1623,24 @@ namespace SecondCursor.Core.Audio
                 AddWrapped(b, tick, at);
             }
 
-            // grinding bed: comb-filtered noise (pitched ~110 Hz), gated by the strokes
-            float[] grind = WhiteNoise(n, r);
-            var comb = new float[Sec(1f / 110f)];
-            int cp = 0;
-            var gbp = new Svf(1000f, 0.8f);
-            Circular(grind, x =>
-            {
-                float y = comb[cp];
-                comb[cp] = x + 0.72f * y;
-                if (++cp == comb.Length) cp = 0;
-                return gbp.Bp(y);
-            }, Ms(200f));
-
+            // grinding bed: comb-filtered noise (pitched ~110 Hz), and a 55 Hz motor through a low-pass
+            float[] grind = WhiteNoise(n, r), motor = new float[n];
             var wt = new Wavetable(SawAmps(18, 1f));
             var motorOsc = new LoopOsc(55f, n, r.Float());
-            float[] motor = new float[n];
             for (int i = 0; i < n; i++) motor[i] = wt.At(motorOsc.Next());
+            var comb = new float[Sec(1f / 110f)];
+            var gbp = new Svf(1000f, 0.8f);
             var mlp = new Svf(700f, 0.9f);
-            Circular(motor, mlp.Lp, Ms(100f));
-
-            for (int i = 0; i < n; i++)
+            for (int j = -Ms(200f), cp = 0; j < n; j++)
             {
+                int i = Wrap(j, n);
+                float y = comb[cp];
+                comb[cp] = grind[i] + 0.72f * y;
+                if (++cp == comb.Length) cp = 0;
+                float g = gbp.Bp(y), m = mlp.Lp(motor[i]);
+                if (j < 0) continue;
                 float e = Math.Min(1f, env[i]);
-                b[i] += 0.25f * e * grind[i] + 0.22f * (0.35f + 0.65f * e) * motor[i];
+                b[i] += 0.25f * e * g + 0.22f * (0.35f + 0.65f * e) * m;
             }
             return FinishLoop(b, -22f, 7500f);
         }
@@ -1667,21 +1665,23 @@ namespace SecondCursor.Core.Audio
             var fanHp = new OnePole(70f);
             var hlp = new OnePole(170f);
             float brown = 0f, wobble = 1f, swell = 1f;
-            float invN = 1f / n;
-            CircularIndexed(fan, (i, x) =>
+            float[] b = new float[n];
+            for (int j = -Sec(0.5f); j < n; j++)
             {
+                int i = Wrap(j, n);
                 if ((i & 63) == 0)
                 {
-                    double u = i * (double)invN;
+                    double u = i / (double)n;
                     wobble = 1f + 0.18f * Sin01(3 * u) + 0.08f * Sin01(9 * u + 0.3);
                     swell = 1f + 0.12f * Sin01(u);
                 }
                 brown = 0.997f * brown + 0.03f * hvac[i];
+                float air = fanHp.Hp(fanLp.Lp(pink.Process(fan[i]))), rumble = hlp.Lp(brown);
+                if (j < 0) continue;
                 int c = i % period;
-                return 0.5f * fanHp.Hp(fanLp.Lp(pink.Process(x))) + 1.1f * swell * hlp.Lp(brown)
-                     + wobble * blade[c] + steady[c];
-            }, Sec(0.5f));
-            return FinishLoop(fan, -36f, 0f, 18f);
+                b[i] = 0.5f * air + 1.1f * swell * rumble + wobble * blade[c] + steady[c];
+            }
+            return FinishLoop(b, -36f, 0f, 18f);
         }
 
         /// <summary>
@@ -1708,7 +1708,12 @@ namespace SecondCursor.Core.Audio
             float[] hiss = WhiteNoise(n, r);
             var hbp = new Svf(3200f, 0.8f);
             var hlp = new Lp4(6500f);
-            Circular(hiss, x => hlp.Process(hbp.Bp(x)), Ms(20f));
+            for (int j = -Ms(20f); j < n; j++)
+            {
+                int i = Wrap(j, n);
+                float y = hlp.Process(hbp.Bp(hiss[i]));
+                if (j >= 0) hiss[i] = y;
+            }
 
             var gate = new float[period]; // the arc re-ignites twice per mains cycle: hiss pulses at 120 Hz
             for (int i = 0; i < period; i++) gate[i] = 0.35f * Sq(Sq(Sin01((double)i / period)));
@@ -1739,7 +1744,12 @@ namespace SecondCursor.Core.Audio
             float[] sizzle = WhiteNoise(n, r);
             var sbp = new Svf(4500f, 0.7f);
             var slp = new Lp4(7000f);
-            Circular(sizzle, x => slp.Process(sbp.Bp(x)), Ms(20f));
+            for (int j = -Ms(20f); j < n; j++)
+            {
+                int i = Wrap(j, n);
+                float y = slp.Process(sbp.Bp(sizzle[i]));
+                if (j >= 0) sizzle[i] = y;
+            }
 
             var whine = new LoopOsc(7867f, n, r.Float());
             float[] fm1 = LoopFmCurve(n, 2.5f, 1), fm2 = LoopFmCurve(n, 1f, 5, 0.3);
@@ -1782,17 +1792,20 @@ namespace SecondCursor.Core.Audio
                 b[i] = a1 * wt.At(c1.Next()) + a2 * wt.At(c2.Next()) + a3 * wt.At(c3.Next());
             }
             // cluster through a slowly opening low-pass; in the same pass, pink "air" noise band-passed at 380 Hz
-            float[] airNoise = WhiteNoise(n, r), air = new float[n];
+            float[] air = WhiteNoise(n, r);
             var clp = new Svf(400f, 1.1f);
             var pink = new PinkFilter();
             var abp = new Svf(380f, 0.7f);
             var alp = new OnePole(1500f);
-            CircularIndexed(b, (i, x) =>
+            for (int j = -Sec(0.3f); j < n; j++)
             {
+                int i = Wrap(j, n);
                 if ((i & 31) == 0) clp.Set(280f + 380f * (0.5f + 0.5f * Sin01(i * (double)invN + 0.6)), 1.1f);
-                air[i] = alp.Lp(abp.Bp(pink.Process(airNoise[i]))); // warm-up writes are overwritten by the main pass
-                return clp.Lp(x);
-            }, Sec(0.3f));
+                float c = clp.Lp(b[i]), a = alp.Lp(abp.Bp(pink.Process(air[i])));
+                if (j < 0) continue;
+                b[i] = c;
+                air[i] = a;
+            }
 
             // distant bowed metal: very narrow resonators at struck-plate ratios, excited by noise, each
             // swelling in and out at its own place in the loop
@@ -1895,14 +1908,13 @@ namespace SecondCursor.Core.Audio
             }
 
             float[] bed = WhiteNoise(n, r);
-            var bbp = new Svf(3500f, 0.9f);
-            Circular(bed, bbp.Bp, Ms(20f));
             float[] hum = HarmonicCycle(MainsPeriod, new[] { 2, 4, 6, 10 }, new[] { 1f, 0.5f, 0.35f, 0.2f }, r);
-            for (int i = 0, c = 0; i < n; i++)
+            var bbp = new Svf(3500f, 0.9f);
+            for (int j = -Ms(20f); j < n; j++)
             {
-                float br = Breath(i / (float)n);
-                b[i] += (0.3f + 0.7f * br) * (0.016f * bed[i] + 0.012f * hum[c]);
-                if (++c == MainsPeriod) c = 0;
+                int i = Wrap(j, n);
+                float sizzle = bbp.Bp(bed[i]);
+                if (j >= 0) b[i] += (0.3f + 0.7f * Breath(i / (float)n)) * (0.016f * sizzle + 0.012f * hum[i % MainsPeriod]);
             }
             LowPass4Loop(b, 7000f);
             return FinishLoop(b, -32f);
@@ -2026,16 +2038,19 @@ namespace SecondCursor.Core.Audio
             for (int i = 0; i < n; i++)
                 buzz[i] = 0.5f * wt.At(o1.Next()) + 0.45f * wt.At(o2.Next())
                         + 0.25f * wt.At(PositiveFrac(o3.Next() + fm3[i]));
-            var bp = new Svf(900f, 3.5f);
-            CircularIndexed(buzz, (i, x) =>
-            {
-                if ((i & 15) == 0) bp.Set(900f * MathF.Pow(1.6f, Sin01(2.0 * i / n)), 3.5f);
-                return 0.6f * bp.Bp(x) + 0.25f * x;
-            }, Ms(200f));
-
+            // strain: a resonant band-pass sweeping twice per loop; grit: band-passed noise (gated below)
             float[] grit = WhiteNoise(n, r);
+            var bp = new Svf(900f, 3.5f);
             var gbp = new Svf(2200f, 1.5f);
-            Circular(grit, gbp.Bp, Ms(20f));
+            for (int j = -Ms(200f); j < n; j++)
+            {
+                int i = Wrap(j, n);
+                if ((i & 15) == 0) bp.Set(900f * MathF.Pow(1.6f, Sin01(2.0 * i / n)), 3.5f);
+                float x = buzz[i], strained = 0.6f * bp.Bp(x) + 0.25f * x, g = gbp.Bp(grit[i]);
+                if (j < 0) continue;
+                buzz[i] = strained;
+                grit[i] = g;
+            }
             var gate = new float[n];
             for (int k = 0; k < 14; k++)
             {
@@ -2126,7 +2141,12 @@ namespace SecondCursor.Core.Audio
             var lp = new Lp4(5000f);
             var soft = new OnePole(7000f);
             var hp = new Svf(180f, 0.7f);
-            Circular(b, x => hp.Hp(soft.Lp(lp.Process(x))), Ms(50f));
+            for (int j = -Ms(50f); j < n; j++)
+            {
+                int i = Wrap(j, n);
+                float y = hp.Hp(soft.Lp(lp.Process(b[i])));
+                if (j >= 0) b[i] = y;
+            }
             var field = new float[MainsPeriod]; // vertical-sync buzz on the noise, plus a trace of mains hum
             for (int i = 0; i < MainsPeriod; i++) field[i] = 0.88f + 0.12f * Sin01((double)i / MainsPeriod);
             float[] hum = HarmonicCycle(MainsPeriod, new[] { 1, 2 }, new[] { 0.018f, 0.012f }, r);
