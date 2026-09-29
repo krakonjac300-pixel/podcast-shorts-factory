@@ -41,6 +41,15 @@ namespace SecondCursor.Story
         int _cameraReopens;
         BootSequence _boot;
         EndingSequence _ending;
+        readonly List<Routine> _side = new List<Routine>();
+
+        /// <summary>Run a background story routine alongside the current beat (stopped on jumps).</summary>
+        void RunSide(IEnumerator routine, string name)
+        {
+            var r = new Routine(routine, name);
+            r.Tick();
+            if (!r.Done) _side.Add(r);
+        }
 
         public string CurrentBeat { get; private set; } = "";
         public float BeatStartedAt { get; private set; }
@@ -91,6 +100,8 @@ namespace SecondCursor.Story
             int index = Array.IndexOf(Beats, beat);
             if (index < 0) return;
             if (_flow != null) _flow.Stop(); // stops the whole chain, including nested beat coroutines
+            foreach (var r in _side) r.Stop();
+            _side.Clear();
             CleanUpForJump();
             _flow = new Routine(Flow(index), "story");
             _flow.Tick();
@@ -98,6 +109,11 @@ namespace SecondCursor.Story
 
         void Update()
         {
+            for (int i = _side.Count - 1; i >= 0; i--)
+            {
+                _side[i].Tick();
+                if (_side[i].Done) _side.RemoveAt(i);
+            }
             if (_flow == null) return;
             _flow.Tick();
             if (_flow.Done) _flow = null;
@@ -349,7 +365,7 @@ namespace SecondCursor.Story
             yield return WaitTask(ContentIds.TaskArchiveLedger);
 
             GiveTask(ContentIds.TaskVerify3317);
-            StartCoroutine(TinyNudge());
+            RunSide(TinyNudge(), "tiny-nudge");
             yield return WaitTask(ContentIds.TaskVerify3317);
             GiveTask(ContentIds.TaskVerify3318);
             yield return WaitTask(ContentIds.TaskVerify3318);
