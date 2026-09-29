@@ -61,3 +61,46 @@ The **tug-of-war** is the key fun test.
 - `MovementProfiles.Aggressive` sets how fast it intercepts.
 
 **Pacing** lives in `EventDirector` (per-beat waits and timeouts). Use `F4` to speed up time while testing.
+
+## 5. First run in the Unity Editor (Unity 6.6, 6000.6.3f1, URP, Input System only)
+
+Imported by extracting `SecondCursor.unitypackage` into a fresh URP project. Result:
+
+- Compiles with no errors. The whole slice plays from the disclaimer to the WISHLIST card with no game
+  errors or exceptions in the Console (Unity's AI Assistant package logs its own unrelated errors).
+- Every beat was played through as a player: boot, the work tutorial (mail, archive, work orders with
+  Personnel lookups, shred with confirm), anomalies, presence, the tug-of-war and the dialog/Cancel races,
+  the Notepad conversation, the mimic replay, CAM 03 with the 3D set, the figure, and the blackout ending.
+- Fixed: a debug jump made in the first seconds (while the sound bank generates) was overridden by the
+  story restarting at `boot`. Unity 6.6 deprecation warnings (`FindObjectsSortMode`) and serialization
+  analyzer warnings are gone.
+
+## 6. Editor test bridge (drive the game from outside the Editor)
+
+`Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
+nothing unless the folder `Library/SecondCursorBridge` exists. Write commands to
+`Library/SecondCursorBridge/cmd.txt` (one per line); it runs them and writes `out.txt`.
+
+```
+play                     # enter Play mode (survives the domain reload)
+beat conflict            # jump to a beat
+dclickid app:mail        # double-click an element by its logical id ("APP/ID" scopes to a window, "ID#N" picks the Nth)
+dragto file:employee_017 app:disposal 0.3
+clicktext Log On         # click visible pixel text
+type hello\n             # keyboard text (\n = Enter)
+shot name                # save the 960x540 virtual screen to Library/SecondCursorBridge/shots/name.png
+dump | ids [filter] | texts [filter] | log [n] | errors
+waitbeat reveal 60 | waitflag camera_unlocked 90 | waittask t_shred_017 30 | waitlog "text" 20
+```
+
+While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,
+origin bottom-left), never the real mouse. Real keys (F1-F6, Esc) still work. `realinput` hands the cursor
+back to the mouse. `help` lists every command.
+
+A minimal client: write the file, then poll for `out.txt`:
+
+```bash
+d="Library/SecondCursorBridge"; mkdir -p "$d"; rm -f "$d/out.txt"
+printf 'play\nbeat work\nshot desk\n' > "$d/cmd.txt"
+until [ -f "$d/out.txt" ]; do sleep 0.3; done; cat "$d/out.txt"
+```

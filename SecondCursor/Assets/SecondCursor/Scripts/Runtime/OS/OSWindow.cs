@@ -49,7 +49,7 @@ namespace SecondCursor.OS
         public WindowManager Manager { get; private set; }
 
         /// <summary>Any object the owning app wants to hang on the window (the app instance).</summary>
-        public object Owner;
+        [System.NonSerialized] public object Owner;
 
         public bool IsActive { get; private set; }
         public bool IsMinimized { get; private set; }

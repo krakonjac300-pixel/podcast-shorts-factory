@@ -154,7 +154,7 @@ namespace SecondCursor.CameraFeed
             }
 
             // Lights that already exist in the scene must never touch the set.
-            foreach (var l in FindObjectsByType<Light>(FindObjectsSortMode.None)) l.cullingMask &= ~(1 << Layer);
+            foreach (var l in SceneObjects.All<Light>()) l.cullingMask &= ~(1 << Layer);
 
             _setRoot = new GameObject("CCTV Set").transform;
             _setRoot.SetParent(transform, false);

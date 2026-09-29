@@ -33,7 +33,7 @@ namespace SecondCursor.Input
         public OS.OSWindow Window { get; set; }
 
         /// <summary>Arbitrary payload for game code (e.g. the VFile an icon represents).</summary>
-        public object Tag;
+        [System.NonSerialized] public object Tag;
 
         public event Action<CursorAgent> HoverEnter;
         public event Action<CursorAgent> HoverExit;

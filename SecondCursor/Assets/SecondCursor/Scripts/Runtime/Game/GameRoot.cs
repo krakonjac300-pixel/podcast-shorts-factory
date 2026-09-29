@@ -120,12 +120,13 @@ namespace SecondCursor.Game
         IEnumerator StartGame()
         {
             yield return G.Audio.GenerateAll();
-            G.Director.Begin();
+            // A debug jump made while the sounds were generating has already started the story.
+            if (string.IsNullOrEmpty(G.Director.CurrentBeat)) G.Director.Begin();
         }
 
         void EnsureAudioListener()
         {
-            var listeners = FindObjectsByType<AudioListener>(FindObjectsSortMode.None);
+            var listeners = SceneObjects.All<AudioListener>();
             bool any = false;
             foreach (var l in listeners)
             {
@@ -135,7 +136,7 @@ namespace SecondCursor.Game
             }
             if (!any) gameObject.AddComponent<AudioListener>();
             // Other scene cameras would only render underneath the overlay: switch them off to save GPU time.
-            foreach (var cam in FindObjectsByType<Camera>(FindObjectsSortMode.None))
+            foreach (var cam in SceneObjects.All<Camera>())
             {
                 if (cam.transform.IsChildOf(transform)) continue;
                 cam.enabled = false;
