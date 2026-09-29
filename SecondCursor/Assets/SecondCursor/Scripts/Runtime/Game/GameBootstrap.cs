@@ -19,6 +19,7 @@ namespace SecondCursor.Game
             GameRoot.StartBeat = CommandLineArg("-scbeat");
             GameRoot.StartNight = int.TryParse(CommandLineArg("-scnight"), out int night) ? Mathf.Clamp(night, 1, 3) : 1;
             GameRoot.StartFromCheckpoint = false;
+            Story.BootSequence.IntroShownThisSession = false;
             Entity.ConflictSystem.ForcedOutcome = Core.Entity.TugOutcome.None;
             Core.GameLog.ClearHistory();
             var go = new GameObject("SECOND CURSOR");
@@ -51,6 +52,17 @@ namespace SecondCursor.Game
         /// Start <paramref name="night"/> fresh (at <paramref name="beat"/> if given), or resume its saved
         /// checkpoint when <paramref name="fromCheckpoint"/> is set (falls back to the night's start).
         /// </summary>
+        /// <summary>
+        /// "Title" on a night's end card. Until the title menu exists (Phase E) this shows the disclaimer and
+        /// title again and then starts the night Continue would start.
+        /// </summary>
+        public static void ToTitle()
+        {
+            Story.BootSequence.IntroShownThisSession = false;
+            var save = SaveSystem.Load();
+            Restart(Mathf.Clamp(save.currentNight, 1, Mathf.Min(3, save.nightUnlocked)));
+        }
+
         public static void Restart(int night, string beat = null, bool fromCheckpoint = false)
         {
             GameRoot.StartNight = Mathf.Clamp(night, 1, 3);

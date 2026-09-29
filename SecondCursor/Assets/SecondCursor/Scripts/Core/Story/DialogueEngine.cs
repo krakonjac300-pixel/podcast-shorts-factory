@@ -22,7 +22,8 @@ namespace SecondCursor.Core.Story
     /// matched against authored keyword lists. Matching rules (to avoid "hi" matching "this"):
     ///  - keywords containing a space: substring match on the normalized sentence;
     ///  - short single words (&lt;= 3 letters): must equal a whole word (or the word + "s");
-    ///  - longer single words: match any word containing them ("fuck" matches "fucking").
+    ///  - longer single words: match any word containing them ("fuck" matches "fucking");
+    ///  - a keyword starting with "=" matches whole words only ("=ellen" never matches "excellent").
     /// </summary>
     public sealed class DialogueEngine
     {
@@ -108,8 +109,11 @@ namespace SecondCursor.Core.Story
         public static bool Matches(string normalizedInput, string keyword)
         {
             if (string.IsNullOrEmpty(normalizedInput) || string.IsNullOrEmpty(keyword)) return false;
-            string k = Normalize(keyword);
+            // "=word": whole words only ("=ellen" matches "Ellen?" but never "excellent").
+            bool whole = keyword[0] == '=';
+            string k = Normalize(whole ? keyword.Substring(1) : keyword);
             if (k.Length == 0) return false;
+            if (whole) return (" " + normalizedInput + " ").Contains(" " + k + " ");
             if (k.IndexOf(' ') >= 0) return (" " + normalizedInput + " ").Contains(" " + k + " ") || normalizedInput.Contains(k);
             foreach (var word in normalizedInput.Split(' '))
             {

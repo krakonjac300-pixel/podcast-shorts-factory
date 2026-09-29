@@ -167,6 +167,15 @@ namespace SecondCursor.Core.Story
         public const string CounterTugLosses = "tug_losses";
         public const string CounterCameraReopens = "camera_reopens";
         public const string CounterWrongOrders = "wrong_orders";
+
+        // Counters only the player's own actions raise (entity tasks count these, not what a cursor did).
+        public const string OpenedByPlayerPrefix = "opened_by_player:";
+        public const string ViewedByPlayerPrefix = "viewed_by_player:";
+
+        // Night 2 (this night only; memory lives in MemoryFlags)
+        public const string N2EllenHelped = "n2.ellen_helped";
+        public const string N2GaryArrived = "n2.gary_arrived";
+        public const string N2RoundsDone = "n2.rounds_done";
     }
 
     /// <summary>

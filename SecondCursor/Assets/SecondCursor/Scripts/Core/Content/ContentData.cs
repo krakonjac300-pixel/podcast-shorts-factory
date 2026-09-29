@@ -109,11 +109,14 @@ namespace SecondCursor.Core.Content
     {
         public FolderData[] folders = Array.Empty<FolderData>();
         public FileData[] files = Array.Empty<FileData>();
+        /// <summary>Files a night overlay deleted (set by ContentOverlay, never authored): no placeholder replaces them.</summary>
+        [NonSerialized] public string[] removedFiles = Array.Empty<string>();
 
         public void Sanitize()
         {
             folders = folders ?? Array.Empty<FolderData>();
             files = files ?? Array.Empty<FileData>();
+            removedFiles = removedFiles ?? Array.Empty<string>();
             foreach (var f in folders)
             {
                 if (f == null) continue;

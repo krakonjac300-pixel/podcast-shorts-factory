@@ -70,6 +70,8 @@ namespace SecondCursor.Tests
             public string FolderOf(string id) => Fs.FolderOf(id);
             public bool IsShredded(string id) => Fs.GetFile(id)?.Shredded ?? false;
             public string DecisionFor(string id) => Decisions.TryGetValue(id, out var d) ? d : null;
+            public bool IsFileOpenedByPlayer(string id) => false;
+            public bool IsEmployeeViewedByPlayer(string id) => false;
         }
 
         [Fact]

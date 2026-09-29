@@ -267,6 +267,43 @@ namespace SecondCursor.Core.Game
             return r;
         }
 
+        /// <summary>
+        /// The memory a night starts from: everything saved so far except what that night and later nights
+        /// wrote ("m.n2." and on for Night 2). Replaying a finished night never starts with its own choices.
+        /// </summary>
+        public FlagSnapshot MemoryForNight(int night)
+        {
+            var src = memory ?? new FlagSnapshot();
+            bool Keep(string key)
+            {
+                if (string.IsNullOrEmpty(key)) return false;
+                for (int n = Math.Max(1, night); n <= Nights; n++)
+                    if (key.StartsWith(MemoryFlags.Prefix + "n" + n + ".", StringComparison.Ordinal)) return false;
+                return true;
+            }
+            var s = new FlagSnapshot();
+            var flags = new List<string>();
+            foreach (var f in src.flags ?? Array.Empty<string>()) if (Keep(f)) flags.Add(f);
+            s.flags = flags.ToArray();
+            var ck = new List<string>();
+            var cv = new List<int>();
+            var keys = src.counterKeys ?? Array.Empty<string>();
+            var values = src.counterValues ?? Array.Empty<int>();
+            for (int i = 0; i < Math.Min(keys.Length, values.Length); i++)
+                if (Keep(keys[i])) { ck.Add(keys[i]); cv.Add(values[i]); }
+            s.counterKeys = ck.ToArray();
+            s.counterValues = cv.ToArray();
+            var hk = new List<string>();
+            var hv = new List<string>();
+            var choiceKeys = src.choiceKeys ?? Array.Empty<string>();
+            var choiceValues = src.choiceValues ?? Array.Empty<string>();
+            for (int i = 0; i < Math.Min(choiceKeys.Length, choiceValues.Length); i++)
+                if (Keep(choiceKeys[i])) { hk.Add(choiceKeys[i]); hv.Add(choiceValues[i]); }
+            s.choiceKeys = hk.ToArray();
+            s.choiceValues = hv.ToArray();
+            return s;
+        }
+
         /// <summary>Trust decays toward neutral each night so the new night's choices weigh most (2.3).</summary>
         public static float TrustAtNightStart(int night, float savedTrust)
         {

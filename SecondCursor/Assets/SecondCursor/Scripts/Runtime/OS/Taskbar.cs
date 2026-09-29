@@ -11,8 +11,8 @@ namespace SecondCursor.OS
 {
     /// <summary>
     /// Bottom bar: NEXUS start button, one button per open window, the current Work Queue task, and a tray
-    /// with pointing-device icons and the shift clock. The tray shows ONE mouse normally... and two once
-    /// the second cursor is here.
+    /// with pointing-device icons and the shift clock. The tray shows ONE mouse normally... two once the
+    /// second cursor is here, and three when Gary is.
     /// </summary>
     public sealed class Taskbar : MonoBehaviour
     {
@@ -32,6 +32,8 @@ namespace SecondCursor.OS
         bool _dirty = true;
         int _deviceCount = 1;
         float _deviceFlash;
+        int _blinkIndex = -1;
+        float _blinkUntil;
         UiButton _task;
         int _taskRevision = -1;
         float _taskFlash;
@@ -75,13 +77,13 @@ namespace SecondCursor.OS
             trayFace.raycastTarget = false;
             UIBuilder.Hit(bar._tray.gameObject, "taskbar.tray");
             bar._clock = UIBuilder.Text(bar._tray, "", Palette.Text);
-            bar._clock.rectTransform.Stretch(32, 0, 4, 0);
+            bar._clock.rectTransform.Stretch(40, 0, 4, 0);
             bar._clock.Align = TextAlign.Right;
             bar._clock.VAlign = TextVAlign.Middle;
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 3; i++)
             {
                 var m = UIBuilder.Icon(bar._tray, "tray_mouse", 1, "Mouse " + i);
-                m.rectTransform.anchoredPosition = new Vector2(4 + i * 12, -5f);
+                m.rectTransform.anchoredPosition = new Vector2(3 + i * 10, -5f);
                 m.enabled = i == 0;
                 bar._mice.Add(m);
             }
@@ -143,6 +145,22 @@ namespace SecondCursor.OS
         /// <summary>The second mouse in the tray blinks for a moment (a new device just arrived).</summary>
         public void FlashDevices(float seconds = 1.6f) => _deviceFlash = seconds;
 
+        /// <summary>
+        /// One tray mouse (1-based: 3 = Gary's) blinks for <paramref name="seconds"/>, or keeps blinking while
+        /// the device is unwell (0 = until another call; a negative value stops it).
+        /// </summary>
+        public void BlinkDevice(int index, float seconds = 1.6f)
+        {
+            if (seconds < 0f)
+            {
+                if (_blinkIndex == index - 1) _blinkIndex = -1;
+                PointingDevices = _deviceCount;
+                return;
+            }
+            _blinkIndex = index - 1;
+            _blinkUntil = seconds <= 0f ? float.MaxValue : Time.unscaledTime + seconds;
+        }
+
         void Update()
         {
             if (_g == null) return;
@@ -154,6 +172,12 @@ namespace SecondCursor.OS
                 _deviceFlash -= Time.unscaledDeltaTime;
                 bool on = _deviceFlash <= 0f || (_deviceFlash * 4f) % 1f < 0.5f;
                 for (int i = 1; i < _mice.Count; i++) _mice[i].enabled = i < _deviceCount && on;
+            }
+            if (_blinkIndex >= 0 && _blinkIndex < _mice.Count)
+            {
+                bool on = Time.unscaledTime >= _blinkUntil || (Time.unscaledTime * 2.5f) % 1f < 0.5f;
+                _mice[_blinkIndex].enabled = _blinkIndex < _deviceCount && on;
+                if (Time.unscaledTime >= _blinkUntil) _blinkIndex = -1;
             }
             foreach (var kv in _buttons)
             {

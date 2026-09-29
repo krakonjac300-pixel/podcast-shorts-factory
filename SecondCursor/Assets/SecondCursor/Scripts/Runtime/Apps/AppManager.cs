@@ -144,6 +144,12 @@ namespace SecondCursor.Apps
             if (by != null && by.IsPlayer) _g.Memory.Record(MemoryKind.OpenedFile, fileId, _g.Now);
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.Player, (by?.Name ?? "System") + " opened file " + file.Name);
             _g.Flags.Increment("opened:" + fileId);
+            if (by != null && by.IsPlayer)
+            {
+                // Only what the player opens counts for tasks like "open the door log" (never a cursor's own opens).
+                _g.Flags.Increment(Core.Story.Flags.OpenedByPlayerPrefix + fileId);
+                _g.Tasks.Evaluate();
+            }
 
             switch (file.Kind)
             {

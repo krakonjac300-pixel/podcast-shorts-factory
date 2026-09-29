@@ -68,6 +68,9 @@ namespace SecondCursor.Core.Content
             TaskE2DoorLog = "e2_door_log", TaskE2Lookup163 = "e2_lookup_163", TaskE2Hide214 = "e2_hide_214",
             TaskN2Shred209 = "t2_shred_209", TaskE2Archive209 = "e2_archive_209";
         public const string ExchangeN2Back = "ex2_back", ExchangeN2GaryOne = "ex2_gary_one";
+        public const string Employee163 = "163", Employee214 = "214";
+        public const string Batch45A = "batch45_a", Batch45B = "batch45_b", Batch45C = "batch45_c";
+        public const string Batch46A = "batch46_a", Batch46B = "batch46_b", Batch46C = "batch46_c", Batch46D = "batch46_d";
 
         // ---------------------------------------------------------------- Night 3
         public const string MailN3Briefing = "mail_n3_briefing", MailN3Undeliverable = "mail_n3_undeliverable", MailN3RuthComment = "mail_n3_ruth_comment";
@@ -81,6 +84,7 @@ namespace SecondCursor.Core.Content
 
         // ---------------------------------------------------------------- endings
         public const string EndingN1Blackout = "n1_blackout";
+        public const string EndingN2Finished = "n2_finished", EndingN2Kept = "n2_kept";
     }
 
     /// <summary>Application identifiers used by the fake OS.</summary>

@@ -51,6 +51,7 @@ namespace SecondCursor.Core.Entity
         public const string MechanicalName = "Mechanical";
         public const string LurkingName = "Lurking";
         public const string ImitatingName = "ImitatingPlayer";
+        public const string TiredName = "Tired";
 
         static readonly Dictionary<string, MovementProfileData> Overrides = new Dictionary<string, MovementProfileData>(StringComparer.Ordinal);
 
@@ -105,6 +106,14 @@ namespace SecondCursor.Core.Entity
             name = ImitatingName, speed = 1000f, curveRandomness = 0.12f, overshoot = 0.04f, microCorrections = 1,
         });
 
+        /// <summary>Gary, held and incomplete: slow, shaky, stops halfway, corrects three times before he lands.</summary>
+        public static MovementProfileData Tired => Resolve(TiredName, new MovementProfileData
+        {
+            name = TiredName, speed = 300f, maxDuration = 6f, curveRandomness = 0.2f, overshoot = 0f,
+            microCorrections = 3, correctionSize = 8f, pauseProbability = 0.5f, pauseDuration = 0.8f,
+            tremor = 1.6f, tremorFrequency = 6f, reactionDelay = 0.6f,
+        });
+
         public static MovementProfileData Get(string name)
         {
             switch (name)
@@ -115,6 +124,7 @@ namespace SecondCursor.Core.Entity
                 case MechanicalName: return Mechanical;
                 case LurkingName: return Lurking;
                 case ImitatingName: return ImitatingPlayer;
+                case TiredName: return Tired;
                 default: return HumanLike;
             }
         }

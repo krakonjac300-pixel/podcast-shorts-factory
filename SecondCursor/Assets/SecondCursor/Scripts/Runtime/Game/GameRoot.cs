@@ -100,21 +100,28 @@ namespace SecondCursor.Game
             if (g.Night > 1)
             {
                 // What the earlier nights remember, and trust decayed toward neutral.
-                g.Flags.Merge(g.Save.memory);
+                g.Flags.Merge(g.Save.MemoryForNight(g.Night));
                 g.Memory.Seed(SaveData.TrustAtNightStart(g.Night, g.Save.entityTrust));
             }
             g.Recorder = new CursorRecorder();
             g.Dialogue = new DialogueEngine(g.Content);
 
-            // Input: two cursors, one router
+            // Input: up to three cursors, one router. Gary registers after the second cursor and before the
+            // player, so the player's cursor still wins hit-test ties.
             g.Input = InputBackendFactory.Create();
             g.Router = new PointerRouter();
             g.Player = new CursorAgent(AgentKind.Player, "Player");
             g.EntityAgent = new CursorAgent(AgentKind.Entity, "Entity");
+            g.GaryAgent = new CursorAgent(AgentKind.Entity, "Gary");
             g.Router.Register(g.EntityAgent);
+            g.Router.Register(g.GaryAgent);
             g.Router.Register(g.Player);
             g.Router.AnyPointerDown += PopupMenu.HandlePointerDown;
             g.DragDrop = new DragDropSystem(g.Layers.Drag, g.Router);
+            // Only the player and the second cursor ever fight over a file; Gary lets go.
+            g.DragDrop.CanContest = (holder, grabber) =>
+                (holder == g.Player && grabber == g.EntityAgent) || (holder == g.EntityAgent && grabber == g.Player);
+            g.GaryView = CursorView.Create(g.Layers.Cursors, g.GaryAgent, true, CursorView.GaryVariant);
             g.EntityView = CursorView.Create(g.Layers.Cursors, g.EntityAgent, true);
             g.PlayerView = CursorView.Create(g.Layers.Cursors, g.Player, false);
 
@@ -136,7 +143,15 @@ namespace SecondCursor.Game
             g.Entity = EntityController.Create(g, transform);
             g.Entity.Personality.grip = g.Difficulty.GripBase;
             g.Entity.Personality.reactionScale = g.Difficulty.ReactionScale;
+            g.Gary = EntityController.Create(g, transform, g.GaryAgent, g.GaryView, false, null);
+            g.Gary.DeviceIndex = 3;
+            g.Gary.MaxAlpha = 0.75f;
+            g.Gary.BaseFlicker = 0.08f;
+            g.Gary.TypoRate = 0.08f;
+            g.GaryView.Flicker = 0.08f;
             g.Conflict = ConflictSystem.Create(g, transform);
+            g.Rounds = RoundsSystem.Create(g, transform);
+            NightSetup.ForNight(g);
             g.Director = NightDirector.Create(g, transform, g.Night);
 
             DebugOverlay.Create(g, transform);

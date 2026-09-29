@@ -95,6 +95,12 @@ namespace SecondCursor.Apps
             _notes.text = string.IsNullOrEmpty(e.notes) ? "" : "Notes:\n" + e.notes;
             DrawPhoto(e.photo);
             if (e.id == ContentIds.Employee017) G.Flags.Increment("viewed:employee017");
+            if (by != null && by.IsPlayer)
+            {
+                // Tasks such as "look up 163" count only records the player looked at themselves.
+                G.Flags.Increment(Flags.ViewedByPlayerPrefix + e.id);
+                G.Tasks.Evaluate();
+            }
         }
 
         public void ShowById(string employeeId, CursorAgent by)
@@ -120,6 +126,7 @@ namespace SecondCursor.Apps
                 case "TERMINATED": return Palette.Red;
                 case "ON LEAVE": return Palette.Amber;
                 case "DECEASED": return Palette.Dark;
+                case "RETAINED": return Palette.Link;
                 default: return Palette.Shadow;
             }
         }

@@ -1,0 +1,7 @@
+{
+  "entries": [
+    { "key": "login.welcome", "value": "Welcome back, Night Operator.\nPress Log On to continue your shift." },
+    { "key": "login.progress", "value": "Restoring your personal settings from a copy..." },
+    { "key": "camera.denied.body", "value": "Camera Viewer access has been restored to Security staff only.\nThis attempt has been logged.\n\nNight Operators: your work is in the Work Queue." }
+  ]
+}

@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 
 namespace SecondCursor.CameraFeed
 {
-    public enum FigureStage { None, Corridor, Doorway, Middle, BehindChair }
+    public enum FigureStage { None, Corridor, Doorway, Middle, BehindChair, HallFar }
 
     /// <summary>
     /// SecureView's CCTV: a tiny 3D building (lobby, corridor, the operator's own office) built from primitives at
@@ -451,6 +451,7 @@ namespace SecondCursor.CameraFeed
             float yaw;
             switch (stage)
             {
+                case FigureStage.HallFar: area = _corridor; pos = new Vector3(0f, 0f, 3.0f); yaw = 0f; break;   // near end of the hall, walking away
                 case FigureStage.Corridor: area = _corridor; pos = new Vector3(0.42f, 0f, 10.3f); yaw = 180f; break;   // beside the office door, facing CAM 02
                 case FigureStage.Doorway: pos = new Vector3(DoorX, 0f, -RoomHalfD + 0.13f); yaw = 0f; break;
                 case FigureStage.Middle: pos = new Vector3(0.22f, 0f, -0.62f); yaw = 300f; break;

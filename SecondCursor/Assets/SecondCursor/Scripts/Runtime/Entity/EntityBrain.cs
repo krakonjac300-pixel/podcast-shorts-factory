@@ -49,6 +49,15 @@ namespace SecondCursor.Entity
         public bool AllowKeepAway = true;
         /// <summary>Grip multiplier from trust (1 except in the Night 3 finale: 0.9 or 1.1).</summary>
         public float TrustGripMult = 1f;
+        /// <summary>
+        /// Only grab a dragged protected file once it is this close to the Disposal bin (0 = wherever it is
+        /// dragged). Night 2: she lets you carry 209 to Archive, never to the bin.
+        /// </summary>
+        public float InterceptRadius;
+        /// <summary>During Custodial rounds: close a Camera Viewer that shows the figure (spec 7.4).</summary>
+        public bool AllowCloseCamera;
+        /// <summary>Her close click was blocked by another cursor (the story types CLOSE IT, at most every 20 s).</summary>
+        public Action CloseCameraBlocked;
 
         /// <summary>Defenses that count toward the adaptive assist (a lost tug is reported by the conflict itself).</summary>
         static readonly HashSet<string> AssistDefenses = new HashSet<string> { "no", "dialog", "guard", "cancel", "keepaway" };
@@ -70,6 +79,7 @@ namespace SecondCursor.Entity
             Add("RaceToNo", ScoreRaceToNo, RunRaceToNo, 0.5f);
             Add("KeepAway", ScoreKeepAway, RunKeepAway, 5f);
             Add("CloseFilesWindow", ScoreCloseFiles, RunCloseFiles, 9f);
+            Add("CloseCamera", ScoreCloseCamera, RunCloseCamera, 0.5f);
             Add("Lurk", ScoreLurk, RunLurk, 0.5f);
         }
 
@@ -179,6 +189,7 @@ namespace SecondCursor.Entity
         {
             var p = Player.Payload;
             if (p == null || !IsProtected(p.FileId) || p.Contested || p.Holder != Player) return 0f;
+            if (InterceptRadius > 0f && Vector2.Distance(p.GhostPosition + new Vector2(16f, -14f), _g.Desktop.DisposalIcon.Hit.Center) > InterceptRadius) return 0f;
             return 100f;
         }
 
@@ -429,6 +440,35 @@ namespace SecondCursor.Entity
             var result = new bool[1];
             yield return _c.ClickElement(files.Window.CloseButton.Hit, MovementProfiles.Aggressive, result, 2f);
             if (result[0]) RegisterDefense("close");
+        }
+
+        // ------------------------------------------------------------------ CloseCamera (Custodial rounds)
+
+        float ScoreCloseCamera()
+        {
+            if (!AllowCloseCamera || _g.Rounds == null || !_g.Rounds.IsFigureOnShownCamera) return 0f;
+            return 80f;
+        }
+
+        /// <summary>
+        /// The viewer shows Custodial: after her reaction delay she clicks its close box. Blocked, she jostles
+        /// and gives up after 2 s. Not a defense: it never raises her grip.
+        /// </summary>
+        IEnumerator RunCloseCamera()
+        {
+            var cam = _g.Apps.Find<CameraApp>();
+            var close = cam != null ? cam.Window.CloseButton : null;
+            if (close == null) yield break;
+            yield return EnsurePresent(EntryPointNear(close.Hit.Center));
+            _c.State = Core.Entity.EntityState.Panicked;
+            yield return Waits.Seconds(_g.Rounds.CloseReaction());
+            if (!_g.Rounds.IsFigureOnShownCamera || cam == null || !cam.IsOpen) yield break;
+            // Another window over the close box is simply pushed aside (the viewer comes to the front).
+            if (_g.Router.HitTest(close.Hit.Center, _c.Agent) != close.Hit && !_c.IsBlockedByOthers(close.Hit)) cam.Window.Focus(_c.Agent);
+            var result = new bool[1];
+            yield return _c.ClickElement(close.Hit, MovementProfiles.Panicked, result, 2f);
+            if (!result[0] && cam.IsOpen && !cam.Window.IsMinimized) CloseCameraBlocked?.Invoke();
+            _c.State = Core.Entity.EntityState.Observing;
         }
 
         // ------------------------------------------------------------------ Lurk

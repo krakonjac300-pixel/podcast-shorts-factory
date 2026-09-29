@@ -27,6 +27,22 @@ namespace SecondCursor.OS
 
         /// <summary>Something was shredded outside the dialogs (story setup): the bin shows full.</summary>
         public void MarkShredded() => AnyShredded = true;
+
+        readonly HashSet<string> _purged = new HashSet<string>();
+
+        /// <summary>
+        /// Custodial empties the Disposal bin: it shows empty again and its window forgets what was shredded
+        /// so far. Nothing comes back.
+        /// </summary>
+        public void ResetBin()
+        {
+            AnyShredded = false;
+            foreach (var f in _g.Files.AllFiles) if (f.Shredded) _purged.Add(f.Id);
+            GameLog.Info(LogChannel.OS, "Disposal emptied");
+        }
+
+        /// <summary>A shredded file the bin no longer lists (emptied by <see cref="ResetBin"/>).</summary>
+        public bool IsPurged(string fileId) => fileId != null && _purged.Contains(fileId);
         public MessageBox Confirm { get; private set; }
         public ProgressDialog Progress { get; private set; }
         public string PendingFileId { get; private set; }
@@ -100,7 +116,8 @@ namespace SecondCursor.OS
         {
             foreach (var t in _g.Tasks.Tasks)
             {
-                if (t.Type != TaskType.MoveFile || t.IsDone) continue;
+                // A request the second cursor wrote into the queue, or a withdrawn one, protects nothing.
+                if (t.Type != TaskType.MoveFile || t.IsDone || t.IsWithdrawn || t.IsEntityAuthored) continue;
                 foreach (var target in t.Data.targets) if (target == fileId) return true;
             }
             return false;
@@ -303,5 +320,7 @@ namespace SecondCursor.OS
         public string FolderOf(string fileId) => _g.Files.FolderOf(fileId);
         public bool IsShredded(string fileId) => _g.Files.GetFile(fileId)?.Shredded ?? false;
         public string DecisionFor(string orderId) => _g.Orders?.DecisionFor(orderId);
+        public bool IsFileOpenedByPlayer(string fileId) => _g.Flags.Get(Core.Story.Flags.OpenedByPlayerPrefix + fileId) > 0;
+        public bool IsEmployeeViewedByPlayer(string employeeId) => _g.Flags.Get(Core.Story.Flags.ViewedByPlayerPrefix + employeeId) > 0;
     }
 }

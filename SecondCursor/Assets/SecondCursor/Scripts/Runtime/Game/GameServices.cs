@@ -37,6 +37,9 @@ namespace SecondCursor.Game
         public CursorAgent EntityAgent;
         public CursorView PlayerView;
         public CursorView EntityView;
+        /// <summary>The third pointer (Gary, Night 2 on). Registered after the second cursor, before the player.</summary>
+        public CursorAgent GaryAgent;
+        public CursorView GaryView;
 
         // Simulation (engine-free core)
         public ContentDatabase Content;
@@ -60,9 +63,13 @@ namespace SecondCursor.Game
 
         // Story / entity
         public EntityController Entity;
+        /// <summary>Gary's controller: no brain, never in a tug-of-war, can block the second cursor's clicks.</summary>
+        public EntityController Gary;
         public ConflictSystem Conflict;
         public NightDirector Director;
         public SecurityCameraRig CameraRig;
+        /// <summary>Custodial rounds on the cameras (the watch meter).</summary>
+        public RoundsSystem Rounds;
 
         // Night and difficulty
         /// <summary>The night being played (1-3).</summary>

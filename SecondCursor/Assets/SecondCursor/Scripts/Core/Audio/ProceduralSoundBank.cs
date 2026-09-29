@@ -118,6 +118,8 @@ namespace SecondCursor.Core.Audio
             new Entry("footstep_distant", false, 0.90f, FootstepDistant),
             new Entry("power_down",       false, 0.90f, PowerDown),
             new Entry("end_tone",         false, 0.80f, EndTone),
+            // --- the desk phone (Night 3: Ruth calls)
+            new Entry("phone_ring",       false, 0.70f, PhoneRing),
         };
 
         private static readonly Dictionary<string, Entry> Index = BuildIndex();
@@ -2341,6 +2343,25 @@ namespace SecondCursor.Core.Audio
         /// A3 pair beating slowly, a sub-octave, a tritone shadow, a trembling high pair and a glassy A6 that
         /// arrives late; everything sags ~20 cents as it fades.
         /// </summary>
+        /// <summary>
+        /// A desk phone ring: 440 + 480 Hz with a 20 Hz amplitude warble (the bell striking), 2.0 s, a little
+        /// room, levelled like notify_mail.
+        /// </summary>
+        private static float[] PhoneRing(Rng r)
+        {
+            float[] b = Buf(2.0f);
+            for (int i = 0; i < b.Length; i++)
+            {
+                float t = i * Dt;
+                float warble = 0.55f + 0.45f * MathF.Sin(TwoPi * 20f * t);
+                float tone = 0.5f * (MathF.Sin(TwoPi * 440f * t) + MathF.Sin(TwoPi * 480f * t));
+                b[i] = 0.6f * warble * tone;
+            }
+            LowPass(b, 3400f);
+            AddReverb(b, 0.35f, 0.6f, 0.5f, 0.18f);
+            return FinishOneShot(b, -20f, 8f, 60f);
+        }
+
         private static float[] EndTone(Rng r)
         {
             const float len = 6f;

@@ -126,14 +126,38 @@ namespace SecondCursor.Apps
         }
 
         /// <summary>Entity types text character by character. Yield on the returned enumerator.</summary>
-        public IEnumerator TypeAsEntity(string text, float charsPerSecond, CursorAgent entity)
+        public IEnumerator TypeAsEntity(string text, float charsPerSecond, CursorAgent entity) => TypeAsEntity(text, charsPerSecond, entity, 0f);
+
+        /// <summary>
+        /// Like <see cref="TypeAsEntity(string,float,CursorAgent)"/>; with <paramref name="typoRate"/> above 0 each
+        /// word has that chance of one wrong letter that is typed, noticed and backspaced (presentation only: the
+        /// text ends up exactly as given).
+        /// </summary>
+        public IEnumerator TypeAsEntity(string text, float charsPerSecond, CursorAgent entity, float typoRate)
         {
             EntityTyping = true;
             bool previous = PlayerCanType;
             PlayerCanType = false;
-            foreach (char c in text)
+            int typoAt = PickTypo(text, 0, typoRate);
+            for (int i = 0; i < text.Length; i++)
             {
+                char c = text[i];
                 if (!IsOpen) break;
+                if (i > 0 && text[i - 1] == ' ') typoAt = PickTypo(text, i, typoRate);
+                if (i == typoAt)
+                {
+                    // A wrong neighbouring letter, a beat, then it is taken back.
+                    _text.Append(WrongLetter(c));
+                    Changed(true);
+                    Sfx.Play("key_tap", entity);
+                    yield return Waits.Seconds(Mathf.Max(0.25f, 2.2f / Mathf.Max(1f, charsPerSecond)));
+                    if (!IsOpen) break;
+                    _text.Length -= 1;
+                    Changed(true);
+                    Sfx.Play("key_tap", entity);
+                    yield return Waits.Seconds(Mathf.Max(0.15f, 1.2f / Mathf.Max(1f, charsPerSecond)));
+                    if (!IsOpen) break;
+                }
                 _text.Append(c);
                 Changed(true);
                 Sfx.Play(c == ' ' ? "key_space" : (c == '\n' ? "key_enter" : "key_tap"), entity);
@@ -146,6 +170,27 @@ namespace SecondCursor.Apps
             _inputStart = _text.Length;
             PlayerCanType = previous;
             EntityTyping = false;
+        }
+
+        /// <summary>Index of the letter in the word starting at <paramref name="start"/> that gets a typo, or -1.</summary>
+        static int PickTypo(string text, int start, float rate)
+        {
+            if (rate <= 0f || UnityEngine.Random.value >= rate) return -1;
+            int end = text.IndexOf(' ', start);
+            if (end < 0) end = text.Length;
+            var letters = new System.Collections.Generic.List<int>();
+            for (int i = start; i < end; i++) if (char.IsLetter(text[i])) letters.Add(i);
+            return letters.Count == 0 ? -1 : letters[UnityEngine.Random.Range(0, letters.Count)];
+        }
+
+        const string KeyRows = "qwertyuiopasdfghjklzxcvbnm";
+
+        /// <summary>A letter next to the intended one on the keyboard (same case).</summary>
+        static char WrongLetter(char c)
+        {
+            int k = KeyRows.IndexOf(char.ToLowerInvariant(c));
+            char w = k < 0 ? 'e' : KeyRows[k == KeyRows.Length - 1 ? k - 1 : k + 1];
+            return char.IsUpper(c) ? char.ToUpperInvariant(w) : w;
         }
 
         public void OnTyped(string text, CursorAgent by)

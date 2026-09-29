@@ -4,9 +4,10 @@ using SecondCursor.Core.Content;
 
 namespace SecondCursor.Core.Tasks
 {
-    public enum TaskType { ReadEmail, MoveFile, DeleteFile, DecideOrder, Unknown }
+    public enum TaskType { ReadEmail, MoveFile, DeleteFile, DecideOrder, OpenFile, ViewEmployee, Unknown }
 
-    public enum TaskState { Hidden, Active, Completed }
+    /// <summary>Withdrawn: taken back out of the queue (an entity task that expired); it never comes back.</summary>
+    public enum TaskState { Hidden, Active, Completed, Withdrawn }
 
     /// <summary>World queries a task needs to judge completion. Implemented by the runtime game state.</summary>
     public interface ITaskWorld
@@ -17,6 +18,10 @@ namespace SecondCursor.Core.Tasks
         bool IsShredded(string fileId);
         /// <summary>"approve", "reject" or null if undecided.</summary>
         string DecisionFor(string orderId);
+        /// <summary>The player (not another cursor) has opened this file at least once.</summary>
+        bool IsFileOpenedByPlayer(string fileId);
+        /// <summary>The player has looked at this employee's record in Personnel.</summary>
+        bool IsEmployeeViewedByPlayer(string employeeId);
     }
 
     public sealed class WorkTask
@@ -37,6 +42,9 @@ namespace SecondCursor.Core.Tasks
         public string Id => Data.id;
         public string Title => Data.title;
         public bool IsDone => State == TaskState.Completed;
+        public bool IsWithdrawn => State == TaskState.Withdrawn;
+        /// <summary>Written into the Work Queue by the second cursor, not by the company.</summary>
+        public bool IsEntityAuthored => string.Equals(Data.author, "entity", StringComparison.OrdinalIgnoreCase);
 
         public static TaskType ParseType(string s)
         {
@@ -46,6 +54,8 @@ namespace SecondCursor.Core.Tasks
                 case "movefile": return TaskType.MoveFile;
                 case "deletefile": case "shredfile": return TaskType.DeleteFile;
                 case "decideorder": return TaskType.DecideOrder;
+                case "openfile": return TaskType.OpenFile;
+                case "viewemployee": return TaskType.ViewEmployee;
                 default: return TaskType.Unknown;
             }
         }
@@ -65,6 +75,7 @@ namespace SecondCursor.Core.Tasks
         public event Action<WorkTask> TaskActivated;
         public event Action<WorkTask> TaskCompleted;
         public event Action<WorkTask> TaskProgressed;
+        public event Action<WorkTask> TaskWithdrawn;
 
         public int Revision { get; private set; }
 
@@ -98,6 +109,11 @@ namespace SecondCursor.Core.Tasks
         }
 
         public bool IsCompleted(string id) => Get(id)?.State == TaskState.Completed;
+        public bool IsWithdrawn(string id) => Get(id)?.State == TaskState.Withdrawn;
+        public bool IsActive(string id) => Get(id)?.State == TaskState.Active;
+
+        /// <summary>Written into the Work Queue by the second cursor (see <see cref="WorkTask.IsEntityAuthored"/>).</summary>
+        public static bool IsEntityAuthored(WorkTask task) => task != null && task.IsEntityAuthored;
 
         public void Activate(string id)
         {
@@ -114,9 +130,23 @@ namespace SecondCursor.Core.Tasks
         public void ForceComplete(string id)
         {
             var t = Get(id);
-            if (t == null || t.State == TaskState.Completed) return;
+            if (t == null || t.State == TaskState.Completed || t.State == TaskState.Withdrawn) return;
             if (t.State == TaskState.Hidden) { t.State = TaskState.Active; TaskActivated?.Invoke(t); }
             Complete(t);
+        }
+
+        /// <summary>
+        /// Take a task back out of the queue (an entity task that expired, a suspended order). A withdrawn task is
+        /// hidden, never completes, and cannot be activated again. Completed tasks stay completed.
+        /// </summary>
+        public void Withdraw(string id)
+        {
+            var t = Get(id);
+            if (t == null || t.State == TaskState.Completed || t.State == TaskState.Withdrawn) return;
+            t.State = TaskState.Withdrawn;
+            Revision++;
+            GameLog.Info(LogChannel.Task, "Withdrew " + t.Id);
+            TaskWithdrawn?.Invoke(t);
         }
 
         /// <summary>Re-check every active task against the world. Call after any relevant game event.</summary>
@@ -156,6 +186,12 @@ namespace SecondCursor.Core.Tasks
                     break;
                 case TaskType.DecideOrder:
                     foreach (var id in targets) if (_world.DecisionFor(id) != null) n++;
+                    break;
+                case TaskType.OpenFile:
+                    foreach (var id in targets) if (_world.IsFileOpenedByPlayer(id)) n++;
+                    break;
+                case TaskType.ViewEmployee:
+                    foreach (var id in targets) if (_world.IsEmployeeViewedByPlayer(id)) n++;
                     break;
             }
             return n;

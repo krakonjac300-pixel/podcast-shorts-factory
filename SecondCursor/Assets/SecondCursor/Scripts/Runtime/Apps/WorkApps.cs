@@ -137,6 +137,9 @@ namespace SecondCursor.Apps
             Refresh();
         }
 
+        /// <summary>Rows that fit the list without scrolling.</summary>
+        const int MaxRows = 7;
+
         void Refresh()
         {
             _revision = G.Tasks.Revision;
@@ -144,15 +147,24 @@ namespace SecondCursor.Apps
             int y = 0;
             WorkTask current = null;
             foreach (var t in G.Tasks.Tasks)
+                if (t.State == TaskState.Active) { current = t; break; }
+            foreach (var t in VisibleTasks())
             {
-                if (t.State == TaskState.Hidden) continue;
-                if (t.State == TaskState.Active && current == null) current = t;
                 var row = UIBuilder.Rect("Task " + t.Id, _listRoot).TopStrip(y, 18);
+                bool remote = t.IsEntityAuthored;
+                if (remote && t.State != TaskState.Completed)
+                {
+                    // Written by the remote session: the entity's own inverted colours.
+                    var band = UIBuilder.Solid(row, Palette.EntityFill, "Remote");
+                    band.rectTransform.Stretch(18, 1, 0, 1);
+                }
                 string icon = t.State == TaskState.Completed ? "icon_task_done" : (t == current ? "icon_task_active" : "icon_task_pending");
                 var ic = UIBuilder.Icon(row, icon, 1);
                 ic.rectTransform.anchoredPosition = new Vector2(1f, -1f);
                 string title = t.Title + (t.Goal > 1 && t.State != TaskState.Completed ? " (" + t.Progress + "/" + t.Goal + ")" : "");
-                var label = UIBuilder.Text(row, title, t.State == TaskState.Completed ? Palette.TextDisabled : Palette.Text, t == current);
+                if (remote) title += " " + G.Content.Text("workqueue.remote");
+                var color = t.State == TaskState.Completed ? Palette.TextDisabled : (remote ? Palette.EntityText : Palette.Text);
+                var label = UIBuilder.Text(row, title, color, t == current);
                 label.rectTransform.Stretch(20, 0, 2, 0);
                 label.VAlign = TextVAlign.Middle;
                 y += 18;
@@ -162,7 +174,27 @@ namespace SecondCursor.Apps
                 var none = UIBuilder.Text(_listRoot, G.Content.Text("workqueue.empty"), Palette.TextDisabled);
                 none.rectTransform.TopStrip(4, 12, 4, 4);
             }
-            _detail.text = current == null ? "" : current.Data.description + (string.IsNullOrEmpty(current.Data.hint) ? "" : "\n\nHint: " + current.Data.hint);
+            if (current == null)
+            {
+                _detail.text = "";
+                return;
+            }
+            string due = string.IsNullOrEmpty(current.Data.deadline) ? "" : G.Content.Format("workqueue.deadline", current.Data.deadline) + "\n";
+            _detail.text = due + current.Data.description + (string.IsNullOrEmpty(current.Data.hint) ? "" : "\n\nHint: " + current.Data.hint);
+        }
+
+        /// <summary>Tasks shown in the list: given and not withdrawn, at most <see cref="MaxRows"/> (oldest done ones go first).</summary>
+        System.Collections.Generic.List<WorkTask> VisibleTasks()
+        {
+            var list = new System.Collections.Generic.List<WorkTask>();
+            foreach (var t in G.Tasks.Tasks)
+                if (t.State == TaskState.Active || t.State == TaskState.Completed) list.Add(t);
+            while (list.Count > MaxRows)
+            {
+                int done = list.FindIndex(t => t.State == TaskState.Completed);
+                list.RemoveAt(done >= 0 ? done : 0);
+            }
+            return list;
         }
 
         public override void Tick(float dt)
@@ -214,7 +246,7 @@ namespace SecondCursor.Apps
             _revision = G.Files.Revision;
             _list.Clear();
             foreach (var f in G.Files.AllFiles)
-                if (f.Shredded) _list.AddRow("icon_file_corrupt", f.Id, "shredded:" + f.Id, f.Name, f.Size);
+                if (f.Shredded && !G.Shred.IsPurged(f.Id)) _list.AddRow("icon_file_corrupt", f.Id, "shredded:" + f.Id, f.Name, f.Size);
             Window.SetIcon(G.Shred.AnyShredded ? "icon_disposal_full" : "icon_disposal_empty");
         }
 

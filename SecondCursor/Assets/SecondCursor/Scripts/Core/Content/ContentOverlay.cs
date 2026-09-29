@@ -42,10 +42,15 @@ namespace SecondCursor.Core.Content
         public static FileSystemData Apply(FileSystemData b, FileSystemData o)
         {
             if (o == null) return b;
+            var removed = new List<string>(b?.removedFiles ?? Array.Empty<string>());
+            if (o.files != null)
+                foreach (var f in o.files)
+                    if (f != null && f.removed && !string.IsNullOrEmpty(f.id) && !removed.Contains(f.id)) removed.Add(f.id);
             return new FileSystemData
             {
                 folders = MergeById(b?.folders, o.folders, f => f.id, f => f.removed),
                 files = MergeById(b?.files, o.files, f => f.id, f => f.removed),
+                removedFiles = removed.ToArray(),
             };
         }
 

@@ -35,6 +35,7 @@ namespace SecondCursor.EditorTools
             "Game:   jump [NIGHT] NAME (fresh shift) | night N (fresh shift, boot) | beat NAME (in place) | waittext TEXT [timeout] | waitbeat NAME [timeout] | waitlog TEXT [timeout] | waitflag FLAG [timeout] | waittask ID [timeout]\n" +
             "        waitidle [timeout] | wait SECONDS | speed X | crt on|off | restart | realinput | scriptinput\n" +
             "State:  setflag NAME | clearflag NAME | trust VALUE | assist LEVEL | tug win|lose|real | setclock H M | difficulty normal|story | checkpoint save|load | save\n" +
+            "        stage N (Custodial rounds) | waitending ID [timeout]\n" +
             "        shot NAME | gameshot NAME | dump | ids [FILTER] | texts [FILTER] | log [N] | windows\n" +
             "Mouse:  move X Y [DUR] | down | up | click X Y | dclick X Y | rclick X Y | drag X1 Y1 X2 Y2 [DUR] | scroll N\n" +
             "        clickid ID | dclickid ID | rclickid ID | moveid ID | dragid ID X Y [DUR] | dragto ID TARGETID [DUR]\n" +
@@ -338,6 +339,18 @@ namespace SecondCursor.EditorTools
                     }
                     break;
                 case "save": SaveLines(); break;
+                case "stage":
+                    if (g.Rounds == null || g.Rounds.Model == null) { Say("ERROR: no Custodial round running"); break; }
+                    g.Rounds.ForceStage((int)F(a, 1, 0f));
+                    Say("rounds stage=" + g.Rounds.Model.Stage + " (" + g.Rounds.Model.FigureStage + ")");
+                    break;
+                case "waitending":
+                {
+                    // Also true if the ending was reached before this command started.
+                    string wanted = "ending '" + (a.Length > 1 ? a[1] : "") + "'";
+                    inner = WaitFor(() => GameLog.Recent(400).Any(e => e.ToString().IndexOf(wanted, StringComparison.OrdinalIgnoreCase) >= 0), F(a, 2, 300f), wanted);
+                    break;
+                }
                 case "waitbeat": inner = WaitFor(() => g.Director.CurrentBeat == a[1], F(a, 2, 120f), "beat " + a[1]); break;
                 case "waitflag": inner = WaitFor(() => g.Flags.Has(a[1]), F(a, 2, 120f), "flag " + a[1]); break;
                 case "waittask": inner = WaitFor(() => g.Tasks.IsCompleted(a[1]), F(a, 2, 120f), "task " + a[1]); break;
@@ -597,6 +610,12 @@ namespace SecondCursor.EditorTools
             Say("player " + Fmt(g.Player.Position) + " held=" + g.Player.Held + " hovered=" + Name(g.Player.Hovered) + " payload=" + (g.Player.Payload != null ? g.Player.Payload.FileId : "-"));
             Say("entity " + Fmt(e.Agent.Position) + " visible=" + e.IsVisible + " phase=" + e.Phase + " state=" + e.State + " action=" + (e.CurrentAction ?? "-") + " brain=" + e.Brain.Enabled + " defenses=" + e.Brain.Defenses);
             Say("fight=" + g.Conflict.IsFighting + (g.Conflict.IsMercyContest ? " (mercy)" : "") + " shredBusy=" + g.Shred.Busy);
+            if (g.Gary != null)
+                Say("gary " + Fmt(g.Gary.Agent.Position) + " visible=" + g.Gary.IsVisible + " alpha=" + g.Gary.View.Alpha.ToString("0.00", CultureInfo.InvariantCulture)
+                    + " action=" + (g.Gary.CurrentAction ?? "-") + " devices=" + g.Taskbar.PointingDevices);
+            if (g.Rounds != null && g.Rounds.Model != null)
+                Say("rounds running=" + g.Rounds.Running + " stage=" + g.Rounds.Model.Stage + " (" + g.Rounds.Model.FigureStage + ") meter="
+                    + g.Rounds.Model.Meter.ToString("0.0", CultureInfo.InvariantCulture) + " t=" + g.Rounds.Elapsed.ToString("0", CultureInfo.InvariantCulture));
             Say(AssistLine(g));
             Windows(g);
             Say("tasks: " + string.Join(" ", g.Tasks.Tasks.Where(t => t.State != Core.Tasks.TaskState.Hidden).Select(t => t.Id + "=" + t.State)));

@@ -1,0 +1,64 @@
+{
+  "emails": [
+    {
+      "id": "mail_n2_briefing",
+      "from": "Ruth Hale <rhale@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "Night shift briefing: Thu 11/19",
+      "date": "Thu 11/19/98 1:40 AM",
+      "body": "Casey,\n\nYou came back. Good. Not everyone does, the second night.\n\nRetention sent over your numbers from last night. They say you're coming along nicely. I didn't know they kept numbers on night staff.\n\nTonight's work is in your Work Queue. Same order as always:\n\n1. ARCHIVE: Batch 45, then Batch 46.\n2. WORK ORDERS: Personnel first. Approve ONLY if the owner is TERMINATED.\n3. JUNK: the temp file goes in the bin.\n\nIf the other pointer moves your files, let it. If it puts anything in your queue, leave it there. We didn't send it.\n\nCustodial rounds start at 3:00. Stay seated.\n\nRuth Hale\nNight Operations Supervisor",
+      "preload": true,
+      "read": false
+    },
+    {
+      "id": "mail_n2_castell",
+      "from": "Denise Castell <dcastell@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "you ok?",
+      "date": "Wed 11/18/98 11:58 PM",
+      "body": "Casey,\n\nI came by last night around two to drop off Gary's box for you (the duck mug, a paperback, his reading glasses). Your car wasn't in the lot. Security says nobody badged into B-Level after midnight.\n\nBut your screen was on. I could see it from the stairwell window. Somebody was moving the mouse.\n\nAre you taking the bus? Call me. I'm up late.\n\nDenise",
+      "preload": true,
+      "read": false
+    },
+    {
+      "id": "mail_n2_facilities",
+      "from": "Facilities <facilities@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "B-7 door sensor",
+      "date": "Wed 11/18/98 9:05 AM",
+      "body": "Casey,\n\nThe B-7 door sensor recorded no activity from your badge last night. No open, no close. Our log shows B-7 unoccupied.\n\nThe only entry is Custodial, 3:00 AM.\n\nIf you worked in B-7 last night, please badge in at the B-Level door tonight so the log is correct. The sensor was tested this morning. It works.\n\nHarold Whitcomb\nFacilities",
+      "preload": true,
+      "read": false
+    },
+    {
+      "id": "mail_n2_ruth_warning",
+      "from": "Ruth Hale <rhale@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "Re: remote activity",
+      "date": "Thu 11/19/98 2:31 AM",
+      "body": "Casey,\n\nRetention says there's remote activity on WS-04 again. Items in your queue that didn't come from us.\n\nDon't do them. Whatever it asks you for, it's asking for itself.\n\nIf anyone asks, tell them I checked in.\n\nRuth",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_n2_urgent_209",
+      "from": "Office of Retention <retention@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "URGENT: employee_209.dat (reclaim before 3:00)",
+      "date": "Thu 11/19/98 2:17 AM",
+      "body": "PRIORITY ORDER: OFFICE OF RETENTION\n\nA held record, employee_209.dat, has surfaced on the WS-04 desktop.\n\nThe record is incomplete. You are instructed to SHRED it before Custodial rounds begin (3:00 AM). Reclamation will complete it.\n\n- Do not open it.\n- Do not archive it.\n- If it asks you to finish it, do so.\n- If the other record asks you to stop, do not reply.\n\nThis order supersedes all other work.\n\nA. Voss\nDirector of Retention",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_n2_security_rounds",
+      "from": "Security Office <security@letheworth.corp>",
+      "to": "B-Level Staff <blevel@letheworth.corp>",
+      "subject": "Camera Viewer during rounds (effective tonight)",
+      "date": "Thu 11/19/98 2:58 AM",
+      "body": "Effective tonight, B-Level operators have Camera Viewer access during Custodial rounds.\n\nWhen rounds begin, the viewer opens on the camera covering Custodial. Keep it open and keep watching until rounds are complete. Do not close or minimize the viewer.\n\nThis is for your safety.\n\nLeonard Brandt\nSecurity Supervisor",
+      "preload": false,
+      "read": false
+    }
+  ]
+}

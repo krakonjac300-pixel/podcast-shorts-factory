@@ -139,6 +139,7 @@ namespace SecondCursor.OS
         readonly Dictionary<string, DesktopIcon> _fileIcons = new Dictionary<string, DesktopIcon>();
         readonly Dictionary<string, Vector2> _filePositions = new Dictionary<string, Vector2>();
         int _fsRevision = -1;
+        bool _binFull;
 
         public Interactable Background { get; private set; }
         public DesktopIcon DisposalIcon { get; private set; }
@@ -308,9 +309,10 @@ namespace SecondCursor.OS
         void Update()
         {
             if (_g == null) return;
-            if (_fsRevision != _g.Files.Revision)
+            if (_fsRevision != _g.Files.Revision || _binFull != _g.Shred.AnyShredded)
             {
                 _fsRevision = _g.Files.Revision;
+                _binFull = _g.Shred.AnyShredded;
                 SyncFiles();
                 DisposalIcon.SetSprite(_g.Shred.AnyShredded ? "icon_disposal_full" : "icon_disposal_empty");
             }

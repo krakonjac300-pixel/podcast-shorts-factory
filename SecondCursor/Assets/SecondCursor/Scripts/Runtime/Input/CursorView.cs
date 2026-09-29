@@ -16,6 +16,7 @@ namespace SecondCursor.Input
 
         CursorAgent _agent;
         bool _entityStyle;
+        string _variant;
         Image _image;
         RectTransform _rt;
         CursorShape _shownShape = (CursorShape)(-1);
@@ -43,8 +44,18 @@ namespace SecondCursor.Input
         }
 
         public CursorAgent Agent => _agent;
+        /// <summary>Palette variant: null (player or Ellen) or "gary".</summary>
+        public string Variant => _variant;
 
-        public static CursorView Create(RectTransform layer, CursorAgent agent, bool entityStyle)
+        /// <summary>A shape shown whatever the pointer is over (Gary is a hand while he is held). Null = normal.</summary>
+        [System.NonSerialized] public CursorShape? ForcedShape;
+
+        public static CursorView Create(RectTransform layer, CursorAgent agent, bool entityStyle) => Create(layer, agent, entityStyle, null);
+
+        /// <summary>
+        /// <paramref name="variant"/> "gary" draws the third pointer in its own amber palette, as a hand.
+        /// </summary>
+        public static CursorView Create(RectTransform layer, CursorAgent agent, bool entityStyle, string variant)
         {
             var rt = UIBuilder.Rect(agent.Name + " Cursor", layer);
             rt.anchorMin = rt.anchorMax = Vector2.zero;
@@ -52,7 +63,9 @@ namespace SecondCursor.Input
             var view = rt.gameObject.AddComponent<CursorView>();
             view._agent = agent;
             view._entityStyle = entityStyle;
+            view._variant = variant;
             view._rt = rt;
+            if (variant == GaryVariant) view.ForcedShape = CursorShape.Hand;
 
             if (entityStyle)
             {
@@ -90,8 +103,19 @@ namespace SecondCursor.Input
             }
         }
 
+        public const string GaryVariant = "gary";
+
         Sprite Resolve(string spriteName)
         {
+            if (_variant == GaryVariant)
+            {
+                return SpriteLibrary.GetVariant(spriteName, GaryVariant, c =>
+                {
+                    if (c == 'K') return Palette.GaryOutline;
+                    if (c == 'W') return Palette.GaryFill;
+                    return null;
+                });
+            }
             if (!_entityStyle) return SpriteLibrary.Get(spriteName);
             return SpriteLibrary.GetVariant(spriteName, "entity", c =>
             {
@@ -122,7 +146,7 @@ namespace SecondCursor.Input
         void LateUpdate()
         {
             if (_agent == null) return;
-            Apply(_agent.Shape);
+            Apply(ForcedShape ?? _agent.Shape);
 
             var hot = SpriteLibrary.Hotspot(_shownSprite);
             Vector2 p = _agent.Position + VisualOffset;

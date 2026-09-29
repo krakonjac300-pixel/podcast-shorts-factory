@@ -1,0 +1,76 @@
+{
+  "folders": [],
+  "files": [
+    { "id": "cache_tmp", "removed": true },
+    {
+      "id": "batch45_a", "name": "batch45_a.dat", "type": "dat", "folder": "intake", "size": "164 KB", "modified": "1998-11-18 15:10",
+      "content": "RECLAIMED RECORDS: BATCH 45-A\nSource drive: LW-2100 SN 0091188\nReceived: 11/18/98 from Sublevel C\n------------------------------------------\nClass:     Legacy customer records\nRecords:   164\nVerified:  164\nStatus:    Dormant. Ready for archive.\n\nChecked by: D. Castell 11/18/98",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch45"]
+    },
+    {
+      "id": "batch45_b", "name": "batch45_b.dat", "type": "dat", "folder": "intake", "size": "201 KB", "modified": "1998-11-18 15:22",
+      "content": "RECLAIMED RECORDS: BATCH 45-B\nSource drive: LW-2100 SN 0091189\nReceived: 11/18/98 from Sublevel C\n------------------------------------------\nClass:     Legacy customer records\nRecords:   201\nVerified:  199\nStatus:    Dormant. Ready for archive.\n\nNote: 2 records flagged QUIET. One of them\nwas not quiet this morning.\n\nChecked by: D. Castell 11/18/98",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch45"]
+    },
+    {
+      "id": "batch45_c", "name": "batch45_c.dat", "type": "dat", "folder": "intake", "size": "77 KB", "modified": "1998-11-18 15:40",
+      "content": "RECLAIMED RECORDS: BATCH 45-C\nSource drive: LW-2100 SN 0091190\nReceived: 11/18/98 from Sublevel C\n------------------------------------------\nClass:     Legacy business records\nRecords:   77\nVerified:  76\nStatus:    Dormant. Ready for archive.\n\nNote: 1 record found outside its drive\nat verification: employee_214.dat.\nReturned to Intake. Not part of this\nbatch. Same as 017. Who do I tell?\n\nChecked by: D. Castell 11/18/98",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch45", "clue"]
+    },
+    {
+      "id": "batch46_a", "name": "batch46_a.dat", "type": "dat", "folder": "intake", "size": "58 KB", "modified": "1998-11-18 16:02",
+      "content": "RECLAIMED RECORDS: BATCH 46-A\nSource drive: LW-2100 SN 0091201\nReceived: 11/18/98 from Sublevel C\n------------------------------------------\nClass:     Estate records (Continuity)\nRecords:   58\nVerified:  58\nStatus:    Lapsed. Ready for archive.\n\nChecked by: V. Pell 11/18/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch46"]
+    },
+    {
+      "id": "batch46_b", "name": "batch46_b.dat", "type": "dat", "folder": "intake", "size": "61 KB", "modified": "1998-11-18 16:05",
+      "content": "RECLAIMED RECORDS: BATCH 46-B\nSource drive: LW-2100 SN 0091202\nReceived: 11/18/98 from Sublevel C\n------------------------------------------\nClass:     Estate records (Continuity)\nRecords:   61\nVerified:  61\nStatus:    Lapsed. Ready for archive.\n\nNote: Estate of H. Dunmore. Final payment\nreceived 11/02/98. Account lapsed.\n\nChecked by: V. Pell 11/18/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch46"]
+    },
+    {
+      "id": "batch46_c", "name": "batch46_c.dat", "type": "dat", "folder": "intake", "size": "140 KB", "modified": "1998-11-18 16:11",
+      "content": "RECLAIMED RECORDS: BATCH 46-C\nSource drive: LW-2100 SN 0091203\nReceived: 11/18/98 from Sublevel C\n------------------------------------------\nClass:     Legacy customer records\nRecords:   140\nVerified:  140\nStatus:    Dormant. Ready for archive.\n\nNote: Drive was warm on arrival.\n\nChecked by: V. Pell 11/18/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch46"]
+    },
+    {
+      "id": "batch46_d", "name": "batch46_d.dat", "type": "dat", "folder": "intake", "size": "12 KB", "modified": "1998-11-18 16:20",
+      "content": "RECLAIMED RECORDS: BATCH 46-D\nSource drive: LW-2100 SN 0091204\nReceived: 11/18/98 from Sublevel C\n------------------------------------------\nClass:     Personnel records\nRecords:   12\nVerified:  11\nStatus:    Dormant. Ready for archive.\n\nNote: 1 record did not respond: 175.\nFlagged QUIET per Retention guidance.\nThat can't be right. 175 is Denise.\n\nChecked by: V. Pell 11/18/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch46", "clue"]
+    },
+    {
+      "id": "cache_tmp_n2", "name": "~nxs0149.tmp", "type": "tmp", "folder": "intake", "size": "2 KB", "modified": "1998-11-19 01:48",
+      "content": "NEXUS TEMPORARY FILE: SAFE TO DELETE\nOwner: WS-04   Created: 11/19/98 01:48\n\n[autosave buffer: Untitled]\nSTOP\nNOT THAT FILE\nPLEASE\n{line1}\nWHO TOLD YOU\nTO SHRED IT\n{line2}\nDO YOU WANT TO SEE\nWHAT THEY SEE\n{line3}\n\n[clipboard]\nremain seated\n\n[recent files]\n/intake/employee_017.dat\n/intake/employee_214.dat\n/intake/employee_214.dat",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "junk", "template"]
+    },
+    {
+      "id": "manifest_45", "name": "manifest_45.txt", "type": "txt", "folder": "intake", "size": "3 KB", "modified": "1998-11-18 14:30",
+      "content": "INTAKE MANIFEST: BATCH 45 (B-LEVEL)\nReceived 11/18/98 from Sublevel C\n------------------------------------------\nDRIVE           OWNER  DISPOSITION\nLW SN 0091188   n/a    Archive (45-A)\nLW SN 0091189   n/a    Archive (45-B)\nLW SN 0091190   n/a    Archive (45-C)\nLW SN 0093319   163    Wipe (WO 3319)\nLW SN 0093321   209    Wipe (WO 3321)\nLW SN 0000209   209    RECLAIM: see Retention\nLW SN 0000214   214    HOLD. Do not wipe.\n------------------------------------------\nNOTE: 0000214 is not a drive. It is\nlisted here because it keeps arriving.",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["flavor", "clue"]
+    },
+    {
+      "id": "employee_214", "name": "employee_214.dat", "type": "dat", "folder": "intake", "size": "2,871 KB", "modified": "1998-11-19 01:52",
+      "content": "LW-RETAIN 2.3 / SUBJ 214 / SRC WS-04 B-7\nSTATE: IN PROGRESS   SEGMENTS: 2871 OF 4000\n------------------------------------------\n..ledger_1994.dat..drag..1.2s..hesitation 0.4s..\n..the cursor twitched..did i do that..\n..%%..read mail_welcome..read it twice..\n..typed: {line1}..\n..typed: {line2}..\n..reached for Yes..0.6s..reached again..\n..camera 03..looked..looked again..#..\n..remain seated: YES..\n..turned around: NO..\n..~~..is this me..is this me..is this..\n------------------------------------------\n[CAPTURE CONTINUES]",
+      "hidden": true, "protected": false, "corrupted": false, "tags": ["story", "214", "template"]
+    },
+    {
+      "id": "employee_209", "name": "employee_209.dat", "type": "dat", "folder": "intake", "size": "3,114 KB", "modified": "1998-11-02 03:00",
+      "content": "LW-RETAIN 2.3 / SUBJ 209 / SRC WS-04 B-7\nSTATE: HELD (INCOMPLETE)   SEGMENTS: 3114 OF 4000\n------------------------------------------\n..vending machine..hit it on the left..\n..the duck mug..the duck mug..\n..door was open..i closed it i KNOW i\n..#..it pulled my hand off the camera..\n..like a hand on your wrist..\n..%%..dont fi..dont fi..dont fi..\n..its like being stuck halfway through\na sneeze..for three weeks..\n..@..is somebody going to finish this..\n..casey..is that your name..they say it\n..at three..\n------------------------------------------\n[SEGMENTS 3115 TO 4000 NOT FOUND]",
+      "hidden": true, "protected": false, "corrupted": false, "tags": ["story", "209", "persistent"]
+    },
+    {
+      "id": "b7_door_log", "name": "b7_door_log.txt", "type": "txt", "folder": "documents", "size": "2 KB", "modified": "1998-11-19 01:52",
+      "content": "FACILITIES DOOR LOG: OFFICE B-7 (NIGHTS)\n\nDATE      CLOSED  OPENED  BADGE\n10/31/98  01:56   02:40   none\n11/01/98  01:58   02:21   none\n11/02/98  01:57   02:08   none\n11/02/98  03:00   Operator not present.\n11/03/98 to 11/17/98  B-7 unoccupied.\n11/18/98  n/a     03:00   000\n11/18/98  B-7 unoccupied.\n11/19/98  n/a     n/a     n/a\n11/19/98  B-7 unoccupied.\n\nSensor tested OK 11/18/98 09:00.\nNo entry recorded for badge 214.\nDoor behavior on B-Level is related to\nair balancing. (H.W.)",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["flavor", "clue", "door"]
+    },
+    {
+      "id": "nexus_cfg", "name": "nexus.cfg", "type": "cfg", "folder": "system", "size": "1 KB", "modified": "1998-11-19 01:52",
+      "content": "; NEXUS OS 4.1: WS-04\n[NEXUS]\nHOST=WS-04\nLOCATION=B-7\nOWNER=LETHEWORTH\n\n[INPUT]\nPOINTER_DEVICES=3\nPOINTER_1_OWNER=214\nPOINTER_2_OWNER=\nPOINTER_2_STATE=ACTIVE\nPOINTER_2_DETACH=DENIED\nPOINTER_3_OWNER=209\nPOINTER_3_STATE=HELD\n\n[CAPTURE]\nSERVICE=LWCAP.EXE\nMODE=CONTINUOUS\nTARGET=OPERATOR\nPROFILE_209=HELD\nPROFILE_214=IN PROGRESS (88%)\nPROFILE_214_SOURCE=COPY\n\n[CAMERA]\nVIEWER=RESTRICTED\nPRIORITY_FEED=CAM03\nROUNDS_FEED=AUTO\n\n[SESSION]\nALLOW_LOGOFF=0\nOPEN_SESSIONS=3",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["system", "clue"]
+    },
+    {
+      "id": "input_log", "name": "input.log", "type": "log", "folder": "system", "size": "19 KB", "modified": "1998-11-19 01:52",
+      "content": "NEXUS INPUT SERVICE: WS-04\n\n11/18/98 01:52:11  POINTER 1 ATTACHED (214)\n11/18/98 03:00:00  POINTER 1 DETACHED (214)\n11/18/98 03:00:00  POINTER 1 COPY RETAINED\n...\n11/19/98 01:52:11  POINTER 1 ATTACHED (214)\n11/19/98 01:52:11  POINTER 2 ACTIVE\n11/19/98 01:52:12  POINTER 3 DETECTED (209)\n11/19/98 01:52:12  POINTER 3 NOT RESPONDING\n11/19/98 01:52:40  RECORDING POINTER 1",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["system", "clue"]
+    }
+  ]
+}

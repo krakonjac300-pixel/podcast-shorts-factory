@@ -42,6 +42,18 @@ namespace SecondCursor.Entity
         /// <summary>An element the entity is physically covering; the player cannot press it while the entity sits on it.</summary>
         public Interactable Guarding { get; set; }
 
+        /// <summary>False for secondary cursors (Gary): no brain, no press blocking hook, no tuning asset.</summary>
+        public bool IsPrimary { get; private set; } = true;
+        /// <summary>Tray mouse this cursor shows up as (2 = the second cursor, 3 = Gary).</summary>
+        public int DeviceIndex = 2;
+        /// <summary>Opacity when fully present (Gary is faint while he is held).</summary>
+        public float MaxAlpha = 1f;
+        /// <summary>Flicker when calm (Gary flickers a little all the time).</summary>
+        public float BaseFlicker;
+        /// <summary>Chance per word of one wrong letter, then a backspace, when it types (Gary's typos).</summary>
+        public float TypoRate;
+        string _staticLoop = "entity_static";
+
         public CursorAgent Agent => _agent;
         public CursorView View => _view;
         public bool IsVisible => _view != null && _view.Alpha > 0.05f && _agent.Visible;
@@ -78,18 +90,29 @@ namespace SecondCursor.Entity
             if (rt != null) rt.anchoredPosition = home;
         }
 
-        public static EntityController Create(GameServices g, Transform parent)
+        public static EntityController Create(GameServices g, Transform parent) =>
+            Create(g, parent, g.EntityAgent, g.EntityView, true, "entity_static");
+
+        /// <summary>
+        /// A controller for any cursor. The primary one (the second cursor) gets the brain, the designer tuning
+        /// and the router hook that lets it block the player's presses; secondary ones (Gary) get none of that,
+        /// and <paramref name="staticLoopKey"/> null means it makes no static while it moves.
+        /// </summary>
+        public static EntityController Create(GameServices g, Transform parent, CursorAgent agent, CursorView view, bool primary, string staticLoopKey)
         {
-            var go = new GameObject("Entity");
+            var go = new GameObject(primary ? "Entity" : "Cursor " + agent.Name);
             go.transform.SetParent(parent, false);
             var c = go.AddComponent<EntityController>();
             c._g = g;
-            c._agent = g.EntityAgent;
-            c._view = g.EntityView;
+            c._agent = agent;
+            c._view = view;
+            c.IsPrimary = primary;
+            c._staticLoop = staticLoopKey;
             c._agent.Enabled = false;
             c._agent.Visible = false;
             c._agent.Position = new Vector2(ScreenRig.Width + 20, ScreenRig.Height * 0.5f);
             c._view.Alpha = 0f;
+            if (!primary) return c;
             var tuning = EntityTuningAsset.LoadOptional();
             if (tuning != null)
             {
@@ -133,23 +156,24 @@ namespace SecondCursor.Entity
                 _current.Tick(Time.time);
                 if (_current.Done) _current = null;
             }
-            if (_current == null && Brain.Enabled) Brain.Tick(dt);
+            if (_current == null && Brain != null && Brain.Enabled) Brain.Tick(dt);
         }
 
         void UpdateStaticSound()
         {
-            if (_g.Audio == null) return;
+            if (_g.Audio == null || string.IsNullOrEmpty(_staticLoop)) return;
+            string loop = _staticLoop;
             bool moving = IsVisible && _agent.Velocity.sqrMagnitude > 400f;
             if (moving)
             {
-                if (!_g.Audio.IsLoopPlaying("entity_static")) _g.Audio.PlayLoop("entity_static", 0.05f, 0.05f);
+                if (!_g.Audio.IsLoopPlaying(loop)) _g.Audio.PlayLoop(loop, 0.05f, 0.05f);
                 float v = Mathf.Clamp01(_agent.Velocity.magnitude / 1800f);
-                _g.Audio.SetLoopVolume("entity_static", 0.15f + v * 0.85f, 0.08f);
-                _g.Audio.SetLoopPan("entity_static", Audio.AudioManager.PanFor(_agent.Position.x));
+                _g.Audio.SetLoopVolume(loop, 0.15f + v * 0.85f, 0.08f);
+                _g.Audio.SetLoopPan(loop, Audio.AudioManager.PanFor(_agent.Position.x));
             }
-            else if (_g.Audio.IsLoopPlaying("entity_static"))
+            else if (_g.Audio.IsLoopPlaying(loop))
             {
-                _g.Audio.StopLoop("entity_static", 0.25f);
+                _g.Audio.StopLoop(loop, 0.25f);
             }
         }
 
@@ -161,7 +185,7 @@ namespace SecondCursor.Entity
                 case EntityState.Panicked: _view.Jitter = 1.2f; _view.Flicker = 0.04f; break;
                 case EntityState.Aggressive: _view.Jitter = 0.4f; _view.Flicker = 0.01f; break;
                 case EntityState.Defensive: _view.Jitter = 0.25f; _view.Flicker = 0f; break;
-                default: _view.Jitter = 0f; _view.Flicker = 0f; break;
+                default: _view.Jitter = 0f; _view.Flicker = BaseFlicker; break;
             }
         }
 
@@ -201,10 +225,17 @@ namespace SecondCursor.Entity
 
         public void SetPresent(bool present, float fadeSeconds = 0.6f)
         {
-            _targetAlpha = present ? 1f : 0f;
+            _targetAlpha = present ? MaxAlpha : 0f;
             _alphaSpeed = fadeSeconds <= 0f ? 1000f : 1f / fadeSeconds;
             _agent.Enabled = present;
             if (!present) ReleaseEverything();
+        }
+
+        /// <summary>Fade to an opacity without leaving (Gary fading to a faint presence). Keeps it clickable.</summary>
+        public void FadeTo(float alpha, float fadeSeconds = 0.6f)
+        {
+            _targetAlpha = Mathf.Clamp01(alpha);
+            _alphaSpeed = fadeSeconds <= 0f ? 1000f : Mathf.Max(0.01f, Mathf.Abs(_view.Alpha - _targetAlpha)) / fadeSeconds;
         }
 
         /// <summary>Fade in at a position (default: just off the right edge) - the cursor "arrives".</summary>
@@ -213,7 +244,7 @@ namespace SecondCursor.Entity
             if (at.HasValue) _agent.Position = at.Value;
             SetPresent(true, fadeSeconds);
             if (sound) _g.Audio?.Play("entity_appear", 0.8f, 1f, Audio.AudioManager.PanFor(_agent.Position.x));
-            if (_g.Taskbar != null) _g.Taskbar.PointingDevices = 2;
+            if (_g.Taskbar != null) _g.Taskbar.PointingDevices = Mathf.Max(_g.Taskbar.PointingDevices, DeviceIndex);
             yield return Waits.Seconds(fadeSeconds);
         }
 
@@ -340,8 +371,30 @@ namespace SecondCursor.Entity
         }
 
         /// <summary>
-        /// Move to an element and click it. If the player's cursor is covering it, the entity jostles
-        /// around the player's cursor trying to get a clean click until <paramref name="patience"/> runs out.
+        /// True if something else covers the element where this cursor would click: the player's cursor (see
+        /// <see cref="IsBlockedByPlayer"/>), or another visible cursor guarding it or sitting on it. So Gary can
+        /// block Ellen, and the player can block either of them.
+        /// </summary>
+        public bool IsBlockedByOthers(Interactable element) => BlockerOn(element) != null;
+
+        CursorAgent BlockerOn(Interactable element)
+        {
+            if (element == null) return null;
+            if (IsBlockedByPlayer(element)) return _g.Player;
+            foreach (var other in new[] { _g.Entity, _g.Gary })
+            {
+                // A faint cursor (Gary fading in and out) has no hand to block with.
+                if (other == null || other == this || !other.IsVisible || !other._agent.Enabled || other._view.Alpha < 0.5f) continue;
+                if (other.Guarding == element) return other._agent;
+                Vector2 p = other._agent.Position;
+                if (element.WorldRect.Contains(p) && (Vector2.Distance(p, _agent.Position) < BlockRadius || element.IsHoveredBy(other._agent))) return other._agent;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Move to an element and click it. If another cursor (usually the player's) is covering it, this one
+        /// jostles around it trying to get a clean click until <paramref name="patience"/> runs out.
         /// Result is written to <paramref name="result"/>[0] (true = clicked).
         /// </summary>
         public IEnumerator ClickElement(Interactable element, MovementProfileData profile, bool[] result = null, float patience = 3f, bool doubleClick = false)
@@ -350,14 +403,15 @@ namespace SecondCursor.Entity
             if (element == null) yield break;
             yield return MoveToElement(element, profile);
             float giveUp = Time.time + patience;
-            while (element != null && element.isActiveAndEnabled && IsBlockedByPlayer(element))
+            CursorAgent blocker;
+            while (element != null && element.isActiveAndEnabled && (blocker = BlockerOn(element)) != null)
             {
                 if (Time.time > giveUp) yield break;
-                // Nudge against the player's cursor, looking for an uncovered spot.
+                // Nudge against the covering cursor, looking for an uncovered spot.
                 var r = element.WorldRect;
-                Vector2 away = (_agent.Position - _g.Player.Position);
+                Vector2 away = (_agent.Position - blocker.Position);
                 if (away.sqrMagnitude < 1f) away = UnityEngine.Random.insideUnitCircle;
-                Vector2 probe = _g.Player.Position + away.normalized * (BlockRadius + 3f) + UnityEngine.Random.insideUnitCircle * 4f;
+                Vector2 probe = blocker.Position + away.normalized * (BlockRadius + 3f) + UnityEngine.Random.insideUnitCircle * 4f;
                 probe = new Vector2(Mathf.Clamp(probe.x, r.xMin + 2, r.xMax - 2), Mathf.Clamp(probe.y, r.yMin + 2, r.yMax - 2));
                 yield return MoveTo(probe, MovementProfiles.Panicked, 6f);
                 yield return Waits.Seconds(0.05f);
@@ -427,7 +481,7 @@ namespace SecondCursor.Entity
             var area = notepad.Window.Client;
             var target = area.WorldCenter() + new Vector2(_rng.Range(-60f, 60f), _rng.Range(-40f, 20f));
             yield return MoveTo(target, MovementProfiles.HumanLike, 40f);
-            yield return notepad.TypeAsEntity(text, charsPerSecond, _agent);
+            yield return notepad.TypeAsEntity(text, charsPerSecond, _agent, TypoRate);
         }
 
         /// <summary>

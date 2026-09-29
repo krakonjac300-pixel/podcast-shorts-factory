@@ -19,6 +19,12 @@ namespace SecondCursor.Story
         RectTransform _panel;
         bool _clicked;
 
+        /// <summary>
+        /// The disclaimer and title were shown in this app session: a later night started from inside the game
+        /// (the end card's Continue) goes straight to its night card.
+        /// </summary>
+        internal static bool IntroShownThisSession;
+
         public BootSequence(GameServices g)
         {
             _g = g;
@@ -56,18 +62,48 @@ namespace SecondCursor.Story
             }
         }
 
-        public IEnumerator Run(bool quick)
+        int _night = 1;
+
+        public IEnumerator Run(bool quick) => Run(quick, 1);
+
+        /// <summary>
+        /// Night 1 plays exactly as it always has. Later nights skip the disclaimer and title when they were
+        /// already shown in this session, show their night card first, and use the night's log-on text.
+        /// </summary>
+        public IEnumerator Run(bool quick, int night)
         {
+            _night = night;
             _g.Player.Enabled = true;
-            if (!quick)
+            bool intro = !quick && (night <= 1 || !IntroShownThisSession);
+            if (intro)
             {
                 yield return Disclaimer();
                 yield return Title();
+                IntroShownThisSession = true;
             }
+            if (night > 1) yield return NightCard(night);
             yield return Bios(quick);
             yield return Splash(quick);
             yield return Login();
             Clear();
+        }
+
+        /// <summary>Black, the night and its date, 2.5 s (click or key skips).</summary>
+        IEnumerator NightCard(int night)
+        {
+            var p = NewPanel(Palette.Black, "Night Card");
+            _g.Player.Visible = false;
+            var t = UIBuilder.Text(p, _g.Content.Text("night.card." + night, "NIGHT " + night), Palette.BiosBright, true);
+            t.Scale = 2;
+            t.rectTransform.Stretch(0, 0, 0, 0);
+            t.Align = TextAlign.Center;
+            t.VAlign = TextVAlign.Middle;
+            _g.Audio.Play("low_thump", 0.5f, 0.9f);
+            float a = 0f;
+            while (a < 1f) { a += Time.deltaTime * 2f; t.color = new Color(1f, 1f, 0.96f, Mathf.Min(1f, a)); yield return null; }
+            yield return WaitOrSkip(2.0f);
+            while (a > 0f) { a -= Time.deltaTime * 3f; t.color = new Color(1f, 1f, 0.96f, Mathf.Max(0f, a)); yield return null; }
+            GameLog.Info(LogChannel.Story, "Night card: night " + night);
         }
 
         IEnumerator Disclaimer()
@@ -267,7 +303,9 @@ namespace SecondCursor.Story
             }
             ok.Enabled = false;
             cancel.Enabled = false;
-            status.text = "Applying your personal settings...";
+            // Night 1 keeps its original line; later nights restore their settings "from a copy".
+            status.text = _night > 1 ? c.Text("login.progress") : "Applying your personal settings...";
+            if (_night > 1) status.rectTransform.At(14, 144, 330, 12); // the longer line gets the free row above the buttons
             _g.Player.ShapeOverride = CursorShape.Busy;
             _g.Audio.Play("hdd_seek", 0.8f);
             yield return Waits.Seconds(1.6f);

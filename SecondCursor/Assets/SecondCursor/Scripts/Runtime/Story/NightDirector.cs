@@ -68,8 +68,11 @@ namespace SecondCursor.Story
                 case 1:
                     d = go.AddComponent<Night1Director>();
                     break;
+                case 2:
+                    d = go.AddComponent<Night2Director>();
+                    break;
                 default:
-                    // Nights 2 and 3 are built in a later phase: run Night 1's beats with that night's difficulty.
+                    // Night 3 is built in a later phase: run Night 1's beats with that night's difficulty.
                     GameLog.Warn(LogChannel.Story, "Night " + night + " has no director yet: running Night 1's beats (nothing is saved)");
                     d = go.AddComponent<Night1Director>();
                     break;
@@ -111,11 +114,12 @@ namespace SecondCursor.Story
         // ------------------------------------------------------------------ flow control
 
         /// <summary>Run a background story routine alongside the current beat (stopped on jumps).</summary>
-        protected void RunSide(IEnumerator routine, string name)
+        protected Routine RunSide(IEnumerator routine, string name)
         {
             var r = new Routine(routine, name);
             r.Tick(Time.time);
             if (!r.Done) _side.Add(r);
+            return r;
         }
 
         /// <summary>Start the night from its first beat (a fresh start: its starting memory is saved).</summary>
@@ -157,7 +161,11 @@ namespace SecondCursor.Story
             var g = _g;
             g.Entity.Interrupt();
             g.Entity.Brain.Enabled = false;
+            g.Entity.Brain.AllowCloseCamera = false;
+            g.Entity.Brain.InterceptRadius = 0f;
             g.Entity.Urgency = 1f;
+            g.Gary?.Interrupt();
+            g.Rounds?.Stop();
             _boot?.Clear();
             _boot = null;
             _ending?.Clear();
@@ -173,6 +181,7 @@ namespace SecondCursor.Story
             g.Clock.Rate = ClockRate;
             foreach (var s in _speakers)
             {
+                s.Typing = false;
                 if (s.Pad == null || !s.Pad.IsOpen) continue;
                 s.Pad.ConversationMode = false;
                 s.Pad.PlayerCanType = true;
@@ -281,6 +290,20 @@ namespace SecondCursor.Story
             yield return Wait(0.8f);
         }
 
+        /// <summary>
+        /// The second cursor writes a task into the Work Queue (entity-authored): it appears in her colours
+        /// and the OS says a remote session changed the queue.
+        /// </summary>
+        protected void GiveEntityTask(string taskId)
+        {
+            var t = _g.Tasks.Get(taskId);
+            if (t == null || t.State != Core.Tasks.TaskState.Hidden) return;
+            _g.Tasks.Activate(taskId);
+            if (!_g.Tasks.IsCompleted(taskId))
+                _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Content.Text("notify.queue.remote") + "\n" + t.Title, "icon_task_active",
+                    a => _g.Apps.Launch(AppIds.WorkQueue, a), "sys_warning");
+        }
+
         protected void GiveTask(string taskId)
         {
             _g.Tasks.Activate(taskId);
@@ -336,6 +359,10 @@ namespace SecondCursor.Story
         {
             public readonly EntityController Cursor;
             public NotepadApp Pad;
+            /// <summary>How the cursor moves when it goes to open its Notepad (Gary: Tired).</summary>
+            public string MoveProfile = MovementProfiles.HumanLikeName;
+            /// <summary>True while lines are being typed (so two routines never type into the same pad at once).</summary>
+            public bool Typing;
 
             public Speaker(EntityController cursor)
             {
@@ -364,7 +391,7 @@ namespace SecondCursor.Story
             var c = s.Cursor;
             if (EnsurePad(s) != null) { s.Pad.Window.Restore(c.Agent); yield break; }
             var before = new HashSet<App>(_g.Apps.OpenApps);
-            yield return c.OpenApp(AppIds.Notepad, MovementProfiles.HumanLike);
+            yield return c.OpenApp(AppIds.Notepad, MovementProfiles.Get(s.MoveProfile));
             foreach (var app in _g.Apps.OpenApps)
                 if (app is NotepadApp n && !before.Contains(app) && n.FileId == null) s.Pad = n;
             if (s.Pad == null)
@@ -376,6 +403,12 @@ namespace SecondCursor.Story
 
         protected IEnumerator TypeLines(Speaker s, IEnumerable<string> lines, float cps = 4.5f)
         {
+            if (lines == null) yield break;
+            // Another routine is typing into this pad: wait for it (never interleave two lines).
+            float wait = Time.time + 20f;
+            while (s.Typing && Time.time < wait) yield return null;
+            // (A stopped routine never reaches the end: jumps reset the flag, and the wait above times out.)
+            s.Typing = true;
             foreach (var line in lines)
             {
                 if (string.IsNullOrEmpty(line)) continue;
@@ -385,6 +418,7 @@ namespace SecondCursor.Story
                 yield return Wait(0.5f);
             }
             if (s.Pad != null && s.Pad.IsOpen && !s.Pad.Text.EndsWith("\n")) s.Pad.Append("\n");
+            s.Typing = false;
         }
 
         /// <summary>
@@ -395,7 +429,8 @@ namespace SecondCursor.Story
         /// reply (with its Tag) is written to <paramref name="last"/>[0].
         /// </summary>
         protected IEnumerator RunExchangeChain(Speaker s, string firstExchangeId, Action<DialogueReply, string> onReply = null,
-            DialogueReply[] last = null, float firstCps = 2.2f, float cps = 4f, float silenceSeconds = 25f, string reopenLine = "DONT")
+            DialogueReply[] last = null, float firstCps = 2.2f, float cps = 4f, float silenceSeconds = 25f, string reopenLine = "DONT",
+            Func<ExchangeData, IEnumerable<string>> extraLines = null)
         {
             var exchange = _g.Dialogue.Get(firstExchangeId);
             bool first = true;
@@ -403,6 +438,9 @@ namespace SecondCursor.Story
             while (exchange != null && guard++ < 6)
             {
                 yield return TypeLines(s, exchange.entityLines, first ? firstCps : cps);
+                // Lines some exchanges add before the player's turn (a memory of an earlier night).
+                var extra = extraLines?.Invoke(exchange);
+                if (extra != null) yield return TypeLines(s, extra, cps);
                 first = false;
                 if (EnsurePad(s) == null) yield return OpenNotepadAs(s);
                 s.Pad.PlayerCanType = true;

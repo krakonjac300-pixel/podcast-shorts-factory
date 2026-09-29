@@ -125,7 +125,12 @@ namespace SecondCursor.Game
                             "\nFight: " + (_g.Conflict.IsFighting ? "YES strain " + _g.Conflict.Strain.ToString("0.00") + " share " + _g.Conflict.EntityShare.ToString("0.00") + (_g.Conflict.IsMercyContest ? " MERCY" : "") : "no") +
                             "\nAssist L" + assist.Level + "  loss streak " + assist.LossStreak.ToString("0.0") + "  wins " + assist.WinStreak + (assist.MercyArmed ? "  mercy armed" : "") +
                             "   Tug: " + (ConflictSystem.ForcedOutcome == TugOutcome.None ? "real" : ConflictSystem.ForcedOutcome.ToString()) +
-                            "\nTrust: " + _g.Memory.Trust.ToString("0.00") + "   Shred busy: " + _g.Shred.Busy, _label);
+                            "\nTrust: " + _g.Memory.Trust.ToString("0.00") + "   Shred busy: " + _g.Shred.Busy +
+                            (_g.Rounds != null && _g.Rounds.Model != null
+                                ? "\nRounds: " + (_g.Rounds.Running ? "ON" : "off") + " stage " + _g.Rounds.Model.Stage + " (" + _g.Rounds.Model.FigureStage + ") meter " +
+                                  _g.Rounds.Model.Meter.ToString("0.0") + "/" + _g.Rounds.Model.Config.WatchSeconds.ToString("0") + "  t " + _g.Rounds.Elapsed.ToString("0")
+                                : "") +
+                            (_g.Gary != null && _g.Gary.IsVisible ? "\nGary: " + (_g.Gary.CurrentAction ?? "-") + " alpha " + _g.Gary.View.Alpha.ToString("0.00") : ""), _label);
 
             GUILayout.Label("Night (fresh shift):", _label);
             GUILayout.BeginHorizontal();

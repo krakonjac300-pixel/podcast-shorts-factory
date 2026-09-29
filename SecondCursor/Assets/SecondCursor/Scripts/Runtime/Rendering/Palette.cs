@@ -55,6 +55,9 @@ namespace SecondCursor.Rendering
         /// <summary>The second cursor is an inverted, slightly cold copy: dark body, pale outline.</summary>
         public static readonly Color32 EntityOutline = new Color32(0xE6, 0xEC, 0xEA, 0xFF);
         public static readonly Color32 EntityFill = new Color32(0x0B, 0x0E, 0x0D, 0xFF);
+        /// <summary>Gary, the third pointer: a tired amber outline on a dark brown body (a hand, never an arrow while held).</summary>
+        public static readonly Color32 GaryOutline = new Color32(216, 168, 64, 0xFF);
+        public static readonly Color32 GaryFill = new Color32(42, 36, 24, 0xFF);
 
         public static Color32 WithAlpha(Color32 c, byte a) => new Color32(c.r, c.g, c.b, a);
 

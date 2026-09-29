@@ -199,6 +199,13 @@ namespace SecondCursor.Apps
 
         public void SelectFile(string fileId, CursorAgent by) => _files.SelectWhere(r => r.Tag is string s && s == fileId, by);
 
+        /// <summary>The folder pane's row for a folder (a drop target a cursor can drag files onto), or null.</summary>
+        public Interactable FolderRowFor(string folderId)
+        {
+            foreach (var r in _folders.Rows) if (r.Tag is string s && s == folderId) return r.Hit;
+            return null;
+        }
+
         public string SelectedFileId => _files.Selected?.Tag as string;
 
         void FileMenu(string tag, CursorAgent a)

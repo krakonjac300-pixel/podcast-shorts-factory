@@ -156,9 +156,11 @@ namespace SecondCursor.Core.Content
                 Problems.Add("Missing folder '" + id + "' (placeholder created)");
             }
 
+            var removed = new HashSet<string>(fs.removedFiles ?? Array.Empty<string>(), StringComparer.Ordinal);
             void File(string id, string name, string type, string folder, string content)
             {
-                if (files.Exists(f => f != null && f.id == id)) return;
+                // A file a night overlay deleted on purpose stays deleted.
+                if (removed.Contains(id) || files.Exists(f => f != null && f.id == id)) return;
                 files.Add(new FileData
                 {
                     id = id, name = name, type = type, folder = folder, size = "4 KB", modified = "1998-11-03 23:10",

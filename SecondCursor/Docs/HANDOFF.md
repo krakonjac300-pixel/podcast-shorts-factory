@@ -210,6 +210,53 @@ Night 1 plays as before; the only intended differences are the adaptive assist a
   endings driven by `EndingSpec`, night card, title menu/Night Select/Records, achievements hooks,
   `=` whole-word keywords, entity-authored tasks (`GiveEntityTask`, `Withdraw`).
 
+### Expansion phase C (Night 2)
+
+Night 2, HELD, per `Docs/Design/Expansion.md` Section 4, with the Phase B systems it needs. Night 1 plays as
+before; its only visible change is a **Continue to Night 2** button on its end card once Night 2 is unlocked
+(not in `SC_DEMO` builds).
+
+- **Director.** `Runtime/Story/Night2Director.cs` (boot, work, help, asks) and `Night2Director.Gary.cs` (third,
+  finish, rounds, ending), beats and guards as in 4.2/4.3, checkpoints at `work`, `asks`, `finish`, `rounds`,
+  `Prepare` per 4.5. The clock runs at 0.06 min/s, holds at 2:49 until the order for 209, then lands 3:00 on
+  its 150 s deadline. Outcomes: finished (209 shredded by the player), kept by archive, kept by the deadline
+  (or the 175 s cap). Log lines: `Gary: finished|archived|deadline`, `Rounds: stage N`, `Withdrew <id>`.
+- **Content.** `Resources/Content/night2/*.json` (Section 4.4 verbatim) and the Section 3 string keys in the base
+  `strings.json`. A file an overlay removes is never recreated as a placeholder (`FileSystemData.removedFiles`).
+- **World setup.** `Runtime/Story/NightSetup.cs`: Night 1's end state, last night's mail read, Night 1's orders
+  decided, 017 in use, templates filled (`Core/Story/NightTemplates.cs`, all Section 2.4 tokens).
+  `SaveData.MemoryForNight(n)` gives a night the saved memory minus its own and later nights' `m.nN.` keys, so
+  replaying Night 2 never starts with its previous run's choices.
+- **Gary.** A third `CursorAgent` (registered between Ellen and the player) with `CursorView` variant `gary`
+  (amber hand, `Palette.GaryOutline/GaryFill`), a secondary `EntityController` (no brain, no press hook, no
+  static, `DeviceIndex` 3, `MaxAlpha`, `BaseFlicker`, `TypoRate` 0.08 with backspaced typos in
+  `NotepadApp.TypeAsEntity`), `MovementProfiles.Tired`. `EntityController.IsBlockedByOthers` (player, or a
+  visible cursor at alpha 0.5 or more guarding or hovering the element) is what `ClickElement` uses, so Gary
+  on **No**/**Cancel** blocks Ellen. `DragDropSystem.CanContest` limits tugs to player vs. second cursor; the
+  player grabbing Gary's ghost simply takes the file. Taskbar: three tray mice, `BlinkDevice(i)`.
+- **Tasks.** `TaskType.OpenFile`/`ViewEmployee` (player-only counters `opened_by_player:`/`viewed_by_player:`
+  from `AppManager.OpenFile` and `StaffApp.Show`), `TaskState.Withdrawn` + `Withdraw(id)`, entity-authored
+  tasks (`author: "entity"`, `NightDirector.GiveEntityTask`). Work Queue: remote rows in the entity's inverted
+  colours with `(remote session)`, `Due:` line, withdrawn hidden, at most 7 rows. `ShredService.IsPendingArchive`
+  ignores entity and withdrawn tasks; `ResetBin()` empties the bin.
+- **Rounds.** `Core/Story/CustodialRounds.cs` (watch meter, `RoundsConfig.Night2`, Story variant, unit-tested)
+  and `Runtime/Story/RoundsSystem.cs` (feeds it from the Camera Viewer, forced opens, reopen penalty, figure
+  cuts under static). New figure stage `HallFar`. Brain behaviour `CloseCamera` (`AllowCloseCamera`, reaction
+  from trust); a blocked close types CLOSE IT (at most every 20 s).
+- **Endings.** `EndingSpec` (lines, Gary's small goodnight, card keys, Continue button); Night 2's card shows
+  `NIGHT 2` / subtitle and Continue to Night 3, Title, Quit. Night 1 keeps the WISHLIST card.
+- **Boot.** Night card for nights 2+ (`night.card.N`), disclaimer and title only once per app session for later
+  nights, `login.progress` on nights 2+ (Night 1 keeps its line).
+- **Other.** `DialogueEngine`: `=word` keywords match whole words only. `phone_ring` sound (35 sounds).
+  Debug panel shows rounds and Gary. Bridge: `stage N`, `waitending ID`, `dump` prints Gary and the round.
+- **Judgement calls.** Ellen only intercepts 209 within 230 px of the Disposal bin (so archiving it is
+  possible); Gary's guard move is 4x his Tired speed (at 2x he never beats her reaction); if windows cover
+  209 when the order arrives or before Gary's tries, it is moved into view and blinks; Ellen does not lurk
+  during the round (a slow lurk delayed her close); "Title" on a night card restarts the Continue night with
+  the intro until the title menu exists (Phase E).
+- **Not yet:** Night 3 (still the stand-in), title menu / Night Select / Records, achievements hooks,
+  AuthPrompt, Notepad Save, Log Off, CAM 04 / CAM 00 sets, live Personnel, Night 1's night card.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

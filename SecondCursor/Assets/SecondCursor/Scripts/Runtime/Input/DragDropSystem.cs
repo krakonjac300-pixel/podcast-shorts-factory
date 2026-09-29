@@ -35,6 +35,14 @@ namespace SecondCursor.Input
         public event Action<DragPayload, CursorAgent> ContestReleased;
         /// <summary>Payload finished (dropped somewhere or returned): (payload, accepted, agent that released it or null).</summary>
         public event Action<DragPayload, bool, CursorAgent> PayloadFinished;
+        /// <summary>The player took a payload from a cursor it cannot fight: (payload, previous holder).</summary>
+        public event Action<DragPayload, CursorAgent> Snatched;
+
+        /// <summary>
+        /// Whether a grab by (holder, grabber) starts a contest. Null = always. A refused grab by the player
+        /// takes the payload outright (<see cref="Snatched"/>); any other refused grab does nothing.
+        /// </summary>
+        public Func<CursorAgent, CursorAgent, bool> CanContest;
 
         public DragDropSystem(RectTransform layer, PointerRouter router)
         {
@@ -104,6 +112,16 @@ namespace SecondCursor.Input
             it.PointerDown += a =>
             {
                 if (a == p.Holder || p.Contender != null || p.Holder == null) return;
+                if (CanContest != null && !CanContest(p.Holder, a))
+                {
+                    // No fight between these two (Gary is too weak to hold on): the player simply takes it.
+                    if (!a.IsPlayer || a.Payload != null) return;
+                    var from = p.Holder;
+                    TransferTo(p, a);
+                    GameLog.Info(LogChannel.Player, a.Name + " took " + p.Label + " from " + from.Name);
+                    Snatched?.Invoke(p, from);
+                    return;
+                }
                 p.Contender = a;
                 GameLog.Info(a.IsEntity ? LogChannel.Entity : LogChannel.Player, a.Name + " grabbed " + p.Label + " from " + p.Holder.Name);
                 ContestStarted?.Invoke(p, a);

@@ -93,6 +93,7 @@ Use `F1` → **Jump to beat** to go straight to any milestone (it starts a fresh
 | **M8 Event director** | whole run | Escalates from ordinary work → a window nudging itself → a file selecting itself (with a click you didn't make) → presence → conflict → communication → escalation → reveal. |
 | **M9 Security camera** | `escalation` / `reveal` | It replays your own earlier mouse movement, unlocks **SecureView** (normally *Access Denied*) and opens **CAM 03**: your office, from behind. The seated figure's arm follows *your* mouse. Keep watching... the door... |
 | **M10 Slice** | `boot` → end | Disclaimer → title → BIOS → splash → log-on → the shift → blackout → end card (**WISHLIST NOW**). |
+| **M11 Night 2 (HELD)** | F1 → **Night 2**, or **Continue to Night 2** on Night 1's end card | Night card, Batch 45/46 and orders 3319/3321 (a file renames itself). The second cursor helps with Batch 46, then writes her own tasks into your Work Queue (black rows, *remote session*): do them or let them expire. Gary, a third, faint amber hand, talks in his own Jotter and brings `employee_209.dat`: shred it (fight the second cursor; Gary covers **No** and **Cancel** for you), drag it to Archive, or let 3:00 pass. Then the first Custodial round on the Camera Viewer: the figure only moves while you watch it. |
 
 ## 4. How it is built
 
@@ -103,7 +104,8 @@ Scripts/
                  ContentOverlay (per-night overlays merged onto the base content)
     FileSystem/  VirtualFileSystem: files/folders by stable ID, move/shred/restore, attribution (player/entity)
     Tasks/       WorkTaskManager: data-driven work tasks judged against world state
-    Story/       NarrativeFlags (save-ready), DialogueEngine (keyword replies), GameClock
+    Story/       NarrativeFlags (save-ready), DialogueEngine (keyword replies, "=word" whole words), GameClock,
+                 CustodialRounds (watch meter), NightTemplates ({line1}-style tokens)
     Entity/      TugOfWar (conflict model), Difficulty (per-night DifficultyProfile, DifficultyTable,
                  AdaptiveAssist), MovementPlanner + MovementProfiles (personality in motion),
                  EntityMemory, CursorRecorder (mimic), EntityState/Phase/Personality
@@ -124,15 +126,17 @@ Scripts/
                  Help, Disposal
     Entity/      EntityController (awaitable MoveTo/Click/DragTo/Type/Replay...), EntityBrain (utility AI),
                  ConflictSystem (runs the tug-of-war)
-    Story/       NightDirector (shared beat flow, checkpoints, helpers) + Night1Director (Night 1's beats),
-                 BootSequence, EndingSequence
+    Story/       NightDirector (shared beat flow, checkpoints, helpers) + Night1Director and Night2Director
+                 (each night's beats), NightSetup (a later night's starting world), RoundsSystem (Custodial on
+                 the cameras), BootSequence (night card), EndingSequence (EndingSpec per night)
     CameraFeed/  SecurityCameraRig (small 3D office set rendered to a low-res CCTV feed)
     FX/          VisualFx (CRT scanlines/vignette/grain/flicker, glitch tearing, shake, power-off)
     Audio/       AudioManager (entity sounds panned to where it is on screen)
     Game/        GameRoot (composition root + frame order), GameBootstrap, DebugOverlay, PauseMenu, SaveSystem
   Editor/      one-time project setup + SECOND CURSOR menu
 Resources/
-  Content/     strings, story, filesystem, emails, employees, workorders, tasks, dialogue (JSON)
+  Content/     strings, story, filesystem, emails, employees, workorders, tasks, dialogue (JSON);
+               night2/ holds Night 2's overlay (same file names, merged by id)
   Shaders/     CCTV shader for the camera set (Built-in and URP; falls back to default materials if unsupported)
 ```
 
