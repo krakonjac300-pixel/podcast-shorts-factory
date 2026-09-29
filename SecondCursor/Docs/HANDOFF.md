@@ -127,6 +127,15 @@ Imported by extracting `SecondCursor.unitypackage` into a fresh URP project. Res
 - Debug jumps past the tutorial now leave the world as a player would: briefing read, ledger and batch
   files archived, temp file shredded, both work orders decided, Work Queue open.
 
+### Polish pass 5 (the key fun test)
+
+- After the player loses their first tug-of-war, NEXUS OS shows one toast in its own voice:
+  "Input conflict: device 2 is holding the file. Drag firmly away from it to take it back."
+  (`strings.json` key `notify.conflict`). Nothing else explains the fight, so without it a first-time
+  player can read the loss as a bug.
+- Sound mix audit (all 34 generated sounds rendered and measured): effects sit around 0.1 RMS, ambience
+  about 13 dB under the UI clicks, no outliers.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

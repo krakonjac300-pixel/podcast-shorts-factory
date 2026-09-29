@@ -589,6 +589,16 @@ namespace SecondCursor.Story
             bool followedUp = false;
             int attemptsAtStart = _g.Memory.Count(MemoryKind.ShredAttempt, ContentIds.File017);
 
+            // After the first lost tug-of-war the OS explains the fight once, in its own dry voice.
+            bool explained = false;
+            Action<DragPayload, TugOutcome> onTug = (p, outcome) =>
+            {
+                if (explained || outcome != TugOutcome.EntityWins || CurrentBeat != "conflict") return;
+                explained = true;
+                _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.conflict"), "icon_info", null, "sys_warning");
+            };
+            _g.Conflict.TugEnded += onTug;
+
             while (true)
             {
                 // After the first defence it stays on screen, watching.
@@ -637,6 +647,7 @@ namespace SecondCursor.Story
                 _g.Mail.Deliver(ContentIds.MailSupervisorCheck);
             }
             _g.Shred.IsInUse = id => id == ContentIds.File017;
+            _g.Conflict.TugEnded -= onTug;
             brain.Enabled = false;
             E.Urgency = 1f;
             yield return E.WaitIdle();
