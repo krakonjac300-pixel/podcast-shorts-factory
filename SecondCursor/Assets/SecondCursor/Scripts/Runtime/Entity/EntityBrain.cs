@@ -18,6 +18,9 @@ namespace SecondCursor.Entity
     /// the entity is idle. Defends a protected file wherever it is and whatever the player tries: grabs
     /// the dragged file, races you to "No", drags dialogs out from under your cursor, cancels shreds,
     /// snatches the file away when you reach for it, closes windows. Scripted beats can disable it.
+    /// How hard it defends (grip, reaction times, which tricks it uses and when) comes from the night's
+    /// <see cref="DifficultyProfile"/> scaled by the <see cref="AdaptiveAssist"/>, which it tells about
+    /// every defense that was not a tug-of-war.
     /// </summary>
     public sealed class EntityBrain
     {
@@ -44,6 +47,15 @@ namespace SecondCursor.Entity
         public bool AllowIdleLurk = true;
         /// <summary>Allow snatching the desktop icon away when the player reaches for it.</summary>
         public bool AllowKeepAway = true;
+        /// <summary>Grip multiplier from trust (1 except in the Night 3 finale: 0.9 or 1.1).</summary>
+        public float TrustGripMult = 1f;
+
+        /// <summary>Defenses that count toward the adaptive assist (a lost tug is reported by the conflict itself).</summary>
+        static readonly HashSet<string> AssistDefenses = new HashSet<string> { "no", "dialog", "guard", "cancel", "keepaway" };
+        static DifficultyProfile _fallbackProfile;
+
+        DifficultyProfile Profile => _g.Difficulty ?? (_fallbackProfile ?? (_fallbackProfile = DifficultyTable.For(1, DifficultyMode.Normal)));
+        AdaptiveAssist Assist => _g.Assist;
 
         public event Action<string> Defended;
 
@@ -69,14 +81,15 @@ namespace SecondCursor.Entity
         public void RegisterDefense(string how)
         {
             Defenses++;
-            _c.Urgency = Mathf.Min(2.2f, 1f + Defenses * 0.15f);
+            _c.Urgency = Profile.Urgency(Defenses);
             GameLog.Info(LogChannel.Entity, "Defended " + ProtectedFileId + " via " + how + " (#" + Defenses + ")");
             _g.Flags.Increment(Core.Story.Flags.CounterEntityWins);
+            if (AssistDefenses.Contains(how)) Assist?.ReportDefense();
             Defended?.Invoke(how);
         }
 
-        /// <summary>Tug-of-war grip strength, rising as the player keeps trying.</summary>
-        public float Grip => Mathf.Min(1.35f, _c.Personality.grip * (1f + Defenses * 0.12f));
+        /// <summary>Tug-of-war grip strength, rising as the player keeps trying (eased by the assist).</summary>
+        public float Grip => Profile.Grip(Defenses, Assist, TrustGripMult);
 
         public void Tick(float dt)
         {
@@ -253,7 +266,7 @@ namespace SecondCursor.Entity
             yield return EnsurePresent(EntryPointNear(no.Hit.Center));
             _c.State = Core.Entity.EntityState.Aggressive;
             // A beat of reaction time: the player gets a real chance to click Yes first.
-            yield return Waits.Seconds(UnityEngine.Random.Range(0.15f, 0.35f) * _c.Personality.reactionScale);
+            yield return Waits.Seconds(Profile.RaceToNoDelay(UnityEngine.Random.value, Assist));
             var result = new bool[1];
             yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 1.5f);
             if (result[0] && box.Result == "No") RegisterDefense("no");
@@ -269,7 +282,7 @@ namespace SecondCursor.Entity
             if (yes == null) return 0f;
             float d = Vector2.Distance(Player.Position, yes.Hit.Center);
             // The closer the player gets to "Yes", the more it wants to pull the dialog away.
-            return d < 70f && Defenses >= 1 ? 95f : 0f;
+            return Profile.DragsDialog(Assist) && d < Profile.DragDialogRadius && Defenses >= 1 ? 95f : 0f;
         }
 
         IEnumerator RunDragDialog()
@@ -300,9 +313,9 @@ namespace SecondCursor.Entity
         float ScoreGuardYes()
         {
             var box = _g.Shred.Confirm;
-            if (box == null || !box.IsOpen || !IsProtected(_g.Shred.PendingFileId) || Defenses < 2) return 0f;
+            if (box == null || !box.IsOpen || !IsProtected(_g.Shred.PendingFileId)) return 0f;
             // Alternate between guarding and racing so it stays unpredictable.
-            return Defenses % 2 == 0 ? 90f : 0f;
+            return Profile.GuardsYes(Defenses, Assist) ? 90f : 0f;
         }
 
         /// <summary>Park on "Yes" so the player's clicks bounce off; follow the button if the dialog is dragged.</summary>
@@ -315,7 +328,7 @@ namespace SecondCursor.Entity
             _c.State = Core.Entity.EntityState.Defensive;
             yield return _c.MoveToElement(yes.Hit, MovementProfiles.Aggressive);
             _c.Guarding = yes.Hit;
-            float until = Time.time + UnityEngine.Random.Range(5f, 8f);
+            float until = Time.time + UnityEngine.Random.Range(Profile.GuardYesHoldMin, Profile.GuardYesHoldMax);
             while (box.IsOpen && Time.time < until)
             {
                 // Stay glued to the button; if the dialog is dragged away it scrambles after it.
@@ -357,8 +370,8 @@ namespace SecondCursor.Entity
             _c.State = Core.Entity.EntityState.Panicked;
             var result = new bool[1];
             // While fighting over Cancel the operation crawls - it is holding the process back.
-            _g.Shred.SpeedMultiplier = 0.35f;
-            yield return _c.ClickElement(p.CancelButton.Hit, MovementProfiles.Panicked, result, 6f);
+            _g.Shred.SpeedMultiplier = Profile.CancelCrawl;
+            yield return _c.ClickElement(p.CancelButton.Hit, MovementProfiles.Panicked, result, Profile.CancelPatience);
             _g.Shred.SpeedMultiplier = 1f;
             if (result[0]) RegisterDefense("cancel");
             _c.State = Core.Entity.EntityState.Defensive;
@@ -368,7 +381,7 @@ namespace SecondCursor.Entity
 
         float ScoreKeepAway()
         {
-            if (!AllowKeepAway || Defenses < 2 || Player.Payload != null || Player.Held) return 0f;
+            if (!AllowKeepAway || !Profile.KeepsAway(Defenses) || Player.Payload != null || Player.Held) return 0f;
             var icon = _g.Desktop.IconForFile(ProtectedFileId);
             if (icon == null) return 0f;
             var r = icon.GlyphWorldRect;

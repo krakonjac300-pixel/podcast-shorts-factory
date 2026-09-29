@@ -149,7 +149,7 @@ Gary is a third `CursorAgent` (kind Entity, name "Gary") registered with the `Po
 
 ### 2.6 Canonical keyword groups
 
-Every exchange below lists its responses in this order. The arrays are copied verbatim from Night 1 so matching behaves the same. `G10` merges Night 1's split company groups. A keyword that starts with `=` must match a whole word (new rule in `DialogueEngine.Matches`, so `ellen` does not match "excellent").
+Every exchange below lists its responses in this order. The arrays are copied verbatim from Night 1 so matching behaves the same. `G10` merges Night 1's split company groups. A keyword that starts with `=` must match a whole word (new rule in `DialogueEngine.Matches`, so `ellen` does not match "excellent"; strip the `=` before normalizing).
 
 ```json
 {
@@ -1466,3 +1466,458 @@ Cards (Night 3): `end.card.thanks` under the subtitle; buttons `Title` and `Nigh
 | `n2_kept` | `n2_end_kept`, then Gary's faint cursor types `g2_goodnight` in lowercase, smaller | `end.n2.title` / `end.n2.subtitle.kept` | Continue to Night 3, Title |
 
 Night 2's blackout reuses Night 1's sequence (power down, dark room, typed lines), without the CAM 03 head turn.
+
+---
+
+## 7. Difficulty
+
+### 7.1 Targets
+
+- Hooked, never stuck: no beat waits on a skill check without a timeout or an alternative exit.
+- The first tug of each night is usually lost: in Night 1 by surprise, in Nights 2 and 3 because the required yank steps up.
+- The second or third tug of a night is winnable: two losses lower the requirement to about the previous night's first-grip level.
+- Story-critical wins are never required: Night 2 has KEEP paths, Night 3 has KEEP and LOG OFF.
+
+All values live in `Core/Entity/Difficulty.cs` (`DifficultyTable.For(night, mode)` returns a `DifficultyProfile`). `ConflictSystem` builds a fresh `TugOfWarSettings` for each contest from the profile and the current assist level. The optional `EntityTuningAsset` still overrides Night 1 values for designers.
+
+### 7.2 Tug-of-war and entity values (Normal, assist level 0)
+
+`TugOfWarSettings` per night:
+
+| Field | Night 1 (today) | Night 2 | Night 3 | Story (all nights) |
+|---|---|---|---|---|
+| startShare | 0.50 | 0.52 | 0.55 | 0.40 |
+| playerWinShare | 0.12 | 0.12 | 0.12 | 0.20 |
+| entityWinShare | 0.88 | 0.88 | 0.90 | 0.95 |
+| shareRate | 0.85 | 0.85 | 0.85 | 0.70 |
+| playerBaseStrength | 0.20 | 0.20 | 0.20 | 0.35 |
+| pullSpeedForFullStrength (px/s) | 400 | 440 | 480 | 300 |
+| jiggleCredit | 0.0001 | 0.0001 | 0.0001 | 0.0001 |
+| maxPlayerStrength | 2.2 | 2.2 | 2.2 | 2.5 |
+| effortSmoothing (s) | 0.12 | 0.12 | 0.12 | 0.12 |
+| maxTension (px) | 280 | 300 | 320 | 240 |
+| rampDelay (s) | 3.0 | 2.5 | 2.0 | 99 (off) |
+| rampPerSecond | 0.14 | 0.18 | 0.22 | 0.00 |
+| releaseGrace (s) | 0.06 | 0.08 | 0.08 | 0.15 |
+
+Entity values (`EntityBrain`, `EntityPersonality`):
+
+| Field | Night 1 (today) | Night 2 | Night 3 | Story |
+|---|---|---|---|---|
+| grip base (`Personality.grip`) | 0.62 | 0.70 | 0.78 | 0.45 |
+| grip growth per defense | 0.12 | 0.10 | 0.08 | 0.00 |
+| grip cap | 1.35 | 1.40 | 1.50 | 0.45 |
+| reactionScale | 1.00 | 0.90 | 0.80 | 1.60 |
+| RaceToNo reaction delay (s) | 0.15 to 0.35 | 0.12 to 0.30 | 0.10 to 0.25 | 0.60 to 0.90 |
+| GuardYes enabled after N defenses | 2 | 2 | 1 | never |
+| GuardYes hold (s) | 5 to 8 | 5 to 8 | 6 to 9 | n/a |
+| DragDialogAway trigger radius (px) | 70 | 80 | 90 | off |
+| CancelShred crawl multiplier | 0.35 | 0.30 | 0.25 | 0.60 |
+| CancelShred patience (s) | 6 | 6 | 7 | 3 |
+| KeepAway enabled after N defenses | 2 | 2 | 1 | never |
+| Urgency per defense (cap) | +0.15 (2.2) | +0.15 (2.2) | +0.18 (2.4) | +0.05 (1.3) |
+
+Grip formula (replaces `EntityBrain.Grip`):
+
+```
+Grip = min(cap, base * assist.GripMult * trustMult * (1 + Defenses * growth * assist.GrowthMult))
+```
+
+`trustMult` is 1.0 except in the Night 3 finale (0.9 or 1.1, Section 5.3). Mercy (Section 7.3) overrides the result.
+
+### 7.3 Adaptive assist
+
+`AdaptiveAssist` (engine-free, in `Difficulty.cs`) keeps a level L from -1 to +3 for the current night.
+
+Inputs, reported by `ConflictSystem.TugEnded` and `EntityBrain.Defended`:
+- tug lost: loss +1.0; tug won: win +1.
+- a non-tug defense (RaceToNo, DragDialogAway, GuardYes, CancelShred, KeepAway): loss +0.5.
+- "easy win": a tug won in under 0.45 s with peak effort of at least 1.8.
+
+Rules:
+1. Loss streak reaches 2.0: L = min(L + 1, 3), streak resets. The first time per night L goes up, the NEXUS conflict toast (`notify.conflict`) shows again.
+2. Two wins in a row, or one easy win: L = max(L - 1, -1) (Story: never below +2).
+3. Mercy: at L = 3, two more tug losses arm mercy. The next contest uses grip 0.30, no ramp, and the entity lets go by itself after 1.2 s of player effort of at least 0.35. Mercy disarms after that contest. It is logged (`[ENTITY] Mercy contest`).
+4. Night start: Normal starts at `clamp(previous night's final L - 1, 0, 1)`; Night 1 starts at 0. Story starts at +2.
+
+Level multipliers (applied on top of Section 7.2):
+
+| L | grip x | growth x | pullSpeedForFullStrength x | rampPerSecond x | releaseGrace + (s) | RaceToNo delay + (s) | GuardYes | DragDialogAway |
+|---|---|---|---|---|---|---|---|---|
+| -1 | 1.10 | 1.00 | 1.08 | 1.20 | 0 | -0.05 | on | on |
+| 0 | 1.00 | 1.00 | 1.00 | 1.00 | 0 | 0 | on | on |
+| 1 | 0.88 | 0.75 | 0.90 | 0.60 | +0.03 | +0.12 | on | on |
+| 2 | 0.76 | 0.50 | 0.82 | 0.30 | +0.06 | +0.25 | off | on |
+| 3 | 0.65 | 0.00 | 0.75 | 0.00 | +0.10 | +0.40 | off | off |
+
+### 7.4 Custodial rounds (watch meter)
+
+Engine-free model `Core/Story/CustodialRounds.cs`: a route of stages, each with the camera that shows it. While the Camera Viewer is open, not minimized and showing the figure's current camera, watched time accumulates. When it reaches the threshold the figure cuts to the next stage (hidden under a static burst if on screen), with `footstep_distant`. It never moves while not watched and never goes back. When the player opens or restores the viewer onto the figure's camera themselves, the reopen penalty is added at once (Night 1's rule that looking again brings it closer).
+
+| Parameter | Night 2 round | Night 3 round | Night 3 finale | Story |
+|---|---|---|---|---|
+| Route (camera) | HallFar (02), Corridor (02), Doorway (03) | SublevelC (04), Lobby (01), HallFar (02), Corridor (02), Doorway (03), Middle (03), BehindChair (03) | Corridor (02), Doorway (03), Middle (03), BehindChair (03) | same routes |
+| Start stage | 0 | 0, or 1 if `m.n2.watched_to_door` | 0 | 0 |
+| Watch seconds per stage | 5.0 | 4.0 (5.0 if `m.n2.hid_214`) | 3.0 | 10.0 |
+| At the last stage | round ends early (no clearing) | meter fills again: seat cleared | seat cleared: KEEP | never clears (clamped at Middle) |
+| Forced opens | at 0 s and 45 s | at 0 s, then every 22 to 30 s | 6:50, 6:55, 7:00, 7:02 | every 45 s |
+| Reopen penalty (s) | 0.5 | 1.0 | 1.0 | 0 |
+| Duration | 90 s | 3:00 to 3:30 (360 s, cap 420 s) | until an exit | same |
+| Ellen close reaction (s) | 1.2 to 2.0; trust at least 0.3: 0.8 to 1.4; trust -0.3 or lower: 2.0 to 3.0 | same, 0.4 s faster from the doorway on | same | 0.6 to 0.9 |
+
+Budget check for Night 3 at Normal: clearing the seat takes 7 thresholds x 4 s = 28 s of watching in 6 minutes. There are about 13 forced opens. If the player does nothing and Ellen closes each one after 1.2 to 2.0 s, the total is about 16 to 26 s: the figure ends near the doorway or the middle of the room, frightening but alive. If Ellen is slow (low trust) and the player stares, the seat clears. A player who switches cameras or closes the viewer in under half a second, or reads the shelves only after the figure has left Sublevel C, can keep it in the Lobby (Remain Seated achievement).
+
+Ellen's `CloseCamera` behaviour (new in `EntityBrain`): score 80 when `AllowCloseCamera`, the viewer is open and not minimized, and the rounds model reports the figure on the shown camera. Run: wait the reaction delay, `ClickElement(close box, Panicked, patience 2 s)`. Blocked by the player's cursor: she jostles, gives up after the patience, types `CLOSE IT` (at most once per 20 s). It does not count as a defense and does not raise grip.
+
+### 7.5 Story difficulty
+
+A toggle on the title screen and in the pause menu (`title.difficulty.*`, `pause.difficulty`). It changes challenge only, never content.
+
+- Tug-of-war and entity: Story column of Section 7.2. Assist floor +2, mercy after one loss at L3.
+- Rounds: Story column of Section 7.4 (Custodial never clears the seat by watching; the Night 3 finale KEEP still happens at 7:05).
+- Hints: Section 7.6 Story column.
+- Code prompt: the format line shows after the first failure; `n3_code_hint2` at 60 s.
+- Entity tasks nudge at 20 s.
+
+### 7.6 Hint timings
+
+| Hint | Night 1 | Night 2 | Night 3 | Story |
+|---|---|---|---|---|
+| Company task, first toast | 30 s (briefing 25) | 40 s (briefing 30) | 45 s (briefing 30) | 15 s |
+| Company task, repeat | 40 s | 45 s | 50 s | 25 s |
+| Force-complete a task | hint + 240 s | hint + 240 s | hint + 240 s | hint + 90 s |
+| Conflict toast | after the first lost tug | when L first rises | when L first rises | after the first lost tug |
+| Entity task nudge | n/a | 35 s (withdraw at 75 s) | n/a | 20 s (withdraw at 75 s) |
+| Code: Ellen `n3_code_hint1` | n/a | n/a | 60 s after the Ruth mail is read, or right after the first wrong code if that is later | 30 s |
+| Code: format line | n/a | n/a | after 3 wrong codes | after 1 |
+| Code: kept Gary `g3_code` | n/a | n/a | 120 s | 60 s |
+| Code: Ellen `n3_code_hint2` | n/a | n/a | 180 s | 60 s |
+| Rounds teaching | n/a | Ellen on the first forced open | Ellen at start and first advance; kept Gary on the first forced open | same |
+
+### 7.7 Verification math
+
+Model: `ConflictSystem` moves the entity's end away at `55 + 70 x grip` px/s. With a sustained yank of v px/s straight away from it, effort approaches `s = v / pullSpeedForFullStrength` with time constant 0.12 s, tension grows at about `v + drift`, and the player wins when tension passes `maxTension` while the share is below 0.5:
+
+```
+share(T) = startShare + shareRate * ((grip - base - s) * T + s * 0.12 * (1 - exp(-T / 0.12)))
+T        = maxTension / (v + 55 + 70 * grip)
+```
+
+Holding still loses in `(entityWinShare - startShare) / (shareRate * (grip - base))` seconds.
+
+| Derived (first grip, no defenses yet) | Night 1 | Night 2 | Night 3 |
+|---|---|---|---|
+| Holding still loses after | 1.06 s | 0.85 s | 0.71 s |
+| Minimum sustained yank to win, L = -1 | about 195 px/s | about 310 px/s | about 450 px/s |
+| L = 0 | about 170 px/s | about 275 px/s | about 405 px/s |
+| L = 1 | about 140 px/s | about 200 px/s | about 290 px/s |
+| L = 2 | about 100 px/s | about 140 px/s | about 200 px/s |
+| L = 3 | about 70 px/s | about 95 px/s | about 130 px/s |
+
+Read across: Night 2 at L1 needs about what Night 1 needed at L0, and Night 3 at L1 about what Night 2 needed at L0. That is the "third tug feels like last night's first" target. For scale: the virtual screen is 960 px wide, so 405 px/s held for about half a second is a firm quarter-screen yank.
+
+A unit test (`DifficultyCurveTests`, Section 12.1) simulates `TugOfWar` at 60 Hz with this drift model and asserts each value within 15%. Tune the table, not the test, if playtests disagree.
+
+---
+
+## 8. Progression and saving
+
+### 8.1 Screens
+
+```
+App start -> Disclaimer (once per app launch) -> Title menu
+Title menu:
+  Continue: Night N[, h:mm AM]   (only if a save with progress exists)
+  New Game                       (confirm `title.new.confirm` if progress exists)
+  Night Select                   (once Night 1 is complete)
+  Difficulty: Normal | Story     (toggle, saved)
+  Records                        (achievements, endings, stats)
+  Settings                       (the pause menu panel without Restart)
+  Quit
+Night start -> night card -> BIOS -> splash -> log-on -> first beat
+Night end   -> ending -> card: Continue to Night N+1 | Title   (Night 3: Title | Night Select)
+Pause menu  -> adds Difficulty toggle and Quit to Title (progress is kept at the last checkpoint)
+```
+
+- The title keeps today's look (red ghost title slipping, drone). Buttons are `UiButton`s on the fullscreen layer; keyboard Enter activates Continue.
+- Night Select lists `select.night1` to `select.night3`, each either playable or `select.locked`, plus `select.endings`. Starting a night from here uses the memory saved at that night's first start (`nightStartMemory[N]`), so replaying Night 2 keeps Night 1's history.
+- Records: 19 achievements (hidden ones show `???` until unlocked), the three ending names (shown once seen), total tug wins and losses, and play time per night.
+
+### 8.2 SaveData v2
+
+```csharp
+[Serializable] public class SaveData {
+    public int version = 2;
+    // settings (existing)
+    public float masterVolume = 0.9f; public bool crtEffects = true; public bool reduceFlashing; public bool fullscreen = true;
+    // progression
+    public string difficulty = "normal";        // "normal" | "story"
+    public int nightUnlocked = 1;               // 1..3; 4 = game finished once
+    public int currentNight = 1;                // what Continue starts
+    public Checkpoint checkpoint = new Checkpoint();
+    public FlagSnapshot[] nightStartMemory = new FlagSnapshot[3];   // memory at the first start of each night
+    public FlagSnapshot memory = new FlagSnapshot();                // all m.* flags and counters so far
+    public string[] playerLines = Array.Empty<string>();            // Night 1 Notepad replies (sanitized)
+    public float entityTrust;                   // at the end of the last completed night
+    public int assistCarry;                     // final assist level of the last completed night
+    // records
+    public string[] endingsSeen = Array.Empty<string>();
+    public string[] achievements = Array.Empty<string>();
+    public string[] secrets = Array.Empty<string>();
+    public int tugWinsTotal, tugLossesTotal;
+    public float[] nightSeconds = new float[3];
+    // legacy v1 fields kept for migration
+    public int shiftsCompleted; public FlagSnapshot lastShiftFlags = new FlagSnapshot();
+}
+[Serializable] public class Checkpoint {
+    public bool valid; public int night; public string beat = ""; public int clockMinutes;
+    public float trust; public int assistLevel; public FlagSnapshot flags = new FlagSnapshot();
+}
+```
+
+Saved when:
+- a checkpoint beat starts (`checkpoint` with every flag, trust, assist level, clock);
+- a night ends (`memory`, `entityTrust`, `assistCarry`, `endingsSeen`, `nightUnlocked`, `currentNight = night + 1` up to 3, clears `checkpoint`);
+- an achievement unlocks, a setting changes, the difficulty toggles.
+
+Not saved: window positions, mid-beat state, the exact files dragged since the checkpoint. Continue restarts at the checkpoint beat, where `Prepare(beat)` rebuilds the world from the restored flags.
+
+Migration: a v1 file with `shiftsCompleted >= 1` becomes `nightUnlocked = 2`, `currentNight = 2`; `m.n1.*` flags are derived from `lastShiftFlags` (`file017_shredded_once` to `m.n1.shredded_017`, `player_agreed` to `m.n1.agreed`, and so on); `playerLines` stays empty (templates fall back to `(no reply)`).
+
+New Game resets progression fields and keeps settings, `endingsSeen`, `achievements`, `secrets` and totals.
+
+---
+
+## 9. Achievements (19)
+
+API names are the Steamworks ids. Hidden achievements show `???` in Records until unlocked (and are marked hidden in the Steamworks partner settings). All triggers go through `Achievements.Unlock(g, id)`, which writes the save and, when Steam is running, calls the Steamworks client (Section 11).
+
+| # | API id | Name | Description | Hidden | Trigger |
+|---|---|---|---|---|---|
+| 1 | ACH_NIGHT_1 | First Solo Shift | Finish Night 1. | no | `RecordNightComplete(1)` |
+| 2 | ACH_NIGHT_2 | Second Night | Finish Night 2. | no | `RecordNightComplete(2)` |
+| 3 | ACH_NIGHT_3 | Last Night | Finish Night 3. | no | `RecordNightComplete(3)` |
+| 4 | ACH_END_SHRED | Take the Seat | Reach the SHRED ending. | yes | ending `n3_shred` |
+| 5 | ACH_END_KEEP | Working Nights | Reach the KEEP ending. | yes | ending `n3_keep` |
+| 6 | ACH_END_LOGOFF | Nobody Left | Reach the LOG OFF ending. | yes | ending `n3_logoff` |
+| 7 | ACH_ALL_ENDINGS | Every Way Out | See all three endings. | no | `endingsSeen` holds all three Night 3 ids |
+| 8 | ACH_FIRM_GRIP | Firm Grip | Win a tug-of-war against the second cursor. | no | first `TugEnded(PlayerWins)` |
+| 9 | ACH_WHITE_KNUCKLES | White Knuckles | Win 10 tugs-of-war. | no | `tugWinsTotal >= 10` (Steam stat `TUG_WINS`, progress shown at 5) |
+| 10 | ACH_DO_NOT_READ | Do Not Read | Open employee_017.dat. | yes | `opened_by_player:employee_017` in any night |
+| 11 | ACH_REMOTE_SESSION | Remote Session | Do everything it asked of you on Night 2. | yes | `m.n2.obeyed == 3` |
+| 12 | ACH_FINISHED | Finished | Let Gary finish. | yes | `m.n2.finished_gary` |
+| 13 | ACH_HALF | Half Is Enough | Keep Gary on WS-04. | yes | `m.n2.kept_gary` |
+| 14 | ACH_HIS_GLASSES | His Glasses | Ask Gary about his glasses. | yes | reply tag `glasses` |
+| 15 | ACH_HER_NAME | Her Name | Say her name to the second cursor. | yes | reply tag `name` in an Ellen exchange |
+| 16 | ACH_AUTHORIZED | Authorized | Open Restricted with the Retention code. | yes | `m.n3.restricted_open` set by the code prompt (not by Gary) |
+| 17 | ACH_REMAIN_SEATED | Remain Seated | Finish Night 3's rounds without Custodial reaching the B-Level hall. | no | rounds end safe with `m.n3.max_stage <= 1` |
+| 18 | ACH_NOT_ON_MY_SHELF | Not On My Shelf | Refuse to confirm your own shelf. | yes | `wo_3342` rejected |
+| 19 | ACH_WATCHERS | Watch the Watchers | Find CAM 00. | yes | the player selects CAM 00 in the Camera Viewer |
+
+On every boot with Steam available, each id already in the save is pushed again (covers offline unlocks).
+
+---
+
+## 10. Replay and secrets
+
+Branches that change what you see:
+- Night 2: finish or keep Gary (changes Night 3's BIOS, files, shelves, Gary's whole role, LOG OFF difficulty); obey or ignore each of Ellen's three tasks (trust, Night 3 rounds, queue text); watch the first round or not (Night 3 starts one stage closer).
+- Night 3: three endings, each with variants (said stay or not, said her name, seat cleared, trust lines, CAM 00 stinger).
+
+Secrets (all use existing systems):
+1. **CAM 00 (WATCH)**: edit `System\camview.cfg`, set `OPERATOR_OVERRIDE=1`, save. The Camera Viewer lists `CAM 00: ADMIN 1`: an office like B-7, dark, the Custodian seated at the CRT. Ellen types `n3_cam00`. Adds the stinger to every ending.
+2. **Personnel tracking**: during the Night 3 round, record 000 shows where Custodial is without making it move; 001's last login changes at the same minute as 000's.
+3. **Your own words**: Night 2's `~nxs0149.tmp` and `employee_214.dat` quote what you typed to Ellen on Night 1.
+4. **The copy's clipboard**: Night 3's `~nxs0150.tmp` holds `0217` and three visits to session.cfg (someone at your desk tried to leave during the lost hours).
+5. **The 0217 glitch**: at 2:17 on Night 3 every Intake file briefly renames itself to the code.
+6. **Her name**: typing Ellen's name gets "WHO TOLD YOU THAT" (Night 2), "SAY IT AGAIN" (Night 3), and a line in KEEP.
+7. **Gary's glasses and mug**: Denise's box shows up in his replies.
+8. **Records that appear**: 142 Lundy and 188 Achterberg are restored in Personnel on Night 3, shelved in Sublevel C.
+9. **Not On My Shelf**: reject the order that confirms your own shelf.
+10. **Post-game echo**: once SHRED has been seen, replays of Night 1 show `Pointing Device 2 ...... OK (214)` in the BIOS and `POINTER_2_OWNER=214` in nexus.cfg (content token in the Night 1 BIOS line, filled only when `endingsSeen` holds `n3_shred`).
+
+Expected play time: first run 55 to 70 minutes; all endings and most secrets 100 to 130 minutes (Night Select avoids replaying Night 1 each time).
+
+---
+
+## 11. Code changes
+
+Smallest reasonable approach: split the director, add content overlays, add one second controller instance for Gary, one engine-free model each for difficulty and rounds, and one small app (the code prompt). Everything else is a flag, a field or a hook on an existing class. Approximate size: 3,500 to 4,500 lines of C# (about 1,000 of them moved, not new) and about 1,000 lines of JSON.
+
+### 11.1 Phase A: refactor with no behavior change (Night 1 must play identically)
+
+| File | Class / member | Change |
+|---|---|---|
+| `Scripts/Runtime/Story/EventDirector.cs` | split into `NightDirector.cs` + `Night1Director.cs` | Base: flow (`JumpTo`, `Update`, side routines, `CleanUpForJump` made virtual), helpers from Section 2.2. `public abstract string[] Beats { get; }` (instance, was static). `public static NightDirector Create(GameServices g, Transform parent, int night)`. `TypeLines` and the Communication loop take an `EntityController` and a `NotepadApp` (Night 1 passes Ellen and her pad). `RunExchangeChain` returns the last `DialogueReply` (with `Tag`). `public virtual void RequestLogOff(CursorAgent a)` default: the existing Shut Down refusal. |
+| `Scripts/Runtime/Game/GameServices.cs` | fields | `NightDirector Director` (type change), `int Night`, `DifficultyProfile Difficulty`, `AdaptiveAssist Assist`, `CursorAgent GaryAgent`, `CursorView GaryView`, `EntityController Gary`, `RoundsSystem Rounds`, `SaveData Save`. |
+| `Scripts/Runtime/Game/GameRoot.cs` | `Build`, `StartGame` | `internal static int StartNight = 1; internal static bool StartFromCheckpoint;` Load content for the night; create Gary's agent (registered after Ellen's, before the player's, so the player's cursor still wins hit-test ties), view (variant `gary`) and controller; create `RoundsSystem`; run `NightSetup` for nights 2 and 3; restore checkpoint flags before `JumpTo(beat)`. |
+| `Scripts/Runtime/Game/GameBootstrap.cs` | `Restart` | Add `Restart(int night, string beat = null, bool fromCheckpoint = false)`; existing overloads restart the current night. |
+| `Scripts/Runtime/Game/DebugOverlay.cs` | panel | Beats from `_g.Director.Beats`; Night 1/2/3 buttons; readouts for assist level, loss streak, rounds stage and meter; buttons Tug win, Tug lose, Force SHRED, Force KEEP, Force LOG OFF, Set trust -0.5/0/+0.5. |
+| `Scripts/Core/Content/ContentData.cs` | data classes | Fields from Section 2.1, `LineSetData`, `Sanitize` for all of them. |
+| `Scripts/Core/Content/ContentOverlay.cs` (new) | static merges | `Apply(base, overlay)` per data type, rules of Section 2.1. Pure, tested. |
+| `Scripts/Core/Content/ContentDatabase.cs` | lookups, validation | `LineSet(id)`, `Lines(id)`; `ViewEmployee` targets resolve to employees; duplicate `lineSets` ids reported as problems. Constructor unchanged (tests use it). |
+| `Scripts/Runtime/Game/ContentLoader.cs` | `Load(int night)` | Base, then `Content/night2/`, then `Content/night3/` as applicable; missing overlay files are fine. |
+| `Scripts/Core/Content/ContentIds.cs` | constants | See 11.5. |
+| `Scripts/Runtime/Game/SaveSystem.cs` | `SaveData` v2 | Section 8.2: fields, migration, `SaveCheckpoint`, `RecordNightComplete(g, night, endingId)`, `RecordNightStart`. Recommend moving the data classes to `Scripts/Core/Game/SaveData.cs` so they can be unit-tested. |
+
+### 11.2 Phase B: systems
+
+| File | Class / member | Change |
+|---|---|---|
+| `Scripts/Core/Entity/Difficulty.cs` (new) | `DifficultyProfile`, `DifficultyTable`, `AdaptiveAssist` | Values of Sections 7.2 to 7.6; `TugFor(assist)` returns a new `TugOfWarSettings`; assist rules of 7.3. |
+| `Scripts/Core/Entity/TugOfWar.cs` | `TugOfWar` | Add `PeakEffort`; add `public static float EntityDriftSpeed(float grip) => 55f + 70f * grip;` so runtime and tests share it. Model unchanged. |
+| `Scripts/Runtime/Entity/ConflictSystem.cs` | `OnContestStarted`, `Tick`, `End` | Settings per contest from `g.Difficulty.TugFor(g.Assist)`; drift via `EntityDriftSpeed`; report outcome, `Elapsed` and `PeakEffort` to `g.Assist`; mercy auto-release; debug forced outcome (development builds only). |
+| `Scripts/Runtime/Entity/EntityBrain.cs` | `Grip`, behaviours | Grip formula of 7.2; RaceToNo delay, GuardYes hold, DragDialog radius, Cancel crawl and patience, KeepAway threshold from the profile and assist; report defenses to the assist; new behaviour `CloseCamera` (7.4) with `AllowCloseCamera`. |
+| `Scripts/Runtime/Entity/EntityController.cs` | `Create`, blocking, typing | Overload `Create(g, parent, agent, view, bool primary, string staticLoopKey)`: secondary controllers get no brain (null-safe `Update`) and do not hook `Router.PressBlocked`. `IsBlockedByOthers(element)`: true if the player covers it (today's rule) or another visible controller's agent is guarding it or sits within `BlockRadius`; `ClickElement` uses it, so Gary can block Ellen and the player can block Gary. `Appear` raises `Taskbar.PointingDevices` to at least this controller's device index (2 for Ellen, 3 for Gary). |
+| `Scripts/Core/Entity/Movement.cs` | `MovementProfiles` | Add `Tired` (Section 2.5) with name constant and `Get` case. |
+| `Scripts/Core/Entity/EntityMemory.cs` | `EntityMemory` | `Seed(float trust)`. |
+| `Scripts/Core/Story/NarrativeFlags.cs` | `NarrativeFlags` | `Snapshot(string prefix)`, `Merge(FlagSnapshot)`; new constants for Section 2.3 names. |
+| `Scripts/Core/Story/DialogueEngine.cs` | `Matches`, `Respond` | Keywords starting with `=` match whole words only; `DialogueReply.Tag` from `ResponseData.tag`. |
+| `Scripts/Core/Story/CustodialRounds.cs` (new) | `CustodialRounds`, `RoundsConfig` | Engine-free watch meter (7.4): `Tick(dt, viewedCamera)`, `NotifyReopen(camera)`, events `StageAdvanced`, `ReachedFinal`, `SeatCleared`. |
+| `Scripts/Runtime/Story/RoundsSystem.cs` (new) | `RoundsSystem` | Drives `CustodialRounds` from `CameraApp` state; sets `rig.Figure` with `StaticCut`; schedules forced opens (system, or a controller such as finished Gary); patches Personnel (5.6); logs `Rounds: stage N`. |
+| `Scripts/Core/Tasks/WorkTaskManager.cs` | types, states | `TaskType.OpenFile`, `TaskType.ViewEmployee`; `ITaskWorld.IsFileOpenedByPlayer(id)`, `IsEmployeeViewedByPlayer(id)`; `TaskState.Withdrawn` and `Withdraw(id)` (logs `Withdrew <id>`; `Activate` ignores withdrawn tasks; `Current` skips them); `IsEntityAuthored(task)`. |
+| `Scripts/Runtime/OS/Services.cs` | `ShredService`, `TaskWorld` | `IsPendingArchive` ignores entity-authored and withdrawn tasks; `ResetBin()`; `TaskWorld` answers the new queries from flag counters. |
+| `Scripts/Runtime/Apps/AppManager.cs` | `OpenFile`, registry | Count `opened_by_player:<id>` when the agent is the player; register `AuthPromptApp`; event `FileSaved(fileId, text, agent)`. |
+| `Scripts/Runtime/Apps/StaffApp.cs` | `Show`, `Refresh` | Count `viewed_by_player:<id>` for every employee when the agent is the player (keep the existing `viewed:employee017` counter); `Refresh()` re-reads the shown record; status color for `RETAINED`. |
+| `Scripts/Runtime/Apps/NotepadApp.cs` | menu, typing | File > Save enabled for files tagged `editable`: `G.Files.SetContent`, raise `AppManager.FileSaved`, toast `file.saved` or `file.saved.remote`; `Save(CursorAgent by)` for scripted saves; `TypeAsEntity` treats `'\b'` (code only, never content) as delete-last; optional `TypoRate` for Gary. |
+| `Scripts/Runtime/Apps/FilesApp.cs` | `Navigate` | Locked folder with a code, player agent: launch `AuthPromptApp` instead of `Denied`. Add `FolderRowFor(folderId)` for entity drags onto folders. |
+| `Scripts/Runtime/Apps/AuthPromptApp.cs` (new) | `AuthPromptApp : App, IKeyboardTarget` | Section 5.5; calls `VirtualFileSystem.TryUnlock`. |
+| `Scripts/Core/FileSystem/VirtualFileSystem.cs` | load, folders | Skip `removed` entries; `VFolder.Code`; `TryUnlock(folderId, input)` with digit normalization. |
+| `Scripts/Runtime/Apps/CameraApp.cs` | buttons, caption | Skip `hidden` cameras unless `m.n3.cam00`; rebuild buttons when that flag is set; bottom-left caption fed by `Func<string> CaptionProvider` (CAM 04 shelves); expose `IsShowing(camId)` (open, not minimized, selected). |
+| `Scripts/Runtime/CameraFeed/SecurityCameraRig.cs` | set, figure | New areas: Sublevel C (offset (0,0,180): 3 m x 14 m aisle, 2.4 m ceiling, shelf units 1.2 x 2.0 x 0.5 m every 1.3 m on both sides with small drive boxes and one emissive LED each, caged lamp at the far end; camera at (0.9, 2.2, 0.3) looking to (-0.2, 0.6, 12) with a slow pan of plus or minus 8 degrees on a 28 s cycle) and Admin 1 (offset (0,0,240): a dark copy of the office desk, CRT and chair, camera placed like CAM 03). `FigureStage` gains `SublevelC` (0, 0, 7.5, facing camera), `Lobby` (-1.45, 0, 5.8, facing camera), `HallFar` (0, 0, 3.0, facing away), `Seated00` (in the Admin 1 chair, root lowered 0.5 m, pitched forward 8 degrees). `bool Cam04Online` (Night 3 only), `float DawnLevel` (lobby glass emission 0.2 to 0.6, lobby lamp off above 0.5). |
+| `Scripts/Runtime/OS/StartMenu.cs` | items | `Log Off CROURKE...` item when flag `logoff_item`; calls `g.Director.RequestLogOff`. |
+| `Scripts/Runtime/OS/Taskbar.cs` | tray | Three mouse icons; `BlinkDevice(int index)`. |
+| `Scripts/Runtime/Apps/WorkApps.cs` | `WorkQueueApp` | Entity tasks in `Palette.EntityText` with `workqueue.remote`; `workqueue.deadline` line in the detail; withdrawn tasks hidden; show at most 7 rows (drop the oldest completed first). |
+| `Scripts/Runtime/Input/CursorView.cs` | `Create` | Optional `variant` (`"gary"`) with its own palette mapping and optional forced shape. |
+| `Scripts/Runtime/Rendering/Palette.cs` | colors | `GaryOutline` (216,168,64), `GaryFill` (42,36,24). |
+| `Scripts/Core/Audio/ProceduralSoundBank.cs` | sounds | `phone_ring`: 440 Hz + 480 Hz, 20 Hz amplitude warble, 2.0 s, level matched to `notify_mail`. |
+| `Scripts/Runtime/Story/EndingSequence.cs` | `EndingSpec` | Spec-driven lines with speakers (entity, casey, both, system, gary), full-screen feed step, CAM 00 stinger, card strings and buttons per spec; `SC_DEMO` keeps the WISHLIST card. |
+| `Scripts/Runtime/Story/BootSequence.cs` | screens | Title menu, Night Select, Records; night card; BIOS token fill (`{p3}`, post-game `{p2}`); status line uses `login.progress`; disclaimer only once per launch. |
+| `Scripts/Runtime/Game/PauseMenu.cs` | buttons | Difficulty toggle, Quit to Title. |
+| `Scripts/Runtime/Game/Achievements.cs` (new) | `Achievements` | `Unlock(g, id)`; watchers on flags, tags, tug results and endings; Steam bridge under `#if STEAMWORKS_NET` (`SteamUserStats.SetAchievement`, `SetStat("TUG_WINS")`, `IndicateAchievementProgress`, `StoreStats`); resync on boot. |
+| `Scripts/Runtime/Story/NightSetup.cs` (new) | `NightSetup` | `ForNight2`, `ForNight3` (4.5, 5.7), `FillTemplates` (2.4), player line sanitizing. |
+
+### 11.3 Phase C and D: nights
+
+| File | Content |
+|---|---|
+| `Scripts/Runtime/Story/Night2Director.cs` (new) | Beats of Section 4; about 600 lines. |
+| `Scripts/Runtime/Story/Night3Director.cs` (new) | Beats of Section 5, including `RequestLogOff`; about 700 lines. |
+| `Resources/Content/night2/*.json` | Section 4.4. |
+| `Resources/Content/night3/*.json` | Section 5.4. |
+| `Resources/Content/strings.json` | Section 3 additions. |
+| `Resources/Content/story.json`, `filesystem.json` (Night 1, optional) | post-game echo tokens: `Pointing Device 2 ....................... OK{p2}` and `POINTER_2_OWNER={p2owner}` (tag nexus_cfg `template`). `{p2}` is empty or ` (214)`, `{p2owner}` empty or `214`. |
+
+### 11.4 Phase E and F
+
+Progression screens and achievements (E), then tests and tuning (F). Suggested order of work: A, B (difficulty and assist first, so Night 1 can be retuned early), C, D, E, F.
+
+### 11.5 New content ids (`ContentIds`)
+
+```csharp
+// Night 2
+public const string MailN2Briefing = "mail_n2_briefing", MailN2Castell = "mail_n2_castell", MailN2Facilities = "mail_n2_facilities";
+public const string MailN2RuthWarning = "mail_n2_ruth_warning", MailN2Urgent209 = "mail_n2_urgent_209", MailN2SecurityRounds = "mail_n2_security_rounds";
+public const string File209 = "employee_209", File214 = "employee_214", FileCacheN2 = "cache_tmp_n2", FileDoorLog = "b7_door_log";
+public const string Order3319 = "wo_3319", Order3321 = "wo_3321";
+public const string TaskN2Briefing = "t2_read_briefing", TaskN2Batch45 = "t2_archive_batch45", TaskN2Verify3319 = "t2_verify_3319",
+    TaskN2Verify3321 = "t2_verify_3321", TaskN2Cache = "t2_shred_cache", TaskN2Batch46 = "t2_archive_batch46",
+    TaskE2DoorLog = "e2_door_log", TaskE2Lookup163 = "e2_lookup_163", TaskE2Hide214 = "e2_hide_214",
+    TaskN2Shred209 = "t2_shred_209", TaskE2Archive209 = "e2_archive_209";
+public const string ExchangeN2Back = "ex2_back", ExchangeN2GaryOne = "ex2_gary_one";
+// Night 3
+public const string MailN3Briefing = "mail_n3_briefing", MailN3Undeliverable = "mail_n3_undeliverable", MailN3RuthComment = "mail_n3_ruth_comment";
+public const string MailN3SecurityRounds = "mail_n3_security_rounds", MailN3NoSubject = "mail_n3_nosubject";
+public const string FileBatch47B = "batch47_b", FileCacheN3 = "cache_tmp_n3", FileSessionCfg = "session_cfg", FileCamviewCfg = "camview_cfg", FileSeatB7 = "seat_b7";
+public const string Order3330 = "wo_3330", Order3331 = "wo_3331", Order3340 = "wo_3340", Order3341 = "wo_3341", Order3342 = "wo_3342";
+public const string TaskN3Briefing = "t3_read_briefing", TaskN3Batch47 = "t3_archive_batch47", TaskN3Verify3330 = "t3_verify_3330",
+    TaskN3Verify3331 = "t3_verify_3331", TaskN3Cache = "t3_shred_cache", TaskN3Batch48 = "t3_archive_batch48", TaskN3Shelf = "t3_shelf_check";
+public const string ExchangeN3Ruth = "ex3_ruth", ExchangeN3Final = "ex3_final", ExchangeN3Confirm = "ex3_confirm";
+public const string Cam00 = "cam00";
+public const string Employee000 = "000", Employee001 = "001", Employee118 = "118", Employee209 = "209";
+```
+
+---
+
+## 12. Test plan
+
+### 12.1 Unit tests (`DevTools/CoreTests`)
+
+| Test class | Checks |
+|---|---|
+| `DifficultyCurveTests` | Simulate `TugOfWar` at 60 Hz with `EntityDriftSpeed` for each night and assist level: win at 1.15 x and loss at 0.85 x the Section 7.7 threshold; hold-still loss time within 0.1 s of 1.06 / 0.85 / 0.71; thresholds strictly increase from Night 1 to Night 3 at each level. |
+| `AdaptiveAssistTests` | two losses raise L; four non-tug defenses raise L; two wins lower it; an easy win lowers it; floor -1 (Normal) and +2 (Story); mercy arms at L3 after two more losses and disarms after one contest; night-start carry `clamp(L - 1, 0, 1)`. |
+| `CustodialRoundsTests` | watching the wrong camera never advances; not watching never advances; thresholds per config; reopen penalty; Night 2 route ends with `ReachedFinal`, Night 3 with `SeatCleared`, Story clamps at Middle. |
+| `ContentOverlayTests` | replace, add and `removed` for files, emails, employees, orders, tasks; strings by key; story arrays empty versus non-empty; cumulative Night 3 load. |
+| `WorkTaskManagerTests` (extend) | `OpenFile` and `ViewEmployee` complete from world queries; `Withdraw` hides a task, `Activate` cannot revive it, `Current` skips it. |
+| `DialogueEngineTests` (extend) | `=ellen` matches "ellen" and "Ellen?" but not "excellent"; tags come back with the reply; old categories unchanged. |
+| `AuthCodeTests` | `0217`, `217`, `2:17`, `02:17`, `2 17 am` accepted; `1234`, empty, `0218` rejected. |
+| `TemplateTests` | every token replaced for both Gary branches; player lines lose non-ASCII characters and braces and are cut at 40 characters. |
+| `SaveDataTests` | v1 to v2 migration; checkpoint round-trip; New Game keeps records and settings. |
+
+### 12.2 Content tests (`ContentTests`, extend)
+
+1. Load base, base + night2, base + night2 + night3; `Problems` empty each time.
+2. Font coverage walks `Resources/Content` recursively (`SearchOption.AllDirectories`).
+3. Cross-references per night: task targets are mails, files, orders or (for `ViewEmployee`) employees; `employeeRef` resolves.
+4. Work order rule per night: `rule == ""` follows the Personnel rule with that night's employee statuses; `rule == "shelf"` matches `n3_shelves` (3340 approve, 3341 reject, 3342 approve).
+5. Dialogue probes (the existing eleven phrases) produce lines for every exchange in every night; every exchange has fallback and silence.
+6. Voice rules: Ellen lines (exchanges with voice `""`, their replies, fallback, silence, and line sets with voice `""`) match `^[A-Z0-9 ?]+$` and have 1 to 6 words; Gary lines contain no capital letters (except `g3c_seated`) and have 1 to 6 words; `system` is exempt.
+7. Banned words anywhere in content: Microsoft, Windows, Recycle Bin, Explorer, WordPad, Minesweeper, Solitaire.
+8. Every `{token}` in content is in the Section 2.4 list (or `{0}`, `{1}` format slots in strings).
+9. `session.cfg` and `camview.cfg` contents end with `=0` and no trailing newline.
+
+### 12.3 Test bridge additions (`Scripts/Editor/SecondCursorTestBridge.cs`)
+
+```
+night N                  # fresh shift at night N (boot)
+jump N BEAT              # fresh shift at night N, beat BEAT (uses Prepare); "jump BEAT" keeps today's meaning (current night)
+setflag NAME | clearflag NAME
+trust VALUE              # seed entity trust
+assist LEVEL             # force the assist level
+tug win|lose|real        # force the outcome of the next contests (development builds only)
+stage N                  # force the rounds stage
+setclock H M
+difficulty normal|story
+waitending ID [timeout]
+checkpoint save|load
+```
+
+### 12.4 Scripted regression
+
+Run with `tug win` and `tug lose` where a fight decides the branch. Each script ends with `dump` and asserts flags and the save file.
+1. Night 1 as today (existing script) plus: save has `m.n1.*`, `playerLines`, `currentNight = 2`.
+2. Night 2 finished: `jump 2 finish`, `tug win`, shred 209; expect `m.n2.finished_gary`, 209 shredded, ending `n2_finished`.
+3. Night 2 kept by archive and kept by deadline (two runs).
+4. Night 3 SHRED, KEEP by confirm, KEEP by timeout, KEEP by clearing, LOG OFF by code and edit, LOG OFF by kept Gary, LOG OFF refused with `ALLOW_LOGOFF=0`.
+5. Checkpoint: quit to title at each checkpoint beat, Continue, compare flags and world (files per folder, tasks per state).
+6. Story difficulty: a full Night 3 with `tug real` driven by a straight 150 px/s scripted drag wins by the second contest.
+
+### 12.5 Playtest protocol and acceptance
+
+Five or more fresh players per build; read results from the tagged game log (`[STORY] Beat:`, `[ENTITY] Tug-of-war ended`, `Rounds: stage`, `Withdrew`).
+
+| Metric | Target |
+|---|---|
+| Night 2 length | 20 to 24 min median |
+| Night 3 length | 21 to 25 min median |
+| First tug of each night lost | 60% or more of players |
+| A tug won by the third attempt in any night where the player keeps trying | 90% or more |
+| Longest stretch with no on-screen prompt or event | under 90 s |
+| Restricted code solved without `n3_code_hint2` | 50% or more |
+| Night 3 seat cleared (Normal) | 15 to 35% |
+| Players who can say, after Night 3, what makes Custodial move | 70% or more |
+| Players who can tell Gary's cursor from Ellen's at a glance | 90% or more |
+
+---
+
+## 13. Risks and open questions
+
+1. **Scope.** This roughly triples the content. If time is short, cut in this order: Records screen, post-game echo, CAM 00 art (keep the secret as a NO SIGNAL feed with the label), kept Gary's camera-switching help.
+2. **Append-only Notepad editing.** The config edits rely on Backspace removing the last character. Signposting: Ruth's mail names session.cfg, the Log Off refusal names the line, the file ends on it, and kept Gary does it in front of you. If playtests show confusion, add caret movement to Notepad later; it is out of scope here.
+3. **Reading the watch rule.** If fewer than 70% of testers understand it, add one NEXUS toast after the second advance in Night 3 ("Custodial position updated: viewer active."), which states the correlation without explaining it.
+4. **Three cursors at once.** Keep Gary visibly weaker (flicker, hand, amber) and quieter (no static loop). Never let both foreign cursors click at the same frame; the director sequences them.
+5. **Idle KEEP.** A player who does nothing in the finale waits up to about 4.5 minutes. Ellen and Gary lines and the 6:50/6:55 camera events fill it. If playtests find it slow, fast-forward the clock after 60 s without player input.
+6. **Checkpoint fidelity.** `Prepare` rebuilds the world from flags; any new beat side effect must set a flag or it will not survive Continue. Review each `Prepare` against Sections 4.5 and 5.7.
+7. **Story Bible.** After implementation, update Section 10 (future nights) to this three-night canon, add the Night 2 and 3 text maps, and extend the writers' rule (Section 1, item 8).
+

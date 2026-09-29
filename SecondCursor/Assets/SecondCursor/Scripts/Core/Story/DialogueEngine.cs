@@ -13,6 +13,8 @@ namespace SecondCursor.Core.Story
         public bool IsFallback;
         /// <summary>Broad category of what the player said, used for story flags / entity memory.</summary>
         public string Category = "other";
+        /// <summary>Story tag of the matched response (content "tag", e.g. "stay"); empty if none or fallback.</summary>
+        public string Tag = "";
     }
 
     /// <summary>
@@ -61,6 +63,7 @@ namespace SecondCursor.Core.Story
                         reply.Lines = r.reply;
                         reply.MatchedKeyword = kw;
                         reply.ResponseIndex = i;
+                        reply.Tag = r.tag ?? "";
                         return reply;
                     }
                 }

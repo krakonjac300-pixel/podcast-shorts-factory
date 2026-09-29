@@ -75,13 +75,13 @@ namespace SecondCursor.Core.FileSystem
             if (data == null) return;
             foreach (var f in data.folders)
             {
-                if (f == null || string.IsNullOrEmpty(f.id) || _folders.ContainsKey(f.id)) continue;
+                if (f == null || f.removed || string.IsNullOrEmpty(f.id) || _folders.ContainsKey(f.id)) continue;
                 _folders[f.id] = new VFolder { Id = f.id, Name = f.name, ParentId = f.parent ?? "", Hidden = f.hidden, Locked = f.locked };
                 _folderOrder.Add(f.id);
             }
             foreach (var d in data.files)
             {
-                if (d == null || string.IsNullOrEmpty(d.id) || _files.ContainsKey(d.id)) continue;
+                if (d == null || d.removed || string.IsNullOrEmpty(d.id) || _files.ContainsKey(d.id)) continue;
                 var file = FromData(d);
                 if (!_folders.ContainsKey(file.FolderId))
                     file.FolderId = _folders.ContainsKey(ContentIds.FolderIntake) ? ContentIds.FolderIntake : FirstFolderId();

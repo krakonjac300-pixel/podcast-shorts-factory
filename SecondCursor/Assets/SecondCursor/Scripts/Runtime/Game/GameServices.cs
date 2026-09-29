@@ -4,6 +4,7 @@ using SecondCursor.CameraFeed;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Core.Tasks;
 using SecondCursor.Entity;
@@ -60,8 +61,21 @@ namespace SecondCursor.Game
         // Story / entity
         public EntityController Entity;
         public ConflictSystem Conflict;
-        public EventDirector Director;
+        public NightDirector Director;
         public SecurityCameraRig CameraRig;
+
+        // Night and difficulty
+        /// <summary>The night being played (1-3).</summary>
+        public int Night = 1;
+        /// <summary>This night's challenge values (difficulty table column, Normal or Story).</summary>
+        public DifficultyProfile Difficulty;
+        /// <summary>Eases the second cursor after repeated losses, toughens it after easy wins.</summary>
+        public AdaptiveAssist Assist;
+        /// <summary>
+        /// progress.json as it was when this night was built (difficulty, memory, checkpoint). Read-only:
+        /// SaveSystem re-reads the file before every write, because achievements also write it.
+        /// </summary>
+        public SaveData Save;
 
         public MonoBehaviour CoroutineHost;
 

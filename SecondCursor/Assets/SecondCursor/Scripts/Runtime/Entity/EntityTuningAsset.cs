@@ -36,5 +36,20 @@ namespace SecondCursor.Entity
         public float blockRadius = 11f;
 
         public static EntityTuningAsset LoadOptional() => Resources.Load<EntityTuningAsset>(ResourcePath);
+
+        /// <summary>
+        /// Designers' Night 1 values win over the difficulty table (Night 1 Normal only): the tug-of-war
+        /// settings, the grip base and the reaction scale (which also scales the race to No, as it always did).
+        /// </summary>
+        public void ApplyTo(DifficultyProfile profile)
+        {
+            if (profile == null) return;
+            if (tugOfWar != null) profile.Tug = tugOfWar.Clone();
+            if (personality == null) return;
+            profile.GripBase = personality.grip;
+            profile.ReactionScale = personality.reactionScale;
+            profile.RaceToNoDelayMin *= personality.reactionScale;
+            profile.RaceToNoDelayMax *= personality.reactionScale;
+        }
     }
 }

@@ -1,31 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using SecondCursor.Core;
+using SecondCursor.Core.Entity;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using UnityEngine;
 
 namespace SecondCursor.Game
 {
-    /// <summary>Progress that follows the player between machines (the only file Steam Cloud should sync).</summary>
-    [Serializable]
-    public class SaveData
-    {
-        public int version = 2;
-        public string[] endingsSeen = Array.Empty<string>();
-        public int shiftsCompleted;
-        /// <summary>Highest night the player may start (1 until Night 1 is finished).</summary>
-        public int nightUnlocked = 1;
-        /// <summary>Story flags at the end of the last completed shift (entity relationship, choices...).</summary>
-        public FlagSnapshot lastShiftFlags = new FlagSnapshot();
-        public float entityTrust;
-        /// <summary>Unlocked achievement ids (mirrored to Steam when it is available).</summary>
-        public string[] achievements = Array.Empty<string>();
-
-        // Settings used to live here (save version 1); kept only so old files migrate.
-        public float masterVolume = -1f;
-        public bool crtEffects = true;
-    }
-
     /// <summary>Per-machine preferences (never synced: a Steam Deck's display mode must not reach a PC).</summary>
     [Serializable]
     public class SettingsData
@@ -57,30 +40,79 @@ namespace SecondCursor.Game
 
         // ------------------------------------------------------------------ progress
 
+        /// <summary>
+        /// The progress file, migrated to the current version. Always read fresh before a change: other
+        /// writers (achievements) may have saved since the game started.
+        /// </summary>
         public static SaveData Load()
         {
             MigrateLegacy();
-            return Read<SaveData>(ProgressFile) ?? new SaveData();
+            var data = Read<SaveData>(ProgressFile);
+            if (data == null) return new SaveData();
+            int before = data.version;
+            if (data.Migrate() && before < SaveData.CurrentVersion)
+            {
+                GameLog.Info(LogChannel.System, "Migrated progress.json from version " + before + " to " + SaveData.CurrentVersion);
+                Save(data);
+            }
+            return data;
         }
 
         public static void Save(SaveData data) => Write(ProgressFile, data);
 
-        /// <summary>Record a finished shift and its ending.</summary>
-        public static void RecordEnding(GameServices g, string endingId, int nightFinished = 1)
+        /// <summary>A night starts fresh (not from a checkpoint): remember its starting memory.</summary>
+        public static void RecordNightStart(GameServices g)
         {
             var data = Load();
-            if (Array.IndexOf(data.endingsSeen, endingId) < 0)
+            data.RecordNightStart(g.Night, g.Flags.Snapshot(MemoryFlags.Prefix));
+            Save(data);
+        }
+
+        /// <summary>A checkpoint beat starts: everything Continue needs to rebuild the world from here.</summary>
+        public static void SaveCheckpoint(GameServices g, string beat)
+        {
+            var data = Load();
+            data.SetCheckpoint(new Checkpoint
             {
-                var list = new System.Collections.Generic.List<string>(data.endingsSeen) { endingId };
-                data.endingsSeen = list.ToArray();
-            }
-            data.shiftsCompleted++;
-            data.nightUnlocked = Mathf.Max(data.nightUnlocked, nightFinished + 1);
-            data.lastShiftFlags = g.Flags.Snapshot();
-            data.entityTrust = g.Memory.Trust;
+                valid = true,
+                night = g.Night,
+                beat = beat ?? "",
+                clockMinutes = g.Clock.TotalMinutes,
+                trust = g.Memory.Trust,
+                assistLevel = g.Assist != null ? g.Assist.Level : 0,
+                flags = g.Flags.Snapshot(),
+            });
+            Save(data);
+            GameLog.Info(LogChannel.System, "Checkpoint saved: night " + g.Night + ", " + beat);
+        }
+
+        /// <summary>A night ends: memory, trust, assist carry, the ending, unlocks and totals; the checkpoint is cleared.</summary>
+        public static void RecordNightComplete(GameServices g, string endingId, IList<string> playerLines, float seconds)
+        {
+            var data = Load();
+            data.RecordNightComplete(new NightResult
+            {
+                Night = g.Night,
+                EndingId = endingId ?? "",
+                Memory = g.Flags.Snapshot(MemoryFlags.Prefix),
+                Trust = g.Memory.Trust,
+                AssistLevel = g.Assist != null ? g.Assist.Level : 0,
+                TugWins = g.Flags.Get(Flags.CounterPlayerWins),
+                TugLosses = g.Flags.Get(Flags.CounterTugLosses),
+                Seconds = seconds,
+                PlayerLines = playerLines,
+            });
             Save(data);
             SaveSettings(g);
-            GameLog.Info(LogChannel.System, "Saved ending '" + endingId + "' (shifts completed: " + data.shiftsCompleted + ")");
+            GameLog.Info(LogChannel.System, "Night " + g.Night + " complete, ending '" + endingId + "' (unlocked: night " + data.nightUnlocked + ")");
+        }
+
+        public static void SetDifficulty(DifficultyMode mode)
+        {
+            var data = Load();
+            data.difficulty = DifficultyTable.ModeId(mode);
+            Save(data);
+            GameLog.Info(LogChannel.System, "Difficulty: " + data.difficulty);
         }
 
         // ------------------------------------------------------------------ settings

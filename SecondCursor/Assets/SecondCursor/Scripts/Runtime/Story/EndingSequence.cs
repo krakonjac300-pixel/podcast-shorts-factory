@@ -34,8 +34,8 @@ namespace SecondCursor.Story
         public IEnumerator Run()
         {
             var g = _g;
+            // Progress was saved by the night's director just before this (NightDirector.CompleteNight).
             g.Flags.Set(Flags.Ending);
-            SaveSystem.RecordEnding(g, "night1_blackout");
             g.Entity.Brain.Enabled = false;
             g.Entity.Interrupt();
             g.Player.Enabled = false;

@@ -53,6 +53,9 @@ namespace SecondCursor.Core.Entity
 
         public event Action<MemoryEvent> Recorded;
 
+        /// <summary>Start from a remembered trust (a new night, a checkpoint, or the debug panel).</summary>
+        public void Seed(float trust) => Trust = MathUtil.Clamp(trust, -1f, 1f);
+
         public void Record(MemoryKind kind, string subject, float time)
         {
             var e = new MemoryEvent(time, kind, subject);

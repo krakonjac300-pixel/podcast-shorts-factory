@@ -5,6 +5,7 @@ using SecondCursor.CameraFeed;
 using SecondCursor.Core;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Core.Tasks;
 using SecondCursor.Entity;
@@ -32,6 +33,10 @@ namespace SecondCursor.Game
 
         /// <summary>Beat the next root starts at instead of boot (debug "Jump to beat" on a fresh shift).</summary>
         internal static string StartBeat;
+        /// <summary>Night the next root plays (1-3).</summary>
+        internal static int StartNight = 1;
+        /// <summary>The next root resumes the saved checkpoint of its night (Continue).</summary>
+        internal static bool StartFromCheckpoint;
 
         bool _built;
 
@@ -77,12 +82,27 @@ namespace SecondCursor.Game
             g.Fx.ReduceFlashing = settings.reduceFlashing;
             if (!Application.isEditor && Screen.fullScreen != settings.fullscreen) Display(settings.fullscreen);
 
+            // Night, difficulty and memory
+            g.Save = SaveSystem.Load();
+            g.Night = Mathf.Clamp(StartNight, 1, SaveData.Nights);
+            g.Difficulty = DifficultyTable.For(g.Night, DifficultyTable.ParseMode(g.Save.difficulty));
+            var tuning = EntityTuningAsset.LoadOptional();
+            if (tuning != null && g.Night == 1 && g.Difficulty.Mode == DifficultyMode.Normal) tuning.ApplyTo(g.Difficulty);
+            g.Assist = AdaptiveAssist.ForNight(g.Difficulty, g.Save.assistCarry);
+            GameLog.Info(LogChannel.System, "Night " + g.Night + ", difficulty " + g.Difficulty.Mode + ", assist level " + g.Assist.Level);
+
             // Content + simulation
-            g.Content = ContentLoader.Load();
+            g.Content = ContentLoader.Load(g.Night);
             g.Files = new VirtualFileSystem(g.Content.FileSystem);
             g.Flags = new NarrativeFlags();
             g.Clock = new GameClock(1, 52);
             g.Memory = new EntityMemory();
+            if (g.Night > 1)
+            {
+                // What the earlier nights remember, and trust decayed toward neutral.
+                g.Flags.Merge(g.Save.memory);
+                g.Memory.Seed(SaveData.TrustAtNightStart(g.Night, g.Save.entityTrust));
+            }
             g.Recorder = new CursorRecorder();
             g.Dialogue = new DialogueEngine(g.Content);
 
@@ -114,8 +134,10 @@ namespace SecondCursor.Game
             // Story / entity
             g.CameraRig = SecurityCameraRig.Create(transform, g);
             g.Entity = EntityController.Create(g, transform);
+            g.Entity.Personality.grip = g.Difficulty.GripBase;
+            g.Entity.Personality.reactionScale = g.Difficulty.ReactionScale;
             g.Conflict = ConflictSystem.Create(g, transform);
-            g.Director = EventDirector.Create(g, transform);
+            g.Director = NightDirector.Create(g, transform, g.Night);
 
             DebugOverlay.Create(g, transform);
             PauseMenu.Create(g, transform);
@@ -130,9 +152,35 @@ namespace SecondCursor.Game
             // A debug jump made while the sounds were generating has already started the story.
             string beat = StartBeat;
             StartBeat = null;
+            bool resume = StartFromCheckpoint;
+            StartFromCheckpoint = false;
             if (!string.IsNullOrEmpty(G.Director.CurrentBeat)) yield break;
-            if (System.Array.IndexOf(EventDirector.Beats, beat) >= 0) G.Director.JumpTo(beat);
+            if (resume && RestoreCheckpoint(out string checkpointBeat)) G.Director.JumpTo(checkpointBeat);
+            else if (G.Director.HasBeat(beat)) G.Director.JumpTo(beat);
             else G.Director.Begin();
+        }
+
+        /// <summary>
+        /// Continue: put back the flags, trust, assist level and clock saved when the checkpoint beat began.
+        /// The director's Prepare then rebuilds the world for that beat from the flags.
+        /// </summary>
+        bool RestoreCheckpoint(out string beat)
+        {
+            var g = G;
+            var cp = SaveSystem.Load().CheckpointFor(g.Night);
+            beat = cp?.beat;
+            if (cp == null || !g.Director.HasBeat(beat))
+            {
+                GameLog.Warn(LogChannel.System, "No checkpoint for night " + g.Night + ": starting the night from the beginning");
+                return false;
+            }
+            g.Flags.Restore(cp.flags);
+            g.Memory.Seed(cp.trust);
+            g.Assist.SetLevel(Mathf.Max(g.Difficulty.AssistFloor, cp.assistLevel));
+            g.Clock.Set(cp.clockMinutes / 60, cp.clockMinutes % 60);
+            g.Audio.SetAmbience(true, 2f);
+            GameLog.Info(LogChannel.System, "Resuming night " + g.Night + " at checkpoint '" + beat + "'");
+            return true;
         }
 
         void EnsureAudioListener()

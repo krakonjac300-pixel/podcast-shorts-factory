@@ -8,77 +8,60 @@ using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
 using SecondCursor.Core.Story;
-using SecondCursor.Core.Tasks;
 using SecondCursor.Entity;
-using SecondCursor.Game;
 using SecondCursor.Input;
 using SecondCursor.OS;
 using SecondCursor.Rendering;
-using SecondCursor.UI;
 using UnityEngine;
 
 namespace SecondCursor.Story
 {
     /// <summary>
-    /// Controls escalation across the vertical slice (brief sections 11 and 16):
-    /// boot -> ordinary work (tutorial) -> subtle anomalies -> the second cursor appears -> conflict over
-    /// employee_017.dat -> Notepad communication -> escalation (mimicry, camera unlocked) -> reveal on
-    /// Camera 03 -> blackout ending. Beats wait on what the PLAYER does (tasks, attempts, camera use)
-    /// rather than fixed timestamps, with timeouts so nothing can soft-lock. Any beat can be jumped to from
-    /// the debug overlay; each beat knows how to set the world up for itself.
+    /// Night 1 (Wed 11/18/98), the vertical slice: boot -> ordinary work (tutorial) -> subtle anomalies ->
+    /// the second cursor appears -> conflict over employee_017.dat -> Notepad communication -> escalation
+    /// (mimicry, camera unlocked) -> reveal on Camera 03 -> blackout ending. Beats wait on what the PLAYER
+    /// does (tasks, attempts, camera use) rather than fixed timestamps, with timeouts so nothing can
+    /// soft-lock. Any beat can be jumped to; <see cref="Prepare"/> sets the world up for it.
     /// </summary>
-    public sealed class EventDirector : MonoBehaviour
+    public sealed class Night1Director : NightDirector
     {
-        public static readonly string[] Beats =
+        static readonly string[] BeatList =
         {
             "boot", "work", "anomaly", "presence", "conflict", "communication", "escalation", "reveal", "ending",
         };
 
-        GameServices _g;
-        Routine _flow;
+        static readonly string[] Checkpoints = { "work", "conflict", "escalation" };
+
         CursorRecording _ledgerClip;
-        NotepadApp _notepad;
+        Speaker _ellen;
         int _cameraReopens;
-        BootSequence _boot;
-        EndingSequence _ending;
-        readonly List<Routine> _side = new List<Routine>();
 
-        /// <summary>Run a background story routine alongside the current beat (stopped on jumps).</summary>
-        void RunSide(IEnumerator routine, string name)
+        public override string[] Beats => BeatList;
+        public override int Night => 1;
+        protected override string[] CheckpointBeats => Checkpoints;
+
+        protected override void Init()
         {
-            var r = new Routine(routine, name);
-            r.Tick(Time.time);
-            if (!r.Done) _side.Add(r);
-        }
-
-        public string CurrentBeat { get; private set; } = "";
-        public float BeatStartedAt { get; private set; }
-
-        public static EventDirector Create(GameServices g, Transform parent)
-        {
-            var go = new GameObject("Event Director");
-            go.transform.SetParent(parent, false);
-            var d = go.AddComponent<EventDirector>();
-            d._g = g;
+            base.Init();
+            var g = _g;
+            _ellen = AddSpeaker(g.Entity);
             g.Tasks.TaskCompleted += t =>
             {
                 // Keep the footage of the player archiving the ledger: the entity replays it later.
-                if (t.Id == ContentIds.TaskArchiveLedger) d._ledgerClip = g.Recorder.Extract(Time.time - 6.5f, Time.time + 0.1f);
-                Sfx.Play("ui_select");
+                if (t.Id == ContentIds.TaskArchiveLedger) _ledgerClip = g.Recorder.Extract(Time.time - 6.5f, Time.time + 0.1f);
             };
-            g.Apps.CanLaunch = d.CanLaunch;
+            g.Apps.CanLaunch = CanLaunch;
             g.Apps.Launched += (appId, a) =>
             {
-                if (appId == AppIds.Camera && a != null && a.IsPlayer && g.Flags.Has(Flags.CameraUnlocked)) d._cameraReopens++;
+                if (appId == AppIds.Camera && a != null && a.IsPlayer && g.Flags.Has(Flags.CameraUnlocked)) _cameraReopens++;
             };
             g.Windows.Restored += (w, a) =>
             {
                 // Restoring a minimized feed counts as looking again.
-                if (w.AppId == AppIds.Camera && a != null && a.IsPlayer && g.Flags.Has(Flags.CameraUnlocked)) d._cameraReopens++;
+                if (w.AppId == AppIds.Camera && a != null && a.IsPlayer && g.Flags.Has(Flags.CameraUnlocked)) _cameraReopens++;
             };
             // employee_017.dat cannot be shredded outside the conflict (it is "in use by another user").
             g.Shred.IsInUse = id => id == ContentIds.File017;
-            return d;
         }
 
         bool CanLaunch(string appId, CursorAgent by)
@@ -91,80 +74,13 @@ namespace SecondCursor.Story
             return false;
         }
 
-        // ------------------------------------------------------------------ flow control
-
-        public void Begin() => JumpTo("boot");
-
-        public void JumpTo(string beat)
+        protected override void CleanUpForJump()
         {
-            int index = Array.IndexOf(Beats, beat);
-            if (index < 0) return;
-            if (_flow != null) _flow.Stop(); // stops the whole chain, including nested beat coroutines
-            foreach (var r in _side) r.Stop();
-            _side.Clear();
-            CleanUpForJump();
-            _flow = new Routine(Flow(index), "story");
-            _flow.Tick(Time.time);
-        }
-
-        void Update()
-        {
-            for (int i = _side.Count - 1; i >= 0; i--)
-            {
-                _side[i].Tick(Time.time);
-                if (_side[i].Done) _side.RemoveAt(i);
-            }
-            if (_flow == null) return;
-            _flow.Tick(Time.time);
-            if (_flow.Done) _flow = null;
-        }
-
-        /// <summary>Undo whatever a half-finished beat left on screen before starting another one.</summary>
-        void CleanUpForJump()
-        {
-            var g = _g;
-            g.Entity.Interrupt();
-            g.Entity.Brain.Enabled = false;
-            g.Entity.Urgency = 1f;
+            base.CleanUpForJump();
             RemoveConflictHint();
-            _boot?.Clear();
-            _boot = null;
-            _ending?.Clear();
-            _ending = null;
-            g.Player.ShapeOverride = null;
-            g.Player.Enabled = true;
-            g.Player.Visible = true;
-            g.Audio.StopLoop("drone_tension", 0.3f);
-            g.Shred.Abort();
-            g.Shred.SpeedMultiplier = 1f;
-            if (g.Fx.IsPoweredOff) g.Fx.PowerOn();
-            g.Fx.SetBlack(false);
-            if (_notepad != null && _notepad.IsOpen)
-            {
-                _notepad.ConversationMode = false;
-                _notepad.PlayerCanType = true;
-            }
         }
 
-        public void SkipBeat()
-        {
-            int index = Array.IndexOf(Beats, CurrentBeat);
-            if (index >= 0 && index < Beats.Length - 1) JumpTo(Beats[index + 1]);
-        }
-
-        IEnumerator Flow(int start)
-        {
-            if (start > 0) Prepare(start);
-            for (int i = start; i < Beats.Length; i++)
-            {
-                CurrentBeat = Beats[i];
-                BeatStartedAt = Time.time;
-                GameLog.Info(LogChannel.Story, "Beat: " + CurrentBeat);
-                yield return RunBeat(Beats[i]);
-            }
-        }
-
-        IEnumerator RunBeat(string beat)
+        protected override IEnumerator RunBeat(string beat)
         {
             switch (beat)
             {
@@ -177,13 +93,33 @@ namespace SecondCursor.Story
                 case "escalation": return Escalation();
                 case "reveal": return Reveal();
                 default:
+                    CompleteNight(ContentIds.EndingN1Blackout);
                     _ending = new EndingSequence(_g);
                     return _ending.Run();
             }
         }
 
-        /// <summary>Put the world in the state a beat expects when jumping straight to it (debug).</summary>
-        void Prepare(int beatIndex)
+        protected override void RecordNightMemory()
+        {
+            var f = _g.Flags;
+            void Remember(bool condition, string memory)
+            {
+                if (condition) f.Set(memory);
+            }
+            Remember(f.Has(Flags.File017ShreddedOnce), MemoryFlags.N1Shredded017);
+            Remember(f.Has(Flags.PlayerAgreed), MemoryFlags.N1Agreed);
+            Remember(f.Has(Flags.PlayerRefused), MemoryFlags.N1Refused);
+            Remember(f.Has(Flags.PlayerSwore), MemoryFlags.N1Swore);
+            Remember(f.Has(Flags.PlayerAskedWho), MemoryFlags.N1AskedWho);
+            Remember(_g.Memory.Count(MemoryKind.OpenedFile, ContentIds.File017) > 0, MemoryFlags.N1Read017);
+            Remember(_g.Memory.Count(MemoryKind.OpenedFile, ContentIds.FilePrevNotes) > 0, MemoryFlags.N1ReadNotes);
+            Remember(_cameraReopens > 0, MemoryFlags.N1ReopenedCamera);
+            f.SetCounter(MemoryFlags.N1TugWins, f.Get(Flags.CounterPlayerWins));
+            f.SetCounter(MemoryFlags.N1TugLosses, f.Get(Flags.CounterTugLosses));
+        }
+
+        /// <summary>Put the world in the state a beat expects when jumping straight to it (debug or Continue).</summary>
+        protected override void Prepare(int beatIndex)
         {
             var g = _g;
             ShowDesktop();
@@ -254,105 +190,7 @@ namespace SecondCursor.Story
             }
         }
 
-        // ------------------------------------------------------------------ helpers
-
-        static IEnumerator Wait(float seconds)
-        {
-            yield return Waits.Seconds(seconds);
-        }
-
-        static IEnumerator WaitUntil(Func<bool> condition, float timeout)
-        {
-            float end = Time.time + timeout;
-            while (!condition() && Time.time < end) yield return null;
-        }
-
-        /// <summary>
-        /// Waits for a task. After <paramref name="hintAfter"/> seconds its hint pops up as a toast, and again
-        /// every 40 seconds while the player is still stuck.
-        /// </summary>
-        IEnumerator WaitTask(string taskId, float hintAfter = 30f)
-        {
-            float start = Time.time;
-            float nextHint = start + hintAfter;
-            while (!_g.Tasks.IsCompleted(taskId))
-            {
-                // Safety nets: a needed file must never be lost, and no task may block the shift forever.
-                var task = _g.Tasks.Get(taskId);
-                if (task != null && task.Type == TaskType.MoveFile)
-                {
-                    foreach (var target in task.Data.targets)
-                    {
-                        var f = _g.Files.GetFile(target);
-                        if (f != null && f.Shredded) _g.Files.Restore(target, ContentIds.FolderIntake, Actor.System);
-                    }
-                }
-                if (Time.time - start > hintAfter + 240f)
-                {
-                    GameLog.Warn(LogChannel.Story, "Task " + taskId + " force-completed after timeout");
-                    _g.Tasks.ForceComplete(taskId);
-                    break;
-                }
-                if (Time.time > nextHint)
-                {
-                    nextHint = Time.time + 40f;
-                    var t = _g.Tasks.Get(taskId);
-                    if (t != null && !string.IsNullOrEmpty(t.Data.hint))
-                        _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Data.hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
-                }
-                yield return null;
-            }
-            yield return Wait(0.8f);
-        }
-
-        void GiveTask(string taskId)
-        {
-            _g.Tasks.Activate(taskId);
-            if (!_g.Tasks.IsCompleted(taskId))
-                _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Tasks.Get(taskId)?.Title ?? "", "icon_task_active",
-                    a => _g.Apps.Launch(AppIds.WorkQueue, a), "notify_mail");
-        }
-
-        void PhantomClick(Vector2 at)
-        {
-            _g.Audio.Play("mouse_click", 0.85f, UnityEngine.Random.Range(0.96f, 1.04f), Audio.AudioManager.PanFor(at.x));
-        }
-
         EntityController E => _g.Entity;
-
-        NotepadApp EnsureNotepad()
-        {
-            if (_notepad != null && _notepad.IsOpen) return _notepad;
-            _notepad = null;
-            return null;
-        }
-
-        IEnumerator OpenNotepadAsEntity()
-        {
-            if (EnsureNotepad() != null) { _notepad.Window.Restore(E.Agent); yield break; }
-            var before = new HashSet<App>(_g.Apps.OpenApps);
-            yield return E.OpenApp(AppIds.Notepad, MovementProfiles.HumanLike);
-            foreach (var app in _g.Apps.OpenApps)
-                if (app is NotepadApp n && !before.Contains(app) && n.FileId == null) _notepad = n;
-            if (_notepad == null)
-                _notepad = (NotepadApp)_g.Apps.Launch(AppIds.Notepad, E.Agent);
-            _notepad.ConversationMode = true;
-            _notepad.PlayerCanType = false;
-            _notepad.Window.Focus(E.Agent);
-        }
-
-        IEnumerator TypeLines(IEnumerable<string> lines, float cps = 4.5f)
-        {
-            foreach (var line in lines)
-            {
-                if (string.IsNullOrEmpty(line)) continue;
-                if (EnsureNotepad() == null) yield return OpenNotepadAsEntity();
-                if (_notepad.Text.Length > 0 && !_notepad.Text.EndsWith("\n")) _notepad.Append("\n");
-                yield return E.Type(_notepad, line, cps);
-                yield return Wait(0.5f);
-            }
-            if (_notepad != null && _notepad.IsOpen && !_notepad.Text.EndsWith("\n")) _notepad.Append("\n");
-        }
 
         // ------------------------------------------------------------------ BOOT
 
@@ -385,7 +223,7 @@ namespace SecondCursor.Story
             if (_g.Mail.UnreadCount > 0)
                 _g.Notifications.Show(_g.Content.Text("app.mail"), _g.Content.Format("notify.newmail", _g.Mail.UnreadCount), "icon_mail_unread",
                     a => _g.Apps.Launch(AppIds.Mail, a));
-            yield return WaitTask(ContentIds.TaskReadBriefing, 25f);
+            yield return WaitTask(ContentIds.TaskReadBriefing, _g.Difficulty.BriefingHintFirst);
 
             GiveTask(ContentIds.TaskArchiveLedger);
             yield return WaitTask(ContentIds.TaskArchiveLedger);
@@ -491,30 +329,7 @@ namespace SecondCursor.Story
             _g.Notifications.Show(_g.Content.Text("os.name"), "New pointing device detected.", "icon_info", null, "ui_select");
             _g.Flags.Set(Flags.EntitySeen);
 
-            bool carried = false;
-            if (_g.Files.Exists(ContentIds.File017) && _g.Files.FolderOf(ContentIds.File017) != ContentIds.FolderDesktop)
-            {
-                var file = _g.Files.GetFile(ContentIds.File017);
-                E.Agent.SetButton(true);
-                yield return null;
-                _g.DragDrop.BeginFileDrag(E.Agent, file.Id, file.Name, FileIcons.SpriteFor(file), null, E.Agent.Position + new Vector2(-16f, 16f));
-                carried = true;
-            }
-            yield return E.MoveTo(spot, MovementProfiles.Hesitant, 40f);
-            if (carried)
-            {
-                yield return Wait(0.3f);
-                E.Agent.SetButton(false);
-                yield return null;
-                yield return null;
-                if (_g.Files.Exists(ContentIds.File017))
-                {
-                    // Whatever was under the cursor, the file ends up visibly on the desktop where it let go.
-                    if (_g.Files.FolderOf(ContentIds.File017) != ContentIds.FolderDesktop)
-                        _g.Files.Move(ContentIds.File017, ContentIds.FolderDesktop, Actor.Entity);
-                    _g.Desktop.SetFilePosition(ContentIds.File017, OSLayers.WorldToDesktop(spot) - new Vector2(37f, 16f));
-                }
-            }
+            yield return CarryFileIn(E, ContentIds.File017, spot, MovementProfiles.Hesitant);
             // It lingers over the file, as if checking on it... then leaves.
             var icon = _g.Desktop.IconForFile(ContentIds.File017);
             if (icon != null) yield return E.Loiter(icon.Hit.Center, 14f, 2.2f, MovementProfiles.Hesitant);
@@ -530,69 +345,6 @@ namespace SecondCursor.Story
             GiveTask(ContentIds.TaskShred017);
         }
 
-        /// <summary>
-        /// Where the second cursor lets go of the file so the player sees the icon arrive: the preferred
-        /// spot if its whole icon cell is visible desktop, else the most visible cell on screen (ties go
-        /// to the spot nearest the preferred one). Toasts count as visible: they are gone in seconds.
-        /// </summary>
-        Vector2 _dropSpot;
-        readonly List<Interactable> _probeHits = new List<Interactable>();
-
-        IEnumerator FindDropSpot(Vector2 preferred)
-        {
-            _dropSpot = preferred;
-            if (VisibleProbes(preferred) == DropCellProbes.Length) yield break;
-            // Nearest candidates first; the first fully visible cell wins. Spread over frames so the
-            // search never hitches (each probe hit-tests every interactable).
-            var candidates = new List<Vector2>();
-            for (float y = 440f; y > 120f; y -= 24f)
-                for (float x = 840f; x > 100f; x -= 24f)
-                    candidates.Add(new Vector2(x, y));
-            candidates.Sort((a, b) => (a - preferred).sqrMagnitude.CompareTo((b - preferred).sqrMagnitude));
-            int bestScore = -1;
-            float frameStart = Time.realtimeSinceStartup;
-            for (int i = 0; i < candidates.Count; i++)
-            {
-                int score = VisibleProbes(candidates[i]);
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    _dropSpot = candidates[i];
-                    if (score == DropCellProbes.Length) yield break;
-                }
-                // About 2 ms of hit-testing per frame, however crowded the desktop is.
-                if (Time.realtimeSinceStartup - frameStart > 0.002f)
-                {
-                    yield return null;
-                    frameStart = Time.realtimeSinceStartup;
-                }
-            }
-        }
-
-        /// <summary>
-        /// How many points of the dropped icon's cell (74 px wide, 16 px above the tip down to its label) are
-        /// bare desktop. Toasts are ignored: they are gone in seconds.
-        /// </summary>
-        int VisibleProbes(Vector2 tip)
-        {
-            int n = 0;
-            foreach (var o in DropCellProbes)
-            {
-                Vector2 p = tip + o;
-                if (p.x < 8f || p.x > ScreenRig.Width - 60f || p.y < WindowManager.TaskbarHeight + 8f || p.y > ScreenRig.Height - 8f) continue;
-                Interactable hit = null;
-                foreach (var h in _g.Router.HitTestAll(p, _probeHits))
-                    if (!h.elementId.StartsWith("toast:", StringComparison.Ordinal)) { hit = h; break; }
-                if (hit == _g.Desktop.Background) n++;
-            }
-            return n;
-        }
-
-        static readonly Vector2[] DropCellProbes =
-        {
-            new Vector2(0f, -10f), new Vector2(-35f, 14f), new Vector2(35f, 14f), new Vector2(-35f, -34f), new Vector2(35f, -34f), new Vector2(0f, -34f),
-        };
-
         // ------------------------------------------------------------------ PHASE 3: interference (key fun test)
 
         Action<DragPayload, TugOutcome> _conflictHint;
@@ -605,20 +357,6 @@ namespace SecondCursor.Story
             _conflictHint = null;
             if (_conflictNote != null) _g.Conflict.TugStarted -= _conflictNote;
             _conflictNote = null;
-        }
-
-        /// <summary>One of story.json's dry system notes as an OS toast ("Session 017 is still open.").</summary>
-        void ShowNote(int index)
-        {
-            var notes = _g.Content.Story.anomalyNotes;
-            if (notes != null && index >= 0 && index < notes.Length)
-                _g.Notifications.Show(_g.Content.Text("os.name"), notes[index], "icon_info", null, "ui_select");
-        }
-
-        IEnumerator Note(int index, float delay)
-        {
-            yield return Wait(delay);
-            ShowNote(index);
         }
 
         IEnumerator Conflict()
@@ -641,7 +379,7 @@ namespace SecondCursor.Story
             {
                 if (explained || outcome != TugOutcome.EntityWins || CurrentBeat != "conflict") return;
                 explained = true;
-                _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.conflict"), "icon_info", null, "sys_warning");
+                if (_g.Difficulty.ConflictToastOnFirstLoss) ShowConflictToast();
             };
             _g.Conflict.TugEnded += _conflictHint;
             bool sessionNoted = false;
@@ -722,69 +460,21 @@ namespace SecondCursor.Story
             if (!E.IsVisible) yield return E.Appear(new Vector2(ScreenRig.Width * 0.6f, ScreenRig.Height * 0.55f), 0.6f, true);
             // Stillness before it speaks.
             yield return Wait(1.6f);
-            yield return OpenNotepadAsEntity();
+            yield return OpenNotepadAs(_ellen);
             _g.Flags.Set(Flags.EntitySpoke);
             RunSide(Note(5, 2.5f), "note-logged-on");
+            yield return RunExchangeChain(_ellen, ContentIds.ExchangeStop, OnEllenReply);
+        }
 
-            var exchange = _g.Dialogue.Get(ContentIds.ExchangeStop);
-            bool first = true;
-            int guard = 0;
-            while (exchange != null && guard++ < 6)
+        /// <summary>What the player's reply tells the story (flags) and the entity (memory).</summary>
+        void OnEllenReply(DialogueReply r, string said)
+        {
+            switch (r.Category)
             {
-                yield return TypeLines(exchange.entityLines, first ? 2.2f : 4f);
-                first = false;
-                if (EnsureNotepad() == null) yield return OpenNotepadAsEntity();
-                _notepad.PlayerCanType = true;
-                _notepad.Window.Focus(null);
-
-                string said = null;
-                Action<string, CursorAgent> handler = (line, a) => said = line;
-                _notepad.LineSubmitted += handler;
-                float waitStart = Time.time;
-                int reopened = 0;
-                while (said == null)
-                {
-                    // Silence: 25s after the last keystroke (or since it finished typing).
-                    float lastActivity = Mathf.Max(waitStart, _notepad != null ? _notepad.LastPlayerKeyTime : 0f);
-                    if (Time.time - lastActivity > 25f) break;
-                    if (EnsureNotepad() == null && reopened >= 2) break; // keeps closing it: treat as silence
-                    if (EnsureNotepad() == null)
-                    {
-                        reopened++;
-                        // Closing it doesn't make it go away.
-                        yield return OpenNotepadAsEntity();
-                        yield return TypeLines(new[] { "DONT" }, 3f);
-                        _notepad.PlayerCanType = true;
-                        _notepad.LineSubmitted += handler;
-                        waitStart = Time.time;
-                    }
-                    yield return null;
-                }
-                if (_notepad != null) _notepad.LineSubmitted -= handler;
-                if (_notepad != null) _notepad.PlayerCanType = false;
-
-                string[] reply;
-                if (said == null)
-                {
-                    reply = exchange.silence;
-                }
-                else
-                {
-                    var r = _g.Dialogue.Respond(exchange, said);
-                    reply = r.Lines;
-                    _g.Memory.Record(MemoryKind.TypedMessage, r.Category, Time.time);
-                    switch (r.Category)
-                    {
-                        case "swear": _g.Flags.Set(Flags.PlayerSwore); break;
-                        case "who": _g.Flags.Set(Flags.PlayerAskedWho); break;
-                        case "refuse": _g.Flags.Set(Flags.PlayerRefused); _g.Memory.Record(MemoryKind.ResistedEntity, "notepad", Time.time); break;
-                        case "agree": _g.Flags.Set(Flags.PlayerAgreed); _g.Memory.Record(MemoryKind.ObeyedEntity, "notepad", Time.time); break;
-                    }
-                    GameLog.Info(LogChannel.Player, "Typed \"" + said + "\" (" + r.Category + ")");
-                }
-                yield return Wait(1.1f);
-                yield return TypeLines(reply, 4f);
-                exchange = string.IsNullOrEmpty(exchange.next) ? null : _g.Dialogue.Get(exchange.next);
+                case "swear": _g.Flags.Set(Flags.PlayerSwore); break;
+                case "who": _g.Flags.Set(Flags.PlayerAskedWho); break;
+                case "refuse": _g.Flags.Set(Flags.PlayerRefused); _g.Memory.Record(MemoryKind.ResistedEntity, "notepad", Time.time); break;
+                case "agree": _g.Flags.Set(Flags.PlayerAgreed); _g.Memory.Record(MemoryKind.ObeyedEntity, "notepad", Time.time); break;
             }
         }
 
@@ -809,12 +499,12 @@ namespace SecondCursor.Story
                 ShowNote(9);
                 yield return Wait(1f);
             }
-            yield return TypeLines(_g.Content.Dialogue.recordLines, 4f);
+            yield return TypeLines(_ellen, _g.Content.Dialogue.recordLines, 4f);
             yield return Wait(1.5f);
             // A message from your own account... dated eleven years ago.
             _g.Mail.Deliver(ContentIds.MailNoSender);
             yield return Wait(3f);
-            yield return TypeLines(_g.Content.Dialogue.cameraLines, 3.5f);
+            yield return TypeLines(_ellen, _g.Content.Dialogue.cameraLines, 3.5f);
 
             // It opens what you were not allowed to open: the Restricted folder, then the cameras.
             _g.Files.SetFolderLocked(ContentIds.FolderRestricted, false);
@@ -923,7 +613,7 @@ namespace SecondCursor.Story
                             GameLog.Info(LogChannel.Entity, "Entity forced the camera feed shut");
                         }
                     }
-                    if (panicLine < panic.Length) yield return TypeLines(new[] { panic[panicLine++] }, 6f);
+                    if (panicLine < panic.Length) yield return TypeLines(_ellen, new[] { panic[panicLine++] }, 6f);
                 }
                 else
                 {
@@ -938,7 +628,7 @@ namespace SecondCursor.Story
                         var self = (CameraApp)_g.Apps.Launch(AppIds.Camera, null);
                         self?.Select(ContentIds.Cam03, null);
                         _g.Audio.Play("low_thump", 0.8f);
-                        if (panicLine < panic.Length) yield return TypeLines(new[] { panic[panicLine++] }, 7f);
+                        if (panicLine < panic.Length) yield return TypeLines(_ellen, new[] { panic[panicLine++] }, 7f);
                         yield return WaitWatching(4f, 8f);
                         break;
                     }
@@ -966,35 +656,6 @@ namespace SecondCursor.Story
                 yield return null;
             }
             yield return Wait(1.2f);
-        }
-
-        /// <summary>Waits until the player has watched Camera 03 for <paramref name="watchSeconds"/> (or timeout).</summary>
-        IEnumerator WaitWatching(float watchSeconds, float timeout)
-        {
-            float watched = 0f, end = Time.time + timeout;
-            while (watched < watchSeconds && Time.time < end)
-            {
-                var cam = _g.Apps.Find<CameraApp>();
-                if (cam != null && !cam.Window.IsMinimized && cam.CurrentCamera == ContentIds.Cam03) watched += Time.deltaTime;
-                yield return null;
-            }
-        }
-
-        /// <summary>A burst of feed static that hides a change in the scene (things only move when you blink).</summary>
-        IEnumerator StaticCut(Action change)
-        {
-            var rig = _g.CameraRig;
-            _g.Audio.Play("camera_static", 0.6f);
-            float t = 0f;
-            bool changed = false;
-            while (t < 0.45f)
-            {
-                t += Time.deltaTime;
-                rig.ExtraNoise = 0.9f;
-                if (!changed && t > 0.15f) { change(); changed = true; }
-                yield return null;
-            }
-            rig.ExtraNoise = 0f;
         }
 
         IEnumerator ShowEmployee017()

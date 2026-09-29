@@ -29,6 +29,7 @@ namespace SecondCursor.Core.Content
         readonly Dictionary<string, TaskData> _tasks = new Dictionary<string, TaskData>(StringComparer.Ordinal);
         readonly Dictionary<string, ExchangeData> _exchanges = new Dictionary<string, ExchangeData>(StringComparer.Ordinal);
         readonly Dictionary<string, CameraData> _cameras = new Dictionary<string, CameraData>(StringComparer.Ordinal);
+        readonly Dictionary<string, LineSetData> _lineSets = new Dictionary<string, LineSetData>(StringComparer.Ordinal);
 
         public ContentDatabase(StringTableData strings, StoryData story, FileSystemData fileSystem, EmailsData emails,
             EmployeesData employees, WorkOrdersData workOrders, TasksData tasks, DialogueData dialogue)
@@ -57,6 +58,7 @@ namespace SecondCursor.Core.Content
 
             EnsureRequired();
             Index();
+            Validate();
         }
 
         // ---------------------------------------------------------------- strings
@@ -92,6 +94,10 @@ namespace SecondCursor.Core.Content
         public TaskData Task(string id) => id != null && _tasks.TryGetValue(id, out var v) ? v : null;
         public ExchangeData Exchange(string id) => id != null && _exchanges.TryGetValue(id, out var v) ? v : null;
         public CameraData Camera(string id) => id != null && _cameras.TryGetValue(id, out var v) ? v : null;
+        public LineSetData LineSet(string id) => id != null && _lineSets.TryGetValue(id, out var v) ? v : null;
+
+        /// <summary>The lines of a line set, or none if it does not exist.</summary>
+        public string[] Lines(string id) => LineSet(id)?.lines ?? Array.Empty<string>();
 
         public EmployeeData EmployeeByNumber(string number)
         {
@@ -116,6 +122,25 @@ namespace SecondCursor.Core.Content
             foreach (var t in Tasks.tasks) if (t != null && t.id.Length > 0) _tasks[t.id] = t;
             foreach (var x in Dialogue.exchanges) if (x != null && x.id.Length > 0) _exchanges[x.id] = x;
             foreach (var c in Story.cameras) if (c != null && c.id.Length > 0) _cameras[c.id] = c;
+            foreach (var l in Dialogue.lineSets) if (l != null && l.id.Length > 0 && !_lineSets.ContainsKey(l.id)) _lineSets[l.id] = l;
+        }
+
+        /// <summary>Content mistakes the loader can report without failing (listed in <see cref="Problems"/>).</summary>
+        void Validate()
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var l in Dialogue.lineSets)
+            {
+                if (l == null) continue;
+                if (l.id.Length == 0) Problems.Add("Line set without an id");
+                else if (!seen.Add(l.id)) Problems.Add("Duplicate line set id '" + l.id + "'");
+            }
+            foreach (var t in Tasks.tasks)
+            {
+                if (t == null || t.type != "ViewEmployee") continue;
+                foreach (var target in t.targets)
+                    if (Employee(target) == null) Problems.Add("Task '" + t.id + "' views unknown employee '" + target + "'");
+            }
         }
 
         void EnsureRequired()

@@ -99,12 +99,15 @@ Use `F1` → **Jump to beat** to go straight to any milestone (it starts a fresh
 ```
 Scripts/
   Core/        engine-free simulation (no UnityEngine reference; unit-tested outside Unity)
-    Content/     data classes for the JSON + ContentDatabase (safe placeholders if content is missing)
+    Content/     data classes for the JSON + ContentDatabase (safe placeholders if content is missing),
+                 ContentOverlay (per-night overlays merged onto the base content)
     FileSystem/  VirtualFileSystem: files/folders by stable ID, move/shred/restore, attribution (player/entity)
     Tasks/       WorkTaskManager: data-driven work tasks judged against world state
     Story/       NarrativeFlags (save-ready), DialogueEngine (keyword replies), GameClock
-    Entity/      TugOfWar (conflict model), MovementPlanner + MovementProfiles (personality in motion),
+    Entity/      TugOfWar (conflict model), Difficulty (per-night DifficultyProfile, DifficultyTable,
+                 AdaptiveAssist), MovementPlanner + MovementProfiles (personality in motion),
                  EntityMemory, CursorRecorder (mimic), EntityState/Phase/Personality
+    Game/        SaveData (progress.json: nights, checkpoint, cross-night memory, records; migration)
     Art/         PixelFontData (bitmap font), PixelArtData (icons, cursors, logos as pixel strings)
     Audio/       ProceduralSoundBank (every sound synthesized at startup)
     Util/        GameLog (tagged logging), Routine (coroutine runner: stopping it stops nested children too),
@@ -121,7 +124,8 @@ Scripts/
                  Help, Disposal
     Entity/      EntityController (awaitable MoveTo/Click/DragTo/Type/Replay...), EntityBrain (utility AI),
                  ConflictSystem (runs the tug-of-war)
-    Story/       EventDirector (beats + escalation), BootSequence, EndingSequence
+    Story/       NightDirector (shared beat flow, checkpoints, helpers) + Night1Director (Night 1's beats),
+                 BootSequence, EndingSequence
     CameraFeed/  SecurityCameraRig (small 3D office set rendered to a low-res CCTV feed)
     FX/          VisualFx (CRT scanlines/vignette/grain/flicker, glitch tearing, shake, power-off)
     Audio/       AudioManager (entity sounds panned to where it is on screen)
@@ -148,10 +152,12 @@ Resources/
 
 ## 5. Tuning knobs
 
-- Tug-of-war feel: `TugOfWarSettings` (`ConflictSystem.Settings`).
+- Tug-of-war feel and how hard the second cursor defends (grip, reaction times, which tricks it uses),
+  per night and for Story difficulty: `Core/Entity/Difficulty.cs` (`DifficultyTable`). The adaptive assist
+  (same file) eases it after repeated losses. An `EntityTuningAsset` in Resources overrides Night 1 Normal.
 - Entity movement personalities: `MovementProfiles` (HumanLike, Hesitant, Aggressive, Panicked, Mechanical, Lurking, ImitatingPlayer).
-- Entity personality (grip, reaction speed): `EntityController.Personality`.
-- Pacing: `EventDirector` beats (waits/timeouts are in one place per beat).
+- Pacing: the night directors' beats (`Night1Director`; waits/timeouts are in one place per beat), hint
+  timings in the difficulty profile.
 - Colours: `Rendering/Palette.cs`. CRT strength: `FX/VisualFx.cs`.
 
 ## 6. Outside-Unity dev tools (in the repository's `SecondCursor/DevTools/`)

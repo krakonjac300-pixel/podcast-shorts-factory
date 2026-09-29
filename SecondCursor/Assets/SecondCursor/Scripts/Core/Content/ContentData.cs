@@ -35,6 +35,8 @@ namespace SecondCursor.Core.Content
         public string id = "";
         public string label = "";
         public string location = "";
+        /// <summary>The camera button only shows after a story flag (CAM 00).</summary>
+        public bool hidden;
     }
 
     [Serializable]
@@ -78,6 +80,10 @@ namespace SecondCursor.Core.Content
         public string parent = "";
         public bool hidden;
         public bool locked;
+        /// <summary>Authorization code: a locked folder with a code opens the code prompt instead of Access Denied.</summary>
+        public string code = "";
+        /// <summary>A night overlay deletes this folder.</summary>
+        public bool removed;
     }
 
     [Serializable]
@@ -94,6 +100,8 @@ namespace SecondCursor.Core.Content
         public bool @protected;
         public bool corrupted;
         public string[] tags = Array.Empty<string>();
+        /// <summary>A night overlay deletes this file.</summary>
+        public bool removed;
     }
 
     [Serializable]
@@ -112,6 +120,7 @@ namespace SecondCursor.Core.Content
                 f.id = f.id ?? "";
                 f.name = f.name ?? "";
                 f.parent = f.parent ?? "";
+                f.code = f.code ?? "";
             }
             foreach (var f in files)
             {
@@ -139,6 +148,8 @@ namespace SecondCursor.Core.Content
         public string body = "";
         public bool preload;
         public bool read;
+        /// <summary>A night overlay deletes this mail.</summary>
+        public bool removed;
     }
 
     [Serializable]
@@ -223,6 +234,8 @@ namespace SecondCursor.Core.Content
         public string instructions = "";
         public string correct = "approve";
         public string employeeRef = "";
+        /// <summary>"" = Personnel rule (approve only if TERMINATED), "shelf" = the CAM 04 shelf rule.</summary>
+        public string rule = "";
     }
 
     [Serializable]
@@ -248,6 +261,7 @@ namespace SecondCursor.Core.Content
                 o.instructions = o.instructions ?? "";
                 o.correct = string.IsNullOrEmpty(o.correct) ? "approve" : o.correct;
                 o.employeeRef = o.employeeRef ?? "";
+                o.rule = o.rule ?? "";
             }
         }
     }
@@ -262,6 +276,12 @@ namespace SecondCursor.Core.Content
         public string type = "";
         public string[] targets = Array.Empty<string>();
         public string param = "";
+        /// <summary>"" = the company, "entity" = written into the Work Queue by the second cursor.</summary>
+        public string author = "";
+        /// <summary>Seconds before an entity task is withdrawn (0 = no limit).</summary>
+        public float timeout;
+        /// <summary>Shown in the Work Queue, e.g. "3:00 AM".</summary>
+        public string deadline = "";
     }
 
     [Serializable]
@@ -282,6 +302,8 @@ namespace SecondCursor.Core.Content
                 t.type = t.type ?? "";
                 t.targets = StoryData.Clean(t.targets);
                 t.param = t.param ?? "";
+                t.author = t.author ?? "";
+                t.deadline = t.deadline ?? "";
             }
         }
     }
@@ -291,6 +313,8 @@ namespace SecondCursor.Core.Content
     {
         public string[] keywords = Array.Empty<string>();
         public string[] reply = Array.Empty<string>();
+        /// <summary>Story tag returned with the reply (stay, letgo, go, name, glasses, confirm, cancel).</summary>
+        public string tag = "";
     }
 
     [Serializable]
@@ -302,6 +326,26 @@ namespace SecondCursor.Core.Content
         public string[] fallback = Array.Empty<string>();
         public string[] silence = Array.Empty<string>();
         public string next = "";
+        /// <summary>"" = Ellen (the second cursor), "gary" = Gary.</summary>
+        public string voice = "";
+    }
+
+    /// <summary>A named group of lines (endings, memory lines), optionally with a speaker per line.</summary>
+    [Serializable]
+    public class LineSetData
+    {
+        public string id = "";
+        public string voice = "";
+        public string[] lines = Array.Empty<string>();
+        public string[] speakers = Array.Empty<string>();
+
+        public void Sanitize()
+        {
+            id = id ?? "";
+            voice = voice ?? "";
+            lines = StoryData.Clean(lines);
+            speakers = StoryData.Clean(speakers);
+        }
     }
 
     [Serializable]
@@ -311,6 +355,7 @@ namespace SecondCursor.Core.Content
         public string[] panicLines = Array.Empty<string>();
         public string[] cameraLines = Array.Empty<string>();
         public string[] recordLines = Array.Empty<string>();
+        public LineSetData[] lineSets = Array.Empty<LineSetData>();
 
         public void Sanitize()
         {
@@ -326,11 +371,15 @@ namespace SecondCursor.Core.Content
                     if (r == null) continue;
                     r.keywords = StoryData.Clean(r.keywords);
                     r.reply = StoryData.Clean(r.reply);
+                    r.tag = r.tag ?? "";
                 }
                 x.fallback = StoryData.Clean(x.fallback);
                 x.silence = StoryData.Clean(x.silence);
                 x.next = x.next ?? "";
+                x.voice = x.voice ?? "";
             }
+            lineSets = lineSets ?? Array.Empty<LineSetData>();
+            foreach (var l in lineSets) l?.Sanitize();
             panicLines = StoryData.Clean(panicLines);
             cameraLines = StoryData.Clean(cameraLines);
             recordLines = StoryData.Clean(recordLines);

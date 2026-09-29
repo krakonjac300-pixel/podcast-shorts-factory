@@ -41,6 +41,40 @@ namespace SecondCursor.Tests
             Load<EmailsData>("emails"), Load<EmployeesData>("employees"), Load<WorkOrdersData>("workorders"),
             Load<TasksData>("tasks"), Load<DialogueData>("dialogue"));
 
+        /// <summary>An optional overlay file (Content/nightN/NAME.json), or null.</summary>
+        static T LoadOptional<T>(string folder, string name) where T : class
+        {
+            string path = Path.Combine(Dir, folder, name + ".json");
+            return File.Exists(path) ? JsonSerializer.Deserialize<T>(File.ReadAllText(path), Options) : null;
+        }
+
+        static ContentPack Pack(string folder) => new ContentPack
+        {
+            Strings = LoadOptional<StringTableData>(folder, "strings"), Story = LoadOptional<StoryData>(folder, "story"),
+            FileSystem = LoadOptional<FileSystemData>(folder, "filesystem"), Emails = LoadOptional<EmailsData>(folder, "emails"),
+            Employees = LoadOptional<EmployeesData>(folder, "employees"), WorkOrders = LoadOptional<WorkOrdersData>(folder, "workorders"),
+            Tasks = LoadOptional<TasksData>(folder, "tasks"), Dialogue = LoadOptional<DialogueData>(folder, "dialogue"),
+        };
+
+        /// <summary>The content of a night the way ContentLoader.Load(night) builds it.</summary>
+        static ContentDatabase LoadNight(int night)
+        {
+            var pack = Pack("");
+            for (int n = 2; n <= night; n++) pack = pack.Overlay(Pack("night" + n));
+            return pack.Build();
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        public void EveryNightLoadsWithoutProblems(int night)
+        {
+            if (!ContentPresent) return;
+            var db = LoadNight(night);
+            Assert.True(db.Problems.Count == 0, "Night " + night + " content problems:\n" + string.Join("\n", db.Problems));
+        }
+
         static bool ContentPresent => File.Exists(Path.Combine(Dir, "dialogue.json")) && File.Exists(Path.Combine(Dir, "strings.json"));
 
         [Fact]
@@ -59,7 +93,7 @@ namespace SecondCursor.Tests
         {
             if (!ContentPresent) return;
             var bad = new List<string>();
-            foreach (var file in Directory.GetFiles(Dir, "*.json"))
+            foreach (var file in Directory.GetFiles(Dir, "*.json", SearchOption.AllDirectories))
             {
                 string text = File.ReadAllText(file);
                 // Decode JSON escapes by round-tripping every string value.

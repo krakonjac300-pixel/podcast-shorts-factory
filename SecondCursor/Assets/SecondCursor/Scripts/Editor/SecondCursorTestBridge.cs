@@ -31,9 +31,10 @@ namespace SecondCursor.EditorTools
     public static class SecondCursorTestBridge
     {
         const string Help =
-            "Editor: refresh | play | stop | build | status | errors | clearerrors | help\n" +
-            "Game:   jump NAME (fresh shift) | beat NAME (in place) | waittext TEXT [timeout] | waitbeat NAME [timeout] | waitlog TEXT [timeout] | waitflag FLAG [timeout] | waittask ID [timeout]\n" +
+            "Editor: refresh | play | stop | build | status | errors | clearerrors | warnings | help\n" +
+            "Game:   jump [NIGHT] NAME (fresh shift) | night N (fresh shift, boot) | beat NAME (in place) | waittext TEXT [timeout] | waitbeat NAME [timeout] | waitlog TEXT [timeout] | waitflag FLAG [timeout] | waittask ID [timeout]\n" +
             "        waitidle [timeout] | wait SECONDS | speed X | crt on|off | restart | realinput | scriptinput\n" +
+            "State:  setflag NAME | clearflag NAME | trust VALUE | assist LEVEL | tug win|lose|real | setclock H M | difficulty normal|story | checkpoint save|load | save\n" +
             "        shot NAME | gameshot NAME | dump | ids [FILTER] | texts [FILTER] | log [N] | windows\n" +
             "Mouse:  move X Y [DUR] | down | up | click X Y | dclick X Y | rclick X Y | drag X1 Y1 X2 Y2 [DUR] | scroll N\n" +
             "        clickid ID | dclickid ID | rclickid ID | moveid ID | dragid ID X Y [DUR] | dragto ID TARGETID [DUR]\n" +
@@ -47,6 +48,7 @@ namespace SecondCursor.EditorTools
         static string ResumePath => Path.Combine(Dir, "resume.txt");
         static string PartialPath => Path.Combine(Dir, "partial.txt");
         static string CompileErrorsPath => Path.Combine(Dir, "compile_errors.txt");
+        static string CompileWarningsPath => Path.Combine(Dir, "compile_warnings.txt");
         public static string ShotDir => Path.Combine(Dir, "shots");
 
         static readonly List<string> ConsoleErrors = new List<string>();
@@ -68,7 +70,12 @@ namespace SecondCursor.EditorTools
             EditorApplication.update += Update;
             Application.logMessageReceived += OnLog;
             CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompiled;
-            CompilationPipeline.compilationStarted += _ => { if (Enabled && File.Exists(CompileErrorsPath)) File.Delete(CompileErrorsPath); };
+            CompilationPipeline.compilationStarted += _ =>
+            {
+                if (!Enabled) return;
+                if (File.Exists(CompileErrorsPath)) File.Delete(CompileErrorsPath);
+                if (File.Exists(CompileWarningsPath)) File.Delete(CompileWarningsPath);
+            };
         }
 
         static bool Enabled => Directory.Exists(Dir);
@@ -89,6 +96,9 @@ namespace SecondCursor.EditorTools
             if (!Enabled) return;
             var errors = messages.Where(m => m.type == CompilerMessageType.Error).Select(m => m.message).ToArray();
             if (errors.Length > 0) File.AppendAllLines(CompileErrorsPath, errors);
+            // The game's own warnings from the last compilation ("warnings" lists them).
+            var warnings = messages.Where(m => m.type == CompilerMessageType.Warning && m.message.Contains("SecondCursor")).Select(m => m.message).ToArray();
+            if (warnings.Length > 0) File.AppendAllLines(CompileWarningsPath, warnings);
         }
 
         static void Update()
@@ -239,6 +249,13 @@ namespace SecondCursor.EditorTools
                     Say(ConsoleErrors.Count + " error(s)");
                     return Done();
                 case "clearerrors": ConsoleErrors.Clear(); _errorsAtCommand = 0; return Done();
+                case "warnings":
+                {
+                    var lines = File.Exists(CompileWarningsPath) ? File.ReadAllLines(CompileWarningsPath).Distinct().ToList() : new List<string>();
+                    foreach (var l in lines) Say(l);
+                    Say(lines.Count + " compiler warning(s) in the game's scripts (last compilation)");
+                    return Done();
+                }
                 case "refresh": return Refresh();
                 case "play": return Play(true);
                 case "stop": return Play(false);
@@ -268,7 +285,59 @@ namespace SecondCursor.EditorTools
             switch (cmd)
             {
                 case "beat": g.Director.JumpTo(a[1]); inner = WaitSeconds(0.3f); break;
-                case "jump": GameBootstrap.Restart(a[1]); inner = WaitFor(() => G != null && G.Director != null && G.Director.CurrentBeat == a[1], 20f, "fresh shift at " + a[1]); break;
+                case "jump":
+                {
+                    // jump BEAT keeps the current night; jump N BEAT starts night N at that beat.
+                    bool withNight = a.Length > 2 && int.TryParse(a[1], out _);
+                    int night = withNight ? int.Parse(a[1]) : g.Night;
+                    string beat = withNight ? a[2] : a[1];
+                    GameBootstrap.Restart(night, beat);
+                    inner = WaitFor(() => G != null && G.Director != null && G.Night == night && G.Director.CurrentBeat == beat, 20f, "fresh shift at night " + night + " " + beat);
+                    break;
+                }
+                case "night":
+                {
+                    int night = (int)F(a, 1, 1f);
+                    GameBootstrap.Restart(night);
+                    inner = WaitFor(() => G != null && G.Director != null && G.Night == night && !string.IsNullOrEmpty(G.Director.CurrentBeat), 20f, "night " + night);
+                    break;
+                }
+                case "setflag": g.Flags.Set(a[1]); break;
+                case "clearflag": g.Flags.Clear(a[1]); break;
+                case "trust": g.Memory.Seed(F(a, 1, 0f)); Say("trust=" + g.Memory.Trust.ToString("0.00")); break;
+                case "assist": g.Assist.SetLevel((int)F(a, 1, 0f)); Say(AssistLine(g)); break;
+                case "tug":
+                {
+                    string mode = a.Length > 1 ? a[1].ToLowerInvariant() : "real";
+                    Entity.ConflictSystem.ForcedOutcome = mode == "win" ? Core.Entity.TugOutcome.PlayerWins : mode == "lose" ? Core.Entity.TugOutcome.EntityWins : Core.Entity.TugOutcome.None;
+                    Say("next contests: " + (Entity.ConflictSystem.ForcedOutcome == Core.Entity.TugOutcome.None ? "real" : Entity.ConflictSystem.ForcedOutcome.ToString()));
+                    break;
+                }
+                case "setclock": g.Clock.Set((int)F(a, 1, 1f), (int)F(a, 2, 52f)); Say("clock " + g.Clock.Format12()); break;
+                case "difficulty":
+                {
+                    // Read when a night is built: save it and restart the current beat.
+                    var mode = Core.Entity.DifficultyTable.ParseMode(a.Length > 1 ? a[1] : "normal");
+                    SaveSystem.SetDifficulty(mode);
+                    int night = g.Night;
+                    string beat = g.Director.CurrentBeat;
+                    GameBootstrap.Restart(night, beat);
+                    inner = WaitFor(() => G != null && G.Director != null && G.Difficulty.Mode == mode && G.Director.CurrentBeat == beat, 20f, "difficulty " + mode + " at " + beat);
+                    break;
+                }
+                case "checkpoint":
+                    if (a.Length > 1 && a[1] == "load")
+                    {
+                        int night = g.Night;
+                        GameBootstrap.Restart(night, null, true);
+                        inner = WaitFor(() => G != null && G.Director != null && !string.IsNullOrEmpty(G.Director.CurrentBeat), 20f, "continue night " + night);
+                    }
+                    else
+                    {
+                        SaveSystem.SaveCheckpoint(g, g.Director.CurrentBeat);
+                    }
+                    break;
+                case "save": SaveLines(); break;
                 case "waitbeat": inner = WaitFor(() => g.Director.CurrentBeat == a[1], F(a, 2, 120f), "beat " + a[1]); break;
                 case "waitflag": inner = WaitFor(() => g.Flags.Has(a[1]), F(a, 2, 120f), "flag " + a[1]); break;
                 case "waittask": inner = WaitFor(() => g.Tasks.IsCompleted(a[1]), F(a, 2, 120f), "task " + a[1]); break;
@@ -432,6 +501,7 @@ namespace SecondCursor.EditorTools
                 Say("beat=" + g.Director.CurrentBeat + " t=" + Time.time.ToString("0.0") + " scale=" + Time.timeScale + " frame=" + Time.frameCount + " input=" + g.Input.GetType().Name
                     + " fps=" + (1f / Mathf.Max(0.0001f, Time.smoothDeltaTime)).ToString("0") + " screen=" + Screen.width + "x" + Screen.height + " rtScale=" + g.Screen.TextureScale);
                 Say("player=" + Fmt(g.Player.Position) + " entity=" + Fmt(g.Entity.Agent.Position) + " visible=" + g.Entity.IsVisible + " state=" + g.Entity.State + " action=" + (g.Entity.CurrentAction ?? "-"));
+                Say(AssistLine(g));
             }
             Say(ConsoleErrors.Count + " console error(s)");
             yield break;
@@ -526,11 +596,36 @@ namespace SecondCursor.EditorTools
             Say("beat=" + g.Director.CurrentBeat + " (" + (Time.time - g.Director.BeatStartedAt).ToString("0.0") + "s)  t=" + Time.time.ToString("0.0") + " scale=" + Time.timeScale);
             Say("player " + Fmt(g.Player.Position) + " held=" + g.Player.Held + " hovered=" + Name(g.Player.Hovered) + " payload=" + (g.Player.Payload != null ? g.Player.Payload.FileId : "-"));
             Say("entity " + Fmt(e.Agent.Position) + " visible=" + e.IsVisible + " phase=" + e.Phase + " state=" + e.State + " action=" + (e.CurrentAction ?? "-") + " brain=" + e.Brain.Enabled + " defenses=" + e.Brain.Defenses);
-            Say("fight=" + g.Conflict.IsFighting + " shredBusy=" + g.Shred.Busy);
+            Say("fight=" + g.Conflict.IsFighting + (g.Conflict.IsMercyContest ? " (mercy)" : "") + " shredBusy=" + g.Shred.Busy);
+            Say(AssistLine(g));
             Windows(g);
             Say("tasks: " + string.Join(" ", g.Tasks.Tasks.Where(t => t.State != Core.Tasks.TaskState.Hidden).Select(t => t.Id + "=" + t.State)));
             Say("flags: " + string.Join(" ", g.Flags.AllFlags));
             foreach (var l in GameLog.Recent(12)) Say("log " + l.Time.ToString("0.0") + " " + l);
+        }
+
+        /// <summary>Night, difficulty, assist state, grip, trust and the forced tug outcome on one line.</summary>
+        static string AssistLine(GameServices g)
+        {
+            var s = g.Assist;
+            return "night=" + g.Night + " difficulty=" + g.Difficulty.Mode + " assist=L" + s.Level + " lossStreak=" + s.LossStreak.ToString("0.0", CultureInfo.InvariantCulture)
+                   + " winStreak=" + s.WinStreak + " mercyArmed=" + s.MercyArmed + " grip=" + g.Entity.Brain.Grip.ToString("0.00", CultureInfo.InvariantCulture)
+                   + " trust=" + g.Memory.Trust.ToString("0.00", CultureInfo.InvariantCulture) + " clock=" + g.Clock.Format12()
+                   + " tug=" + (Entity.ConflictSystem.ForcedOutcome == Core.Entity.TugOutcome.None ? "real" : Entity.ConflictSystem.ForcedOutcome.ToString());
+        }
+
+        /// <summary>The progression part of progress.json.</summary>
+        static void SaveLines()
+        {
+            var d = SaveSystem.Load();
+            Say("version=" + d.version + " difficulty=" + d.difficulty + " nightUnlocked=" + d.nightUnlocked + " currentNight=" + d.currentNight
+                + " trust=" + d.entityTrust.ToString("0.00", CultureInfo.InvariantCulture) + " assistCarry=" + d.assistCarry
+                + " tugs=" + d.tugWinsTotal + "W/" + d.tugLossesTotal + "L endings=" + string.Join(",", d.endingsSeen));
+            var cp = d.checkpoint;
+            Say("checkpoint valid=" + cp.valid + " night=" + cp.night + " beat=" + cp.beat + " clock=" + cp.clockMinutes + " trust=" + cp.trust.ToString("0.00", CultureInfo.InvariantCulture)
+                + " assist=" + cp.assistLevel + " flags=" + cp.flags.flags.Length);
+            Say("memory flags: " + string.Join(" ", d.memory.flags) + " | counters: " + string.Join(" ", d.memory.counterKeys.Select((k, i) => k + "=" + d.memory.counterValues[i])));
+            Say("playerLines: " + string.Join(" | ", d.playerLines) + " | nightStarts=" + string.Join(",", d.nightStarts));
         }
 
         static void Windows(GameServices g)

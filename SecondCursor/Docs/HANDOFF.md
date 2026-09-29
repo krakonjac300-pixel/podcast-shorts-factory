@@ -169,6 +169,47 @@ timed out after about 5 minutes. Changes:
   drop-spot search keeps a 2 ms per-frame budget, the conflict hint handler is removed on any jump,
   debug jumps past the shred task show a full Disposal bin, README F6 note corrected.
 
+### Expansion phase A+B (night directors, overlays, saves, difficulty)
+
+First step of `Docs/Design/Expansion.md` (Section 11.1 and the difficulty part of 11.2, Section 7).
+Night 1 plays as before; the only intended differences are the adaptive assist and checkpoint saves.
+
+- **Night directors.** `EventDirector` is split into `Runtime/Story/NightDirector.cs` (abstract: beat flow,
+  jumps, side routines, checkpoints, `CompleteNight`, and helpers such as `WaitTask`, `GiveTask`,
+  `TypeLines`/`RunExchangeChain` for any talking cursor (`Speaker`), `CarryFileIn`, `GuardElement`,
+  `RaceTo`, `WaitWatching`, `StaticCut`, `FindDropSpot`, `EnsureClockAtLeast`, `RequestLogOff`) and
+  `Night1Director.cs` (today's beats, unchanged). `NightDirector.Create(g, parent, night)` picks the
+  director; Nights 2 and 3 do not have one yet, so they run Night 1's beats with that night's
+  difficulty ("stand-in", nothing is saved). `Beats` is now per instance (`g.Director.Beats`).
+- **Content overlays.** `ContentLoader.Load(night)` applies `Resources/Content/night2/` and `night3/`
+  (none exist yet) with the merge rules in `Core/Content/ContentOverlay.cs`. New optional JSON fields
+  (folder `code`, `removed` on folders/files/mails, camera `hidden`, task `author`/`timeout`/`deadline`,
+  order `rule`, response `tag`, exchange `voice`, dialogue `lineSets`) default to off. `ContentIds` has
+  the Section 11.5 ids.
+- **Saves.** `progress.json` is version 3 (`Core/Game/SaveData.cs`, unit-tested): difficulty, nights
+  unlocked, Continue's night, a checkpoint (Night 1: at the start of `work`, `conflict`, `escalation`),
+  cross-night memory (`m.` flags, see `MemoryFlags`), Night 1's first three Notepad replies, trust,
+  assist carry, endings, totals. Older files migrate on load (a finished Night 1 becomes Night 2
+  unlocked). Finishing a night replaces the saved memory with that run's. Writes stay atomic.
+  `GameBootstrap.Restart(night, beat, fromCheckpoint)` resumes a checkpoint (no title-menu Continue yet).
+- **Difficulty.** `Core/Entity/Difficulty.cs`: `DifficultyTable.For(night, Normal|Story)` gives a
+  `DifficultyProfile` (tug settings, grip, reaction times, which defenses the entity uses, hint
+  timings); Night 1 Normal equals the old values (an `EntityTuningAsset` still overrides it).
+  `AdaptiveAssist` (level -1..3) rises after 2 tug losses (other defenses count half), drops after two
+  wins or one easy win, and at level 3 arms a mercy contest (grip 0.30, entity lets go). Each contest
+  builds fresh settings (`ConflictSystem.CurrentSettings`); the brain reads grip and timings from the
+  profile and assist. The NEXUS conflict toast also shows the first time the assist rises. Story mode is
+  stored in the save (debug panel or bridge `difficulty story`).
+- **Debug panel (F1).** Night 1/2/3 buttons, Normal/Story toggle, Tug win/lose/real (development
+  builds only), Assist -/+, Trust -0.5/0/+0.5, and an assist readout.
+- **Bridge additions.** `night N`, `jump N BEAT` (plain `jump BEAT` keeps the night), `setflag`/`clearflag`,
+  `trust V`, `assist L`, `tug win|lose|real`, `setclock H M`, `difficulty normal|story` (restarts the
+  current beat), `checkpoint save|load`, `save` (prints progress.json), `warnings` (the game's compiler
+  warnings from the last compilation). `status` and `dump` print night, assist, grip and trust.
+- **Not yet (later phases):** Night 2/3 directors and content, Gary (second controller), Custodial rounds,
+  endings driven by `EndingSpec`, night card, title menu/Night Select/Records, achievements hooks,
+  `=` whole-word keywords, entity-authored tasks (`GiveEntityTask`, `Withdraw`).
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

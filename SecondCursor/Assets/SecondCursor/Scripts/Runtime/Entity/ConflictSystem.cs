@@ -17,7 +17,9 @@ namespace SecondCursor.Entity
     /// Runs the tug-of-war when both cursors grip the same dragged file: feeds real cursor motion into the
     /// engine-free <see cref="TugOfWar"/> model, drags the entity's end away, positions the straining file
     /// ghost between the cursors, draws the "rubber band", drives the strain sound, shake and glitches,
-    /// and hands the file to the winner.
+    /// and hands the file to the winner. Each contest gets fresh settings from the night's difficulty and
+    /// the adaptive assist, and reports its outcome back to the assist (which may make the next contest a
+    /// mercy contest: low grip, and the entity lets go by itself once the player pulls for a while).
     /// </summary>
     public sealed class ConflictSystem : MonoBehaviour
     {
@@ -30,8 +32,17 @@ namespace SecondCursor.Entity
         readonly List<Image> _band = new List<Image>();
         float _glitchCooldown;
 
-        public TugOfWarSettings Settings = new TugOfWarSettings();
+        bool _mercy;
+        float _mercyPull;
+
+        /// <summary>Development builds only: decide the next contests (None = fight for real). Set by the debug panel and the test bridge.</summary>
+        public static TugOutcome ForcedOutcome = TugOutcome.None;
+        const float ForcedOutcomeAfter = 0.35f;
+
+        /// <summary>Settings of the contest in progress (or the last one).</summary>
+        public TugOfWarSettings CurrentSettings { get; private set; } = new TugOfWarSettings();
         public bool IsFighting => _payload != null;
+        public bool IsMercyContest => IsFighting && _mercy;
         public float Strain => _model != null && IsFighting ? _model.Strain : 0f;
         public float EntityShare => _model != null && IsFighting ? _model.EntityShare : 0f;
 
@@ -44,9 +55,7 @@ namespace SecondCursor.Entity
             go.transform.SetParent(parent, false);
             var c = go.AddComponent<ConflictSystem>();
             c._g = g;
-            var tuning = EntityTuningAsset.LoadOptional();
-            if (tuning != null && tuning.tugOfWar != null) c.Settings = tuning.tugOfWar;
-            c._model = new TugOfWar(c.Settings);
+            c._model = new TugOfWar(c.CurrentSettings);
             for (int i = 0; i < BandDots; i++)
             {
                 var dot = UIBuilder.Solid(g.Layers.Effects, new Color(0.95f, 0.95f, 0.9f, 0f), "Tension " + i);
@@ -74,7 +83,10 @@ namespace SecondCursor.Entity
             bool pair = (p.Holder == _g.Player && contender == _g.EntityAgent) || (p.Holder == _g.EntityAgent && contender == _g.Player);
             if (!pair) return;
             _payload = p;
-            _model = new TugOfWar(Settings);
+            _mercy = _g.Assist != null && _g.Assist.BeginContest();
+            _mercyPull = 0f;
+            CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy) : new TugOfWarSettings();
+            _model = new TugOfWar(CurrentSettings);
             Vector2 away = (_g.EntityAgent.Position - _g.Player.Position);
             Vector2 fromBin = (_g.EntityAgent.Position - _g.Desktop.DisposalIcon.Hit.Center);
             _escapeDir = (away.normalized * 0.7f + fromBin.normalized * 0.3f).normalized;
@@ -85,6 +97,7 @@ namespace SecondCursor.Entity
             _g.Audio?.PlayLoop("tug_strain", 0.2f, 0.1f);
             _g.Fx?.Glitch(0.12f, 0.6f);
             GameLog.Info(LogChannel.Entity, "Tug-of-war started over " + p.FileId);
+            if (_mercy) GameLog.Info(LogChannel.Entity, "Mercy contest");
             TugStarted?.Invoke(p);
         }
 
@@ -101,16 +114,17 @@ namespace SecondCursor.Entity
                 End(TugOutcome.PlayerWins, true);
                 return;
             }
-            float grip = _g.Entity != null ? _g.Entity.Brain.Grip : 0.62f;
+            float grip = _mercy ? AdaptiveAssist.MercyGrip : _g.Entity != null ? _g.Entity.Brain.Grip : 0.62f;
 
             // The entity's end drags away (strength-dependent), with a nervous tremble.
-            Vector2 drift = _escapeDir * (55f + 70f * grip) * dt + UnityEngine.Random.insideUnitCircle * (1.5f + _model.Strain * 3f);
+            Vector2 drift = _escapeDir * TugOfWar.EntityDriftSpeed(grip) * dt + UnityEngine.Random.insideUnitCircle * (1.5f + _model.Strain * 3f);
             entity.Position = ScreenRig.ClampToScreen(entity.Position + drift);
             // Bounce the escape direction off the screen edges so it doesn't get pinned.
             if (entity.Position.x <= 1f || entity.Position.x >= ScreenRig.Width - 2f) _escapeDir.x = -_escapeDir.x;
             if (entity.Position.y <= WindowManager.TaskbarHeight + 1f || entity.Position.y >= ScreenRig.Height - 2f) _escapeDir.y = -_escapeDir.y;
 
             var outcome = _model.Step(dt, player.Position.ToCore(), playerGrips, entity.Position.ToCore(), grip);
+            if (outcome == TugOutcome.None) outcome = Overrule(dt, playerGrips);
             float strain = _model.Strain;
 
             Vector2 obj = _model.ObjectPosition.ToUnity();
@@ -141,6 +155,29 @@ namespace SecondCursor.Entity
             }
 
             if (outcome != TugOutcome.None) End(outcome, true);
+        }
+
+        /// <summary>
+        /// Outcomes the model does not decide: in a mercy contest the entity lets go once the player has pulled
+        /// hard enough for long enough; in development builds a forced outcome ends the contest early.
+        /// </summary>
+        TugOutcome Overrule(float dt, bool playerGrips)
+        {
+            if (_mercy && playerGrips)
+            {
+                if (_model.Effort >= AdaptiveAssist.MercyEffort) _mercyPull += dt;
+                if (_mercyPull >= AdaptiveAssist.MercyHoldSeconds)
+                {
+                    GameLog.Info(LogChannel.Entity, "Entity let go (mercy)");
+                    return TugOutcome.PlayerWins;
+                }
+            }
+            if (ForcedOutcome != TugOutcome.None && Debug.isDebugBuild && _model.Elapsed >= ForcedOutcomeAfter)
+            {
+                GameLog.Info(LogChannel.Debug, "Tug-of-war outcome forced: " + ForcedOutcome);
+                return ForcedOutcome;
+            }
+            return TugOutcome.None;
         }
 
         void UpdateBand(Vector2 a, Vector2 mid, Vector2 b, float strain)
@@ -226,7 +263,13 @@ namespace SecondCursor.Entity
                 _g.Memory.Record(MemoryKind.ResistedEntity, p.FileId, _g.Now);
                 _g.Flags.Increment(Flags.CounterPlayerWins);
             }
+            else
+            {
+                _g.Flags.Increment(Flags.CounterTugLosses);
+            }
             GameLog.Info(LogChannel.Entity, "Tug-of-war ended: " + outcome);
+            _g.Assist?.ReportTug(outcome == TugOutcome.PlayerWins, _model.Elapsed, _model.PeakEffort);
+            _mercy = false;
             TugEnded?.Invoke(p, outcome);
         }
     }

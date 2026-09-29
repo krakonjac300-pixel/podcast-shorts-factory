@@ -69,6 +69,47 @@ namespace SecondCursor.Core.Story
             return s;
         }
 
+        /// <summary>Only the flags, counters and choices whose name starts with <paramref name="prefix"/> (e.g. "m." memory).</summary>
+        public FlagSnapshot Snapshot(string prefix)
+        {
+            var all = Snapshot();
+            if (string.IsNullOrEmpty(prefix)) return all;
+            bool Keep(string k) => k != null && k.StartsWith(prefix, StringComparison.Ordinal);
+            var s = new FlagSnapshot();
+            var flags = new List<string>();
+            foreach (var f in all.flags) if (Keep(f)) flags.Add(f);
+            s.flags = flags.ToArray();
+            var ck = new List<string>();
+            var cv = new List<int>();
+            for (int i = 0; i < all.counterKeys.Length; i++)
+                if (Keep(all.counterKeys[i])) { ck.Add(all.counterKeys[i]); cv.Add(all.counterValues[i]); }
+            s.counterKeys = ck.ToArray();
+            s.counterValues = cv.ToArray();
+            var hk = new List<string>();
+            var hv = new List<string>();
+            for (int i = 0; i < all.choiceKeys.Length; i++)
+                if (Keep(all.choiceKeys[i])) { hk.Add(all.choiceKeys[i]); hv.Add(all.choiceValues[i]); }
+            s.choiceKeys = hk.ToArray();
+            s.choiceValues = hv.ToArray();
+            return s;
+        }
+
+        /// <summary>
+        /// Adds a snapshot on top of the current state (flags are added, counters and choices overwritten).
+        /// Used to carry saved memory into a new night. Raises no events, like <see cref="Restore"/>.
+        /// </summary>
+        public void Merge(FlagSnapshot s)
+        {
+            if (s == null) return;
+            if (s.flags != null) foreach (var f in s.flags) if (!string.IsNullOrEmpty(f)) _flags.Add(f);
+            if (s.counterKeys != null && s.counterValues != null)
+                for (int i = 0; i < Math.Min(s.counterKeys.Length, s.counterValues.Length); i++)
+                    if (!string.IsNullOrEmpty(s.counterKeys[i])) _counters[s.counterKeys[i]] = s.counterValues[i];
+            if (s.choiceKeys != null && s.choiceValues != null)
+                for (int i = 0; i < Math.Min(s.choiceKeys.Length, s.choiceValues.Length); i++)
+                    if (!string.IsNullOrEmpty(s.choiceKeys[i])) _choices[s.choiceKeys[i]] = s.choiceValues[i] ?? "";
+        }
+
         public void Restore(FlagSnapshot s)
         {
             _flags.Clear();
@@ -122,7 +163,56 @@ namespace SecondCursor.Core.Story
         public const string CounterShredAttempts = "shred_attempts";
         public const string CounterEntityWins = "entity_wins";
         public const string CounterPlayerWins = "player_wins";
+        /// <summary>Tugs-of-war the player lost this night (entity_wins also counts the other defenses).</summary>
+        public const string CounterTugLosses = "tug_losses";
         public const string CounterCameraReopens = "camera_reopens";
         public const string CounterWrongOrders = "wrong_orders";
+    }
+
+    /// <summary>
+    /// Cross-night memory (expansion spec 2.3): flags and counters under the "m." prefix, saved at the end of
+    /// each night and merged into the next night's fresh flags.
+    /// </summary>
+    public static class MemoryFlags
+    {
+        public const string Prefix = "m.";
+
+        // Night 1
+        public const string N1Shredded017 = "m.n1.shredded_017";
+        public const string N1Agreed = "m.n1.agreed";
+        public const string N1Refused = "m.n1.refused";
+        public const string N1Swore = "m.n1.swore";
+        public const string N1AskedWho = "m.n1.asked_who";
+        public const string N1Read017 = "m.n1.read_017";
+        public const string N1ReadNotes = "m.n1.read_notes";
+        public const string N1ReopenedCamera = "m.n1.reopened_camera";
+        public const string N1TugWins = "m.n1.tug_wins";     // counter
+        public const string N1TugLosses = "m.n1.tug_losses"; // counter
+
+        // Night 2
+        public const string N2Obeyed = "m.n2.obeyed";        // counter 0-3
+        public const string N2DoorLog = "m.n2.door_log";
+        public const string N2Lookup163 = "m.n2.lookup_163";
+        public const string N2Hid214 = "m.n2.hid_214";
+        public const string N2TalkedGary = "m.n2.talked_gary";
+        public const string N2Glasses = "m.n2.glasses";
+        public const string N2WipedGary = "m.n2.wiped_gary";
+        public const string N2FinishedGary = "m.n2.finished_gary";
+        public const string N2KeptGary = "m.n2.kept_gary";
+        public const string N2ArchivedGary = "m.n2.archived_gary";
+        public const string N2WatchedToDoor = "m.n2.watched_to_door";
+
+        // Night 3
+        public const string N3RestrictedOpen = "m.n3.restricted_open";
+        public const string N3LogoffEnabled = "m.n3.logoff_enabled";
+        public const string N3GaryEnabledLogoff = "m.n3.gary_enabled_logoff";
+        public const string N3Cam00 = "m.n3.cam00";
+        public const string N3SeatCleared = "m.n3.seat_cleared";
+        public const string N3MaxStage = "m.n3.max_stage";   // counter
+        public const string N3OwnShelfRejected = "m.n3.own_shelf_rejected";
+        public const string N3SaidStay = "m.n3.said_stay";
+
+        // Any night
+        public const string SaidName = "m.said_name";
     }
 }

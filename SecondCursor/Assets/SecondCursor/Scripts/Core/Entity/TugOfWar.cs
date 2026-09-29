@@ -30,6 +30,8 @@ namespace SecondCursor.Core.Entity
         public float rampPerSecond = 0.14f;
         /// <summary>Seconds of button-up tolerated before the player counts as having let go.</summary>
         public float releaseGrace = 0.06f;
+
+        public TugOfWarSettings Clone() => (TugOfWarSettings)MemberwiseClone();
     }
 
     /// <summary>
@@ -55,6 +57,16 @@ namespace SecondCursor.Core.Entity
         public TugOutcome Outcome { get; private set; }
         public Vec2 ObjectPosition { get; private set; }
         public bool IsOver => Outcome != TugOutcome.None;
+        /// <summary>The player's smoothed pull right now (1 = pulling at pullSpeedForFullStrength).</summary>
+        public float Effort => _effort;
+        /// <summary>Highest smoothed pull reached in this contest (the adaptive assist reads it).</summary>
+        public float PeakEffort { get; private set; }
+
+        /// <summary>
+        /// How fast the entity drags its end of the file away during a fight (virtual px/s). Shared by the
+        /// runtime conflict and the difficulty tests so both use the same model.
+        /// </summary>
+        public static float EntityDriftSpeed(float grip) => 55f + 70f * grip;
 
         public TugOfWar(TugOfWarSettings settings = null)
         {
@@ -71,6 +83,7 @@ namespace SecondCursor.Core.Entity
             Elapsed = 0f;
             _hasPrev = false;
             _effort = 0f;
+            PeakEffort = 0f;
             _releasedFor = 0f;
             Strain = 0f;
         }
@@ -90,6 +103,7 @@ namespace SecondCursor.Core.Entity
             if (away.SqrLength < 0.5f) away = new Vec2(-1f, 0f);
             float signedPull = Vec2.Dot(velocity, away) / _s.pullSpeedForFullStrength;
             _effort += (signedPull - _effort) * MathUtil.Damp(1f / Math.Max(0.01f, _s.effortSmoothing), dt);
+            if (_effort > PeakEffort) PeakEffort = _effort;
 
             PlayerStrength = Math.Min(_s.maxPlayerStrength, _s.playerBaseStrength + Math.Max(0f, _effort) + velocity.Length * _s.jiggleCredit);
             float ramp = Math.Max(0f, Elapsed - _s.rampDelay) * _s.rampPerSecond;

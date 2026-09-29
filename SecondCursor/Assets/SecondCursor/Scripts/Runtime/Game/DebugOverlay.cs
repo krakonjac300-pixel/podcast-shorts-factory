@@ -6,15 +6,16 @@ using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
 using SecondCursor.Core.Story;
 using SecondCursor.Core.Tasks;
+using SecondCursor.Entity;
 using SecondCursor.Input;
-using SecondCursor.Story;
 using UnityEngine;
 
 namespace SecondCursor.Game
 {
     /// <summary>
-    /// Developer panel (F1). Jump to any story beat, summon/dismiss the second cursor, trigger its
-    /// abilities, change its state, complete tasks, spawn files, change game speed, toggle CRT, reset.
+    /// Developer panel (F1). Start any night, jump to any story beat, summon/dismiss the second cursor,
+    /// trigger its abilities, change its state, force tug-of-war outcomes, set the assist level, trust and
+    /// difficulty, complete tasks, spawn files, change game speed, toggle CRT, reset.
     /// Also: F2 skip beat, F3 entity to mouse, F4 speed, F5 restart, F6 CRT. IMGUI on purpose: always
     /// crisp, independent of the fake OS it is debugging.
     /// </summary>
@@ -117,21 +118,53 @@ namespace SecondCursor.Game
             GUILayout.BeginArea(new Rect(10, 10, 380, Screen.height - 20), _box);
             _scroll = GUILayout.BeginScrollView(_scroll);
             GUILayout.Label("SECOND CURSOR debug  " + _fps.ToString("0") + " fps  x" + Time.timeScale, _label);
-            GUILayout.Label("Beat: " + _g.Director.CurrentBeat + "   Phase: " + e.Phase + "   State: " + e.State +
+            var assist = _g.Assist;
+            GUILayout.Label("Night " + _g.Night + " (" + _g.Difficulty.Mode + ")   Beat: " + _g.Director.CurrentBeat + "   Phase: " + e.Phase + "   State: " + e.State +
                             "\nEntity action: " + (e.CurrentAction ?? "-") + "   Brain: " + (e.Brain.Enabled ? "ON" : "off") +
                             "  Defenses: " + e.Brain.Defenses + "  Grip: " + e.Brain.Grip.ToString("0.00") +
-                            "\nFight: " + (_g.Conflict.IsFighting ? "YES strain " + _g.Conflict.Strain.ToString("0.00") + " share " + _g.Conflict.EntityShare.ToString("0.00") : "no") +
+                            "\nFight: " + (_g.Conflict.IsFighting ? "YES strain " + _g.Conflict.Strain.ToString("0.00") + " share " + _g.Conflict.EntityShare.ToString("0.00") + (_g.Conflict.IsMercyContest ? " MERCY" : "") : "no") +
+                            "\nAssist L" + assist.Level + "  loss streak " + assist.LossStreak.ToString("0.0") + "  wins " + assist.WinStreak + (assist.MercyArmed ? "  mercy armed" : "") +
+                            "   Tug: " + (ConflictSystem.ForcedOutcome == TugOutcome.None ? "real" : ConflictSystem.ForcedOutcome.ToString()) +
                             "\nTrust: " + _g.Memory.Trust.ToString("0.00") + "   Shred busy: " + _g.Shred.Busy, _label);
+
+            GUILayout.Label("Night (fresh shift):", _label);
+            GUILayout.BeginHorizontal();
+            for (int n = 1; n <= 3; n++)
+            {
+                int night = n;
+                if (GUILayout.Button("Night " + night)) Defer(() => { _reopen = true; GameBootstrap.Restart(night); });
+            }
+            if (GUILayout.Button(_g.Difficulty.Mode == DifficultyMode.Story ? "-> Normal" : "-> Story")) Defer(() =>
+            {
+                // Difficulty is read when a night is built: save it, then restart this beat.
+                SaveSystem.SetDifficulty(_g.Difficulty.Mode == DifficultyMode.Story ? DifficultyMode.Normal : DifficultyMode.Story);
+                _reopen = true;
+                GameBootstrap.Restart(_g.Night, _g.Director.CurrentBeat);
+            });
+            GUILayout.EndHorizontal();
 
             GUILayout.Label("Jump to beat:", _label);
             GUILayout.BeginHorizontal();
             int col = 0;
-            foreach (var beat in EventDirector.Beats)
+            foreach (var beat in _g.Director.Beats)
             {
                 // A fresh shift at that beat: jumping back never leaves later windows or entity state behind.
                 if (GUILayout.Button(beat)) Defer(() => { _reopen = true; GameBootstrap.Restart(beat); });
                 if (++col % 3 == 0) { GUILayout.EndHorizontal(); GUILayout.BeginHorizontal(); }
             }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label("Difficulty:", _label);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Tug win")) Defer(() => ConflictSystem.ForcedOutcome = TugOutcome.PlayerWins);
+            if (GUILayout.Button("Tug lose")) Defer(() => ConflictSystem.ForcedOutcome = TugOutcome.EntityWins);
+            if (GUILayout.Button("Tug real")) Defer(() => ConflictSystem.ForcedOutcome = TugOutcome.None);
+            if (GUILayout.Button("Assist -")) Defer(() => assist.SetLevel(assist.Level - 1));
+            if (GUILayout.Button("Assist +")) Defer(() => assist.SetLevel(assist.Level + 1));
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            foreach (float trust in new[] { -0.5f, 0f, 0.5f })
+                if (GUILayout.Button("Trust " + trust.ToString("+0.0;-0.0;0"))) Defer(() => _g.Memory.Seed(trust));
             GUILayout.EndHorizontal();
 
             GUILayout.Label("Entity:", _label);
