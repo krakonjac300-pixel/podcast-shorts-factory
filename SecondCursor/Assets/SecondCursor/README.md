@@ -46,7 +46,14 @@ already includes. Built-in and URP both work, as do the old Input Manager and th
 | Mouse | Your cursor. Click, double-click, drag windows and files, right-click for menus, wheel scrolls lists |
 | Keyboard | Type into Jotter (the in-game notepad). `Enter` sends your reply when the entity is talking to you |
 | `Delete` | Shred the file selected in Files |
-| `Esc` | Pause menu (CRT effects on/off, volume, restart, quit) |
+| `Esc` | Pause menu (CRT, flashing, display, frame rate, reading text size, volume, difficulty, restart from checkpoint, quit to title, quit). On the title: Options, or Back from a sub-screen |
+| `Up` `Down` `Left` `Right` `Tab`, `Enter` / `Space` | Move through and press the buttons of the title, its screens, the pause menu and the end cards (the mouse works there too) |
+
+**Steam Deck** (default controller layout to publish in Steamworks): right trackpad or touchscreen moves the cursor,
+**A** or **R2** clicks (hold **R2** and move to drag), **L2** right-clicks, the **D-pad** moves through menus, **X** is
+Enter, **B** or **Menu** is Esc, **Y** is Delete, **View** opens the keyboard. The on-screen keyboard also opens by
+itself whenever you can type (a conversation in Jotter, an editable file, the Restricted code). The first launch on a
+Deck turns on Large reading text; the texts that name mouse buttons use Deck wording.
 
 **Developer keys** (`F1`-`F5` in the Editor and development builds only): `F1` debug panel · `F2` skip to next story beat · `F3` summon/dismiss the second cursor at your mouse ·
 `F4` game speed (1x/2x/4x/0.5x) · `F5` restart the shift · `F6` CRT effects on/off (works everywhere; also in the Esc menu).
@@ -56,8 +63,9 @@ already includes. Built-in and URP both work, as do the old Input Manager and th
 You are a night operator at a data-reclamation company, alone at a 1998 computer. The whole game is
 that computer screen. You just do your job, and the job slowly stops being normal.
 
-1. **Start:** click the title screen, then click **Log On**. A **Quick Start** window explains the
-   controls; click **Begin**.
+1. **Start:** on the title choose **New Game**, pick **Normal** or **Story** difficulty (Story: the second cursor gives
+   in sooner and hints come early; change it any time under Options), then click **Log On**. A **Quick Start** window
+   explains the controls; click **Begin**.
 2. **Your tasks** are in the **Work Queue** window (top right) and on the **Task** button in the taskbar
    (bottom). Do them in order. The text under each task says exactly how. If you close the Work Queue,
    click the Task button or the Work Queue icon to get it back. If you are stuck, the hint pops up again.
@@ -75,9 +83,22 @@ that computer screen. You just do your job, and the job slowly stops being norma
 5. **Locked things are locked on purpose.** The **Camera Viewer** and the **Restricted** folder say
    *Access Denied* at the start. The story opens them for you later; don't wait on them.
 
-Night 1 takes about 10-15 minutes and ends on the **WISHLIST NOW** card. The full game has three nights (about
-an hour): the end cards of Nights 1 and 2 offer **Continue to Night N**, and Night 3 ends in one of three
-endings (SHRED, KEEP or LOG OFF).
+Night 1 takes about 10-15 minutes. The full game has three nights (about an hour): the end cards of Nights 1 and 2
+offer **Continue to Night N**, **Title** and **Quit**, and Night 3 ends in one of three endings (SHRED, KEEP or LOG OFF)
+with **Title**, **Night Select** and **Quit**. The free demo build is Night 1 only and ends on the **WISHLIST NOW** card.
+
+### Title menu and progress
+
+- **Continue** resumes your last checkpoint (each night saves a few; the button shows the night and the time), or starts
+  the night you reached. Quitting never loses more than the time since the last checkpoint.
+- **New Game** starts again from Night 1 (it asks first when there is progress); endings, records and achievements stay.
+- **Night Select** (once Night 2 is unlocked) replays any unlocked night from the way it began the first time, so
+  replaying Night 1 never changes what Night 3 remembers of Night 2.
+- **Records**: the endings you have seen, tug-of-war wins and losses, best and total time per night, and the 19
+  achievements (the hidden ones show `???` until you find them). There is no pop-up in the game when one unlocks; the
+  Steam overlay shows its own.
+- **Options** is the pause menu's settings; **Credits** scrolls with the arrow keys.
+
 
 ## 3. What to test
 
@@ -94,7 +115,7 @@ Use `F1` → **Jump to beat** to go straight to any milestone (it starts a fresh
 | **M7 Work tasks** | `work` | The tutorial tasks are data (`Resources/Content/tasks.json`) and complete from what you actually do, in any order. |
 | **M8 Event director** | whole run | Escalates from ordinary work → a window nudging itself → a file selecting itself (with a click you didn't make) → presence → conflict → communication → escalation → reveal. |
 | **M9 Security camera** | `escalation` / `reveal` | It replays your own earlier mouse movement, unlocks **SecureView** (normally *Access Denied*) and opens **CAM 03**: your office, from behind. The seated figure's arm follows *your* mouse. Keep watching... the door... |
-| **M10 Slice** | `boot` → end | Disclaimer → title → BIOS → splash → log-on → the shift → blackout → end card (**WISHLIST NOW**). |
+| **M10 Slice** | `boot` → end | Disclaimer (once per launch) → title menu → New Game → night card → BIOS → splash → log-on → the shift → blackout → **NIGHT 1** card (Continue to Night 2, Title, Quit; the demo build shows **WISHLIST NOW**). |
 | **M11 Night 2 (HELD)** | F1 → **Night 2**, or **Continue to Night 2** on Night 1's end card | Night card, Batch 45/46 and orders 3319/3321 (a file renames itself). The second cursor helps with Batch 46, then writes her own tasks into your Work Queue (black rows, *remote session*): do them or let them expire. Gary, a third, faint amber hand, talks in his own Jotter and brings `employee_209.dat`: shred it (fight the second cursor; Gary covers **No** and **Cancel** for you), drag it to Archive, or let 3:00 pass. Then the first Custodial round on the Camera Viewer: the figure only moves while you watch it. |
 | **M12 Night 3 (RECLAIM)** | F1 → **Night 3**, or **Continue to Night 3** on Night 2's end card | Batch 47 (one file turns *damaged*), orders 3330/3331, the temp file (its clipboard holds a number). At 2:17 the phone rings and Ruth's mail explains the **Restricted** code: the folder now asks for it (`0217`, `2:17`...). In Restricted, `session.cfg` decides whether you may log off at 7:00: open it in Jotter, **Backspace**, type `1`, **File > Save** (`System\camview.cfg` has a secret too). At 3:00 Custodial walks from Sublevel C to your seat while Security keeps forcing the viewer open; do the shelf check on **CAM 04**, look away, or track it in Personnel (000). Then three hours are gone. From 6:41: shred `employee_017.dat` (**SHRED**), log off at 7:00 (**LOG OFF**), or stay (**KEEP**). Gary is a weak ally if you kept him on Night 2, a company pointer if you finished him. |
 
@@ -113,7 +134,8 @@ Scripts/
     Entity/      TugOfWar (conflict model), Difficulty (per-night DifficultyProfile, DifficultyTable,
                  AdaptiveAssist), MovementPlanner + MovementProfiles (personality in motion),
                  EntityMemory, CursorRecorder (mimic), EntityState/Phase/Personality
-    Game/        SaveData (progress.json: nights, checkpoint, cross-night memory, records; migration)
+    Game/        SaveData (progress.json: nights, checkpoint, cross-night memory, records; migration),
+                 AchievementIds + AchievementRules (the 19 achievements), TitleMenuModel (which title items show)
     Art/         PixelFontData (bitmap font), PixelArtData (icons, cursors, logos as pixel strings)
     Audio/       ProceduralSoundBank (every sound synthesized at startup)
     Util/        GameLog (tagged logging), Routine (coroutine runner: stopping it stops nested children too),
@@ -122,23 +144,27 @@ Scripts/
     Rendering/   ScreenRig (960x540 virtual screen -> RenderTexture -> letterboxed), PixelText, BevelGraphic,
                  SpriteLibrary, Palette
     Input/       CursorAgent (player AND entity are agents), PointerRouter (hit-testing + events for both),
-                 Interactable, DragDropSystem, CursorView, input backends (old + new Input System)
-    UI/          UIBuilder, UiButton, ScrollArea, ListView, PopupMenu
+                 Interactable, DragDropSystem, CursorView, input backends (old + new Input System),
+                 DeckKeyboard (Steam Deck floating keyboard)
+    UI/          UIBuilder, UiButton, ScrollArea, ListView, PopupMenu, MenuNav (keyboard/D-pad menus)
     OS/          WindowManager, OSWindow, Desktop, Taskbar, StartMenu, Dialogs, Notifications,
                  ShredService / MailService / WorkOrderService
     Apps/        Files, Mail, Notepad (Save for editable files), DataViewer, Staff Directory, Work Orders, Work Queue,
                  SecureView, System Monitor, Help, Disposal, AuthPrompt (a locked folder's code)
     Entity/      EntityController (awaitable MoveTo/Click/DragTo/Type/Replay...), EntityBrain (utility AI),
                  ConflictSystem (runs the tug-of-war)
-    Story/       NightDirector (shared beat flow, checkpoints, helpers) + Night1Director, Night2Director and
-                 Night3Director (each night's beats), NightSetup (a later night's starting world), RoundsSystem
-                 (Custodial on the cameras, live Personnel), BootSequence (night card), EndingSequence
-                 (EndingSpec per night; Night 3's SHRED, KEEP and LOG OFF sequences and the CAM 00 stinger)
+    Story/       NightDirector (shared beat flow, checkpoints, helpers; .Progress: night start, play time, difficulty
+                 switch) + Night1Director, Night2Director and Night3Director (each night's beats), NightSetup (a later
+                 night's starting world), RoundsSystem (Custodial on the cameras, live Personnel), BootSequence
+                 (disclaimer, night card), TitleMenu + TitleScreens (title, Night Select, Records, Credits), EndingSequence
+                 (EndingSpec per night; Night 3's SHRED, KEEP and LOG OFF sequences and the CAM 00 stinger), EndCard
     CameraFeed/  SecurityCameraRig (small 3D sets rendered to a low-res CCTV feed: lobby, hall, office, and on
                  Night 3 Sublevel C and Admin 1)
     FX/          VisualFx (CRT scanlines/vignette/grain/flicker, glitch tearing, shake, power-off)
     Audio/       AudioManager (entity sounds panned to where it is on screen)
-    Game/        GameRoot (composition root + frame order), GameBootstrap, DebugOverlay, PauseMenu, SaveSystem
+    Game/        GameRoot (composition root + frame order), GameBootstrap (every start goes through one rebuild),
+                 DebugOverlay, PauseMenu, DisplaySettings, SaveSystem, Achievements + AchievementWatcher (the one
+                 gated unlock path), SteamBridge (optional Steamworks, compiled with STEAMWORKS_NET)
   Editor/      one-time project setup + SECOND CURSOR menu
 Resources/
   Content/     strings, story, filesystem, emails, employees, workorders, tasks, dialogue (JSON);
@@ -170,10 +196,16 @@ Resources/
   timings in the difficulty profile.
 - Colours: `Rendering/Palette.cs`. CRT strength: `FX/VisualFx.cs`.
 
+**Builds:** *SECOND CURSOR > Build Windows (Steam)* makes `Builds/Windows/SecondCursor.exe`; *Build Windows Demo
+(SC_DEMO)* makes `Builds/WindowsDemo/SecondCursorDemo.exe` with Night 1 only (the night2 and night3 content folders are
+moved out of `Resources` for that build and back afterwards; *Restore Demo-Excluded Content* repairs a build that crashed).
+
 ## 6. Outside-Unity dev tools (in the repository's `SecondCursor/DevTools/`)
 
-- `CompileCheck/`: compiles every script against real Unity reference assemblies in 5 configurations
-  (player, editor, legacy input, Input System only, editor scripts). `./setup.sh` once, then `./check.sh`.
+- `CompileCheck/`: compiles every script against real Unity reference assemblies in 8 configurations
+  (player, editor, legacy input, Input System only, the demo `SC_DEMO`, Steamworks `STEAMWORKS_NET` against a stub, the
+  demo with Steamworks, editor scripts). `./setup.sh` (downloads) or `./setup_local.sh <Unity>/Editor/Data <project>/Library`
+  (copies from an installed Unity) once, then `./check.sh`.
   `./check_shaders.sh` compiles the CCTV shader (needs `glslang-tools`).
 - `CoreTests/`: `dotnet test` unit tests for the engine-free core (conflict model, movement, tasks, files, dialogue,
   the Routine runner, and validation of every JSON content file).

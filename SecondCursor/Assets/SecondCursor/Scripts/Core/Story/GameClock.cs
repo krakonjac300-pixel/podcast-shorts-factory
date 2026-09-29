@@ -32,11 +32,16 @@ namespace SecondCursor.Core.Story
         }
 
         /// <summary>"2:47 AM" style.</summary>
-        public string Format12()
+        public string Format12() => Format12(TotalMinutes);
+
+        /// <summary>"2:47 AM" for any minutes since midnight (the title's Continue shows a checkpoint's time).</summary>
+        public static string Format12(int totalMinutes)
         {
-            int h = Hour24 % 12;
+            int t = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+            int hour24 = t / 60, minute = t % 60;
+            int h = hour24 % 12;
             if (h == 0) h = 12;
-            return h + ":" + Minute.ToString("00") + (Hour24 < 12 ? " AM" : " PM");
+            return h + ":" + minute.ToString("00") + (hour24 < 12 ? " AM" : " PM");
         }
 
         /// <summary>"02:47:13" style for camera overlays (seconds derived from the fractional minute).</summary>

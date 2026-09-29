@@ -655,6 +655,7 @@ namespace SecondCursor.Story
         IEnumerator EndingBeat()
         {
             var g = _g;
+            StopSideRoutines();
             yield return Wait(3f);
             g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("session.suspended"), "icon_warning", null, "sys_warning");
             yield return Wait(2.5f);

@@ -93,6 +93,7 @@ namespace SecondCursor.Story
                 case "escalation": return Escalation();
                 case "reveal": return Reveal();
                 default:
+                    StopSideRoutines();
                     CompleteNight(ContentIds.EndingN1Blackout);
                     _ending = new EndingSequence(_g);
                     return _ending.Run();

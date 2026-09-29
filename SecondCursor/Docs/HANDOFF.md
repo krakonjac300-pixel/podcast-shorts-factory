@@ -360,6 +360,134 @@ from the review fixes and the mail order below.
 - **Not yet:** title menu, Night Select, Records, achievements (the hooks above), `SC_DEMO`, the post-game echo
   `{p2}`, fast-forwarding an idle finale (spec 13.5).
 
+### Expansion phase E (title menu, end cards, pause options, achievements, Steam Deck)
+
+Sections 6, 8, 9, 10 and 12 of `Docs/Design/Expansion.md`, per the Phase E plan. Every night still plays as before; what
+changed is how a night starts and ends, what is recorded, and the options.
+
+- **Launch and starts.** Every start builds a fresh root through one path (`GameBootstrap.Rebuild`): the title
+  (`ToTitle(screen)`), a choice on it or on an end card (`StartFromMenu(night, fromCheckpoint, fromNightSelect)`), the
+  pause menu's `RestartFromCheckpoint`, and debug starts (`Restart`). The game scene contains a GameRoot, so the launch
+  state is reset before the scene wakes (`GameBootstrap.PrepareLaunch`, BeforeSceneLoad): a plain launch shows the title,
+  `-scnight N` / `-scbeat B` start a night directly with records held. The disclaimer shows once per launch.
+- **Relaunch bug fixed.** A night's start is recorded when its boot beat runs after the title (`NightDirector.MarkNightStarted`,
+  `NightDirector.Progress.cs`), not in `Begin()`, so launching the game no longer resets `currentNight` to 1. Night 1 now
+  gets its night card too (spec 3.2).
+- **Title menu** (`Story/TitleMenu.cs`, `TitleScreens.cs`, `Core/Game/TitleMenuModel.cs`): the ghost title and drone, then
+  Continue (`Continue: Night N, h:mm AM` at a checkpoint), New Game (confirm when there is progress, then Normal / Story),
+  Night Select (once Night 2 is unlocked; rows show the best time, the footer the endings seen), Records (endings, tug
+  totals, best and total time per night, the 19 achievements with hidden ones as `???` and the focused one's description),
+  Options (the pause menu's settings), Credits (scrolls), Quit; Wishlist in the demo when the store can open. A first launch
+  shows New Game, Options, Credits, Quit. Keyboard: Up/Down/Left/Right/Tab, Enter/Space, Esc (`UI/MenuNav.cs`, also used by
+  the pause menu and the end cards; the focused button gets a ring). Element ids `title:*`, `select:night1..3`,
+  `records:<ID>`, `pause:*`.
+- **Saves** (`Core/Game/SaveData.cs`, still version 3, fields are additive): `bestNightSeconds`, `nightStartTrust`,
+  `lastCompletedNight`, `Checkpoint.elapsed` and `.armed`, `RecordTug`, `HasProgress`, `HasRecords`, `ContinueTarget(maxNight)`,
+  `StartStateFor(night, fromNightSelect)`. Night Select starts a night from its first-start memory and trust (spec 8.1), so a
+  Night 1 replay can no longer strip the Gary branch from a Night 3 replay; Continue keeps `MemoryForNight`. Tug totals are
+  counted live, real fights only. `NightResult.Records = false` keeps progression but not endings, play time or best times.
+- **Armed runs.** `GameServices.RecordsArmed`: a run counts when it started from the title, an end card, or a checkpoint saved
+  armed. Debug starts, bridge debug commands (beat, jump, night, restart, setflag, clearflag, trust, assist, setclock,
+  difficulty, checkpoint, stage, speed), the F1 panel, F2 to F5 and a forced tug outcome hold records (`Records held: <why>`).
+  The F1 panel shows the state and has an "Arm records (testing)" button.
+- **Achievements** (`Core/Game/AchievementIds.cs`, `AchievementRules.cs`; `Runtime/Game/Achievements.cs`,
+  `AchievementWatcher.cs`): all 19 of Section 9. One gate: `Achievements.Unlock(g, id)` logs `Achievement unlocked: ID` or
+  `Achievement held (why): ID`. The watcher attaches after NightSetup and listens to flags, counters, tug ends and order
+  decisions; the director reports night completion, typed replies (by exchange voice and tag) and a safe Night 3 round.
+  Prepare (`NightDirector.IsPreparing`), restores and memory merges never unlock anything. Boot reconciles the ending, night
+  and tug achievements from the saved records. No in-game toast (it would break the fiction).
+- **End cards** (`Story/EndCard.cs`, `EndingSpec.Buttons`): Nights 1 and 2: Continue to Night N+1, Title, Quit. Night 3:
+  Title, Night Select, Quit and the thanks line. Demo: WISHLIST NOW with Wishlist (when the store can open), Title, Quit.
+  Continue starts an armed run. Ids `button:Continue|Title|NightSelect|Quit|Wishlist`.
+- **Demo** (`SC_DEMO`): Night 1 only (`GameBootstrap.MaxNight`, `ContentLoader`, `NightDirector.Create`), no Night Select or
+  Records, the WISHLIST card. *SECOND CURSOR > Build Windows Demo (SC_DEMO)* builds `Builds/WindowsDemo/SecondCursorDemo.exe`
+  as product "SECOND CURSOR Demo" (separate saves), moving `Resources/Content/night2` and `night3` to
+  `Assets/SecondCursor/_DemoExcluded` for the build with `AssetDatabase.MoveAsset` (GUIDs kept) and back in a `finally`;
+  *Restore Demo-Excluded Content* repairs a crashed build.
+- **Pause menu** (`Game/PauseMenu.cs`, `DisplaySettings.cs`): Resume, CRT, Flashing, Display, Frame rate (VSync default, 30,
+  60, 120, 144, Unlimited), Reading text (Normal / Large: Jotter documents and Mail at 2x), Volume, Difficulty, Restart from
+  checkpoint (Restart night when there is none; keeps the run's armed state), Quit to Title (confirm), Quit. Everything is
+  saved to `settings.json` at once. Difficulty is saved at once and applies at the next checkpoint beat
+  (`ApplyPendingDifficulty`: new profile, new assist at the current level), or at once with Restart; while pending the label
+  has a `*` and a note. On the title the same panel opens as Options (settings only). The Steam overlay and
+  `OnApplicationPause(true)` pause a running shift. The version is at the right of the caption.
+- **Steam** (`Game/SteamBridge.cs`, moved out of Achievements.cs): `FullGameAppId`, `DemoAppId` (both 480 for now),
+  `StoreUrl` (empty), `OpenStorePage` (the full game's page in the Steam overlay, else the URL), `OverlayActivated`, achievement
+  and `TUG_WINS` stat pushes (progress popup at 5), resync of every saved achievement at boot, `ShowTextEntry` /
+  `DismissTextEntry`, `OnDeck`. All Steam calls are under `#if STEAMWORKS_NET`; the package is not installed yet (see below).
+- **Steam Deck**: `Input/DeckKeyboard.cs` opens the floating keyboard for Jotter conversations (single line), editable or
+  player-opened pages (multi line) and the Restricted prompt (numeric) and closes it when they lose focus; logs `Deck
+  keyboard: show MODE` / `dismiss`. `ContentDatabase.Variant = "deck"` prefers `key.deck` strings (`disclaimer.body`,
+  `quickstart.body`, `help.body`) and task `hintDeck`. The first launch on a Deck turns Large reading text on.
+  `InputSystemBackend` reads position and the left button from `Pointer.current` (touch). `GameRoot.DeckPullSpeedScale`
+  (1) is the trackpad tug hook for Phase F.
+- **Phase D review fixes** (`_work/2026-09-29/launch/ReviewPhaseD.md`):
+  1. The finale's shred hooks are attached before 017 stops being "in use", and a 017 already shredded counts as SHRED.
+  2. `NightDirector.StopSideRoutines()` runs first in every ending beat, so no finale, tug, log-off or Gary routine reopens a
+     Notepad in the dark (checked: nothing types after `Ending sequence`).
+  3. A cancelled shred of 017 stops Ellen's last words and frees her pad (`Shred.Cancelled` in `HookFinale`).
+  4. The right code works in the Restricted prompt after kept Gary has unlocked the folder (checked: ACH_AUTHORIZED).
+  5. Her name is remembered per night (`m.n2.said_name`, `m.n3.said_name`, `MemoryFlags.SaidNameAny`); the old key of no night
+     is no longer read, so a replay forgets it.
+  6. Night 3's Prepare rebuilds live Personnel after the round (118 on leave when `m.n3.max_stage >= 2`, Custodial's office).
+- **Bridge** (`SecondCursorTestBridge.cs` is now partial: `.Inspect.cs` holds dump/ids/texts/shots and the scripted input,
+  `.Progress.cs` the new commands): `savedir PATH|off` (kept across recompiles), `resetsave`, `saveset FIELD VALUE`,
+  `settings`, `deck on|off`, `store on|off`, `define NAME on|off`, `builddemo`, `saveproject`, `title [main|select|records|
+  credits]`, `achievements list|on|off|next`, `haslog TEXT`, `forceexit shred|keep|logoff`, `overlay`. `waitbeat`, `waitflag`,
+  `waittask` and `waitidle` follow the current root. `save` and `dump` print the new fields and the records state.
+- **Tested through the bridge** (saves under `_work/2026-09-29/saves/`): first launch (exactly New Game, Options, Credits,
+  Quit), keyboard-only New Game to the Night 1 card, relaunch keeps `currentNight`, Continue from start and from a checkpoint
+  (`Continue: Night 1, 2:00 AM`), New Game confirm, Records, Credits, Night Select after a Night 1 replay (Night 3 still gets
+  the finished-Gary branch), every end card and its buttons, pause options (frame rate saved as 60, Story* applied at the next
+  checkpoint, Large text in Mail, Quit to Title), the overlay pause, the Deck keyboard and wording, `define SC_DEMO on` (title,
+  night clamp, WISHLIST card, store dry run) and the demo player build (`resources.assets` has no Night 2 or 3 text; the
+  folders came back with the same GUIDs). All 19 achievements unlocked live (real tug wins for FIRM_GRIP and
+  WHITE_KNUCKLES; the three Night 2 asks for REMOTE_SESSION; typed "your glasses" and "ellen"; the code 0217; the shelf
+  reject; a safe round at max stage 1; CAM 00) and were held in the negative checks (debug jump, forced tug, Prepare past
+  Gary's choice, stage 6 round, kept Gary's unlock). Regression: Nights 1, 2 and 3 each reach their card from the title
+  flow; a real finale SHRED. 0 game errors, 0 compiler warnings. CoreTests 220 (40 new: `ProgressTests`,
+  `AchievementRulesTests`, `TitleMenuModelTests`, `PhaseEContentTests`). CompileCheck: 8 configurations, 0 errors, 0 warnings
+  (`setup_local.sh` fills `.deps` from the installed Unity; new `RuntimeDemo`, `RuntimeSteam`, `RuntimeSteamDemo`).
+- **Code review before the commit (fixed).** A key press that opens or closes the pause menu no longer also presses a
+  button of the title or end card underneath, or of the menu it opened (`PauseMenu.StateChangeFrame`, skipped by every
+  `MenuNav`); Esc going Back on a title sub-screen no longer also opens Options; the corrupt-save notice is reset each launch;
+  *Build Windows (Steam)* restores and requires `night2`/`night3` first; Esc during a title root's disclaimer opens the
+  settings only; a debug start only moves Continue's night (it is never recorded as a night's first start); an achievement
+  that is already saved is not pushed to Steam again (the boot resync covers offline unlocks).
+- **Judgement calls.**
+  - `achievements on` forces the current run to count and stays on through later debug commands (the per-event gates, a
+    forced tug and Prepare, still hold); `achievements next` arms the next root like a menu start, so a forced tug still
+    disarms it. The bridge `tug` command does not disarm by itself: the forced outcome disarms when it decides a fight.
+  - Night Select over a saved checkpoint asks first, and Yes clears that checkpoint (otherwise Continue would still resume it).
+  - Best and total times ignore runs under 1 s (test jumps straight to an ending).
+  - Watch the Watchers listens for `n3.cam00_viewed`, which CameraApp sets only when the player selects CAM 00 (also when the
+    viewer opens on it); Not On My Shelf listens to `Orders.Decided` (player only); Remain Seated is reported by the round.
+    The Phase D `Hook: ACH_*` log lines are gone (a held achievement would still have logged its id).
+  - A blank Jotter opens the Deck keyboard only when the player opened it (a cursor's own pad becomes a conversation).
+  - Large reading text covers Jotter documents and Mail; the hex viewer stays 1x (16-byte rows do not fit at 2x).
+  - The runtime asmdef is unchanged: a reference to the missing Steamworks.NET assembly would only add noise. The Credits
+    screen shows `credits.steamworks` under `STEAMWORKS_NET` once that key exists (the license text must be copied from the
+    package, not retyped).
+  - The version sits at the right of the pause caption (the fullscreen layer is under the taskbar).
+  - Editor test hooks stay `internal` with `InternalsVisibleTo("SecondCursor.Editor")` (`Runtime/AssemblyInfo.cs`).
+  - Night 2 and 3 code still compiles into the demo; only their content is left out.
+- **How to add Steamworks.NET later.**
+  1. `Packages/manifest.json`: `"com.rlabrecque.steamworks.net": "https://github.com/rlabrecque/Steamworks.NET.git?path=/com.rlabrecque.steamworks.net#2025.164.1"`.
+  2. `Scripts/Runtime/SecondCursor.Runtime.asmdef`: add `"com.rlabrecque.steamworks.net"` to `references`, and to
+     `versionDefines` `{ "name": "com.rlabrecque.steamworks.net", "expression": "1.0.0", "define": "STEAMWORKS_NET" }`.
+  3. `Game/SteamBridge.cs`: the real `FullGameAppId`, `DemoAppId` and `StoreUrl`. Put the App ID in the project root's
+     `steam_appid.txt` for Editor tests; never ship that file.
+  4. Copy the package's LICENSE text verbatim into the base `strings.json` as `credits.steamworks`.
+  5. Steamworks: the 19 achievements and the `TUG_WINS` stat (`Docs/Launch/SteamChecklist.md` section 4), Steam Input
+     default config (section 3), Auto-Cloud for `progress.json`.
+  6. Bridge `refresh`, `errors` (0) and `warnings` (0); `DevTools/CompileCheck` `RuntimeSteam` is the stub-based twin of this.
+  7. On hardware: Deck keyboard (Enter in single-line mode, Backspace, Numeric for the code), overlay pause (and whether the
+     keyboard raises it: it is ignored for 0.5 s after showing), suspend during a tug, touch, a PC to Deck cloud round trip,
+     launching without Steam (DLL renamed: the game runs with local achievements).
+- **Not yet:** the Steamworks package and real App IDs; hardware Deck tests and the trackpad pull-speed measurement; 2x text
+  for dialogs, toasts, the Work Queue and the hex viewer; carrying demo progress into the full game; the demo's own Steam
+  achievements; a separate screen-shake option; the post-game echo `{p2}` and the idle-finale fast-forward (from Phase D).
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -375,7 +503,9 @@ clicktext Log On         # click visible pixel text
 type hello\n             # keyboard text (\n = Enter)
 shot name                # save the 960x540 virtual screen to Library/SecondCursorBridge/shots/name.png
 dump | ids [filter] | texts [filter] | log [n] | errors
-waitbeat reveal 60 | waitflag camera_unlocked 90 | waittask t_shred_017 30 | waitlog "text" 20
+waitbeat reveal 60 | waitflag camera_unlocked 90 | waittask t_shred_017 30 | waitlog text 20
+savedir D:\Downloads\Podaci\Project 1\_work\saves\test   # test saves (then resetsave, saveset, settings)
+title records | achievements next | haslog Achievement unlocked | deck on | store on | define SC_DEMO on | builddemo
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

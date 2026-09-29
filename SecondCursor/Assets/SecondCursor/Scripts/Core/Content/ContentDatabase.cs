@@ -67,8 +67,28 @@ namespace SecondCursor.Core.Content
 
         public string Text(string key, string fallback)
         {
-            if (key != null && _strings.TryGetValue(key, out var v) && !string.IsNullOrEmpty(v)) return v;
+            if (key == null) return fallback ?? string.Empty;
+            if (_variant != null && _strings.TryGetValue(key + "." + _variant, out var variantText) && !string.IsNullOrEmpty(variantText)) return variantText;
+            if (_strings.TryGetValue(key, out var v) && !string.IsNullOrEmpty(v)) return v;
             return fallback ?? string.Empty;
+        }
+
+        string _variant;
+
+        /// <summary>
+        /// A wording variant ("deck" on a Steam Deck, null = none): <see cref="Text(string,string)"/> prefers
+        /// "key.variant" when it exists, and on the Deck each task's hint becomes its hintDeck when it has one.
+        /// </summary>
+        public string Variant
+        {
+            get => _variant;
+            set
+            {
+                _variant = string.IsNullOrEmpty(value) ? null : value;
+                if (_variant != "deck") return;
+                foreach (var t in Tasks.tasks)
+                    if (t != null && !string.IsNullOrEmpty(t.hintDeck)) t.hint = t.hintDeck;
+            }
         }
 
         public string Format(string key, params object[] args)

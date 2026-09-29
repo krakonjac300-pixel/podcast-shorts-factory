@@ -36,6 +36,7 @@ namespace SecondCursor.Story
         Action<string, MessageBox> _onFinaleConfirm;
         Action<string, ProgressDialog> _onFinaleProgress;
         Action<string, CursorAgent> _onFinaleShredded;
+        Action<string, CursorAgent> _onFinaleCancelled;
         Action<DragPayload> _onFinaleTug;
         Action _onFinaleSeat;
 
@@ -50,7 +51,7 @@ namespace SecondCursor.Story
             if (g.Clock.TotalMinutes < Night3Rules.FinaleStart) g.Clock.Set(6, 41);
             g.Clock.Frozen = false;
             g.Clock.Rate = FinaleRate;
-            g.Shred.IsInUse = null;
+            // 017 stays "in use" (every shred refused) until the finale's shred hooks are attached below.
             g.Flags.Set(Flags.CameraUnlocked);
             g.Flags.Set(Flags.LogoffItem);
             E.Phase = EntityPhase.Interference;
@@ -83,6 +84,9 @@ namespace SecondCursor.Story
             _ellen.Direct = true;
             _gary.Direct = true;
             HookFinale();
+            g.Shred.IsInUse = null;
+            // A shred that slipped through before the hooks existed still counts.
+            if (g.Files.GetFile(ContentIds.File017)?.Shredded == true) _exit = Night3Exit.Shred;
             RunSide(FinalExchange(), "final-exchange");
 
             // The feed: the corridor to the seat. Security (or finished Gary) opens it by the clock.
@@ -212,8 +216,13 @@ namespace SecondCursor.Story
             _onFinaleProgress = (id, progress) =>
             {
                 if (id != ContentIds.File017 || _exit != Night3Exit.None) return;
-                _lastWords?.Stop();
+                StopLastWords();
                 _lastWords = RunSide(LastWords(progress), "last-words");
+            };
+            _onFinaleCancelled = (id, by) =>
+            {
+                // 017 survived: no last words (and a line cut half way must not keep her pad busy).
+                if (id == ContentIds.File017) StopLastWords();
             };
             _onFinaleShredded = (id, by) =>
             {
@@ -241,6 +250,7 @@ namespace SecondCursor.Story
             g.Shred.ConfirmShown += _onFinaleConfirm;
             g.Shred.ProgressStarted += _onFinaleProgress;
             g.Shred.Completed += _onFinaleShredded;
+            g.Shred.Cancelled += _onFinaleCancelled;
             g.Conflict.TugStarted += _onFinaleTug;
             g.Rounds.SeatCleared += _onFinaleSeat;
         }
@@ -251,11 +261,13 @@ namespace SecondCursor.Story
             if (_onFinaleConfirm != null) g.Shred.ConfirmShown -= _onFinaleConfirm;
             if (_onFinaleProgress != null) g.Shred.ProgressStarted -= _onFinaleProgress;
             if (_onFinaleShredded != null) g.Shred.Completed -= _onFinaleShredded;
+            if (_onFinaleCancelled != null) g.Shred.Cancelled -= _onFinaleCancelled;
             if (_onFinaleTug != null) g.Conflict.TugStarted -= _onFinaleTug;
             if (_onFinaleSeat != null && g.Rounds != null) g.Rounds.SeatCleared -= _onFinaleSeat;
             _onFinaleConfirm = null;
             _onFinaleProgress = null;
             _onFinaleShredded = null;
+            _onFinaleCancelled = null;
             _onFinaleTug = null;
             _onFinaleSeat = null;
             if (_logOffConfirm != null && _logOffConfirm.IsOpen) _logOffConfirm.Window.Close(null);
@@ -275,6 +287,13 @@ namespace SecondCursor.Story
             string set = Night3Rules.ShredLastWordsSet(_g.Memory.Trust);
             RunSide(SlowLastStretch(progress), "last-stretch");
             yield return Say(_ellen, Lines(set), 5f);
+        }
+
+        void StopLastWords()
+        {
+            _lastWords?.Stop();
+            _lastWords = null;
+            _ellen.Typing = false;
         }
 
         IEnumerator SlowLastStretch(ProgressDialog progress)
@@ -368,6 +387,8 @@ namespace SecondCursor.Story
                 _keepCause = "time";
             }
             var exit = _exit;
+            // Nothing from the finale (her exchange, tug or log-off lines, Gary) may type into the dark ending.
+            StopSideRoutines();
             UnhookFinale();
             g.Rounds.Stop();
             g.Rounds.ForcedOpenHandler = null;
@@ -378,7 +399,6 @@ namespace SecondCursor.Story
             if (g.Conflict.IsFighting) g.Conflict.Interrupt();
             if (exit != Night3Exit.Shred) g.Shred.Abort();
             string id = exit == Night3Exit.Shred ? ContentIds.EndingN3Shred : exit == Night3Exit.LogOff ? ContentIds.EndingN3LogOff : ContentIds.EndingN3Keep;
-            GameLog.Info(LogChannel.Story, "Hook: ACH_NIGHT_3, ending " + id);
             CompleteNight(id);
 
             EndingSpec spec;
@@ -399,7 +419,7 @@ namespace SecondCursor.Story
                 yield return KeepFinalImage(_keepCause != "confirm");
                 var set = g.Content.LineSet(Night3Rules.KeepLineSet(g.Flags.Has(MemoryFlags.N3SaidStay)));
                 var name = g.Content.LineSet("n3_end_keep_name");
-                Night3Rules.KeepLines(set?.lines, set?.speakers, name?.lines, name?.speakers, g.Flags.Has(MemoryFlags.SaidName), out var lines, out var speakers);
+                Night3Rules.KeepLines(set?.lines, set?.speakers, name?.lines, name?.speakers, MemoryFlags.SaidNameAny(g.Flags), out var lines, out var speakers);
                 spec = FinalSpec(id, EndingKind.Keep, "end.keep.title", "end.keep.subtitle", lines, speakers);
             }
             _ending = new EndingSequence(g, spec);

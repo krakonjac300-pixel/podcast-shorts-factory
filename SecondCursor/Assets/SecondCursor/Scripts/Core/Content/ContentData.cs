@@ -276,6 +276,8 @@ namespace SecondCursor.Core.Content
         public string title = "";
         public string description = "";
         public string hint = "";
+        /// <summary>The hint on a Steam Deck when it names mouse moves (optional; "" = use hint).</summary>
+        public string hintDeck = "";
         public string type = "";
         public string[] targets = Array.Empty<string>();
         public string param = "";
@@ -302,6 +304,7 @@ namespace SecondCursor.Core.Content
                 t.title = t.title ?? "";
                 t.description = t.description ?? "";
                 t.hint = t.hint ?? "";
+                t.hintDeck = t.hintDeck ?? "";
                 t.type = t.type ?? "";
                 t.targets = StoryData.Clean(t.targets);
                 t.param = t.param ?? "";

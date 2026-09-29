@@ -15,4 +15,6 @@
     <!-- Unity-ish warning noise we don't care about in the harness -->
     <NoWarn>$(NoWarn);CS0649;CS1591</NoWarn>
   </PropertyGroup>
+  <!-- setup_local.sh writes the version defines of the local Unity it copied the references from. -->
+  <Import Project="$(MSBuildThisFileDirectory).deps/local.props" Condition="Exists('$(MSBuildThisFileDirectory).deps/local.props')" />
 </Project>

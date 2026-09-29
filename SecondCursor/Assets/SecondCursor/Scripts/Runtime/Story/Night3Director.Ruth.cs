@@ -139,11 +139,7 @@ namespace SecondCursor.Story
 
         void OnEllenReply(DialogueReply r, string said)
         {
-            if (r.Tag == "name")
-            {
-                _g.Flags.Set(MemoryFlags.SaidName);
-                GameLog.Info(LogChannel.Story, "Hook: ACH_HER_NAME");
-            }
+            if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N3SaidName);
         }
 
         bool CodeSolved => !_g.Files.IsInsideLocked(ContentIds.FolderRestricted) || _g.Flags.Has(MemoryFlags.N3RestrictedOpen);

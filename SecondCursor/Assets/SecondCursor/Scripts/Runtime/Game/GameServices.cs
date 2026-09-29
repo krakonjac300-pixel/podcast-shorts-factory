@@ -88,5 +88,63 @@ namespace SecondCursor.Game
 
         /// <summary>Game time used by simulation code (scaled by the pause menu / debug speed).</summary>
         public float Now => Time.time;
+
+        // Records and achievements
+
+        /// <summary>Unlocks achievements for this run (null until the night is built).</summary>
+        public AchievementWatcher AchievementWatch;
+        /// <summary>This night was started from Night Select (it began from the night's first-start memory).</summary>
+        public bool FromNightSelect;
+        /// <summary>This root shows the title menu inside its boot beat (consumed when the boot shows it).</summary>
+        public bool ShowTitle;
+
+        bool _armed;
+        bool _forced;
+        string _disarmReason;
+
+        /// <summary>
+        /// This run counts for achievements, best times and tug totals: it was started from the title, an end card,
+        /// or a checkpoint saved in such a run, and nothing debug has touched it since. A tester can force it on.
+        /// </summary>
+        public bool RecordsArmed => _forced || (_armed && _disarmReason == null);
+
+        /// <summary>Why the run does not count (null while armed).</summary>
+        public string RecordsHeldReason => RecordsArmed ? null : _disarmReason ?? "not started from the title";
+
+        /// <summary>Set once when the root is built.</summary>
+        public void Arm(bool armed, string why)
+        {
+            _armed = armed;
+            _disarmReason = null;
+            Core.GameLog.Info(Core.LogChannel.System, armed ? "Records armed: " + why : "Records held: " + why);
+            if (!armed) _disarmReason = why;
+        }
+
+        /// <summary>
+        /// Test runs: count this run anyway (bridge "achievements on", the debug panel's Arm records). It overrides every
+        /// disarm until <see cref="Unforce"/>; the per-event gates (a forced tug, Prepare) still hold what they hold.
+        /// </summary>
+        public void ForceArm()
+        {
+            if (_forced) return;
+            _forced = true;
+            Core.GameLog.Info(Core.LogChannel.System, "Records armed: forced for testing");
+        }
+
+        /// <summary>Something debug happened (a jump, a forced tug, the debug panel): records stop counting for this run.</summary>
+        public void Disarm(string reason)
+        {
+            if (string.IsNullOrEmpty(reason)) reason = "debug";
+            bool naturallyArmed = _armed && _disarmReason == null;
+            if (_disarmReason == null) _disarmReason = reason;
+            if (naturallyArmed) Core.GameLog.Info(Core.LogChannel.System, "Records held: " + reason + (_forced ? " (still forced on for testing)" : ""));
+        }
+
+        /// <summary>Ends a <see cref="ForceArm"/> (bridge "achievements off").</summary>
+        public void Unforce(string reason)
+        {
+            _forced = false;
+            Disarm(reason);
+        }
     }
 }

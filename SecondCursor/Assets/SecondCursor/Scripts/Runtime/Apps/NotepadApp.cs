@@ -16,7 +16,7 @@ namespace SecondCursor.Apps
     /// type into the document character by character (with keyboard sounds you are not making), and in
     /// conversation mode it hands each line the player types (on Enter) to the story.
     /// </summary>
-    public sealed class NotepadApp : App, IKeyboardTarget
+    public sealed class NotepadApp : App, IKeyboardTarget, ITextEntryTarget
     {
         readonly string _fileId;
         readonly StringBuilder _text = new StringBuilder();
@@ -42,8 +42,22 @@ namespace SecondCursor.Apps
             _fileId = fileId;
         }
 
+        /// <summary>
+        /// Steam Deck keyboard: for a whole conversation (typed-ahead keys are held, so it does not flicker every
+        /// turn), and for a document the player can type into (an untitled page or an editable file).
+        /// </summary>
+        public bool WantsTextEntry => IsOpen && (ConversationMode || ((_fileId == null ? _openedByPlayer : CanSave) && PlayerCanType && !EntityTyping));
+
+        /// <summary>The player opened this page (a cursor's own Notepad becomes a conversation instead).</summary>
+        bool _openedByPlayer;
+
+        public Game.TextEntryMode EntryMode => ConversationMode ? Game.TextEntryMode.SingleLine : Game.TextEntryMode.MultiLine;
+
+        public Rect EntryRectVirtual => Window != null ? Window.WorldRect : default;
+
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
+            _openedByPlayer = by != null && by.IsPlayer;
             var file = _fileId != null ? G.Files.GetFile(_fileId) : null;
             string title = (file != null ? file.Name : "Untitled") + " - " + G.Content.Text("app.notepad");
             int offset = G.Apps.OpenApps.Count * 14 % 90;
@@ -310,8 +324,9 @@ namespace SecondCursor.Apps
         public override void Tick(float dt)
         {
             _caretBlink += dt;
-            // A conversation is shown at double size: it has to read on a phone screen in a clip.
-            int scale = ConversationMode ? 2 : 1;
+            // A conversation is shown at double size: it has to read on a phone screen in a clip. Documents follow
+            // the Reading text option (Large on a Steam Deck).
+            int scale = ConversationMode ? 2 : Game.DisplaySettings.ReadingScale;
             if (_view != null && _view.Scale != scale)
             {
                 _view.Scale = scale;

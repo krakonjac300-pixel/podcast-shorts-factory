@@ -232,7 +232,16 @@ namespace SecondCursor.Core.Story
         public const string N3OwnShelfRejected = "m.n3.own_shelf_rejected";
         public const string N3SaidStay = "m.n3.said_stay";
 
-        // Any night
+        public const string N2SaidName = "m.n2.said_name";
+        public const string N3SaidName = "m.n3.said_name";
+
+        /// <summary>
+        /// Legacy key of no night (Phase D saves). Not read any more: it survived replays of the night that set it,
+        /// so the name is now remembered per night (<see cref="N2SaidName"/>, <see cref="N3SaidName"/>).
+        /// </summary>
         public const string SaidName = "m.said_name";
+
+        /// <summary>The player said her name on a night this run remembers (Night 2 or Night 3).</summary>
+        public static bool SaidNameAny(NarrativeFlags f) => f != null && (f.Has(N2SaidName) || f.Has(N3SaidName));
     }
 }

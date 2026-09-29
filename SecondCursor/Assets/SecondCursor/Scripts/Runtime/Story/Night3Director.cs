@@ -76,7 +76,6 @@ namespace SecondCursor.Story
                 if (id == ContentIds.Order3342 && decision == "reject" && by != null && by.IsPlayer)
                 {
                     g.Flags.Set(MemoryFlags.N3OwnShelfRejected);
-                    GameLog.Info(LogChannel.Story, "Hook: ACH_NOT_ON_MY_SHELF");
                 }
             };
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
@@ -241,6 +240,10 @@ namespace SecondCursor.Story
             }
             g.Flags.Set(Flags.N3RoundsDone);
             g.Flags.Clear(Flags.CameraUnlocked);
+            // Live Personnel is patched in memory: rebuild what the round left (118 on leave once Custodial reached
+            // the B-Level hall; Custodial back in Sublevel C after a safe round, at WS-04 after the seat was cleared).
+            if (g.Flags.Get(MemoryFlags.N3MaxStage) >= 2) g.Rounds.PatchPersonnelFor("HallFar");
+            g.Rounds.PatchPersonnelFor(g.Flags.Has(MemoryFlags.N3SeatCleared) ? "BehindChair" : "SublevelC");
         }
 
         /// <summary>Replace the value of one KEY=value line of a config file (a checkpoint restoring an edit).</summary>
@@ -287,7 +290,6 @@ namespace SecondCursor.Story
             // The code was accepted (any time tonight): she answers.
             if (flag == MemoryFlags.N3RestrictedOpen && CurrentBeat != "ending")
             {
-                GameLog.Info(LogChannel.Story, "Hook: ACH_AUTHORIZED");
                 SayLater(_ellen, "n3_restricted_open", 4f);
             }
         }

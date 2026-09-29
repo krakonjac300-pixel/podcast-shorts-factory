@@ -306,7 +306,7 @@ namespace SecondCursor.Story
 
         void OnEllenReply(DialogueReply r, string said)
         {
-            if (r.Tag == "name") _g.Flags.Set(MemoryFlags.SaidName);
+            if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N2SaidName);
         }
 
         /// <summary>The company hint toasts for a task, without forcing it (the beat decides what happens next).</summary>

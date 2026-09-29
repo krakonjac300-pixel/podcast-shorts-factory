@@ -9,6 +9,6 @@
     <ProjectReference Include="Runtime.csproj" />
     <Reference Include="$(Deps)/engine/*.dll" Private="false" />
     <Reference Include="$(Deps)/ugui/UnityEngine.UI.dll" Private="false" />
-    <Reference Include="$(Deps)/editor/UnityEditor.dll" Private="false" />
+    <Reference Include="$(Deps)/editor/*.dll" Private="false" />
   </ItemGroup>
 </Project>

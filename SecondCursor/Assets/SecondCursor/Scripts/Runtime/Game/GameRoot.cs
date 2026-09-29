@@ -37,8 +37,19 @@ namespace SecondCursor.Game
         internal static int StartNight = 1;
         /// <summary>The next root resumes the saved checkpoint of its night (Continue).</summary>
         internal static bool StartFromCheckpoint;
+        /// <summary>The next root shows the title menu inside its boot beat instead of starting the night.</summary>
+        internal static bool ShowTitle;
+        /// <summary>The next root counts for records and achievements (a start chosen from the title or an end card).</summary>
+        internal static bool NextRunArmed;
+        /// <summary>Why the next root is armed or held (logged).</summary>
+        internal static string NextRunReason;
+        /// <summary>The next root was started from Night Select (it begins from the night's first-start memory).</summary>
+        internal static bool FromNightSelect;
+        /// <summary>Test bridge "achievements next": the next root counts even if a debug command started it.</summary>
+        internal static bool ForceArmNext;
 
         bool _built;
+        DeckKeyboard _deckKeyboard;
 
         void Awake()
         {
@@ -56,10 +67,19 @@ namespace SecondCursor.Game
                 else Debug.Log(line);
             };
             GameLog.Clock = () => Time.unscaledTime;
-            Application.targetFrameRate = 60;
             // Builds pause on focus loss (PauseMenu); in the Editor keep running so tools and testing work.
             if (Application.isEditor) Application.runInBackground = true;
-            QualitySettings.vSyncCount = 1;
+            var settings = SaveSystem.LoadSettings();
+            if (SteamBridge.OnDeck && !settings.largeTextChosen)
+            {
+                // First launch on a Steam Deck: large reading text (the player can change it in Options).
+                settings.largeText = true;
+                settings.largeTextChosen = true;
+                SaveSystem.SaveSettings(settings);
+            }
+            DisplaySettings.Apply(settings);
+            if (!string.IsNullOrEmpty(SaveSystem.DirOverride)) GameLog.Warn(LogChannel.System, "Saves are in a test folder: " + SaveSystem.DirOverride);
+            if (SteamBridge.SimulateDeck) GameLog.Info(LogChannel.System, "Steam Deck simulated (test bridge)");
             Build();
         }
 
@@ -84,25 +104,33 @@ namespace SecondCursor.Game
 
             // Night, difficulty and memory
             g.Save = SaveSystem.Load();
-            g.Night = Mathf.Clamp(StartNight, 1, SaveData.Nights);
-            g.Difficulty = DifficultyTable.For(g.Night, DifficultyTable.ParseMode(g.Save.difficulty));
-            var tuning = EntityTuningAsset.LoadOptional();
-            if (tuning != null && g.Night == 1 && g.Difficulty.Mode == DifficultyMode.Normal) tuning.ApplyTo(g.Difficulty);
+            g.Night = Mathf.Clamp(StartNight, 1, GameBootstrap.MaxNight);
+            g.Difficulty = MakeDifficulty(g.Night, DifficultyTable.ParseMode(g.Save.difficulty));
             g.Assist = AdaptiveAssist.ForNight(g.Difficulty, g.Save.assistCarry);
             GameLog.Info(LogChannel.System, "Night " + g.Night + ", difficulty " + g.Difficulty.Mode + ", assist level " + g.Assist.Level);
 
+            // Records: a start chosen from the title or an end card counts; debug starts are held.
+            bool armed = (NextRunArmed && string.IsNullOrEmpty(StartBeat)) || ForceArmNext;
+            g.Arm(armed, ForceArmNext ? "armed for testing (bridge achievements next)" : !string.IsNullOrEmpty(NextRunReason) ? NextRunReason : armed ? "menu" : "debug start");
+            ForceArmNext = false;
+            NextRunArmed = false;
+            NextRunReason = null;
+            g.FromNightSelect = FromNightSelect;
+            FromNightSelect = false;
+            g.ShowTitle = ShowTitle;
+            ShowTitle = false;
+
             // Content + simulation
             g.Content = ContentLoader.Load(g.Night);
+            g.Content.Variant = SteamBridge.OnDeck ? "deck" : null;
             g.Files = new VirtualFileSystem(g.Content.FileSystem);
             g.Flags = new NarrativeFlags();
             g.Clock = new GameClock(1, 52);
             g.Memory = new EntityMemory();
-            if (g.Night > 1)
-            {
-                // What the earlier nights remember, and trust decayed toward neutral.
-                g.Flags.Merge(g.Save.MemoryForNight(g.Night));
-                g.Memory.Seed(SaveData.TrustAtNightStart(g.Night, g.Save.entityTrust));
-            }
+            // What the earlier nights remember and the trust carried over (Night Select: from the night's first start).
+            g.Save.StartStateFor(g.Night, g.FromNightSelect, out var memoryAtStart, out float trustAtStart);
+            g.Flags.Merge(memoryAtStart);
+            if (g.Night > 1) g.Memory.Seed(trustAtStart);
             g.Recorder = new CursorRecorder();
             g.Dialogue = new DialogueEngine(g.Content);
 
@@ -153,9 +181,13 @@ namespace SecondCursor.Game
             g.Rounds = RoundsSystem.Create(g, transform);
             NightSetup.ForNight(g);
             g.Director = NightDirector.Create(g, transform, g.Night);
+            // After the world set-up (which may set memory flags): only what happens from here can unlock anything.
+            g.AchievementWatch = AchievementWatcher.Attach(g);
+            Achievements.Reconcile(g);
 
             DebugOverlay.Create(g, transform);
             PauseMenu.Create(g, transform);
+            _deckKeyboard = new DeckKeyboard(g);
 
             _built = true;
             StartCoroutine(StartGame());
@@ -189,8 +221,10 @@ namespace SecondCursor.Game
                 GameLog.Warn(LogChannel.System, "No checkpoint for night " + g.Night + ": starting the night from the beginning");
                 return false;
             }
+            if (!cp.armed) g.Disarm("checkpoint saved in a debug run");
             g.Flags.Restore(cp.flags);
             g.Memory.Seed(cp.trust);
+            g.Director.ResumeElapsed(cp.elapsed);
             g.Assist.SetLevel(Mathf.Max(g.Difficulty.AssistFloor, cp.assistLevel));
             g.Clock.Set(cp.clockMinutes / 60, cp.clockMinutes % 60);
             g.Audio.SetAmbience(true, 2f);
@@ -256,6 +290,7 @@ namespace SecondCursor.Game
             g.Apps.Tick(dt);
             g.Shred.Tick(dt);
             if (!PauseMenu.IsPaused) g.Apps.RouteKeyboard(g.Input, player);
+            _deckKeyboard?.Tick();
             g.Clock.Tick(dt);
 
             // 5. Feed the security camera the player's hand position (the seated figure mirrors it).
@@ -288,6 +323,23 @@ namespace SecondCursor.Game
             Screen.SetResolution(ScreenRig.Width * scale, ScreenRig.Height * scale, FullScreenMode.Windowed);
         }
 
+        /// <summary>
+        /// A night's difficulty profile. Night 1 on Normal takes the optional EntityTuningAsset override (the debug
+        /// tuning asset), exactly as at boot, so a difficulty switch mid-night builds the same profile.
+        /// </summary>
+        public static DifficultyProfile MakeDifficulty(int night, DifficultyMode mode)
+        {
+            var p = DifficultyTable.For(night, mode);
+            var tuning = EntityTuningAsset.LoadOptional();
+            if (tuning != null && night == 1 && mode == DifficultyMode.Normal) tuning.ApplyTo(p);
+            // Steam Deck trackpad fairness: the drag speed that counts as a full pull (measured on hardware in Phase F).
+            if (SteamBridge.OnDeck) p.Tug.pullSpeedForFullStrength *= DeckPullSpeedScale;
+            return p;
+        }
+
+        /// <summary>Scales the tug's full-strength drag speed on a Steam Deck (1 until trackpad drags are measured).</summary>
+        public const float DeckPullSpeedScale = 1f;
+
         /// <summary>Used by restart: the next GameRoot becomes the instance before this one is destroyed.</summary>
         internal static void ReleaseInstance() => Instance = null;
 
@@ -295,6 +347,7 @@ namespace SecondCursor.Game
         {
             // The input backend belongs to this root (it may hold Input System subscriptions): always release it.
             G?.Input?.Dispose();
+            _deckKeyboard?.Dismiss();
             // Only the current instance owns the global hooks (a restart creates the new root first).
             if (Instance != this && Instance != null) return;
             if (Instance == this) Instance = null;

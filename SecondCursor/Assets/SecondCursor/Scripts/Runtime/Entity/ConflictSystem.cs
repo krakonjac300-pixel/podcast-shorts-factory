@@ -43,6 +43,9 @@ namespace SecondCursor.Entity
         public TugOfWarSettings CurrentSettings { get; private set; } = new TugOfWarSettings();
         public bool IsFighting => _payload != null;
         public bool IsMercyContest => IsFighting && _mercy;
+        /// <summary>The last contest's outcome was decided by a debug override (development builds): it never counts for records.</summary>
+        public bool LastOutcomeForced { get; private set; }
+        bool _forcedNow;
         public float Strain => _model != null && IsFighting ? _model.Strain : 0f;
         public float EntityShare => _model != null && IsFighting ? _model.EntityShare : 0f;
 
@@ -83,6 +86,7 @@ namespace SecondCursor.Entity
             bool pair = (p.Holder == _g.Player && contender == _g.EntityAgent) || (p.Holder == _g.EntityAgent && contender == _g.Player);
             if (!pair) return;
             _payload = p;
+            _forcedNow = false;
             _mercy = _g.Assist != null && _g.Assist.BeginContest();
             _mercyPull = 0f;
             CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy) : new TugOfWarSettings();
@@ -175,6 +179,7 @@ namespace SecondCursor.Entity
             if (ForcedOutcome != TugOutcome.None && Debug.isDebugBuild && _model.Elapsed >= ForcedOutcomeAfter)
             {
                 GameLog.Info(LogChannel.Debug, "Tug-of-war outcome forced: " + ForcedOutcome);
+                _forcedNow = true;
                 return ForcedOutcome;
             }
             return TugOutcome.None;
@@ -267,6 +272,9 @@ namespace SecondCursor.Entity
             {
                 _g.Flags.Increment(Flags.CounterTugLosses);
             }
+            LastOutcomeForced = _forcedNow;
+            _forcedNow = false;
+            if (LastOutcomeForced) _g.Disarm("forced tug outcome");
             GameLog.Info(LogChannel.Entity, "Tug-of-war ended: " + outcome);
             _g.Assist?.ReportTug(outcome == TugOutcome.PlayerWins, _model.Elapsed, _model.PeakEffort);
             _mercy = false;

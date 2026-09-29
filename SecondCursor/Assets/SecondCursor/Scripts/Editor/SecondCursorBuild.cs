@@ -17,6 +17,13 @@ namespace SecondCursor.EditorTools
         public const string IconPath = "Assets/SecondCursor/Art/AppIcon.png";
         public static string OutputDir => Path.GetFullPath("Builds/Windows");
         public static string ExePath => Path.Combine(OutputDir, "SecondCursor.exe");
+        public static string DemoOutputDir => Path.GetFullPath("Builds/WindowsDemo");
+        public static string DemoExePath => Path.Combine(DemoOutputDir, "SecondCursorDemo.exe");
+
+        const string ContentFolder = "Assets/SecondCursor/Resources/Content";
+        const string DemoExcludedFolder = "Assets/SecondCursor/_DemoExcluded";
+        /// <summary>Content the demo must not ship: anything under Resources is built in even if no code loads it.</summary>
+        static readonly string[] DemoExcludedContent = { "night2", "night3" };
 
         [MenuItem("SECOND CURSOR/Apply Release Settings", priority = 21)]
         public static void ApplyReleaseSettings()
@@ -62,6 +69,11 @@ namespace SecondCursor.EditorTools
 
         public static BuildReport BuildWindows()
         {
+            // A demo build that crashed half way may have left Nights 2 and 3 outside Resources.
+            RestoreDemoExcluded();
+            foreach (var name in DemoExcludedContent)
+                if (!AssetDatabase.IsValidFolder(ContentFolder + "/" + name))
+                    throw new BuildFailedException("The full game needs " + ContentFolder + "/" + name + " (see SECOND CURSOR > Restore Demo-Excluded Content)");
             ApplyReleaseSettings();
             Directory.CreateDirectory(OutputDir);
             var options = new BuildPlayerOptions
@@ -75,11 +87,94 @@ namespace SecondCursor.EditorTools
             return BuildPipeline.BuildPlayer(options);
         }
 
-        public static string Summary(BuildReport report)
+        public static string Summary(BuildReport report) => Summary(report, ExePath);
+
+        public static string Summary(BuildReport report, string exePath)
         {
             var s = report.summary;
             return s.result + " in " + s.totalTime.TotalSeconds.ToString("0") + " s, " + (s.totalSize / (1024f * 1024f)).ToString("0.0") + " MB, "
-                   + s.totalErrors + " error(s), " + s.totalWarnings + " warning(s)\n" + ExePath;
+                   + s.totalErrors + " error(s), " + s.totalWarnings + " warning(s)\n" + exePath;
+        }
+
+        // ------------------------------------------------------------------ the free demo (Night 1)
+
+        [MenuItem("SECOND CURSOR/Build Windows Demo (SC_DEMO)", priority = 23)]
+        public static void BuildDemoMenu()
+        {
+            var report = BuildWindowsDemo();
+            EditorUtility.DisplayDialog("SECOND CURSOR demo build", Summary(report, DemoExePath), "OK");
+        }
+
+        /// <summary>
+        /// The demo: SC_DEMO defined, its own product name (so its saves are separate), Night 1 only. The night2 and
+        /// night3 content folders are moved out of Resources for the build (AssetDatabase.MoveAsset keeps their GUIDs)
+        /// and always moved back, even if the build fails.
+        /// </summary>
+        public static BuildReport BuildWindowsDemo()
+        {
+            RestoreDemoExcluded(); // leftovers of a build that crashed half way
+            ApplyReleaseSettings();
+            string product = PlayerSettings.productName;
+            Directory.CreateDirectory(DemoOutputDir);
+            try
+            {
+                MoveDemoExcludedOut();
+                PlayerSettings.productName = "SECOND CURSOR Demo";
+                var options = new BuildPlayerOptions
+                {
+                    scenes = new[] { SecondCursorProjectSetup.ScenePath },
+                    locationPathName = DemoExePath,
+                    target = BuildTarget.StandaloneWindows64,
+                    targetGroup = BuildTargetGroup.Standalone,
+                    options = BuildOptions.None,
+                    extraScriptingDefines = new[] { "SC_DEMO" },
+                };
+                return BuildPipeline.BuildPlayer(options);
+            }
+            finally
+            {
+                PlayerSettings.productName = product;
+                RestoreDemoExcluded();
+                // The build wrote the demo's product name to ProjectSettings.asset: write the real one back.
+                AssetDatabase.SaveAssets();
+            }
+        }
+
+        static void MoveDemoExcludedOut()
+        {
+            if (!AssetDatabase.IsValidFolder(DemoExcludedFolder)) AssetDatabase.CreateFolder("Assets/SecondCursor", "_DemoExcluded");
+            foreach (var name in DemoExcludedContent)
+            {
+                string from = ContentFolder + "/" + name, to = DemoExcludedFolder + "/" + name;
+                if (!AssetDatabase.IsValidFolder(from)) continue;
+                string error = AssetDatabase.MoveAsset(from, to);
+                if (!string.IsNullOrEmpty(error)) throw new BuildFailedException("Could not move " + from + " out of the demo: " + error);
+                Debug.Log("[SYSTEM] Demo build: moved " + from + " out of Resources");
+            }
+        }
+
+        /// <summary>Puts the night2 and night3 content back into Resources (after a demo build, or after one crashed).</summary>
+        [MenuItem("SECOND CURSOR/Restore Demo-Excluded Content", priority = 24)]
+        public static void RestoreDemoExcluded()
+        {
+            if (!AssetDatabase.IsValidFolder(DemoExcludedFolder)) return;
+            foreach (var name in DemoExcludedContent)
+            {
+                string from = DemoExcludedFolder + "/" + name, to = ContentFolder + "/" + name;
+                if (!AssetDatabase.IsValidFolder(from)) continue;
+                if (AssetDatabase.IsValidFolder(to))
+                {
+                    Debug.LogError("[SYSTEM] Both " + from + " and " + to + " exist: merge them by hand");
+                    continue;
+                }
+                string error = AssetDatabase.MoveAsset(from, to);
+                if (!string.IsNullOrEmpty(error)) Debug.LogError("[SYSTEM] Could not restore " + to + ": " + error);
+                else Debug.Log("[SYSTEM] Demo build: restored " + to);
+            }
+            // The empty holder folder goes (it only ever holds the moved content).
+            if (AssetDatabase.GetSubFolders(DemoExcludedFolder).Length == 0
+                && AssetDatabase.FindAssets(string.Empty, new[] { DemoExcludedFolder }).Length == 0)
+                AssetDatabase.DeleteAsset(DemoExcludedFolder);
         }
 
         /// <summary>Icons at every size Windows asks for: drawn natively from 64 px up, box-filtered below.</summary>

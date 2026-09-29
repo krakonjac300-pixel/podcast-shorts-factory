@@ -144,9 +144,8 @@ namespace SecondCursor.Apps
             if (G.CameraRig != null) G.CameraRig.SetCamera(camId);
             if (camId == ContentIds.Cam00 && by != null && by.IsPlayer && !G.Flags.Has(Core.Story.Flags.N3Cam00Viewed))
             {
-                // Watch the Watchers (achievement hook, Phase E).
+                // Watch the Watchers: the player found CAM 00 (AchievementWatcher listens for this flag).
                 G.Flags.Set(Core.Story.Flags.N3Cam00Viewed);
-                Core.GameLog.Info(Core.LogChannel.Story, "Hook: ACH_WATCHERS (CAM 00 selected)");
             }
             CameraSelected?.Invoke(camId, by);
         }

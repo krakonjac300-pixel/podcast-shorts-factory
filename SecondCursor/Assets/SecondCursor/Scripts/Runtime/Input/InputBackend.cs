@@ -147,10 +147,12 @@ namespace SecondCursor.Input
         string _typed = "";
         Keyboard _subscribed;
 
-        public Vector2 MouseScreenPosition => Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero;
-        public bool LeftHeld => Mouse.current != null && Mouse.current.leftButton.isPressed;
-        public bool LeftDown => Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
-        public bool LeftUp => Mouse.current != null && Mouse.current.leftButton.wasReleasedThisFrame;
+        // Position and the left button come from the last used pointer (mouse, pen or the Steam Deck's touchscreen);
+        // the right button and the wheel only exist on a mouse.
+        public Vector2 MouseScreenPosition => Pointer.current != null ? Pointer.current.position.ReadValue() : Vector2.zero;
+        public bool LeftHeld => Pointer.current != null && Pointer.current.press.isPressed;
+        public bool LeftDown => Pointer.current != null && Pointer.current.press.wasPressedThisFrame;
+        public bool LeftUp => Pointer.current != null && Pointer.current.press.wasReleasedThisFrame;
         public bool RightDown => Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
         public bool RightUp => Mouse.current != null && Mouse.current.rightButton.wasReleasedThisFrame;
         public float Scroll

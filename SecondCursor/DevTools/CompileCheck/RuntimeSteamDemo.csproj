@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The demo with Steamworks.NET installed (SC_DEMO + STEAMWORKS_NET, stubbed): demo App ID, local achievements -->
+  <PropertyGroup>
+    <AssemblyName>SecondCursor.Runtime</AssemblyName>
+    <DefineConstants>$(UnityDefines);ENABLE_LEGACY_INPUT_MANAGER;SC_DEMO;STEAMWORKS_NET</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Scripts)/Runtime/**/*.cs" />
+    <Compile Include="Stubs/SteamworksStub.cs" />
+    <ProjectReference Include="Core.csproj" />
+    <Reference Include="$(Deps)/engine/*.dll" Private="false" />
+    <Reference Include="$(Deps)/ugui/UnityEngine.UI.dll" Private="false" />
+  </ItemGroup>
+</Project>

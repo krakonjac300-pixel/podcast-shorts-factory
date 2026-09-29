@@ -10,8 +10,9 @@ using UnityEngine.UI;
 namespace SecondCursor.Story
 {
     /// <summary>
-    /// Fiction disclaimer -> title card -> BIOS POST -> NEXUS OS splash -> log-on dialog. Built on the
-    /// fullscreen layer; the player's cursor works normally (the log-on button is a real button).
+    /// Fiction disclaimer (once per launch) -> title menu (when the root was built for it) or the night card -> BIOS
+    /// POST -> NEXUS OS splash -> log-on dialog. Built on the fullscreen layer; the player's cursor works normally (the
+    /// log-on button is a real button).
     /// </summary>
     public sealed class BootSequence
     {
@@ -19,11 +20,8 @@ namespace SecondCursor.Story
         RectTransform _panel;
         bool _clicked;
 
-        /// <summary>
-        /// The disclaimer and title were shown in this app session: a later night started from inside the game
-        /// (the end card's Continue) goes straight to its night card.
-        /// </summary>
-        internal static bool IntroShownThisSession;
+        /// <summary>The fiction and photosensitivity disclaimer was shown in this app launch (it shows once per launch).</summary>
+        internal static bool DisclaimerShownThisLaunch;
 
         public BootSequence(GameServices g)
         {
@@ -50,7 +48,8 @@ namespace SecondCursor.Story
             _panel = null;
         }
 
-        bool SkipPressed => !Game.PauseMenu.IsPaused && (_clicked || _g.Input.KeyDown(GameKey.Space) || _g.Input.KeyDown(GameKey.Enter));
+        bool SkipPressed => !Game.PauseMenu.IsPaused && Time.frameCount != Game.PauseMenu.StateChangeFrame
+                            && (_clicked || _g.Input.KeyDown(GameKey.Space) || _g.Input.KeyDown(GameKey.Enter));
 
         IEnumerator WaitOrSkip(float seconds)
         {
@@ -67,21 +66,29 @@ namespace SecondCursor.Story
         public IEnumerator Run(bool quick) => Run(quick, 1);
 
         /// <summary>
-        /// Night 1 plays exactly as it always has. Later nights skip the disclaimer and title when they were
-        /// already shown in this session, show their night card first, and use the night's log-on text.
+        /// The disclaimer once per launch; then either the title menu (a title root: the menu's choice builds a new
+        /// root, so this never goes further) or the night: its start is recorded, then the night card (every night,
+        /// spec 3.2), BIOS, splash and the night's log-on.
         /// </summary>
         public IEnumerator Run(bool quick, int night)
         {
             _night = night;
             _g.Player.Enabled = true;
-            bool intro = !quick && (night <= 1 || !IntroShownThisSession);
-            if (intro)
+            if (!quick && !DisclaimerShownThisLaunch)
             {
                 yield return Disclaimer();
-                yield return Title();
-                IntroShownThisSession = true;
+                DisclaimerShownThisLaunch = true;
             }
-            if (night > 1) yield return NightCard(night);
+            if (_g.ShowTitle)
+            {
+                _g.ShowTitle = false;
+                var menu = new TitleMenu(_g, NewPanel(Palette.Black, "Title"));
+                _g.Player.Visible = true;
+                yield return menu.Run();
+                yield break;
+            }
+            _g.Director.MarkNightStarted();
+            if (!quick) yield return NightCard(night);
             yield return Bios(quick);
             yield return Splash(quick);
             yield return Login();
@@ -134,52 +141,6 @@ namespace SecondCursor.Story
             }
             else yield return WaitOrSkip(6.5f); // long enough to read the photosensitivity warning
             while (a > 0f) { a -= Time.deltaTime * 2f; t.color = new Color(0.72f, 0.72f, 0.69f, Mathf.Max(0f, a)); yield return null; }
-        }
-
-        IEnumerator Title()
-        {
-            var p = NewPanel(Palette.Black, "Title");
-            var ghost = UIBuilder.Text(p, "SECOND CURSOR", new Color32(0xC0, 0x39, 0x2B, 0xFF), true);
-            ghost.Scale = 4;
-            ghost.rectTransform.At(0, 206, ScreenRig.Width, 40);
-            ghost.Align = TextAlign.Center;
-            var title = UIBuilder.Text(p, "SECOND CURSOR", Palette.BiosBright, true);
-            title.Scale = 4;
-            title.rectTransform.At(0, 204, ScreenRig.Width, 40);
-            title.Align = TextAlign.Center;
-            var sub = UIBuilder.Text(p, "a night shift prototype", Palette.BiosText);
-            sub.rectTransform.At(0, 256, ScreenRig.Width, 12);
-            sub.Align = TextAlign.Center;
-            var prompt = UIBuilder.Text(p, "Click to begin your shift", Palette.BiosText);
-            prompt.rectTransform.At(0, 380, ScreenRig.Width, 12);
-            prompt.Align = TextAlign.Center;
-            var hint = UIBuilder.Text(p, "Headphones recommended.", new Color32(0x6A, 0x6A, 0x66, 0xFF));
-            hint.rectTransform.At(0, 500, ScreenRig.Width, 12);
-            hint.Align = TextAlign.Center;
-            var options = UiButton.Create(p, "Options", a => Game.PauseMenu.Current?.OpenMenu(), "button:Options");
-            ((RectTransform)options.transform).At(ScreenRig.Width / 2 - 110, 420, 100, 22);
-            var quit = UiButton.Create(p, "Quit", a => Game.PauseMenu.QuitGame(), "button:QuitTitle");
-            ((RectTransform)quit.transform).At(ScreenRig.Width / 2 + 10, 420, 100, 22);
-            var version = UIBuilder.Text(p, "v" + Application.version, new Color32(0x4A, 0x4A, 0x46, 0xFF));
-            version.rectTransform.At(8, 522, 200, 12);
-
-            _g.Audio.PlayLoop("drone_tension", 0.35f, 2f);
-            float t = 0f;
-            _clicked = false;
-            while (!SkipPressed)
-            {
-                t += Time.deltaTime;
-                prompt.enabled = (t % 1.4f) < 0.9f;
-                // The "second cursor" motif: a red twin of the title slips out of alignment now and then.
-                bool slip = Random.value < 0.03f;
-                ghost.rectTransform.anchoredPosition = new Vector2(slip ? Random.Range(-6f, 6f) : 0f, -(slip ? 206f + Random.Range(-2f, 2f) : 204f));
-                ghost.enabled = slip || Random.value < 0.3f;
-                if (slip) _g.Fx.Glitch(0.05f, 0.4f);
-                yield return null;
-            }
-            _clicked = false;
-            _g.Audio.StopLoop("drone_tension", 1.5f);
-            _g.Audio.Play("ui_click");
         }
 
         IEnumerator Bios(bool quick)

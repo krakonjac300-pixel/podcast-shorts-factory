@@ -35,7 +35,15 @@ namespace SecondCursor.Game
         readonly System.Collections.Generic.List<System.Action> _pending = new System.Collections.Generic.List<System.Action>();
         System.Collections.Generic.List<LogEntry> _logSnapshot;
 
-        void Defer(System.Action action) => _pending.Add(action);
+        /// <summary>A panel action runs next Update; anything done from the panel stops the run counting for records.</summary>
+        void Defer(System.Action action)
+        {
+            _pending.Add(() =>
+            {
+                _g.Disarm("debug panel");
+                action();
+            });
+        }
 
         /// <summary>Keeps the panel open across the restart a beat jump makes.</summary>
         static bool _reopen;
@@ -65,15 +73,28 @@ namespace SecondCursor.Game
             if (Debug.isDebugBuild)
             {
                 if (input.KeyDown(GameKey.F1)) _open = !_open;
-                if (input.KeyDown(GameKey.F2)) _g.Director.SkipBeat();
-                if (input.KeyDown(GameKey.F3)) SummonToMouse();
+                if (input.KeyDown(GameKey.F2))
+                {
+                    _g.Disarm("F2 skip beat");
+                    _g.Director.SkipBeat();
+                }
+                if (input.KeyDown(GameKey.F3))
+                {
+                    _g.Disarm("F3 summon");
+                    SummonToMouse();
+                }
                 if (input.KeyDown(GameKey.F4))
                 {
+                    _g.Disarm("F4 speed");
                     _speedIndex = (_speedIndex + 1) % Speeds.Length;
                     if (!PauseMenu.IsPaused) Time.timeScale = Speeds[_speedIndex];
                     GameLog.Info(LogChannel.Debug, "Time scale " + Speeds[_speedIndex]);
                 }
-                if (input.KeyDown(GameKey.F5)) GameBootstrap.Restart();
+                if (input.KeyDown(GameKey.F5))
+                {
+                    _g.Disarm("F5 restart");
+                    GameBootstrap.Restart();
+                }
             }
             if (input.KeyDown(GameKey.F6)) _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled;
             Cursor.visible = _open || !Application.isFocused;
@@ -130,7 +151,10 @@ namespace SecondCursor.Game
                                 ? "\nRounds: " + (_g.Rounds.Running ? "ON" : "off") + " stage " + _g.Rounds.Model.Stage + " (" + _g.Rounds.Model.FigureStage + ") meter " +
                                   _g.Rounds.Model.Meter.ToString("0.0") + "/" + _g.Rounds.Model.Config.WatchSeconds.ToString("0") + "  t " + _g.Rounds.Elapsed.ToString("0")
                                 : "") +
-                            (_g.Gary != null && _g.Gary.IsVisible ? "\nGary: " + (_g.Gary.CurrentAction ?? "-") + " alpha " + _g.Gary.View.Alpha.ToString("0.00") : ""), _label);
+                            (_g.Gary != null && _g.Gary.IsVisible ? "\nGary: " + (_g.Gary.CurrentAction ?? "-") + " alpha " + _g.Gary.View.Alpha.ToString("0.00") : "") +
+                            "\nRecords: " + (_g.RecordsArmed ? "armed" : "held (" + _g.RecordsHeldReason + ")"), _label);
+                // Arming is the one panel action that does not hold records.
+                if (GUILayout.Button(_g.RecordsArmed ? "Records armed" : "Arm records (testing)")) _pending.Add(() => _g.ForceArm());
 
             GUILayout.Label("Night (fresh shift):", _label);
             GUILayout.BeginHorizontal();

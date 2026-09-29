@@ -124,11 +124,8 @@ namespace SecondCursor.Story
                 g.Notifications.Show(g.Content.Text("app.camera"), g.Content.Text("rounds.end"), "icon_camera", null, "ui_select");
                 if (rig != null) rig.Figure = FigureStage.None;
                 g.Rounds.PatchPersonnelFor("SublevelC");
-                if (maxStage <= 1)
-                {
-                    g.Flags.Set(Flags.N3RoundsSafe);
-                    GameLog.Info(LogChannel.Story, "Hook: ACH_REMAIN_SEATED");
-                }
+                if (maxStage <= 1) g.Flags.Set(Flags.N3RoundsSafe);
+                g.AchievementWatch?.OnRoundsSafe(Night, maxStage);
                 yield return Say(_ellen, Lines("n3_rounds_safe"), 4f);
             }
 

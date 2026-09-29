@@ -5,6 +5,7 @@
       "title": "Read the shift briefing",
       "description": "Your supervisor left tonight's briefing in Mail. Read it before you start.",
       "hint": "Double-click the Mail icon, then click the unread message to open it.",
+      "hintDeck": "Press A twice on the Mail icon, then choose the unread message to open it.",
       "type": "ReadEmail",
       "targets": ["mail_welcome"],
       "param": ""
@@ -41,6 +42,7 @@
       "title": "Shred ~nxs0148.tmp",
       "description": "A temporary cache file is taking up space in Intake. Shred it.",
       "hint": "Drag ~nxs0148.tmp onto the Disposal bin, then confirm. Or right-click it for options.",
+      "hintDeck": "Hold R2 on ~nxs0148.tmp and drop it on the Disposal bin, then confirm. Or press L2 on it for options.",
       "type": "DeleteFile",
       "targets": ["cache_tmp"],
       "param": ""

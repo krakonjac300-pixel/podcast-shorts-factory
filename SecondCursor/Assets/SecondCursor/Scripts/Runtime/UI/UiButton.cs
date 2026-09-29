@@ -154,6 +154,14 @@ namespace SecondCursor.UI
         {
             if (Label != null) Label.text = text;
         }
+
+        /// <summary>A keyboard press (Enter or Space on the focused menu button): same sound and event as a click.</summary>
+        public void Press(CursorAgent by)
+        {
+            if (!_enabled) return;
+            if (!string.IsNullOrEmpty(ClickSound)) Sfx.Play(ClickSound, by);
+            Clicked?.Invoke(by);
+        }
     }
 
     /// <summary>

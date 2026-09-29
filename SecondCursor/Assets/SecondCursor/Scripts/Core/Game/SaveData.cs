@@ -18,6 +18,13 @@ namespace SecondCursor.Core.Game
         public float trust;
         public int assistLevel;
         public FlagSnapshot flags = new FlagSnapshot();
+        /// <summary>Seconds of the night played before this checkpoint (best times and totals carry on from here).</summary>
+        public float elapsed;
+        /// <summary>
+        /// Saved in a run that counts for records and achievements. Field initializers survive JsonUtility, so a
+        /// checkpoint saved before this field existed loads as armed.
+        /// </summary>
+        public bool armed = true;
     }
 
     /// <summary>What a finished night hands to the save (see <see cref="SaveData.RecordNightComplete"/>).</summary>
@@ -29,9 +36,12 @@ namespace SecondCursor.Core.Game
         public FlagSnapshot Memory = new FlagSnapshot();
         public float Trust;
         public int AssistLevel;
-        public int TugWins;
-        public int TugLosses;
         public float Seconds;
+        /// <summary>
+        /// The run counts for records (endings seen, play time, best time). Progression is saved either way: a debug
+        /// run may unlock nights, never endings or achievements.
+        /// </summary>
+        public bool Records = true;
         /// <summary>What the player typed to the second cursor, in order (Night 1 keeps the first three).</summary>
         public IList<string> PlayerLines;
     }
@@ -47,6 +57,8 @@ namespace SecondCursor.Core.Game
         public const int Nights = 3;
         public const int MaxPlayerLines = 3;
         public const int MaxPlayerLineLength = 40;
+        /// <summary>Shorter "nights" (a test jump straight to an ending) never become a best time.</summary>
+        public const float MinRecordedSeconds = 1f;
 
         public int version = CurrentVersion;
 
@@ -62,6 +74,10 @@ namespace SecondCursor.Core.Game
         public FlagSnapshot[] nightStartMemory = { new FlagSnapshot(), new FlagSnapshot(), new FlagSnapshot() };
         /// <summary>How often each night was started (0 = never; tells an empty start memory from an unset one).</summary>
         public int[] nightStarts = new int[Nights];
+        /// <summary>Trust at the first start of each night (Night Select replays from here).</summary>
+        public float[] nightStartTrust = new float[Nights];
+        /// <summary>The last night finished (0 = none; 3 = the game was just finished, so Continue has nothing to resume).</summary>
+        public int lastCompletedNight;
         /// <summary>All "m." flags and counters so far.</summary>
         public FlagSnapshot memory = new FlagSnapshot();
         /// <summary>Night 1 Notepad replies, sanitized.</summary>
@@ -78,7 +94,10 @@ namespace SecondCursor.Core.Game
         public string[] secrets = Array.Empty<string>();
         public int tugWinsTotal;
         public int tugLossesTotal;
+        /// <summary>Total play time per night (all armed runs added up).</summary>
         public float[] nightSeconds = new float[Nights];
+        /// <summary>Fastest armed completion per night in seconds (0 = none yet).</summary>
+        public float[] bestNightSeconds = new float[Nights];
 
         // legacy fields, kept so older files migrate
         public int shiftsCompleted;
@@ -145,6 +164,8 @@ namespace SecondCursor.Core.Game
             for (int i = 0; i < Nights; i++) if (nightStartMemory[i] == null) { nightStartMemory[i] = new FlagSnapshot(); changed = true; }
             if (nightStarts == null || nightStarts.Length != Nights) { nightStarts = Resize(nightStarts); changed = true; }
             if (nightSeconds == null || nightSeconds.Length != Nights) { nightSeconds = Resize(nightSeconds); changed = true; }
+            if (bestNightSeconds == null || bestNightSeconds.Length != Nights) { bestNightSeconds = Resize(bestNightSeconds); changed = true; }
+            if (nightStartTrust == null || nightStartTrust.Length != Nights) { nightStartTrust = Resize(nightStartTrust); changed = true; }
             playerLines = playerLines ?? Array.Empty<string>();
             endingsSeen = endingsSeen ?? Array.Empty<string>();
             achievements = achievements ?? Array.Empty<string>();
@@ -152,6 +173,7 @@ namespace SecondCursor.Core.Game
             difficulty = string.IsNullOrEmpty(difficulty) ? "normal" : difficulty;
             nightUnlocked = Math.Max(1, Math.Min(Nights + 1, nightUnlocked));
             currentNight = Math.Max(1, Math.Min(Nights, currentNight));
+            lastCompletedNight = Math.Max(0, Math.Min(Nights, lastCompletedNight));
             return changed;
         }
 
@@ -171,13 +193,30 @@ namespace SecondCursor.Core.Game
 
         static int Index(int night) => Math.Max(1, Math.Min(Nights, night)) - 1;
 
-        /// <summary>A night starts: remember the memory it started from (first start only) and make it Continue's night.</summary>
-        public void RecordNightStart(int night, FlagSnapshot memoryAtStart)
+        /// <summary>
+        /// A night starts: remember the memory and trust it started from (first start only) and make it Continue's
+        /// night.
+        /// </summary>
+        public void RecordNightStart(int night, FlagSnapshot memoryAtStart, float trustAtStart = 0f)
         {
             int i = Index(night);
-            if (nightStarts[i] == 0) nightStartMemory[i] = memoryAtStart ?? new FlagSnapshot();
+            if (nightStarts[i] == 0)
+            {
+                nightStartMemory[i] = memoryAtStart ?? new FlagSnapshot();
+                nightStartTrust[i] = MathUtil.Clamp(trustAtStart, -1f, 1f);
+            }
             nightStarts[i]++;
             currentNight = i + 1;
+        }
+
+        /// <summary>A night was started by a run that does not count (a debug start): only Continue's night follows it.</summary>
+        public void NoteNightStarted(int night) => currentNight = Index(night) + 1;
+
+        /// <summary>A real tug-of-war ended (never a forced one): the lifetime totals count it at once.</summary>
+        public void RecordTug(bool playerWon)
+        {
+            if (playerWon) tugWinsTotal++;
+            else tugLossesTotal++;
         }
 
         public void SetCheckpoint(Checkpoint cp)
@@ -196,23 +235,26 @@ namespace SecondCursor.Core.Game
         {
             if (r == null) return;
             int i = Index(r.Night);
-            if (!string.IsNullOrEmpty(r.EndingId) && Array.IndexOf(endingsSeen, r.EndingId) < 0)
+            if (r.Records && !string.IsNullOrEmpty(r.EndingId) && Array.IndexOf(endingsSeen, r.EndingId) < 0)
             {
                 var list = new List<string>(endingsSeen) { r.EndingId };
                 endingsSeen = list.ToArray();
             }
             // The keys of this night and later nights ("m.n2." and on for Night 2) come from this run only (a
             // replayed night never mixes two runs' choices, and later nights built on the old path are stale);
-            // earlier nights' keys and keys of no night (m.said_name) are kept.
+            // earlier nights' keys and keys of no night are kept.
             memory = MergeNightMemory(memory, r.Memory, r.Night);
             entityTrust = MathUtil.Clamp(r.Trust, -1f, 1f);
             assistCarry = r.AssistLevel;
             nightUnlocked = Math.Max(nightUnlocked, Math.Min(r.Night + 1, Nights + 1));
             currentNight = Math.Min(i + 2, Nights);
             checkpoint = new Checkpoint();
-            tugWinsTotal += Math.Max(0, r.TugWins);
-            tugLossesTotal += Math.Max(0, r.TugLosses);
-            nightSeconds[i] += Math.Max(0f, r.Seconds);
+            lastCompletedNight = i + 1;
+            if (r.Records && r.Seconds >= MinRecordedSeconds)
+            {
+                nightSeconds[i] += r.Seconds;
+                if (bestNightSeconds[i] <= 0f || r.Seconds < bestNightSeconds[i]) bestNightSeconds[i] = r.Seconds;
+            }
             if (r.Night == 1 && r.PlayerLines != null)
             {
                 var lines = new List<string>();
@@ -226,18 +268,91 @@ namespace SecondCursor.Core.Game
             }
         }
 
-        /// <summary>New Game: progression starts over; settings, endings seen, achievements, secrets and totals stay.</summary>
+        /// <summary>
+        /// New Game: progression starts over; settings, endings seen, achievements, secrets, totals and best times
+        /// stay.
+        /// </summary>
         public void NewGame()
         {
             nightUnlocked = 1;
             currentNight = 1;
+            lastCompletedNight = 0;
             checkpoint = new Checkpoint();
             nightStartMemory = new[] { new FlagSnapshot(), new FlagSnapshot(), new FlagSnapshot() };
             nightStarts = new int[Nights];
+            nightStartTrust = new float[Nights];
             memory = new FlagSnapshot();
             playerLines = Array.Empty<string>();
             entityTrust = 0f;
             assistCarry = 0;
+        }
+
+        /// <summary>Anything to continue: a night was started or unlocked, or a checkpoint exists.</summary>
+        public bool HasProgress
+        {
+            get
+            {
+                if (nightUnlocked > 1 || (checkpoint != null && checkpoint.valid)) return true;
+                foreach (int n in nightStarts ?? Array.Empty<int>()) if (n > 0) return true;
+                return false;
+            }
+        }
+
+        /// <summary>Anything for the Records screen: achievements, endings, tug totals or play time.</summary>
+        public bool HasRecords
+        {
+            get
+            {
+                if ((achievements?.Length ?? 0) > 0 || (endingsSeen?.Length ?? 0) > 0 || tugWinsTotal > 0 || tugLossesTotal > 0) return true;
+                foreach (float s in nightSeconds ?? Array.Empty<float>()) if (s > 0f) return true;
+                return false;
+            }
+        }
+
+        /// <summary>Where the title's Continue goes.</summary>
+        public sealed class ContinueInfo
+        {
+            public int Night;
+            /// <summary>The checkpoint to resume, or null to start the night from its beginning.</summary>
+            public Checkpoint Checkpoint;
+        }
+
+        /// <summary>
+        /// Continue's target, or null to hide Continue: a valid checkpoint of a playable night first; nothing once
+        /// the game was just finished or the next night is not in this build (the demo after Night 1); else the
+        /// current night from its start when there is any progress.
+        /// </summary>
+        public ContinueInfo ContinueTarget(int maxNight)
+        {
+            var cp = checkpoint;
+            if (cp != null && cp.valid && !string.IsNullOrEmpty(cp.beat) && cp.night >= 1 && cp.night <= maxNight)
+                return new ContinueInfo { Night = cp.night, Checkpoint = cp };
+            if (lastCompletedNight >= Nights || currentNight > maxNight) return null;
+            return HasProgress ? new ContinueInfo { Night = currentNight } : null;
+        }
+
+        /// <summary>
+        /// The memory and trust a night starts from. Night Select replays a night that was started before from its
+        /// first start (so replaying Night 1 cannot take the Night 2 choices away from a Night 3 replay); every other
+        /// start uses the saved memory up to that night, with trust decayed toward neutral. Night 1 starts empty.
+        /// </summary>
+        public void StartStateFor(int night, bool fromNightSelect, out FlagSnapshot memoryAtStart, out float trustAtStart)
+        {
+            int i = Index(night);
+            if (fromNightSelect && nightStarts[i] > 0)
+            {
+                memoryAtStart = nightStartMemory[i] ?? new FlagSnapshot();
+                trustAtStart = nightStartTrust[i];
+                return;
+            }
+            if (i == 0)
+            {
+                memoryAtStart = new FlagSnapshot();
+                trustAtStart = 0f;
+                return;
+            }
+            memoryAtStart = MemoryForNight(i + 1);
+            trustAtStart = TrustAtNightStart(i + 1, entityTrust);
         }
 
         /// <summary>
@@ -307,7 +422,7 @@ namespace SecondCursor.Core.Game
 
         /// <summary>
         /// The saved memory after <paramref name="night"/> ends: the saved keys of earlier nights (and of no night,
-        /// such as m.said_name) stay, the keys of this night and later nights are dropped, then everything the run
+        /// such as the legacy m.said_name) stay, the keys of this night and later nights are dropped, then everything the run
         /// remembered is added on top (its own keys, and the earlier memory it started from).
         /// </summary>
         public static FlagSnapshot MergeNightMemory(FlagSnapshot saved, FlagSnapshot run, int night)

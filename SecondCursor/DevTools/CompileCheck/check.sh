@@ -3,9 +3,9 @@
 # Usage: ./check.sh    (run ./setup.sh once first)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-[ -f "$HERE/.deps/ugui/UnityEngine.UI.dll" ] || { echo "Run setup.sh first"; exit 2; }
+[ -f "$HERE/.deps/ugui/UnityEngine.UI.dll" ] || { echo "Run setup.sh (download) or setup_local.sh (local Unity) first"; exit 2; }
 status=0
-for p in Core Runtime RuntimeEditor RuntimeInputSystem Editor; do
+for p in Core Runtime RuntimeEditor RuntimeInputSystem RuntimeDemo RuntimeSteam RuntimeSteamDemo Editor; do
   out=$(dotnet build "$HERE/$p.csproj" -nologo -v q -clp:NoSummary 2>&1)
   errs=$(echo "$out" | grep -E " error " | sed -E 's/ \[[^]]*\]$//' | sort -u)
   warns=$(echo "$out" | grep -E " warning " | grep -v "MSB3277\|NU1" | sed -E 's/ \[[^]]*\]$//' | sort -u)

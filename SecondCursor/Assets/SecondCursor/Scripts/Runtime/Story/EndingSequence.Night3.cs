@@ -63,7 +63,7 @@ namespace SecondCursor.Story
             if (_spec.SystemLines != null && _spec.SystemLines.Length > 0) yield return TypeSystemLines(room, _spec.SystemLines);
             yield return TypeSpoken(room, _spec.Lines ?? System.Array.Empty<string>(), _spec.Speakers);
             if (_spec.Stinger) yield return Cam00Stinger(room);
-            yield return EndCard(room);
+            yield return ShowCard(room);
         }
 
         /// <summary>Night 1's power down: the hum stops, the tube dies, black.</summary>

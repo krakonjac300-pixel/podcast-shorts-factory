@@ -88,6 +88,10 @@ Then:
 
 ### 2.2 P0: Menu, Quit and flashing choice reachable from the first screen
 
+**Status: done** (release audit fixes, then Phase E). Esc opens Options on the title and the full menu everywhere else; the
+first launch asks Full effects / Reduce flashing on the disclaimer; the title menu has Options and Quit; the taskbar has a
+menu button (`||`). The menu also works with the keyboard alone (Up/Down/Tab, Enter/Space, Esc).
+
 Evidence: `PauseMenu.Update` returns early unless `Flags.LoggedIn` (line 39); during boot Esc only skips (`BootSequence.SkipPressed`); the Log On dialog's Cancel only prints "You must log on to begin your shift."; Start > Shut Down is refused by design. A player who wants to leave before log-on must use Alt+F4. The disclaimer (`strings.json` `disclaimer.body`) says "You can reduce flashing at any time from the Esc menu", which is not true until after BIOS and splash.
 
 Fix:
@@ -97,6 +101,11 @@ Fix:
 4. Add an on-screen pause affordance after log-on (for example a tray icon on the Taskbar that opens the menu) so the game is fully playable with a mouse only (also needed for the Steam "Mouse Only Option" accessibility tag and for Deck).
 
 ### 2.3 P0: Settings menu (display, VSync, volume, flashing) that actually works
+
+**Status: done for display, VSync and frame cap** (Phase E): Display (borderless fullscreen / largest whole-number window,
+applied at start), Frame rate (VSync default, 30, 60, 120, 144, Unlimited: `DisplaySettings`), Reading text (Normal / Large),
+volume, CRT, flashing and difficulty, all saved to `settings.json` at once. Still open: a separate screen-shake setting,
+window sizes to pick from, sticky drag.
 
 Evidence: `PauseMenu.ToggleDisplay` does `Screen.fullScreenMode = FullScreenMode.FullScreenWindow` when returning to fullscreen, which keeps the current 1280x720 render size, so the game is upscaled and blurry until restart; windowed is always 1280x720 (non-integer 1.333x of 960x540); `SaveData.fullscreen` is written but never read in `GameRoot.Build`; VSync and frame cap are hard-coded in `GameRoot.Awake`; only master volume exists.
 
@@ -121,6 +130,10 @@ Cursor confinement: in borderless fullscreen on a multi-monitor PC, "pull away h
 Store the settings in their own file (see 2.4).
 
 ### 2.4 P0: Save location, crash safety and Steam Cloud layout
+
+**Status: done in code** (release audit fixes): `settings.json` and `progress.json` are separate, writes are atomic with a
+`.bak`, an unreadable file is kept as `.corrupt` (the title shows a one-line notice), the old file is migrated once.
+Still to do in Steamworks: the Auto-Cloud rows below (sync `progress.json` only).
 
 Evidence: `SaveSystem.Save` uses `File.WriteAllText` directly on `second_cursor_save.json`. A crash or power loss mid-write leaves a truncated file; `Load` then logs a warning and returns `new SaveData()`, and the next `SaveSettings`/`Achievements.Unlock` overwrites the damaged file with defaults, silently wiping achievements, endings and `shiftsCompleted`. Settings (volume, fullscreen) and progress share one file, so Steam Cloud would copy a Deck's display settings to a PC. `Player.log` and `Player-prev.log` are written to the same folder.
 
@@ -149,6 +162,10 @@ Today the game has no Steam code, so a launch outside Steam is fine. After integ
 - [ ] Launch on a 4K monitor, an ultrawide, a 1366x768 laptop, and with a second monitor. Launch with no audio device (Unity then plays silently; confirm `AudioManager.GenerateAll` does not stall).
 
 ### 2.6 P0: Prototype copy in the shipping build
+
+**Status: done** (Phase E): the full game's Night 1 card is `NIGHT 1` with Continue / Title / Quit; the WISHLIST card exists only
+in the demo build (`SC_DEMO`); Title > Credits exists. When Steamworks.NET is added, paste its LICENSE text into the base
+`strings.json` key `credits.steamworks` (Credits shows it under "Third-party notices" in `STEAMWORKS_NET` builds).
 
 `Assets\SecondCursor\Resources\Content\strings.json`:
 - `end.card.cta` = "WISHLIST NOW" (blinks on the end card, `EndingSequence.cs`). Replace for 1.0, for example "END OF SHIFT" or remove the CTA.
@@ -213,6 +230,20 @@ Measured scale on Deck: `min(1280/960, 800/540) = 1.333` (non-integer), so the 9
 | D8 | Cloud round trip PC to Deck (2.4) and confirm `Player.log` is readable inside the Proton prefix | Steamworks | QA |
 | D9 | Performance: keep VSync on and 60 fps cap by default; check battery draw with CRT effects on (full-screen overlay plus 2x supersample) | none | Verified |
 
+**Phase E status:**
+- D1: the default config to publish is now: D-pad = arrow keys (every menu is keyboard-navigable), A = left click, B and Menu =
+  Esc, X = Enter, Y = Delete, View = on-screen keyboard, R2 = left click held (drag), L2 = right click, right trackpad = mouse,
+  left stick = slow precise mouse. Still to publish in Steamworks.
+- D2: done in code (`Input/DeckKeyboard.cs`): the floating keyboard opens for Jotter conversations (single line), editable
+  files (multi line) and the Restricted code prompt (numeric), and closes when they lose focus; a click brings it back after a
+  Steam-side dismissal. Needs hardware testing (Enter in single-line mode, Backspace, overlay callback).
+- D3: done: `*.deck` string variants (`disclaimer.body`, `quickstart.body`, `help.body`) and `hintDeck` for the task hints
+  that named mouse moves; the wording switches when `SteamBridge.OnDeck`.
+- D4: partly done: Reading text Large (default on the Deck's first launch) doubles Jotter documents and Mail. Dialogs, toasts,
+  the Work Queue and the hex viewer stay 1x.
+- D5: done (`Pointer.current` for position and left button). D6: hook in place (`GameRoot.DeckPullSpeedScale`, 1 until
+  trackpad drags are measured). D7: done in code (`OnApplicationPause(true)` and the Steam overlay pause the shift).
+
 After D1 to D4 and D7, request the compatibility review from the Steam Deck section of the app's Steamworks page. Valve tests the Windows build under Proton when there is no Linux build.
 
 ---
@@ -245,9 +276,10 @@ Recommendation: **Steamworks.NET**. Minimum supported Unity is 2019.4 LTS, Unity
    ```
    Steamworks.NET's editor script can also add `STEAMWORKS_NET` to Scripting Define Symbols automatically (toggle added in 2025.162.1); either source is fine.
 3. The package drops `steam_appid.txt` (contents `480`) in the project root for Editor testing. Put the real App ID in it. Never ship it: with that file present `RestartAppIfNecessary` always returns false (https://partner.steamgames.com/doc/api/steam_api).
-4. `Achievements.cs`: `public const uint AppId = <real App ID>;` (today `480`, Valve's Spacewar test app).
+4. `Game/SteamBridge.cs`: `FullGameAppId` and `DemoAppId` (today both `480`, Valve's Spacewar test app), and `StoreUrl`.
+5. Check with `DevTools/CompileCheck`: `RuntimeSteam` and `RuntimeSteamDemo` compile the `STEAMWORKS_NET` code against a stub.
 
-### Minimal code shape (replaces the `#if STEAMWORKS_NET` block in `Achievements.cs`)
+### Minimal code shape (implemented in Phase E as `Game/SteamBridge.cs`; kept here as the reference)
 
 ```csharp
 #if STEAMWORKS_NET
@@ -321,18 +353,41 @@ Notes:
 
 ### Achievements: define in Steamworks, call from code
 
-`Achievements.Unlock` exists but nothing calls it (no call sites in `Scripts`). Suggested set (API names are what the code passes; mark story spoilers Hidden):
+Done in code (Phase E): the 19 achievements of the expansion spec, Section 9 (`Core/Game/AchievementIds.cs`), unlocked
+through one gate (`Achievements.Unlock(g, id)`: only in runs that count, never from a checkpoint restore, a debug jump or a
+forced tug). Enter them in Steamworks > Stats & Achievements exactly like this (names and descriptions are also in the base
+`strings.json` as `ach.<ID>.name` / `.desc`):
 
-| API name | Unlock at | Hidden |
-|---|---|---|
-| `SC_SHIFT_DONE` | `EndingSequence` end card | no |
-| `SC_TASKS_ALL` | `WorkTaskManager` all tutorial tasks complete | no |
-| `SC_TUG_WIN` | `ConflictSystem` player wins a tug-of-war | yes |
-| `SC_BLOCK_CANCEL` | player's cursor blocks the entity from Cancel during shredding | yes |
-| `SC_SHRED_017` | `employee_017.dat` shredded ("in use by another user") | yes |
-| `SC_REPLY` | first line submitted in Notepad conversation | yes |
-| `SC_SILENT` | conversation ends on the silence path | yes |
-| `SC_CAM03` | CAM 03 watched to the end | yes |
+| API name | Name | Description | Hidden |
+|---|---|---|---|
+| `ACH_NIGHT_1` | First Solo Shift | Finish Night 1. | no |
+| `ACH_NIGHT_2` | Second Night | Finish Night 2. | no |
+| `ACH_NIGHT_3` | Last Night | Finish Night 3. | no |
+| `ACH_END_SHRED` | Take the Seat | Reach the SHRED ending. | yes |
+| `ACH_END_KEEP` | Working Nights | Reach the KEEP ending. | yes |
+| `ACH_END_LOGOFF` | Nobody Left | Reach the LOG OFF ending. | yes |
+| `ACH_ALL_ENDINGS` | Every Way Out | See all three endings. | no |
+| `ACH_FIRM_GRIP` | Firm Grip | Win a tug-of-war against the second cursor. | no |
+| `ACH_WHITE_KNUCKLES` | White Knuckles | Win 10 tugs-of-war. (progress stat `TUG_WINS`, 0 to 10) | no |
+| `ACH_DO_NOT_READ` | Do Not Read | Open employee_017.dat. | yes |
+| `ACH_REMOTE_SESSION` | Remote Session | Do everything it asked of you on Night 2. | yes |
+| `ACH_FINISHED` | Finished | Let Gary finish. | yes |
+| `ACH_HALF` | Half Is Enough | Keep Gary on WS-04. | yes |
+| `ACH_HIS_GLASSES` | His Glasses | Ask Gary about his glasses. | yes |
+| `ACH_HER_NAME` | Her Name | Say her name to the second cursor. | yes |
+| `ACH_AUTHORIZED` | Authorized | Open Restricted with the Retention code. | yes |
+| `ACH_REMAIN_SEATED` | Remain Seated | Finish Night 3's rounds without Custodial reaching the B-Level hall. | no |
+| `ACH_NOT_ON_MY_SHELF` | Not On My Shelf | Refuse to confirm your own shelf. | yes |
+| `ACH_WATCHERS` | Watch the Watchers | Find CAM 00. | yes |
+
+Stat: `TUG_WINS`, type INT, increment only, min 0, max 10, default 0; set as the progress stat of `ACH_WHITE_KNUCKLES`
+(Steam shows "5 of 10" once, the game calls `IndicateAchievementProgress` at 5). Every boot with Steam pushes the saved
+achievements and the stat again (offline unlocks).
+
+Demo: the demo is its own Steam app (`SteamBridge.DemoAppId`, 480 until it exists). The demo build keeps achievements local
+(no Steam pushes) until the demo app gets its own achievements; its Wishlist button opens the FULL game's page in the Steam
+overlay (`ActivateGameOverlayToStore(FullGameAppId)`), or `SteamBridge.StoreUrl` in the browser without Steam. Demo saves are
+separate (product name "SECOND CURSOR Demo").
 
 Each needs a display name, description and two icons (achieved, unachieved). Valve recommends 256x256 per icon; confirm in the achievement editor upload dialog. Publish the stats/achievements changes in Steamworks after editing.
 

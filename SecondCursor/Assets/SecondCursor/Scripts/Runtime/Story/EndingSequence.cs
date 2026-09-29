@@ -39,25 +39,33 @@ namespace SecondCursor.Story
         public bool Stinger;
         /// <summary>A line under the subtitle ("" = none).</summary>
         public string ThanksKey = "";
-        /// <summary>The last night's card: Title (and Night Select once it exists) and Quit, no Continue.</summary>
+        /// <summary>The last night's card: Title, Night Select and Quit, no Continue.</summary>
         public bool FinalCard;
+        /// <summary>The card's buttons (None = the defaults for its kind of card, see <see cref="EndCard.ButtonsFor"/>).</summary>
+        public EndCardButtons Buttons;
         /// <summary>Lines the second cursor types in the dark (null = story.json endingLines, Night 1).</summary>
         public string[] Lines;
         /// <summary>Typed after them by Gary's faint cursor, small and lowercase (Night 2 KEEP).</summary>
         public string[] GaryLines;
         public string TitleKey = "end.card.title";
         public string SubtitleKey = "end.card.subtitle";
-        /// <summary>Night 1's demo card: big title, WISHLIST NOW, Start a new shift.</summary>
+        /// <summary>The demo's card: big title, WISHLIST NOW, Wishlist, Title and Quit.</summary>
         public bool DemoCard = true;
         /// <summary>Night offered by a "Continue to Night N" button (0 = none).</summary>
         public int ContinueNight;
 
-        /// <summary>Night 1: the slice's blackout, unchanged, plus Continue to Night 2 once it is unlocked (not in demo builds).</summary>
+        /// <summary>
+        /// Night 1: the slice's blackout. The demo keeps the WISHLIST card; the full game shows the night's own card
+        /// with Continue to Night 2 (completing the night has just unlocked it).
+        /// </summary>
         public static EndingSpec Night1()
         {
             var spec = new EndingSpec { Id = Core.Content.ContentIds.EndingN1Blackout };
 #if !SC_DEMO
-            if (SaveSystem.Load().nightUnlocked >= 2) spec.ContinueNight = 2;
+            spec.DemoCard = false;
+            spec.TitleKey = "end.n1.title";
+            spec.SubtitleKey = "end.n1.subtitle";
+            spec.ContinueNight = 2;
 #endif
             return spec;
         }
@@ -182,8 +190,11 @@ namespace SecondCursor.Story
                 yield return null;
             }
             yield return Waits.Seconds(1f);
-            yield return EndCard(black);
+            yield return ShowCard(black);
         }
+
+        /// <summary>The card and its buttons (<see cref="Story.EndCard"/>); never returns (a button starts something new).</summary>
+        IEnumerator ShowCard(RectTransform parent) => Story.EndCard.Run(_g, _spec, parent);
 
         static float AudioPanFor(GameServices g) => Audio.AudioManager.PanFor(g.EntityAgent.Position.x);
 
@@ -212,118 +223,6 @@ namespace SecondCursor.Story
                 sb.Append('\n');
                 yield return Waits.Seconds(1.2f);
             }
-        }
-
-        IEnumerator EndCard(RectTransform parent)
-        {
-            var g = _g;
-            var c = g.Content;
-            g.Audio.Play("end_tone");
-            g.Audio.Play("low_thump", 0.8f);
-
-            var title = UIBuilder.Text(parent, c.Text(_spec.TitleKey), Palette.BiosBright, true);
-            title.Scale = 5;
-            title.rectTransform.At(0, 150, ScreenRig.Width, 60);
-            title.Align = TextAlign.Center;
-            var sub = UIBuilder.Text(parent, c.Text(_spec.SubtitleKey), Palette.BiosText);
-            sub.rectTransform.At(0, 222, ScreenRig.Width, 12);
-            sub.Align = TextAlign.Center;
-            if (!string.IsNullOrEmpty(_spec.ThanksKey) && !_spec.DemoCard)
-            {
-                var line = UIBuilder.Text(parent, c.Text(_spec.ThanksKey), new Color32(0x8A, 0x8A, 0x84, 0xFF));
-                line.rectTransform.At(0, 250, ScreenRig.Width, 12);
-                line.Align = TextAlign.Center;
-            }
-            if (!_spec.DemoCard)
-            {
-                yield return NightCardButtons(parent);
-                yield break;
-            }
-            var cta = UIBuilder.Text(parent, c.Text("end.card.cta"), new Color32(0xE8, 0xC4, 0x5A, 0xFF), true);
-            cta.Scale = 3;
-            cta.rectTransform.At(0, 290, ScreenRig.Width, 36);
-            cta.Align = TextAlign.Center;
-            var thanks = UIBuilder.Text(parent, c.Text("end.card.thanks"), Palette.BiosText);
-            thanks.rectTransform.At(0, 350, ScreenRig.Width, 12);
-            thanks.Align = TextAlign.Center;
-
-            g.Player.Enabled = true;
-            g.Player.Visible = true;
-            bool store = !string.IsNullOrEmpty(SteamBridge.StoreUrl);
-            bool next = _spec.ContinueNight > 0;
-            int buttons = 2 + (store ? 1 : 0) + (next ? 1 : 0);
-            int x0 = ScreenRig.Width / 2 - buttons * 75;
-            if (next)
-            {
-                int night = _spec.ContinueNight;
-                var cont = UiButton.Create(parent, c.Format("end.card.continue", night), a => GameBootstrap.Restart(night), "button:Continue", true);
-                ((RectTransform)cont.transform).At(x0, 420, 140, 24);
-                x0 += 150;
-            }
-            var again = UiButton.Create(parent, "Start a new shift", a => GameBootstrap.Restart(), "button:Restart");
-            ((RectTransform)again.transform).At(x0, 420, 140, 24);
-            if (store)
-            {
-                var wish = UiButton.Create(parent, "Wishlist on Steam", a => SteamBridge.OpenStorePage(), "button:Wishlist", true);
-                ((RectTransform)wish.transform).At(x0 + 150, 420, 140, 24);
-                x0 += 150;
-            }
-            var quit = UiButton.Create(parent, "Quit", a => Quit(), "button:Quit");
-            ((RectTransform)quit.transform).At(x0 + 150, 420, 140, 24);
-
-            float t = 0f;
-            while (true)
-            {
-                t += Time.deltaTime;
-                cta.enabled = (t % 1.6f) < 1.1f;
-                // The title's second letter pair occasionally doubles, the way the cursor did.
-                if (Random.value < 0.01f) g.Fx.Glitch(0.06f, 0.5f);
-                yield return null;
-            }
-        }
-
-        /// <summary>Nights 2 and 3: the night's card with Continue to the next night, Title and Quit.</summary>
-        IEnumerator NightCardButtons(RectTransform parent)
-        {
-            var g = _g;
-            var c = g.Content;
-            g.Player.Enabled = true;
-            g.Player.Visible = true;
-            bool next = _spec.ContinueNight > 0 && !_spec.FinalCard;
-            bool select = _spec.FinalCard && GameBootstrap.NightSelectAvailable;
-            int x0 = ScreenRig.Width / 2 - (next || select ? 225 : 150);
-            if (select)
-            {
-                // Night Select arrives with the title menu (Phase E); the hook is here already.
-                var sel = UiButton.Create(parent, c.Text("end.card.select"), a => GameBootstrap.ToNightSelect(), "button:Night Select");
-                ((RectTransform)sel.transform).At(x0 + 150, 420, 140, 24);
-            }
-            if (next)
-            {
-                int night = _spec.ContinueNight;
-                var cont = UiButton.Create(parent, c.Format("end.card.continue", night), a => GameBootstrap.Restart(night), "button:Continue", true);
-                ((RectTransform)cont.transform).At(x0, 420, 140, 24);
-                x0 += 150;
-            }
-            var menu = UiButton.Create(parent, c.Text("end.card.menu"), a => GameBootstrap.ToTitle(), "button:Title");
-            ((RectTransform)menu.transform).At(x0, 420, 140, 24);
-            if (select) x0 += 150;
-            var quit = UiButton.Create(parent, "Quit", a => Quit(), "button:Quit");
-            ((RectTransform)quit.transform).At(x0 + 150, 420, 140, 24);
-            while (true)
-            {
-                if (Random.value < 0.006f) g.Fx.Glitch(0.05f, 0.4f);
-                yield return null;
-            }
-        }
-
-        static void Quit()
-        {
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
         }
     }
 }

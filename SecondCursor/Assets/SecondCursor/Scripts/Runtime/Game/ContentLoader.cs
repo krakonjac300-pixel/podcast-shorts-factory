@@ -21,6 +21,10 @@ namespace SecondCursor.Game
         public static ContentDatabase Load(int night)
         {
             var pack = ReadPack(Folder, true);
+#if SC_DEMO
+            // The demo is Night 1 only: its build does not even contain the night2 and night3 folders.
+            night = 1;
+#endif
             for (int n = 2; n <= Mathf.Clamp(night, 1, 3); n++)
             {
                 var overlay = ReadPack(Folder + "night" + n + "/", false);

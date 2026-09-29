@@ -20,6 +20,12 @@ namespace SecondCursor.Game
         public bool fullscreen = true;
         /// <summary>False until the player has made the first-launch flashing choice.</summary>
         public bool flashingChosen;
+        /// <summary>0 = VSync (default), -1 = unlimited, else a frame cap (see <see cref="DisplaySettings.FrameRates"/>).</summary>
+        public int frameRate;
+        /// <summary>Reading text at double size in Jotter and Mail (Steam Deck readability).</summary>
+        public bool largeText;
+        /// <summary>False until the player (or the Deck's first launch) has picked a reading text size.</summary>
+        public bool largeTextChosen;
     }
 
     /// <summary>
@@ -33,8 +39,59 @@ namespace SecondCursor.Game
         const string SettingsFile = "settings.json";
         const string LegacyFile = "second_cursor_save.json";
 
-        static string Dir => Application.persistentDataPath;
+        /// <summary>
+        /// Test runs keep their saves out of the player's folder: set by the bridge ("savedir") or by the
+        /// "-scsavedir PATH" launch argument. It survives Play sessions (domain reload is off), so every boot logs it.
+        /// </summary>
+        internal static string DirOverride = CommandLinePath("-scsavedir");
+
+        static string Dir => string.IsNullOrEmpty(DirOverride) ? Application.persistentDataPath : DirOverride;
+
+        /// <summary>Where the saves are read and written.</summary>
+        public static string Folder => Dir;
+
+        static string CommandLinePath(string name)
+        {
+            try
+            {
+                var args = Environment.GetCommandLineArgs();
+                for (int i = 0; i < args.Length - 1; i++)
+                    if (args[i] == name) return args[i + 1];
+            }
+            catch (Exception)
+            {
+                // No command line (some platforms): the default folder is used.
+            }
+            return null;
+        }
+
+        /// <summary>True if the progress file was set aside as unreadable during this app launch.</summary>
+        public static bool CorruptThisLaunch { get; private set; }
+
+        /// <summary>A new launch (every Play press in the Editor, where statics survive): forget the last launch's notice.</summary>
+        internal static void ResetLaunchState() => CorruptThisLaunch = false;
         static string PathOf(string name) => Path.Combine(Dir, name);
+
+        /// <summary>Test runs only (the bridge's resetsave): delete progress.json and settings.json in the override folder.</summary>
+        internal static bool DeleteAllInOverride()
+        {
+            if (string.IsNullOrEmpty(DirOverride)) return false;
+            foreach (var name in new[] { ProgressFile, SettingsFile })
+                foreach (var suffix in new[] { "", ".bak", ".tmp", ".corrupt" })
+                {
+                    string f = PathOf(name) + suffix;
+                    try
+                    {
+                        if (File.Exists(f)) File.Delete(f);
+                    }
+                    catch (Exception e)
+                    {
+                        GameLog.Warn(LogChannel.System, "Could not delete " + f + ": " + e.Message);
+                    }
+                }
+            CorruptThisLaunch = false;
+            return true;
+        }
 
         public static bool HasAnyData => File.Exists(PathOf(ProgressFile)) || File.Exists(PathOf(SettingsFile)) || File.Exists(PathOf(LegacyFile));
 
@@ -60,12 +117,40 @@ namespace SecondCursor.Game
 
         public static void Save(SaveData data) => Write(ProgressFile, data);
 
-        /// <summary>A night starts fresh (not from a checkpoint): remember its starting memory.</summary>
+        /// <summary>A night starts fresh (not from a checkpoint): remember its starting memory and trust.</summary>
         public static void RecordNightStart(GameServices g)
         {
             var data = Load();
-            data.RecordNightStart(g.Night, g.Flags.Snapshot(MemoryFlags.Prefix));
+            // A debug start moves Continue's night but is never remembered as the night's first start.
+            if (g.RecordsArmed) data.RecordNightStart(g.Night, g.Flags.Snapshot(MemoryFlags.Prefix), g.Memory.Trust);
+            else data.NoteNightStarted(g.Night);
             Save(data);
+        }
+
+        /// <summary>A real tug-of-war ended in a run that counts: add it to the lifetime totals. Returns the total wins.</summary>
+        public static int RecordTug(bool playerWon)
+        {
+            var data = Load();
+            data.RecordTug(playerWon);
+            Save(data);
+            return data.tugWinsTotal;
+        }
+
+        /// <summary>Night Select replaced the saved checkpoint: Continue no longer resumes it.</summary>
+        public static void ClearCheckpoint()
+        {
+            var data = Load();
+            data.SetCheckpoint(new Checkpoint());
+            Save(data);
+        }
+
+        /// <summary>New Game: progression starts over, records and settings stay.</summary>
+        public static void NewGame()
+        {
+            var data = Load();
+            data.NewGame();
+            Save(data);
+            GameLog.Info(LogChannel.System, "New Game: progression reset (records kept)");
         }
 
         /// <summary>A checkpoint beat starts: everything Continue needs to rebuild the world from here.</summary>
@@ -81,9 +166,11 @@ namespace SecondCursor.Game
                 trust = g.Memory.Trust,
                 assistLevel = g.Assist != null ? g.Assist.Level : 0,
                 flags = g.Flags.Snapshot(),
+                elapsed = g.Director != null ? g.Director.NightElapsed : 0f,
+                armed = g.RecordsArmed,
             });
             Save(data);
-            GameLog.Info(LogChannel.System, "Checkpoint saved: night " + g.Night + ", " + beat);
+            GameLog.Info(LogChannel.System, "Checkpoint saved: night " + g.Night + ", " + beat + (g.RecordsArmed ? "" : " (debug run)"));
         }
 
         /// <summary>A night ends: memory, trust, assist carry, the ending, unlocks and totals; the checkpoint is cleared.</summary>
@@ -97,10 +184,9 @@ namespace SecondCursor.Game
                 Memory = g.Flags.Snapshot(MemoryFlags.Prefix),
                 Trust = g.Memory.Trust,
                 AssistLevel = g.Assist != null ? g.Assist.Level : 0,
-                TugWins = g.Flags.Get(Flags.CounterPlayerWins),
-                TugLosses = g.Flags.Get(Flags.CounterTugLosses),
                 Seconds = seconds,
                 PlayerLines = playerLines,
+                Records = g.RecordsArmed,
             });
             Save(data);
             SaveSettings(g);
@@ -132,6 +218,9 @@ namespace SecondCursor.Game
             s.crtEffects = g.Fx.CrtEnabled;
             s.reduceFlashing = g.Fx.ReduceFlashing;
             if (!Application.isEditor) s.fullscreen = Screen.fullScreen;
+            s.frameRate = DisplaySettings.FrameRate;
+            s.largeText = DisplaySettings.LargeText;
+            s.largeTextChosen = s.largeTextChosen || DisplaySettings.LargeTextChosen;
             SaveSettings(s);
         }
 
@@ -176,6 +265,7 @@ namespace SecondCursor.Game
         /// <summary>Keep a damaged file for inspection instead of silently overwriting it.</summary>
         static void Quarantine(string path)
         {
+            if (Path.GetFileName(path) == ProgressFile) CorruptThisLaunch = true;
             try
             {
                 string bad = path + ".corrupt";

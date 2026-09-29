@@ -20,10 +20,16 @@ namespace UnityEngine.InputSystem
 {
     using UnityEngine.InputSystem.Controls;
     public class InputDevice { public bool added => true; }
-    public class Pointer : InputDevice { public Vector2Control position => null; public Vector2Control delta => null; }
+    public class Pointer : InputDevice
+    {
+        public static Pointer current => null;
+        public Vector2Control position => null;
+        public Vector2Control delta => null;
+        public ButtonControl press => null;
+    }
     public class Mouse : Pointer
     {
-        public static Mouse current => null;
+        public static new Mouse current => null;
         public ButtonControl leftButton => null;
         public ButtonControl rightButton => null;
         public ButtonControl middleButton => null;

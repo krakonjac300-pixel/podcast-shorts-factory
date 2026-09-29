@@ -17,7 +17,7 @@ namespace SecondCursor.Apps
     /// unlocks the folder and File Manager goes into it. Only the player gets this prompt: a cursor opens
     /// locked folders without a code.
     /// </summary>
-    public sealed class AuthPromptApp : App, IKeyboardTarget
+    public sealed class AuthPromptApp : App, IKeyboardTarget, ITextEntryTarget
     {
         public const string Id = "authprompt";
         const int MaxChars = 8;
@@ -33,6 +33,13 @@ namespace SecondCursor.Apps
         public override string AppId => Id;
         public string FolderId => _folderId;
         public string Input => _input.ToString();
+
+        /// <summary>Steam Deck keyboard: numeric, for as long as the prompt is open.</summary>
+        public bool WantsTextEntry => IsOpen;
+
+        public Game.TextEntryMode EntryMode => Game.TextEntryMode.Numeric;
+
+        public Rect EntryRectVirtual => Window != null ? Window.WorldRect : default;
 
         public AuthPromptApp(string folderId)
         {
@@ -78,7 +85,10 @@ namespace SecondCursor.Apps
             if (!IsOpen) return;
             var c = G.Content;
             string typed = _input.ToString();
-            if (G.Files.TryUnlock(_folderId, typed))
+            var folder = G.Files.GetFolder(_folderId);
+            // Someone unlocked it while the prompt was open (kept Gary at 6:48): the right code still works.
+            bool alreadyOpen = folder != null && !folder.Locked && folder.HasCode && Core.FileSystem.VirtualFileSystem.CodeMatches(folder.Code, typed);
+            if (alreadyOpen || G.Files.TryUnlock(_folderId, typed))
             {
                 GameLog.Info(LogChannel.Player, "Code accepted for " + _folderId);
                 if (_folderId == ContentIds.FolderRestricted && by != null && by.IsPlayer) G.Flags.Set(MemoryFlags.N3RestrictedOpen);

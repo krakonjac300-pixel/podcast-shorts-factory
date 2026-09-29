@@ -25,7 +25,7 @@ namespace SecondCursor.Story
     /// into Notepad as a cursor, exchanges, carrying files, watching the camera feed). Beats wait on what
     /// the PLAYER does, with timeouts so nothing can soft-lock. One subclass per night holds its beats.
     /// </summary>
-    public abstract class NightDirector : MonoBehaviour
+    public abstract partial class NightDirector : MonoBehaviour
     {
         protected GameServices _g;
         Routine _flow;
@@ -68,12 +68,14 @@ namespace SecondCursor.Story
                 case 1:
                     d = go.AddComponent<Night1Director>();
                     break;
+#if !SC_DEMO
                 case 2:
                     d = go.AddComponent<Night2Director>();
                     break;
                 case 3:
                     d = go.AddComponent<Night3Director>();
                     break;
+#endif
                 default:
                     // No such night: run Night 1's beats with that night's difficulty (nothing is saved).
                     GameLog.Warn(LogChannel.Story, "Night " + night + " has no director: running Night 1's beats (nothing is saved)");
@@ -125,10 +127,12 @@ namespace SecondCursor.Story
             return r;
         }
 
-        /// <summary>Start the night from its first beat (a fresh start: its starting memory is saved).</summary>
+        /// <summary>
+        /// Start the night from its first beat. The start itself is recorded by the boot beat
+        /// (<see cref="MarkNightStarted"/>), after the title menu, so launching the game never changes the save.
+        /// </summary>
         public void Begin()
         {
-            if (!IsStandIn) SaveSystem.RecordNightStart(_g);
             JumpTo(Beats[0]);
         }
 
@@ -191,6 +195,17 @@ namespace SecondCursor.Story
             }
         }
 
+        /// <summary>
+        /// Stops every side routine and frees every speaker (an ending must not be typed over by a routine of the
+        /// beat before it, which would reopen a Notepad in the dark).
+        /// </summary>
+        protected void StopSideRoutines()
+        {
+            foreach (var r in _side) r.Stop();
+            _side.Clear();
+            foreach (var s in _speakers) s.Typing = false;
+        }
+
         public void SkipBeat()
         {
             int index = Array.IndexOf(Beats, CurrentBeat);
@@ -200,13 +215,23 @@ namespace SecondCursor.Story
         IEnumerator Flow(int start)
         {
             var beats = Beats;
-            if (start > 0) Prepare(start);
+            if (start > 0)
+            {
+                // Nothing Prepare sets up (flags, decisions, files) may unlock an achievement.
+                IsPreparing = true;
+                try { Prepare(start); }
+                finally { IsPreparing = false; }
+            }
             for (int i = start; i < beats.Length; i++)
             {
                 CurrentBeat = beats[i];
                 BeatStartedAt = Time.time;
                 GameLog.Info(LogChannel.Story, "Beat: " + CurrentBeat);
-                if (Array.IndexOf(CheckpointBeats, CurrentBeat) >= 0) SaveCheckpoint(CurrentBeat);
+                if (Array.IndexOf(CheckpointBeats, CurrentBeat) >= 0)
+                {
+                    ApplyPendingDifficulty();
+                    SaveCheckpoint(CurrentBeat);
+                }
                 yield return RunBeat(beats[i]);
             }
         }
@@ -232,7 +257,8 @@ namespace SecondCursor.Story
                 return;
             }
             RecordNightMemory();
-            SaveSystem.RecordNightComplete(_g, endingId, PlayerLines, Time.time - NightStartedAt);
+            SaveSystem.RecordNightComplete(_g, endingId, PlayerLines, NightElapsed);
+            _g.AchievementWatch?.OnNightComplete(Night, endingId);
         }
 
         /// <summary>Write this night's cross-night memory ("m." flags and counters) before it is saved.</summary>
@@ -496,6 +522,7 @@ namespace SecondCursor.Story
                 else
                 {
                     reply = _g.Dialogue.Respond(exchange, said);
+                    _g.AchievementWatch?.OnReply(exchange.voice, reply.Tag);
                     _g.Memory.Record(MemoryKind.TypedMessage, reply.Category, Time.time);
                     PlayerLines.Add(said);
                     onReply?.Invoke(reply, said);

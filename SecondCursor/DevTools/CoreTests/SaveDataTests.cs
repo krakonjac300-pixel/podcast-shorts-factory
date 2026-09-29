@@ -80,7 +80,7 @@ namespace SecondCursor.Tests
             d.RecordNightComplete(new NightResult
             {
                 Night = 1, EndingId = "n1_blackout", Memory = night.Snapshot(MemoryFlags.Prefix), Trust = 0.4f, AssistLevel = 2,
-                TugWins = 2, TugLosses = 3, Seconds = 800f,
+                Seconds = 800f,
                 PlayerLines = new[] { "who are you?", "  no   {way}  ", "caf" + (char)233 + " at 3", "fourth line is dropped" },
             });
             Assert.Equal(2, d.nightUnlocked);
@@ -90,9 +90,12 @@ namespace SecondCursor.Tests
             Assert.Equal(0.4f, d.entityTrust);
             Assert.Equal(new[] { "n1_blackout" }, d.endingsSeen);
             Assert.Equal(new[] { "who are you?", "no way", "caf at 3" }, d.playerLines);
-            Assert.Equal(2, d.tugWinsTotal);
-            Assert.Equal(3, d.tugLossesTotal);
+            // Tug totals are counted live (RecordTug), never at the end of a night.
+            Assert.Equal(0, d.tugWinsTotal);
+            Assert.Equal(0, d.tugLossesTotal);
             Assert.Equal(800f, d.nightSeconds[0]);
+            Assert.Equal(800f, d.bestNightSeconds[0]);
+            Assert.Equal(1, d.lastCompletedNight);
             Assert.Equal(1, d.nightStarts[0]);
             var mem = new NarrativeFlags();
             mem.Restore(d.memory);
@@ -102,12 +105,14 @@ namespace SecondCursor.Tests
             // Replaying Night 1 replaces that memory instead of mixing both runs' choices.
             var replay = new NarrativeFlags();
             replay.Set(MemoryFlags.N1Refused);
-            d.RecordNightComplete(new NightResult { Night = 1, EndingId = "n1_blackout", Memory = replay.Snapshot(MemoryFlags.Prefix), TugLosses = 1 });
+            d.RecordNightComplete(new NightResult { Night = 1, EndingId = "n1_blackout", Memory = replay.Snapshot(MemoryFlags.Prefix), Seconds = 900f });
             mem.Restore(d.memory);
             Assert.True(mem.Has(MemoryFlags.N1Refused));
             Assert.False(mem.Has(MemoryFlags.N1Agreed));
             Assert.Equal(new[] { "n1_blackout" }, d.endingsSeen);
-            Assert.Equal(4, d.tugLossesTotal);
+            Assert.Equal(1700f, d.nightSeconds[0]);
+            // The best time is the fastest run.
+            Assert.Equal(800f, d.bestNightSeconds[0]);
         }
 
         [Fact]

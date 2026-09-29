@@ -86,20 +86,30 @@ namespace SecondCursor.Apps
             _header.text = "From:    " + (string.IsNullOrEmpty(mail.from) ? "" : mail.from) + "\nTo:      " + mail.to +
                            "\nSubject: " + mail.subject + "\nDate:    " + mail.date;
             _body.text = mail.body;
+            Layout();
+            if (changed) _reader.ScrollTo(0);
+            G.Mail.MarkRead(id, by);
+        }
+
+        /// <summary>Header and body sized for the reading pane at the Reading text scale.</summary>
+        void Layout()
+        {
+            int scale = Game.DisplaySettings.ReadingScale;
+            _header.Scale = scale;
+            _body.Scale = scale;
             Canvas.ForceUpdateCanvases();
             int width = Mathf.Max(100, Mathf.FloorToInt(_reader.Viewport.rect.width) - 8);
-            var hs = PixelFont.Measure(_header.text, width, false, 1);
-            var bs = PixelFont.Measure(_body.text, width, false, 1);
+            var hs = PixelFont.Measure(_header.text, width, false, scale);
+            var bs = PixelFont.Measure(_body.text, width, false, scale);
             _header.rectTransform.At(4, 4, width, hs.y + 2);
             _body.rectTransform.At(4, 4 + hs.y + 14, width, bs.y + 4);
             _reader.ContentHeight = hs.y + bs.y + 30;
-            if (changed) _reader.ScrollTo(0);
-            G.Mail.MarkRead(id, by);
         }
 
         public override void Tick(float dt)
         {
             if (_revision != G.Mail.Revision) Refresh();
+            if (_showing != null && _body.Scale != Game.DisplaySettings.ReadingScale) Layout();
         }
     }
 }
