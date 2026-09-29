@@ -75,6 +75,8 @@ namespace SecondCursor.CameraFeed
         public float ExtraNoise { get; set; }
         public float DoorOpen { get => _doorTarget; set => _doorTarget = Mathf.Clamp01(value); }
         public FigureStage Figure { get => _figureStage; set => SetFigure(value); }
+        /// <summary>CCTV time in minutes since midnight: it only advances while a feed is watched (-1 until first viewed).</summary>
+        public double FeedMinutes { get; set; } = -1.0;
         public bool SeatedMimicsPlayer { get; set; } = true;
         public Vector2 PlayerHand { get; set; }
         public float SeatedHeadTurn { get; set; }
@@ -433,6 +435,8 @@ namespace SecondCursor.CameraFeed
         /// <summary>Cuts the figure to a stage instantly. It never moves while watched.</summary>
         void SetFigure(FigureStage stage)
         {
+            // The frame it moves on lands with a thump (it is never seen moving).
+            if (stage != _figureStage && stage != FigureStage.None) _g?.Audio?.Play("low_thump", 0.55f, 0.95f);
             _figureStage = stage;
             // It only ever stands in a wide-open doorway, and the door opened between frames like everything it does.
             if (stage == FigureStage.Doorway && _doorTarget < DoorwayMinOpen)

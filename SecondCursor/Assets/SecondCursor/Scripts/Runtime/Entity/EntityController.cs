@@ -64,6 +64,20 @@ namespace SecondCursor.Entity
             }
         }
 
+        /// <summary>Two quick sideways kicks of a UI element (a blocked button), then back in place.</summary>
+        static System.Collections.IEnumerator Rattle(RectTransform rt)
+        {
+            if (rt == null) yield break;
+            Vector2 home = rt.anchoredPosition;
+            foreach (float dx in new[] { 2f, -2f, 1f, 0f })
+            {
+                if (rt == null) yield break;
+                rt.anchoredPosition = home + new Vector2(dx, 0f);
+                yield return null;
+            }
+            if (rt != null) rt.anchoredPosition = home;
+        }
+
         public static EntityController Create(GameServices g, Transform parent)
         {
             var go = new GameObject("Entity");
@@ -92,8 +106,10 @@ namespace SecondCursor.Entity
             g.Router.PressBlocked = c.BlocksPress;
             g.Router.PressRefused += (a, hit) =>
             {
-                // The player's click bounces off the second cursor.
-                g.Audio?.Play("mouse_click", 0.6f, 0.8f, Audio.AudioManager.PanFor(c._agent.Position.x));
+                // The player's click bounces off the second cursor: a dull thunk and the button rattles.
+                g.Audio?.Play("mouse_click", 0.75f, 0.55f, Audio.AudioManager.PanFor(c._agent.Position.x));
+                g.Audio?.Play("low_thump", 0.25f, 1.6f, Audio.AudioManager.PanFor(c._agent.Position.x));
+                if (hit != null) c.StartCoroutine(Rattle(hit.Rect));
                 c._view.Flinch(new Vector2(UnityEngine.Random.Range(-3f, 3f), UnityEngine.Random.Range(-3f, 3f)), 0.25f);
                 g.PlayerView?.Flinch((a.Position - c._agent.Position).normalized * 4f, 0.3f);
             };

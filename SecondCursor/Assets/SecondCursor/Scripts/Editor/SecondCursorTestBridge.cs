@@ -31,7 +31,7 @@ namespace SecondCursor.EditorTools
     public static class SecondCursorTestBridge
     {
         const string Help =
-            "Editor: refresh | play | stop | status | errors | clearerrors | help\n" +
+            "Editor: refresh | play | stop | build | status | errors | clearerrors | help\n" +
             "Game:   jump NAME (fresh shift) | beat NAME (in place) | waittext TEXT [timeout] | waitbeat NAME [timeout] | waitlog TEXT [timeout] | waitflag FLAG [timeout] | waittask ID [timeout]\n" +
             "        waitidle [timeout] | wait SECONDS | speed X | crt on|off | restart | realinput | scriptinput\n" +
             "        shot NAME | gameshot NAME | dump | ids [FILTER] | texts [FILTER] | log [N] | windows\n" +
@@ -245,6 +245,7 @@ namespace SecondCursor.EditorTools
                 case "realinput": _scripted = _sticky = false; AttachInput(); return Done();
                 case "scriptinput": _scripted = _sticky = true; AttachInput(); return Done();
                 case "wait": return WaitSeconds(F(a, 1, 1f));
+                case "build": return Build();
             }
             return GameCommand(cmd, a, rest);
         }
@@ -450,6 +451,13 @@ namespace SecondCursor.EditorTools
             ClearPersisted();
             AppendCompileErrors();
             Say("refreshed (no reload)");
+        }
+
+        static IEnumerator Build()
+        {
+            if (EditorApplication.isPlaying) { Say("ERROR: stop Play mode before building"); yield break; }
+            var report = SecondCursorBuild.BuildWindows();
+            Say(SecondCursorBuild.Summary(report).Replace('\n', ' '));
         }
 
         static IEnumerator Play(bool play)

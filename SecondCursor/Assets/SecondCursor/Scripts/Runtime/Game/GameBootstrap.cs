@@ -16,11 +16,20 @@ namespace SecondCursor.Game
             if (Object.FindAnyObjectByType<DisableAutoBoot>() != null) return;
             if (Object.FindAnyObjectByType<GameRoot>() != null) return;
             // Statics survive Play sessions when domain reload is off.
-            GameRoot.StartBeat = null;
+            GameRoot.StartBeat = CommandLineBeat();
             Core.GameLog.ClearHistory();
             var go = new GameObject("SECOND CURSOR");
             go.AddComponent<GameRoot>();
             Debug.Log("[SYSTEM] SECOND CURSOR booted in scene '" + SceneManager.GetActiveScene().name + "'");
+        }
+
+        /// <summary>QA: "SecondCursor.exe -scbeat reveal" starts a fresh shift at that story beat.</summary>
+        static string CommandLineBeat()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+                if (args[i] == "-scbeat") return args[i + 1];
+            return null;
         }
 
         /// <summary>

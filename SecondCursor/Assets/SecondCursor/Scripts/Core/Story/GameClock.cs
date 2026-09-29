@@ -40,10 +40,18 @@ namespace SecondCursor.Core.Story
         }
 
         /// <summary>"02:47:13" style for camera overlays (seconds derived from the fractional minute).</summary>
-        public string FormatCamera()
+        /// <summary>Minutes since midnight, with the fraction (for clocks that run separately, like CCTV time).</summary>
+        public double ExactMinutes => _minutes;
+
+        public string FormatCamera() => FormatCamera(_minutes);
+
+        /// <summary>"HH:MM:SS" for any minutes-since-midnight value.</summary>
+        public static string FormatCamera(double minutes)
         {
-            int sec = (int)((_minutes - Math.Floor(_minutes)) * 60f);
-            return Hour24.ToString("00") + ":" + Minute.ToString("00") + ":" + sec.ToString("00");
+            minutes = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+            int total = (int)Math.Floor(minutes);
+            int sec = (int)((minutes - total) * 60.0);
+            return ((total / 60) % 24).ToString("00") + ":" + (total % 60).ToString("00") + ":" + sec.ToString("00");
         }
     }
 }

@@ -248,6 +248,28 @@ namespace SecondCursor.OS
 
         public DesktopIcon IconForFile(string fileId) => fileId != null && _fileIcons.TryGetValue(fileId, out var i) ? i : null;
 
+        DesktopIcon _attention;
+        float _attentionUntil;
+
+        /// <summary>Blink a file's icon for a moment so it reads even in a small video.</summary>
+        public void Attention(string fileId, float seconds = 1.2f)
+        {
+            _attention = IconForFile(fileId);
+            _attentionUntil = Time.time + seconds;
+        }
+
+        void LateUpdate()
+        {
+            if (_attention == null) return;
+            if (Time.time >= _attentionUntil)
+            {
+                _attention.Selected = false;
+                _attention = null;
+                return;
+            }
+            _attention.Selected = (Time.time * 6f) % 1f < 0.5f;
+        }
+
         public DesktopIcon IconForApp(string appId)
         {
             foreach (var i in _icons) if (i != null && !i.IsFile && i.AppId == appId) return i;

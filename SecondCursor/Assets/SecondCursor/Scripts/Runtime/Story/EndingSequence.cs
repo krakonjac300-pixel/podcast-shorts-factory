@@ -132,10 +132,18 @@ namespace SecondCursor.Story
 
             g.Player.Enabled = true;
             g.Player.Visible = true;
+            bool store = !string.IsNullOrEmpty(SteamBridge.StoreUrl);
+            int x0 = ScreenRig.Width / 2 - (store ? 225 : 150);
             var again = UiButton.Create(parent, "Start a new shift", a => GameBootstrap.Restart(), "button:Restart");
-            ((RectTransform)again.transform).At(ScreenRig.Width / 2 - 150, 420, 140, 24);
+            ((RectTransform)again.transform).At(x0, 420, 140, 24);
+            if (store)
+            {
+                var wish = UiButton.Create(parent, "Wishlist on Steam", a => SteamBridge.OpenStorePage(), "button:Wishlist", true);
+                ((RectTransform)wish.transform).At(x0 + 150, 420, 140, 24);
+                x0 += 150;
+            }
             var quit = UiButton.Create(parent, "Quit", a => Quit(), "button:Quit");
-            ((RectTransform)quit.transform).At(ScreenRig.Width / 2 + 10, 420, 140, 24);
+            ((RectTransform)quit.transform).At(x0 + 150, 420, 140, 24);
 
             float t = 0f;
             while (true)

@@ -44,7 +44,7 @@ already includes. Built-in and URP both work, as do the old Input Manager and th
 | Input | What it does |
 |---|---|
 | Mouse | Your cursor. Click, double-click, drag windows and files, right-click for menus, wheel scrolls lists |
-| Keyboard | Type into Notepad. `Enter` sends your reply when the entity is talking to you |
+| Keyboard | Type into Jotter (the in-game notepad). `Enter` sends your reply when the entity is talking to you |
 | `Delete` | Shred the file selected in Files |
 | `Esc` | Pause menu (CRT effects on/off, volume, restart, quit) |
 
@@ -71,7 +71,7 @@ that computer screen. You just do your job, and the job slowly stops being norma
    - *Shred ~nxs0148.tmp:* drag it onto the **Disposal** bin (desktop, bottom right) and click **Yes**.
 4. **After that, keep working and watch the screen.** Things start to happen on their own. When
    another cursor shows up and fights you for a file, hold the mouse button and **pull away hard**.
-   When it wants to talk, it opens Notepad: type a reply and press **Enter**.
+   When it wants to talk, it opens Jotter (the in-game notepad): type a reply and press **Enter**.
 5. **Locked things are locked on purpose.** The **Camera Viewer** and the **Restricted** folder say
    *Access Denied* at the start. The story opens them for you later; don't wait on them.
 
@@ -88,7 +88,7 @@ Use `F1` → **Jump to beat** to go straight to any milestone (it starts a fresh
 | **M3 Virtual files** | `work` | Drag `ledger_1994.dat` from Intake onto the **Archive** folder (left pane). Drag a file onto the desktop. Drag the temp file onto **Disposal** → Yes → it shreds. Try opening **Restricted** → Access Denied. |
 | **M4 Second cursor** | `presence` | A second, inverted cursor enters from the right edge carrying `employee_017.dat`, drops it on the desktop, hovers, leaves. The tray now shows **two** mice. Press `F3` to summon it anywhere; F1 → *Close top window* / *Type STOP* / *Mimic me* make it act through the normal UI. |
 | **M5 Cursor conflict (key fun test)** | `conflict` | Try to shred `employee_017.dat`. Drag it toward Disposal: it grabs the file mid-drag (**tug-of-war**: yank the mouse hard *away* from it to win, hold still and you lose). On the confirm dialog it races you to **No**, and later drags the dialog out from under your cursor. During shredding it goes for **Cancel**; park your cursor on Cancel to physically block it. Reach for the file on the desktop and it snatches it away. If you do manage to shred it, the file comes back: *"in use by another user"*. |
-| **M6 Communication** | `communication` | It double-clicks Notepad itself and types **STOP**. Type a reply + Enter; it answers by keyword (try "who are you", "why", swearing, "no"). If you stay silent, it gets impatient. |
+| **M6 Communication** | `communication` | It double-clicks Jotter (the notepad) itself and types **STOP**. Type a reply + Enter; it answers by keyword (try "who are you", "why", swearing, "no"). If you stay silent, it gets impatient. |
 | **M7 Work tasks** | `work` | The tutorial tasks are data (`Resources/Content/tasks.json`) and complete from what you actually do, in any order. |
 | **M8 Event director** | whole run | Escalates from ordinary work → a window nudging itself → a file selecting itself (with a click you didn't make) → presence → conflict → communication → escalation → reveal. |
 | **M9 Security camera** | `escalation` / `reveal` | It replays your own earlier mouse movement, unlocks **SecureView** (normally *Access Denied*) and opens **CAM 03**: your office, from behind. The seated figure's arm follows *your* mouse. Keep watching... the door... |

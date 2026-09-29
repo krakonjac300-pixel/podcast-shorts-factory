@@ -4,6 +4,9 @@
       "id": "ex_stop",
       "entityLines": ["STOP", "NOT THAT FILE", "PLEASE"],
       "responses": [
+        { "keywords": ["chat", "twitch", "stream", "viewers", "subscribe"], "reply": ["WHO IS CHAT", "ARE THEY WATCHING TOO"] },
+        { "keywords": ["i love you", "love you", "ily", "marry me"], "reply": ["DONT SAY THAT HERE"] },
+        { "keywords": ["lol", "lmao", "haha", "rofl", "hehe", "xd"], "reply": ["KEEP LAUGHING", "IT HELPS"] },
         { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["THE LAST ONE SAID THAT"] },
         { "keywords": ["fuck", "shit", "wtf", "the hell", "damn", "jesus", "christ", "omg", "oh my god", "crap", "bitch"], "reply": ["THEY LOG THAT TOO"] },
         { "keywords": ["stop", "leave", "go away", "get out", "quit", "enough", "let me go", "go home", "log off", "logoff", "alone"], "reply": ["I CANT LEAVE", "I TRIED"] },
@@ -34,6 +37,9 @@
       "id": "ex_two",
       "entityLines": ["WHO TOLD YOU", "TO SHRED IT"],
       "responses": [
+        { "keywords": ["chat", "twitch", "stream", "viewers", "subscribe"], "reply": ["WHO IS CHAT", "ARE THEY WATCHING TOO"] },
+        { "keywords": ["i love you", "love you", "ily", "marry me"], "reply": ["DONT SAY THAT HERE"] },
+        { "keywords": ["lol", "lmao", "haha", "rofl", "hehe", "xd"], "reply": ["KEEP LAUGHING", "IT HELPS"] },
         { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["YOU SOUND LIKE HIM", "HE WAS ANGRY TOO"] },
         { "keywords": ["fuck", "shit", "wtf", "the hell", "damn", "jesus", "christ", "omg", "oh my god", "crap", "bitch"], "reply": ["KEEP YOUR VOICE DOWN"] },
         { "keywords": ["stop", "leave", "go away", "get out", "quit", "enough", "let me go", "go home", "log off", "logoff", "alone"], "reply": ["YOU CAN LOG OFF", "AT SEVEN", "IF THEY LET YOU"] },
@@ -67,6 +73,9 @@
       "id": "ex_three",
       "entityLines": ["DO YOU WANT TO SEE", "WHAT THEY SEE"],
       "responses": [
+        { "keywords": ["chat", "twitch", "stream", "viewers", "subscribe"], "reply": ["WHO IS CHAT", "ARE THEY WATCHING TOO"] },
+        { "keywords": ["i love you", "love you", "ily", "marry me"], "reply": ["DONT SAY THAT HERE"] },
+        { "keywords": ["lol", "lmao", "haha", "rofl", "hehe", "xd"], "reply": ["KEEP LAUGHING", "IT HELPS"] },
         { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["YOU WILL ANYWAY", "WATCH"] },
         { "keywords": ["fuck", "shit", "wtf", "the hell", "damn", "jesus", "christ", "omg", "oh my god", "crap", "bitch"], "reply": ["I SAID THAT TOO", "WATCH"] },
         { "keywords": ["stop", "leave", "go away", "get out", "quit", "enough", "let me go", "go home", "log off", "logoff", "alone"], "reply": ["I CANT STOP IT", "I CAN SHOW YOU"] },

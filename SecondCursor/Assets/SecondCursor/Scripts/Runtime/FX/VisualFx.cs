@@ -39,6 +39,8 @@ namespace SecondCursor.FX
         public float ExtraGrain;
         /// <summary>0..1 strength of the random brightness flicker.</summary>
         public float FlickerAmount = 0.35f;
+        /// <summary>Photosensitivity option: glitches, flashes, shakes and flicker spikes are toned right down.</summary>
+        public bool ReduceFlashing;
         public bool IsPoweredOff { get; private set; }
 
         public static VisualFx Create(ScreenRig rig)
@@ -143,17 +145,23 @@ namespace SecondCursor.FX
 
         public void Glitch(float duration, float intensity = 1f)
         {
+            if (ReduceFlashing)
+            {
+                duration *= 0.5f;
+                intensity *= 0.3f;
+            }
             _glitchTime = Mathf.Max(_glitchTime, duration);
             _glitchIntensity = Mathf.Max(_glitchIntensity, intensity);
         }
 
         public void Shake(float duration, float amplitudePx)
         {
+            if (ReduceFlashing) amplitudePx *= 0.3f;
             _shakeTime = Mathf.Max(_shakeTime, duration);
             _shakeAmp = Mathf.Max(_shakeAmp, amplitudePx);
         }
 
-        public void Flash(float alpha = 0.6f) => _flashAlpha = Mathf.Max(_flashAlpha, alpha);
+        public void Flash(float alpha = 0.6f) => _flashAlpha = Mathf.Max(_flashAlpha, ReduceFlashing ? alpha * 0.2f : alpha);
 
         public void SetBlack(bool black)
         {
@@ -212,7 +220,7 @@ namespace SecondCursor.FX
                 gc.a = Mathf.Clamp01(0.55f + ExtraGrain * 2f);
                 _grain.color = gc;
                 float n = Mathf.PerlinNoise(Time.unscaledTime * 7f, 0.3f);
-                float spike = UnityEngine.Random.value < 0.004f * FlickerAmount ? 0.08f : 0f;
+                float spike = !ReduceFlashing && UnityEngine.Random.value < 0.004f * FlickerAmount ? 0.08f : 0f;
                 _flicker.color = new Color(0f, 0f, 0f, FlickerAmount * 0.035f * n + spike);
                 _scanTex.filterMode = Mathf.Approximately(_rig.Scale, Mathf.Round(_rig.Scale)) ? FilterMode.Point : FilterMode.Bilinear;
             }

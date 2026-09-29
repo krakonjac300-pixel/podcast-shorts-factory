@@ -92,7 +92,7 @@ namespace SecondCursor.Apps
             }
             else
             {
-                items.Add(MenuItem.Of(label == "Help" ? "About Notepad" : "Find...", null, enabled: false));
+                items.Add(MenuItem.Of(label == "Help" ? "About " + G.Content.Text("app.notepad") : "Find...", null, enabled: false));
             }
             var rt = Window.Client.Find("Menu Bar/Button " + label) as RectTransform;
             Vector2 pos = rt != null ? new Vector2(rt.WorldRect().xMin, rt.WorldRect().yMin) : a.Position;
@@ -119,7 +119,7 @@ namespace SecondCursor.Apps
             if (_view == null) return;
             _view.text = _text.ToString();
             int width = Mathf.Max(60, Mathf.FloorToInt(_scroll.Viewport.rect.width) - 6);
-            var size = PixelFont.Measure(_view.text + "W", width, false, 1);
+            var size = PixelFont.Measure(_view.text + "W", width, false, _view.Scale);
             _view.rectTransform.At(3, 3, width, size.y + 4);
             _scroll.ContentHeight = size.y + 10;
             if (scrollToEnd) _scroll.ScrollToBottom();
@@ -230,6 +230,13 @@ namespace SecondCursor.Apps
         public override void Tick(float dt)
         {
             _caretBlink += dt;
+            // A conversation is shown at double size: it has to read on a phone screen in a clip.
+            int scale = ConversationMode ? 2 : 1;
+            if (_view != null && _view.Scale != scale)
+            {
+                _view.Scale = scale;
+                Changed(true);
+            }
             ReleaseHeldKeys();
             bool focused = Window.IsActive && PlayerCanType && !EntityTyping;
             bool typingCaret = EntityTyping;

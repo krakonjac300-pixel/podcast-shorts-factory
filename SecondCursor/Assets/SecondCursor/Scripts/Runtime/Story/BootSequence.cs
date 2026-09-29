@@ -80,7 +80,7 @@ namespace SecondCursor.Story
             t.Wrap = true;
             float a = 0f;
             while (a < 1f) { a += Time.deltaTime; t.color = new Color(0.72f, 0.72f, 0.69f, a); yield return null; }
-            yield return WaitOrSkip(4.5f);
+            yield return WaitOrSkip(6.5f); // long enough to read the photosensitivity warning
             while (a > 0f) { a -= Time.deltaTime * 2f; t.color = new Color(0.72f, 0.72f, 0.69f, Mathf.Max(0f, a)); yield return null; }
         }
 

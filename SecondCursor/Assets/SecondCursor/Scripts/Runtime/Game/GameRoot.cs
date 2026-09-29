@@ -52,6 +52,8 @@ namespace SecondCursor.Game
             };
             GameLog.Clock = () => Time.unscaledTime;
             Application.targetFrameRate = 60;
+            // Builds pause on focus loss (PauseMenu); in the Editor keep running so tools and testing work.
+            if (Application.isEditor) Application.runInBackground = true;
             QualitySettings.vSyncCount = 1;
             Build();
         }
@@ -72,6 +74,7 @@ namespace SecondCursor.Game
             var save = SaveSystem.Load();
             g.Audio.MasterVolume = save.masterVolume;
             g.Fx.CrtEnabled = save.crtEffects;
+            g.Fx.ReduceFlashing = save.reduceFlashing;
 
             // Content + simulation
             g.Content = ContentLoader.Load();

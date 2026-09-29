@@ -242,7 +242,11 @@ namespace SecondCursor.OS
             if (notify)
             {
                 var mail = _g.Content.Email(id);
-                _g.Notifications.Show(_g.Content.Text("app.mail"), _g.Content.Format("notify.newmail", UnreadCount) + "\n" + mail.subject,
+                // Sender on the toast, and the date too when it is not from tonight's year (the 1987 mail).
+                string sender = string.IsNullOrEmpty(mail.from) ? "(no sender)" : (mail.from.IndexOf('<') > 0 ? mail.from.Substring(0, mail.from.IndexOf('<')).Trim() : mail.from);
+                bool oldDate = !string.IsNullOrEmpty(mail.date) && mail.date.IndexOf("/98 ", StringComparison.Ordinal) < 0;
+                string subject = string.IsNullOrEmpty(mail.subject) ? "(no subject)" : mail.subject;
+                _g.Notifications.Show(_g.Content.Text("app.mail"), subject + "\nFrom " + sender + (oldDate ? ", " + mail.date : ""),
                     "icon_mail_unread", a => _g.Apps.Launch(AppIds.Mail, a));
             }
         }

@@ -75,6 +75,7 @@ namespace SecondCursor.Apps
                     // Tracks the entity: idle when it hides, spikes when it acts.
                     var e = G.Entity;
                     cpu = e.IsVisible ? Mathf.Clamp(8f + e.Agent.Velocity.magnitude / 40f + (G.Conflict.IsFighting ? 45f : 0f), 3f, 97f) : Random.Range(0f, 2f);
+                    if (Time.time < _pinnedUntil) cpu = 97f; // right after "The process is not running."
                 }
                 else
                 {
@@ -119,17 +120,24 @@ namespace SecondCursor.Apps
                 G.Flags.Increment("tried_to_kill_process");
                 string msg = _endAttempts < 3 ? "Unable to end " + GhostProcess + ".\nAccess is denied." : "The process is not running.";
                 Dialogs.Message(G, "System Monitor", msg, "icon_error", new[] { "OK" }, null);
-                if (_endAttempts >= 3) G.Fx.Glitch(0.2f, 0.8f);
+                if (_endAttempts >= 3)
+                {
+                    G.Fx.Glitch(0.2f, 0.8f);
+                    _pinnedUntil = Time.time + 2.5f;
+                    _refresh = 0f;
+                }
                 return;
             }
             Dialogs.Message(G, "System Monitor", "Ending system processes may make the workstation unstable.\nContact IT Services.", "icon_warning", new[] { "OK" }, null);
         }
 
+        float _pinnedUntil = -1f;
+
         public override void Tick(float dt)
         {
             _refresh -= dt;
             if (_refresh > 0f) return;
-            _refresh = 1f;
+            _refresh = Time.time < _pinnedUntil ? 0.25f : 1f;
             Refresh();
         }
     }

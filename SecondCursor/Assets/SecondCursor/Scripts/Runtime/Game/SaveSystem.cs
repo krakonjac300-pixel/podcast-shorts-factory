@@ -13,6 +13,11 @@ namespace SecondCursor.Game
         public int version = 1;
         public float masterVolume = 0.9f;
         public bool crtEffects = true;
+        /// <summary>Photosensitivity: softer glitches, flashes and shakes.</summary>
+        public bool reduceFlashing;
+        public bool fullscreen = true;
+        /// <summary>Unlocked achievement ids (mirrored to Steam when it is available).</summary>
+        public string[] achievements = Array.Empty<string>();
         public string[] endingsSeen = Array.Empty<string>();
         public int shiftsCompleted;
         /// <summary>Story flags at the end of the last completed shift (entity relationship, choices...).</summary>
@@ -77,6 +82,8 @@ namespace SecondCursor.Game
             var data = Load();
             data.masterVolume = g.Audio.MasterVolume;
             data.crtEffects = g.Fx.CrtEnabled;
+            data.reduceFlashing = g.Fx.ReduceFlashing;
+            data.fullscreen = Screen.fullScreen;
             Save(data);
         }
     }

@@ -30,6 +30,7 @@ namespace SecondCursor.OS
         readonly List<OSWindow> _order = new List<OSWindow>();
         bool _dirty = true;
         int _deviceCount = 1;
+        float _deviceFlash;
         UiButton _task;
         int _taskRevision = -1;
         float _taskFlash;
@@ -134,12 +135,21 @@ namespace SecondCursor.OS
 
         public UiButton ButtonFor(OSWindow w) => _buttons.TryGetValue(w, out var b) ? b : null;
 
+        /// <summary>The second mouse in the tray blinks for a moment (a new device just arrived).</summary>
+        public void FlashDevices(float seconds = 1.6f) => _deviceFlash = seconds;
+
         void Update()
         {
             if (_g == null) return;
             _clock.text = _g.Clock.Format12();
             if (_dirty) Rebuild();
             UpdateTask();
+            if (_deviceFlash > 0f)
+            {
+                _deviceFlash -= Time.unscaledDeltaTime;
+                bool on = _deviceFlash <= 0f || (_deviceFlash * 4f) % 1f < 0.5f;
+                for (int i = 1; i < _mice.Count; i++) _mice[i].enabled = i < _deviceCount && on;
+            }
             foreach (var kv in _buttons)
             {
                 if (kv.Key == null || kv.Value == null) continue;

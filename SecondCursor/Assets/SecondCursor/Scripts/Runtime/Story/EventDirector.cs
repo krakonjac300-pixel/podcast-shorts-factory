@@ -453,6 +453,7 @@ namespace SecondCursor.Story
                 PhantomClick(r.Hit.Center);
                 _g.Flags.Set(Flags.FirstAnomaly);
                 GameLog.Info(LogChannel.Story, "Anomaly: employee_017 selected itself");
+                RunSide(Note(2, 1.4f), "note-selection");
             }
 
             // Anomaly B: a window drifts 10 px while you're looking elsewhere.
@@ -483,8 +484,10 @@ namespace SecondCursor.Story
             yield return FindDropSpot(new Vector2(600f, 300f));
             Vector2 spot = _dropSpot;
             E.Teleport(start);
+            _g.Audio.SetAmbience(false, 0.15f);
             yield return E.Appear(start, 0.1f, true);
             _g.Taskbar.PointingDevices = 2;
+            _g.Taskbar.FlashDevices();
             _g.Notifications.Show(_g.Content.Text("os.name"), "New pointing device detected.", "icon_info", null, "ui_select");
             _g.Flags.Set(Flags.EntitySeen);
 
@@ -517,6 +520,7 @@ namespace SecondCursor.Story
             if (icon != null) yield return E.Loiter(icon.Hit.Center, 14f, 2.2f, MovementProfiles.Hesitant);
             yield return E.MoveTo(new Vector2(-10f, 380f), MovementProfiles.HumanLike, 40f);
             yield return E.Vanish(0.3f);
+            _g.Audio.SetAmbience(true, 2.5f);
             E.State = EntityState.Observing;
 
             yield return Wait(4f);
@@ -593,10 +597,28 @@ namespace SecondCursor.Story
 
         Action<DragPayload, TugOutcome> _conflictHint;
 
+        Action<DragPayload> _conflictNote;
+
         void RemoveConflictHint()
         {
             if (_conflictHint != null) _g.Conflict.TugEnded -= _conflictHint;
             _conflictHint = null;
+            if (_conflictNote != null) _g.Conflict.TugStarted -= _conflictNote;
+            _conflictNote = null;
+        }
+
+        /// <summary>One of story.json's dry system notes as an OS toast ("Session 017 is still open.").</summary>
+        void ShowNote(int index)
+        {
+            var notes = _g.Content.Story.anomalyNotes;
+            if (notes != null && index >= 0 && index < notes.Length)
+                _g.Notifications.Show(_g.Content.Text("os.name"), notes[index], "icon_info", null, "ui_select");
+        }
+
+        IEnumerator Note(int index, float delay)
+        {
+            yield return Wait(delay);
+            ShowNote(index);
         }
 
         IEnumerator Conflict()
@@ -622,6 +644,14 @@ namespace SecondCursor.Story
                 _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.conflict"), "icon_info", null, "sys_warning");
             };
             _g.Conflict.TugEnded += _conflictHint;
+            bool sessionNoted = false;
+            _conflictNote = p =>
+            {
+                if (sessionNoted || CurrentBeat != "conflict") return;
+                sessionNoted = true;
+                ShowNote(8);
+            };
+            _g.Conflict.TugStarted += _conflictNote;
 
             while (true)
             {
@@ -653,6 +683,7 @@ namespace SecondCursor.Story
                 _g.Flags.Set(Flags.File017ShreddedOnce);
                 brain.Enabled = false;
                 E.Interrupt();
+                _g.Audio.SetAmbience(false, 0.1f);
                 yield return Wait(1.8f);
                 _g.Fx.Glitch(0.35f, 1f);
                 _g.Audio.Play("glitch_burst", 0.8f);
@@ -660,6 +691,9 @@ namespace SecondCursor.Story
                 _g.Shred.IsInUse = id => id == ContentIds.File017;
                 _g.Files.Restore(ContentIds.File017, ContentIds.FolderDesktop, Actor.Entity);
                 _g.Desktop.SetFilePosition(ContentIds.File017, new Vector2(400f, 180f));
+                _g.Audio.Play("low_thump", 0.8f);
+                _g.Desktop.Attention(ContentIds.File017);
+                _g.Audio.SetAmbience(true, 3f);
                 _g.Flags.Set(Flags.File017Returned);
                 yield return Wait(0.6f);
                 _g.Notifications.Show(_g.Content.Text("app.disposal"), _g.Content.Format("error.inuse.body", "employee_017.dat"), "icon_error", null, "sys_error");
@@ -690,6 +724,7 @@ namespace SecondCursor.Story
             yield return Wait(1.6f);
             yield return OpenNotepadAsEntity();
             _g.Flags.Set(Flags.EntitySpoke);
+            RunSide(Note(5, 2.5f), "note-logged-on");
 
             var exchange = _g.Dialogue.Get(ContentIds.ExchangeStop);
             bool first = true;
@@ -771,6 +806,7 @@ namespace SecondCursor.Story
                 yield return E.Replay(rec, false);
                 _g.Flags.Set(Flags.MimicShown);
                 GameLog.Info(LogChannel.Entity, "Replayed the player's recorded movement (" + rec.Duration.ToString("0.0") + "s)");
+                ShowNote(9);
                 yield return Wait(1f);
             }
             yield return TypeLines(_g.Content.Dialogue.recordLines, 4f);

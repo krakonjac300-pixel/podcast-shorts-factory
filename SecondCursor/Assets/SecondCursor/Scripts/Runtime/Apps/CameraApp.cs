@@ -123,7 +123,16 @@ namespace SecondCursor.Apps
             bool signal = G.CameraRig != null && G.CameraRig.HasSignal(_current);
             _feed.enabled = signal;
             _noSignal.enabled = !signal;
-            _time.text = G.Clock.FormatCamera();
+            // CCTV time only runs while someone watches: close the feed and the clock waits for you.
+            var rig = G.CameraRig;
+            if (rig != null && !Window.IsMinimized)
+            {
+                if (rig.FeedMinutes < 0) rig.FeedMinutes = G.Clock.ExactMinutes;
+                else rig.FeedMinutes += dt * G.Clock.Rate;
+                _time.text = Core.Story.GameClock.FormatCamera(rig.FeedMinutes);
+            }
+            else if (rig == null) _time.text = G.Clock.FormatCamera();
+            EchoClicks();
             _rec.enabled = signal && (_t % 1.2f) < 0.7f;
 
             // A minimized viewer neither renders the 3D set nor animates its grain.
@@ -156,6 +165,19 @@ namespace SecondCursor.Apps
         }
 
         bool _visible = true;
+        float _echoAt = -1f;
+
+        /// <summary>On CAM 03 your clicks come back a moment later, quiet and dull, as if the room heard them.</summary>
+        void EchoClicks()
+        {
+            bool watchingYourself = !Window.IsMinimized && _current == ContentIds.Cam03 && G.CameraRig != null && G.CameraRig.HasSignal(_current);
+            if (watchingYourself && G.Input.LeftDown) _echoAt = Time.time + UnityEngine.Random.Range(0.18f, 0.26f);
+            if (_echoAt > 0f && Time.time >= _echoAt)
+            {
+                _echoAt = -1f;
+                if (watchingYourself) G.Audio?.Play("mouse_click", 0.28f, 0.78f, UnityEngine.Random.Range(-0.15f, 0.15f));
+            }
+        }
         uint _noiseState = 0x9E3779B9u;
 
         protected override void OnClosed(CursorAgent by)

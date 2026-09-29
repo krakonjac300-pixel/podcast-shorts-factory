@@ -6,12 +6,19 @@ using UnityEngine.UI;
 
 namespace SecondCursor.Game
 {
-    /// <summary>Esc: freeze the shift (time and audio), toggle CRT effects, adjust volume, restart or quit.</summary>
+    /// <summary>
+    /// Esc: freeze the shift (time and audio) and change settings: CRT effects, reduced flashing
+    /// (photosensitivity), fullscreen or windowed, volume. Restart or quit. A standalone build also pauses
+    /// itself when the window loses focus, so the second cursor never plays on while you are away.
+    /// </summary>
     public sealed class PauseMenu : MonoBehaviour
     {
         GameServices _g;
         RectTransform _panel;
         UiButton _crt;
+        UiButton _flashing;
+        UiButton _display;
+        bool _fullscreen = true;
         PixelText _volume;
         float _savedScale = 1f;
 
@@ -35,6 +42,11 @@ namespace SecondCursor.Game
                 if (IsPaused) Resume();
                 else Pause();
             }
+        }
+
+        void OnApplicationFocus(bool focus)
+        {
+            if (!focus && !Application.isEditor && _g != null && _g.Flags.Has(Core.Story.Flags.LoggedIn)) Pause();
         }
 
         void Pause()
@@ -68,7 +80,7 @@ namespace SecondCursor.Game
             dim.raycastTarget = false;
             UIBuilder.Hit(_panel.gameObject, "pause");
 
-            const int w = 240, h = 206;
+            const int w = 240, h = 262;
             var box = UIBuilder.Rect("Pause Box", _panel).At((ScreenRig.Width - w) / 2, (ScreenRig.Height - h) / 2, w, h);
             var frame = box.gameObject.AddComponent<BevelGraphic>();
             frame.Style = BevelStyle.Window;
@@ -83,6 +95,9 @@ namespace SecondCursor.Game
             int y = 32;
             Button(box, "Resume", a => Resume(), ref y);
             _crt = Button(box, CrtLabel(), a => { _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled; _crt.SetLabel(CrtLabel()); }, ref y);
+            _flashing = Button(box, FlashingLabel(), a => { _g.Fx.ReduceFlashing = !_g.Fx.ReduceFlashing; _flashing.SetLabel(FlashingLabel()); }, ref y);
+            _fullscreen = Screen.fullScreen || Application.isEditor;
+            _display = Button(box, DisplayLabel(), a => ToggleDisplay(), ref y);
             var volRow = UIBuilder.Rect("Volume", box).At(20, y, w - 40, 22);
             var minus = UiButton.Create(volRow, "-", a => Volume(-0.1f), "button:VolDown");
             ((RectTransform)minus.transform).At(0, 0, 30, 22);
@@ -99,6 +114,16 @@ namespace SecondCursor.Game
         }
 
         string CrtLabel() => "CRT effects: " + (_g.Fx.CrtEnabled ? "On" : "Off");
+        string FlashingLabel() => "Flashing: " + (_g.Fx.ReduceFlashing ? "Reduced" : "Full");
+        string DisplayLabel() => "Display: " + (_fullscreen ? "Fullscreen" : "Windowed");
+
+        void ToggleDisplay()
+        {
+            _fullscreen = !_fullscreen;
+            if (_fullscreen) Screen.fullScreenMode = FullScreenMode.FullScreenWindow;
+            else Screen.SetResolution(1280, 720, FullScreenMode.Windowed);
+            _display.SetLabel(DisplayLabel());
+        }
 
         void Volume(float delta)
         {

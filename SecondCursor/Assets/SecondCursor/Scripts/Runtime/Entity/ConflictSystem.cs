@@ -179,6 +179,15 @@ namespace SecondCursor.Entity
             GameLog.Info(LogChannel.Entity, "Tug-of-war interrupted: no winner");
         }
 
+        System.Collections.IEnumerator HitStop()
+        {
+            if (Game.PauseMenu.IsPaused || Time.timeScale <= 0.05f) yield break;
+            float previous = Time.timeScale;
+            Time.timeScale = 0.03f;
+            yield return new WaitForSecondsRealtime(0.09f);
+            if (!Game.PauseMenu.IsPaused && Mathf.Approximately(Time.timeScale, 0.03f)) Time.timeScale = previous;
+        }
+
         void End(TugOutcome outcome, bool transfer)
         {
             var p = _payload;
@@ -187,7 +196,14 @@ namespace SecondCursor.Entity
             if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
             if (_g.EntityView != null) _g.EntityView.Jitter = 0f;
             _g.Audio?.StopLoop("tug_strain", 0.08f);
-            _g.Audio?.Play("grab_snap", 1f, outcome == TugOutcome.PlayerWins ? 1.15f : 0.9f);
+            _g.Audio?.Play("grab_snap", 1f, outcome == TugOutcome.PlayerWins ? 1.3f : 0.9f);
+            if (outcome == TugOutcome.PlayerWins && transfer)
+            {
+                // A win lands as a punch: a sliver of hit-stop and the second cursor thrown back, shuddering.
+                StartCoroutine(HitStop());
+                if (_g.EntityView != null)
+                    _g.EntityView.Flinch((_g.EntityAgent.Position - _g.Player.Position).normalized * 40f, 0.45f);
+            }
             if (_g.Fx != null)
             {
                 _g.Fx.ExtraGrain = 0f;

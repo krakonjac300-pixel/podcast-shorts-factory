@@ -254,7 +254,7 @@ namespace SecondCursor.Core.Content
             { "login.welcome", "Welcome" },
             { "app.mail", "Mail" },
             { "app.files", "Files" },
-            { "app.notepad", "Notepad" },
+            { "app.notepad", "Jotter" },
             { "app.staff", "Staff Directory" },
             { "app.camera", "SecureView" },
             { "app.workorders", "Work Orders" },
