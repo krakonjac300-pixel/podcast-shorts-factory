@@ -32,7 +32,7 @@ namespace SecondCursor.EditorTools
     {
         const string Help =
             "Editor: refresh | play | stop | status | errors | clearerrors | help\n" +
-            "Game:   beat NAME | waitbeat NAME [timeout] | waitlog TEXT [timeout] | waitflag FLAG [timeout] | waittask ID [timeout]\n" +
+            "Game:   jump NAME (fresh shift) | beat NAME (in place) | waitbeat NAME [timeout] | waitlog TEXT [timeout] | waitflag FLAG [timeout] | waittask ID [timeout]\n" +
             "        waitidle [timeout] | wait SECONDS | speed X | crt on|off | restart | realinput | scriptinput\n" +
             "        shot NAME | gameshot NAME | dump | ids [FILTER] | texts [FILTER] | log [N] | windows\n" +
             "Mouse:  move X Y [DUR] | down | up | click X Y | dclick X Y | rclick X Y | drag X1 Y1 X2 Y2 [DUR] | scroll N\n" +
@@ -251,6 +251,7 @@ namespace SecondCursor.EditorTools
             switch (cmd)
             {
                 case "beat": g.Director.JumpTo(a[1]); inner = WaitSeconds(0.3f); break;
+                case "jump": GameBootstrap.Restart(a[1]); inner = WaitFor(() => G != null && G.Director != null && G.Director.CurrentBeat == a[1], 20f, "fresh shift at " + a[1]); break;
                 case "waitbeat": inner = WaitFor(() => g.Director.CurrentBeat == a[1], F(a, 2, 120f), "beat " + a[1]); break;
                 case "waitflag": inner = WaitFor(() => g.Flags.Has(a[1]), F(a, 2, 120f), "flag " + a[1]); break;
                 case "waittask": inner = WaitFor(() => g.Tasks.IsCompleted(a[1]), F(a, 2, 120f), "task " + a[1]); break;
@@ -258,6 +259,31 @@ namespace SecondCursor.EditorTools
                 case "waitlog": inner = WaitLog(a.Length > 2 && float.TryParse(a[a.Length - 1], NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? string.Join(" ", a.Skip(1).Take(a.Length - 2)) : rest, a.Length > 2 ? F(a, a.Length - 1, 60f) : 60f); break;
                 case "speed": Time.timeScale = F(a, 1, 1f); break;
                 case "crt": g.Fx.CrtEnabled = a.Length < 2 || a[1] != "off"; break;
+                case "audio":
+                {
+                    // Loudness of what the listener is outputting right now (0 = silence).
+                    var buf = new float[2048];
+                    AudioListener.GetOutputData(buf, 0);
+                    float sum = 0f, peak = 0f;
+                    foreach (float v in buf) { sum += v * v; peak = Mathf.Max(peak, Mathf.Abs(v)); }
+                    Say("rms=" + Mathf.Sqrt(sum / buf.Length).ToString("0.0000") + " peak=" + peak.ToString("0.000") + " listenerVolume=" + AudioListener.volume + " paused=" + AudioListener.pause
+                        + " sources=" + SceneObjects.All<AudioSource>().Count(s => s.isPlaying));
+                    break;
+                }
+                case "fx":
+                {
+                    // fx            -> list the CRT overlay graphics and their state
+                    // fx NAME on|off -> toggle one (by field name, e.g. _vignette)
+                    foreach (var f in typeof(FX.VisualFx).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic))
+                    {
+                        if (!typeof(UnityEngine.UI.Graphic).IsAssignableFrom(f.FieldType)) continue;
+                        var gr = (UnityEngine.UI.Graphic)f.GetValue(g.Fx);
+                        if (gr == null) continue;
+                        if (a.Length > 2 && f.Name.TrimStart('_').Equals(a[1].TrimStart('_'), StringComparison.OrdinalIgnoreCase)) gr.enabled = a[2] == "on";
+                        Say(f.Name + " enabled=" + gr.enabled + " color=" + gr.color + " mat=" + (gr.materialForRendering != null ? gr.materialForRendering.shader.name : "-"));
+                    }
+                    break;
+                }
                 case "restart": GameBootstrap.Restart(); inner = WaitSeconds(0.5f); break;
                 case "shot": SaveScreen(g, a.Length > 1 ? a[1] : "shot"); break;
                 case "gameshot": inner = GameShot(a.Length > 1 ? a[1] : "gameshot"); break;
@@ -358,7 +384,8 @@ namespace SecondCursor.EditorTools
         static IEnumerator WaitLog(string text, float timeout)
         {
             float since = Time.unscaledTime;
-            yield return WaitFor(() => GameLog.Recent(40).Any(e => e.Time >= since && e.ToString().IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0), timeout, "log '" + text + "'");
+            var wait = WaitFor(() => GameLog.Recent(40).Any(e => e.Time >= since && e.ToString().IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0), timeout, "log '" + text + "'");
+            while (wait.MoveNext()) yield return null;
         }
 
         /// <summary>Waits until the scripted input has played every queued step.</summary>

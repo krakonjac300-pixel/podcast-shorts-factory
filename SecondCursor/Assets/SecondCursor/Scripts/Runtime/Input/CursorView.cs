@@ -152,10 +152,11 @@ namespace SecondCursor.Input
                 if (img == null) continue;
                 img.enabled = trail;
                 if (!trail) continue;
-                int back = (i + 1) * 2;
+                // Consecutive recent frames and fading fast: a smear behind the cursor, never extra cursors.
+                int back = i + 1;
                 var pos = _history[(_historyIndex - 1 - back + _history.Length * 4) % _history.Length];
                 img.rectTransform.anchoredPosition = pos;
-                img.color = new Color(1f, 1f, 1f, Alpha * (0.28f - i * 0.08f) * Mathf.Clamp01((speed - 500f) / 700f));
+                img.color = new Color(1f, 1f, 1f, Alpha * (0.22f - i * 0.07f) * Mathf.Clamp01((speed - 500f) / 700f));
             }
         }
     }

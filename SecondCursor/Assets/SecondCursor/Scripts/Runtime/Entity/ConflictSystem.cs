@@ -21,7 +21,7 @@ namespace SecondCursor.Entity
     /// </summary>
     public sealed class ConflictSystem : MonoBehaviour
     {
-        const int BandDots = 9;
+        const int BandDots = 15;
 
         GameServices _g;
         TugOfWar _model;
@@ -154,7 +154,10 @@ namespace SecondCursor.Entity
                 var img = _band[i];
                 img.enabled = true;
                 img.rectTransform.anchoredPosition = new Vector2(Mathf.Round(p.x), Mathf.Round(p.y));
-                img.color = new Color(0.95f, 0.95f, 0.9f, 0.25f + strain * 0.6f);
+                // The band thickens and heats from pale to red as the fight strains.
+                float size = strain > 0.6f ? 3f : 2f;
+                img.rectTransform.sizeDelta = new Vector2(size, size);
+                img.color = Color.Lerp(new Color(0.95f, 0.95f, 0.9f, 0.45f), new Color(0.95f, 0.22f, 0.2f, 0.95f), strain);
             }
         }
 

@@ -199,6 +199,15 @@ namespace SecondCursor.OS
                 _inbox.Add(e.id);
                 if (e.read) _read.Add(e.id);
             }
+            // Oldest first, so the mail client (which lists newest deliveries on top) opens in date order.
+            _inbox.Sort((a, b) => SortDate(a).CompareTo(SortDate(b)));
+        }
+
+        System.DateTime SortDate(string id)
+        {
+            var mail = _g.Content.Email(id);
+            return mail != null && System.DateTime.TryParseExact(mail.date, "ddd MM/dd/yy h:mm tt",
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : System.DateTime.MinValue;
         }
 
         public IReadOnlyList<string> Inbox => _inbox;
@@ -267,7 +276,7 @@ namespace SecondCursor.OS
             if (!correct) _g.Flags.Increment(Core.Story.Flags.CounterWrongOrders);
             if (by != null && by.IsPlayer) _g.Memory.Record(MemoryKind.DecidedOrder, orderId, _g.Now);
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.Player,
-                (by?.Name ?? "System") + " " + decision + "d " + orderId + (correct ? " (correct)" : " (WRONG)"));
+                (by?.Name ?? "System") + " " + (decision.EndsWith("e") ? decision + "d " : decision + "ed ") + orderId + (correct ? " (correct)" : " (WRONG)"));
             Decided?.Invoke(orderId, decision, by);
             _g.Tasks.Evaluate();
         }

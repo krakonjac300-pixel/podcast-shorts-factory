@@ -15,6 +15,7 @@ namespace SecondCursor.Game
         {
             if (Object.FindAnyObjectByType<DisableAutoBoot>() != null) return;
             if (Object.FindAnyObjectByType<GameRoot>() != null) return;
+            GameRoot.StartBeat = null; // statics survive Play sessions when domain reload is off
             var go = new GameObject("SECOND CURSOR");
             go.AddComponent<GameRoot>();
             Debug.Log("[SYSTEM] SECOND CURSOR booted in scene '" + SceneManager.GetActiveScene().name + "'");
@@ -22,10 +23,14 @@ namespace SecondCursor.Game
 
         /// <summary>
         /// Start a fresh shift without reloading the scene (works even when the scene is not in Build
-        /// Settings): tear down the whole game object tree and build a new one.
+        /// Settings): tear down the whole game object tree and build a new one. With
+        /// <paramref name="startBeat"/> the new shift skips straight to that story beat.
         /// </summary>
-        public static void Restart()
+        public static void Restart() => Restart(null);
+
+        public static void Restart(string startBeat)
         {
+            GameRoot.StartBeat = startBeat;
             Time.timeScale = 1f;
             AudioListener.pause = false;
             var old = GameRoot.Instance;

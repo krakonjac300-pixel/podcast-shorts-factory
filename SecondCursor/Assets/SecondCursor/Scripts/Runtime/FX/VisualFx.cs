@@ -96,10 +96,11 @@ namespace SecondCursor.FX
             {
                 float u = (x + 0.5f) / 128f * 2f - 1f;
                 float v = (y + 0.5f) / 72f * 2f - 1f;
-                // Superellipse: flat centre, darker toward the rounded tube corners.
+                // Superellipse: flat centre, gently darker toward the edges, black only in the rounded
+                // tube corners. Kept light so the taskbar and window edges stay readable.
                 float d = Mathf.Pow(Mathf.Pow(Mathf.Abs(u), 6f) + Mathf.Pow(Mathf.Abs(v), 6f), 1f / 6f);
-                float a = Mathf.SmoothStep(0.72f, 1.02f, d) * 0.85f + Mathf.SmoothStep(0.2f, 1.1f, u * u + v * v) * 0.12f;
-                if (d > 0.995f) a = 1f;
+                float a = Edge(0.78f, 1.12f, d) * 0.42f + Edge(0.4f, 1.6f, u * u + v * v) * 0.08f;
+                if (d > 1.105f) a = 1f;
                 return new Color32(0, 0, 0, (byte)(Mathf.Clamp01(a) * 255f));
             }, FilterMode.Bilinear, TextureWrapMode.Clamp);
             _ownedTextures.Add(vig);
@@ -111,6 +112,13 @@ namespace SecondCursor.FX
             _black = UIBuilder.Solid(parent, Color.black, "Black");
             _black.rectTransform.Stretch();
             _black.enabled = false;
+        }
+
+        /// <summary>GLSL-style smoothstep: 0 below e0, 1 above e1 (Mathf.SmoothStep interpolates instead).</summary>
+        static float Edge(float e0, float e1, float x)
+        {
+            float t = Mathf.Clamp01((x - e0) / (e1 - e0));
+            return t * t * (3f - 2f * t);
         }
 
         public bool CrtEnabled

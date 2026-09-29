@@ -27,6 +27,7 @@ namespace SecondCursor.Game
         static readonly float[] Speeds = { 1f, 2f, 4f, 0.5f };
         GUIStyle _box;
         GUIStyle _label;
+        GUIStyle _hint;
         float _fps;
         // Button actions run in the next Update, never in the middle of an OnGUI pass: changing game state
         // (which also writes log lines) between IMGUI's Layout and input events breaks GUILayout.
@@ -35,12 +36,17 @@ namespace SecondCursor.Game
 
         void Defer(System.Action action) => _pending.Add(action);
 
+        /// <summary>Keeps the panel open across the restart a beat jump makes.</summary>
+        static bool _reopen;
+
         public static DebugOverlay Create(GameServices g, Transform parent)
         {
             var go = new GameObject("Debug Overlay");
             go.transform.SetParent(parent, false);
             var d = go.AddComponent<DebugOverlay>();
             d._g = g;
+            d._open = _reopen;
+            _reopen = false;
             return d;
         }
 
@@ -90,7 +96,13 @@ namespace SecondCursor.Game
             GUI.color = Color.white;
             if (!_open)
             {
-                GUI.Label(new Rect(6, Screen.height - 20, 600, 20), "F1 debug  |  " + _fps.ToString("0") + " fps");
+                // Developer hint only (Editor and development builds), faint and top-centre so it never
+                // covers the taskbar or the Nexus button.
+                if (!Debug.isDebugBuild) return;
+                if (_hint == null) _hint = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter, fontSize = 11 };
+                GUI.color = new Color(1f, 1f, 1f, 0.35f);
+                GUI.Label(new Rect(Screen.width * 0.5f - 150f, 2f, 300f, 18f), "F1 debug  |  " + _fps.ToString("0") + " fps", _hint);
+                GUI.color = Color.white;
                 return;
             }
             if (_box == null)
@@ -112,7 +124,8 @@ namespace SecondCursor.Game
             int col = 0;
             foreach (var beat in EventDirector.Beats)
             {
-                if (GUILayout.Button(beat)) Defer(() => _g.Director.JumpTo(beat));
+                // A fresh shift at that beat: jumping back never leaves later windows or entity state behind.
+                if (GUILayout.Button(beat)) Defer(() => { _reopen = true; GameBootstrap.Restart(beat); });
                 if (++col % 3 == 0) { GUILayout.EndHorizontal(); GUILayout.BeginHorizontal(); }
             }
             GUILayout.EndHorizontal();

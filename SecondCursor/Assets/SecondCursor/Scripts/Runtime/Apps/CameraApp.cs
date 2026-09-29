@@ -46,7 +46,7 @@ namespace SecondCursor.Apps
             foreach (var cam in G.Content.Story.cameras)
             {
                 string id = cam.id;
-                var b = UiButton.Create(side, cam.label.Length > 16 ? cam.label.Substring(0, 16) : cam.label, a => Select(id, a), "camera:" + id);
+                var b = UiButton.Create(side, ButtonLabel(cam.label, 96), a => Select(id, a), "camera:" + id);
                 b.Label.Align = TextAlign.Left;
                 b.Label.rectTransform.Stretch(4, 0, 2, 0);
                 ((RectTransform)b.transform).At(0, y, 110, 22);
@@ -63,7 +63,7 @@ namespace SecondCursor.Apps
             _feed.color = new Color(0.86f, 0.93f, 0.88f, 1f);
 
             _noiseTex = OwnedAssets.Own(Window.gameObject,
-                new Texture2D(80, 60, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat });
+                new Texture2D(160, 120, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat });
             _noise = UIBuilder.Raw(screen.rectTransform, _noiseTex, "Noise");
             _noise.rectTransform.Stretch(2, 2, 2, 2);
 
@@ -91,6 +91,19 @@ namespace SecondCursor.Apps
             if (G.CameraRig != null) G.CameraRig.SetViewing(true);
         }
 
+        /// <summary>"CAM 04 - SUBLEVEL C" -> "CAM 04 SUBLEVEL C", dropping trailing words until it fits.</summary>
+        static string ButtonLabel(string label, int maxWidth)
+        {
+            string s = label.Replace(" - ", " ");
+            while (PixelFont.Measure(s, 0, false, 1).x > maxWidth)
+            {
+                int cut = s.LastIndexOf(' ');
+                if (cut <= 0) break;
+                s = s.Substring(0, cut);
+            }
+            return s;
+        }
+
         public void Select(string camId, CursorAgent by)
         {
             _current = camId;
@@ -114,14 +127,15 @@ namespace SecondCursor.Apps
             _rec.enabled = signal && (_t % 1.2f) < 0.7f;
 
             // Animated grain: stronger on dead channels and right after switching.
-            float amount = !signal ? 0.9f : Mathf.Max(0.12f, _switchNoise * 3f) + (G.CameraRig != null ? G.CameraRig.ExtraNoise : 0f);
+            // Fine 2x2 speckle: a light constant hiss that never hides the picture, heavier on static cuts.
+            float amount = !signal ? 0.9f : Mathf.Max(0.05f, _switchNoise * 3f) + (G.CameraRig != null ? G.CameraRig.ExtraNoise : 0f);
             if (G.CameraRig != null && _feed.texture != G.CameraRig.Feed) _feed.texture = G.CameraRig.Feed;
             if (_noisePixels == null) _noisePixels = new Color32[_noiseTex.width * _noiseTex.height];
             var px = _noisePixels;
             for (int i = 0; i < px.Length; i++)
             {
                 byte v = (byte)UnityEngine.Random.Range(0, 256);
-                px[i] = new Color32(v, v, v, (byte)(UnityEngine.Random.value < amount ? 70 + v / 3 : 0));
+                px[i] = new Color32(v, v, v, (byte)(UnityEngine.Random.value < amount ? 40 + v / 4 : 0));
             }
             _noiseTex.SetPixels32(px);
             _noiseTex.Apply(false, false);

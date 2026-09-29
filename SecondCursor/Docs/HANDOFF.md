@@ -75,6 +75,23 @@ Imported by extracting `SecondCursor.unitypackage` into a fresh URP project. Res
   story restarting at `boot`. Unity 6.6 deprecation warnings (`FindObjectsSortMode`) and serialization
   analyzer warnings are gone.
 
+### Polish pass 1
+
+- CRT vignette: `Mathf.SmoothStep` interpolates (it is not GLSL `smoothstep`), so the vignette covered
+  the whole screen at 64-100% black. Now a GLSL-style edge function and a lighter curve: the taskbar
+  and window edges stay readable.
+- F1 "Jump to beat" starts a fresh shift at that beat (`GameBootstrap.Restart(beat)`), so jumping back
+  never leaves later windows or entity state behind. F2 still skips in place.
+- Presence: the second cursor drops employee_017.dat where its whole icon is visible.
+- Pacing: the self-selecting file never fires in the same instant as the cursor flinch; a pause after the
+  shredded file returns before the entity starts typing.
+- Tug-of-war band: more dots, thicker and red as strain rises. Entity afterimages are a short smear.
+- Ending: the second cursor rides after the typed letters instead of sitting on the words.
+- CCTV static is a fine 2x2 hiss; camera buttons show whole words; mail lists newest first with an
+  untruncated Received column; the F1 hint is faint, top-centre, Editor/development builds only.
+- Unity 6 "fast enter play mode" (no domain reload) was audited: the game's static caches all
+  null-check destroyed objects, so repeated Play presses are safe.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -83,7 +100,7 @@ nothing unless the folder `Library/SecondCursorBridge` exists. Write commands to
 
 ```
 play                     # enter Play mode (survives the domain reload)
-beat conflict            # jump to a beat
+jump conflict            # fresh shift at a beat ("beat NAME" jumps in place)
 dclickid app:mail        # double-click an element by its logical id ("APP/ID" scopes to a window, "ID#N" picks the Nth)
 dragto file:employee_017 app:disposal 0.3
 clicktext Log On         # click visible pixel text

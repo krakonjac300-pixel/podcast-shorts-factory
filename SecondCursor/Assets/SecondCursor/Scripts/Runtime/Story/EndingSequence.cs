@@ -71,20 +71,27 @@ namespace SecondCursor.Story
             text.rectTransform.At(80, 200, ScreenRig.Width - 160, 200);
             text.Align = TextAlign.Center;
             var sb = new System.Text.StringBuilder();
+            float top = ScreenRig.Height - 200f;
+            int lineIndex = 0;
             foreach (var line in g.Content.Story.endingLines)
             {
+                var current = new System.Text.StringBuilder();
                 foreach (char c in line)
                 {
                     sb.Append(c);
+                    current.Append(c);
                     text.text = sb.ToString();
                     g.Audio.Play(c == ' ' ? "key_space" : "key_tap", 0.9f, Random.Range(0.9f, 1.05f), AudioPanFor(g));
-                    // The cursor jitters with each keystroke.
-                    g.Entity.Teleport(g.Entity.Agent.Position + Random.insideUnitCircle * 0.8f);
+                    // The cursor rides just after the last letter, jittering with each keystroke, never on the words.
+                    float w = PixelFont.Measure(current.ToString(), 0, true, text.Scale).x;
+                    var caret = new Vector2(ScreenRig.Width * 0.5f + w * 0.5f + 5f, top - lineIndex * text.LineHeightPx - 3f);
+                    g.Entity.Teleport(caret + Random.insideUnitCircle * 0.8f);
                     yield return Waits.Seconds(c == ' ' ? 0.16f : Random.Range(0.07f, 0.16f));
                 }
                 yield return Waits.Seconds(1.6f);
                 sb.Append('\n');
                 text.text = sb.ToString();
+                lineIndex++;
             }
             yield return Waits.Seconds(2.5f);
             yield return g.Entity.Vanish(1.5f);

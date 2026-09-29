@@ -25,7 +25,7 @@ namespace SecondCursor.Apps
             var win = CreateWindow(G.Content.Text("app.mail"), "icon_mail", 150, 30, 560, 380, WindowFlags.Standard, zoomFrom);
             var client = win.Client;
 
-            _list = new ListView(client, "Inbox", new[] { 170, 250, 110 }, new[] { "From", "Subject", "Received" }, true);
+            _list = new ListView(client, "Inbox", new[] { 150, 250, 130 }, new[] { "From", "Subject", "Received" }, true);
             _list.Root.TopStrip(2, 118, 2, 2);
             _list.RowSelected += (row, a) => Show((string)row.Tag, a);
 

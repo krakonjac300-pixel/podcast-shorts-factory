@@ -400,6 +400,8 @@ namespace SecondCursor.Story
             yield return Wait(6f);
             _g.PlayerView.Flinch(new Vector2(UnityEngine.Random.Range(3f, 5f), UnityEngine.Random.Range(-4f, -2f)));
             GameLog.Info(LogChannel.Story, "Anomaly: player cursor flinched");
+            // Let the twitch sink in before the next oddity (they must never land together).
+            yield return Wait(UnityEngine.Random.Range(7f, 10f));
 
             // Anomaly A: employee_017.dat becomes selected by itself (with a click you didn't make).
             yield return WaitUntil(() =>
@@ -444,14 +446,7 @@ namespace SecondCursor.Story
 
             // The second cursor enters from the right edge, carrying employee_017.dat out of nowhere.
             var start = new Vector2(ScreenRig.Width + 6f, 330f);
-            Vector2 spot = new Vector2(600f, 300f);
-            if (!E.IsBareDesktop(spot))
-            {
-                // Find visible desktop so the player actually sees the file arrive.
-                for (float y = 440f; y > 120f && !E.IsBareDesktop(spot); y -= 40f)
-                    for (float x = 820f; x > 120f; x -= 60f)
-                        if (E.IsBareDesktop(new Vector2(x, y))) { spot = new Vector2(x, y); break; }
-            }
+            Vector2 spot = FindDropSpot(new Vector2(600f, 300f));
             E.Teleport(start);
             yield return E.Appear(start, 0.1f, true);
             _g.Taskbar.PointingDevices = 2;
@@ -495,6 +490,52 @@ namespace SecondCursor.Story
             yield return Wait(1f);
             GiveTask(ContentIds.TaskShred017);
         }
+
+        /// <summary>
+        /// Where the second cursor lets go of the file so the player sees the icon arrive: the preferred
+        /// spot if its whole icon cell is visible desktop, else the most visible cell on screen (ties go
+        /// to the spot nearest the preferred one). Toasts count as visible: they are gone in seconds.
+        /// </summary>
+        Vector2 FindDropSpot(Vector2 preferred)
+        {
+            if (VisibleProbes(preferred) == DropCellProbes.Length) return preferred;
+            Vector2 best = preferred;
+            int bestScore = -1;
+            float bestDistance = float.MaxValue;
+            for (float y = 440f; y > 120f; y -= 20f)
+                for (float x = 840f; x > 100f; x -= 20f)
+                {
+                    var p = new Vector2(x, y);
+                    int score = VisibleProbes(p);
+                    float distance = (p - preferred).sqrMagnitude;
+                    if (score > bestScore || (score == bestScore && distance < bestDistance))
+                    {
+                        best = p;
+                        bestScore = score;
+                        bestDistance = distance;
+                    }
+                }
+            return best;
+        }
+
+        /// <summary>How many points of the dropped icon's cell (74 px wide, 16 px above the tip down to its label) are visible.</summary>
+        int VisibleProbes(Vector2 tip)
+        {
+            int n = 0;
+            foreach (var o in DropCellProbes)
+            {
+                Vector2 p = tip + o;
+                if (p.x < 8f || p.x > ScreenRig.Width - 60f || p.y < WindowManager.TaskbarHeight + 8f || p.y > ScreenRig.Height - 8f) continue;
+                var hit = _g.Router.HitTest(p, E.Agent);
+                if (hit == _g.Desktop.Background || (hit != null && hit.elementId.StartsWith("toast:", StringComparison.Ordinal))) n++;
+            }
+            return n;
+        }
+
+        static readonly Vector2[] DropCellProbes =
+        {
+            new Vector2(0f, -10f), new Vector2(-35f, 14f), new Vector2(35f, 14f), new Vector2(-35f, -34f), new Vector2(35f, -34f), new Vector2(0f, -34f),
+        };
 
         // ------------------------------------------------------------------ PHASE 3: interference (key fun test)
 
@@ -549,6 +590,8 @@ namespace SecondCursor.Story
                 _g.Flags.Set(Flags.File017Returned);
                 yield return Wait(0.6f);
                 _g.Notifications.Show(_g.Content.Text("app.disposal"), _g.Content.Format("error.inuse.body", "employee_017.dat"), "icon_error", null, "sys_error");
+                // A beat of stillness: let the player notice the file is back before it speaks.
+                yield return Wait(3f);
             }
             else if (!_g.Flags.Has(Flags.File017Returned))
             {

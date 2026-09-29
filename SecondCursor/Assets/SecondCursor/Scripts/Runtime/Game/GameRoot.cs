@@ -30,6 +30,9 @@ namespace SecondCursor.Game
         public GameServices G { get; private set; }
         public static GameRoot Instance { get; private set; }
 
+        /// <summary>Beat the next root starts at instead of boot (debug "Jump to beat" on a fresh shift).</summary>
+        internal static string StartBeat;
+
         bool _built;
 
         void Awake()
@@ -121,7 +124,11 @@ namespace SecondCursor.Game
         {
             yield return G.Audio.GenerateAll();
             // A debug jump made while the sounds were generating has already started the story.
-            if (string.IsNullOrEmpty(G.Director.CurrentBeat)) G.Director.Begin();
+            if (!string.IsNullOrEmpty(G.Director.CurrentBeat)) yield break;
+            string beat = StartBeat;
+            StartBeat = null;
+            if (string.IsNullOrEmpty(beat)) G.Director.Begin();
+            else G.Director.JumpTo(beat);
         }
 
         void EnsureAudioListener()
