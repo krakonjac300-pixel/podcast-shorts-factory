@@ -46,6 +46,7 @@ namespace SecondCursor.FX
             var fx = rig.gameObject.AddComponent<VisualFx>();
             fx._rig = rig;
             fx.Build();
+            rig.ScreenTextureChanged += fx.RebindScreen;
             return fx;
         }
 
@@ -119,6 +120,12 @@ namespace SecondCursor.FX
         {
             float t = Mathf.Clamp01((x - e0) / (e1 - e0));
             return t * t * (3f - 2f * t);
+        }
+
+        void RebindScreen()
+        {
+            foreach (var s in _strips) s.texture = _rig.ScreenTexture;
+            foreach (var f in _fringes) f.texture = _rig.ScreenTexture;
         }
 
         public bool CrtEnabled

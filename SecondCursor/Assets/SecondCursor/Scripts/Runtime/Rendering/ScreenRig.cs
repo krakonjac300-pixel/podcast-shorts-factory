@@ -9,6 +9,8 @@ namespace SecondCursor.Rendering
     /// shown letterboxed on the real screen through an overlay canvas where the CRT effects live.
     /// A fixed virtual resolution keeps pixel art crisp, layout deterministic, and makes all gameplay
     /// coordinates (both cursors, hit-testing, entity targets) resolution-independent.
+    /// At non-integer display scales the OS is rendered at the next whole multiple (e.g. 1920x1080 for a
+    /// 1.24x window) and scaled down smoothly ("sharp bilinear"), so pixel text stays crisp at any size.
     /// </summary>
     public sealed class ScreenRig : MonoBehaviour
     {
@@ -18,6 +20,10 @@ namespace SecondCursor.Rendering
         public const int SceneLayer = 8;   // 3D security-camera set (unnamed user layer; works without a name)
 
         public RenderTexture ScreenTexture { get; private set; }
+        /// <summary>The screen texture was replaced (supersampling factor changed): re-bind any copies.</summary>
+        public event System.Action ScreenTextureChanged;
+        /// <summary>Screen texture pixels per virtual pixel (1 at integer display scales).</summary>
+        public int TextureScale { get; private set; } = 1;
         public Camera UiCamera { get; private set; }
         public Canvas OsCanvas { get; private set; }
         public RectTransform OsRoot { get; private set; }
@@ -34,15 +40,7 @@ namespace SecondCursor.Rendering
 
         public void Build()
         {
-            ScreenTexture = new RenderTexture(Width, Height, 16, RenderTextureFormat.ARGB32)
-            {
-                name = "NEXUS Screen",
-                filterMode = FilterMode.Point,
-                useMipMap = false,
-                antiAliasing = 1,
-                wrapMode = TextureWrapMode.Clamp,
-            };
-            ScreenTexture.Create();
+            ScreenTexture = MakeScreenTexture(1);
 
             // Backbuffer clear camera: renders nothing, keeps the real screen black behind the display.
             var clearGo = new GameObject("Backbuffer Camera");
@@ -139,6 +137,7 @@ namespace SecondCursor.Rendering
             bool integer = si >= 1f && si >= s * 0.93f;
             if (integer) s = si;
             Scale = s;
+            SetTextureScale(integer ? 1 : Mathf.Clamp(Mathf.CeilToInt(s), 1, 4));
             float w = Width * s, h = Height * s;
             float x = Mathf.Floor((sw - w) * 0.5f), y = Mathf.Floor((sh - h) * 0.5f);
             DisplayPixelRect = new Rect(x, y, w, h);
@@ -147,6 +146,36 @@ namespace SecondCursor.Rendering
             // The overlay canvas is in real pixels (scale factor 1).
             DisplayRect.anchoredPosition = new Vector2(x, y);
             DisplayRect.sizeDelta = new Vector2(w, h);
+        }
+
+        RenderTexture MakeScreenTexture(int scale)
+        {
+            var rt = new RenderTexture(Width * scale, Height * scale, 16, RenderTextureFormat.ARGB32)
+            {
+                name = "NEXUS Screen x" + scale,
+                filterMode = FilterMode.Point,
+                useMipMap = false,
+                antiAliasing = 1,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            rt.Create();
+            return rt;
+        }
+
+        void SetTextureScale(int scale)
+        {
+            if (scale == TextureScale) return;
+            var old = ScreenTexture;
+            TextureScale = scale;
+            ScreenTexture = MakeScreenTexture(scale);
+            UiCamera.targetTexture = ScreenTexture;
+            DisplayImage.texture = ScreenTexture;
+            if (old != null)
+            {
+                old.Release();
+                Destroy(old);
+            }
+            ScreenTextureChanged?.Invoke();
         }
 
         /// <summary>Real screen pixels (origin bottom-left, e.g. mouse position) to virtual OS pixels.</summary>

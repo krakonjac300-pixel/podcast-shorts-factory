@@ -110,6 +110,15 @@ Imported by extracting `SecondCursor.unitypackage` into a fresh URP project. Res
 - Bridge: scripted input only while a script runs a pointer/keyboard command (`scriptinput` makes it
   sticky), so manual Play always has the real mouse.
 
+### Polish pass 3
+
+- Sharp scaling: at non-integer display scales (e.g. a 1194 px wide Game view is 1.24x) the OS renders at
+  the next whole multiple (`ScreenRig.TextureScale`, here 2x = 1920x1080) and is scaled down smoothly,
+  so pixel text keeps crisp interiors at any window size. Integer scales still render 1:1 with point
+  filtering. `ScreenRig.ScreenTextureChanged` lets copies (the glitch strips) re-bind.
+- Real-mouse check in the Editor: clicks, double-clicks, window drags and file drags all work through the
+  Input System path, not only through the bridge.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

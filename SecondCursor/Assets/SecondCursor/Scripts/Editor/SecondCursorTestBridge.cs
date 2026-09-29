@@ -77,7 +77,7 @@ namespace SecondCursor.EditorTools
         static void OnLog(string condition, string stackTrace, LogType type)
         {
             if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert) return;
-            if (condition.Contains("NoSubscription")) return; // Unity AI package noise, not the game
+            if (condition.Contains("NoSubscription") || condition.Contains("DefaultScenario")) return; // Unity-internal noise, not the game
             string first = stackTrace?.Split('\n').FirstOrDefault(l => l.Contains("SecondCursor")) ?? "";
             ConsoleErrors.Add(type + ": " + condition + (first.Length > 0 ? "  @ " + first.Trim() : ""));
             if (ConsoleErrors.Count > 200) ConsoleErrors.RemoveAt(0);
@@ -419,7 +419,8 @@ namespace SecondCursor.EditorTools
             var g = G;
             if (g != null)
             {
-                Say("beat=" + g.Director.CurrentBeat + " t=" + Time.time.ToString("0.0") + " scale=" + Time.timeScale + " frame=" + Time.frameCount + " input=" + g.Input.GetType().Name);
+                Say("beat=" + g.Director.CurrentBeat + " t=" + Time.time.ToString("0.0") + " scale=" + Time.timeScale + " frame=" + Time.frameCount + " input=" + g.Input.GetType().Name
+                    + " fps=" + (1f / Mathf.Max(0.0001f, Time.smoothDeltaTime)).ToString("0") + " screen=" + Screen.width + "x" + Screen.height + " rtScale=" + g.Screen.TextureScale);
                 Say("player=" + Fmt(g.Player.Position) + " entity=" + Fmt(g.Entity.Agent.Position) + " visible=" + g.Entity.IsVisible + " state=" + g.Entity.State + " action=" + (g.Entity.CurrentAction ?? "-"));
             }
             Say(ConsoleErrors.Count + " console error(s)");
@@ -466,6 +467,20 @@ namespace SecondCursor.EditorTools
             tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
             tex.Apply();
             RenderTexture.active = prev;
+            int k = g.Screen.TextureScale;
+            if (k > 1)
+            {
+                // The screen is supersampled: keep shots at the virtual 960x540 (one sample per virtual pixel).
+                var src = tex.GetPixels32();
+                var dst = new Color32[ScreenRig.Width * ScreenRig.Height];
+                for (int y = 0; y < ScreenRig.Height; y++)
+                    for (int x = 0; x < ScreenRig.Width; x++)
+                        dst[y * ScreenRig.Width + x] = src[(y * k) * rt.width + x * k];
+                UnityEngine.Object.DestroyImmediate(tex);
+                tex = new Texture2D(ScreenRig.Width, ScreenRig.Height, TextureFormat.RGB24, false);
+                tex.SetPixels32(dst);
+                tex.Apply();
+            }
             string path = Path.Combine(ShotDir, name + ".png");
             File.WriteAllBytes(path, tex.EncodeToPNG());
             UnityEngine.Object.DestroyImmediate(tex);
