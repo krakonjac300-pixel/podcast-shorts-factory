@@ -230,7 +230,7 @@ namespace SecondCursor.Core.Audio
         /// <summary>Keeps the table index positive for phases down to -4096 cycles (no Math.Floor needed).</summary>
         private const double SinOffset = 4096.0 * SinSize;
 
-        /// <summary>sin(2*pi*phase), phase in cycles (-4096 .. +4000). Interpolated table, ~-140 dB error.</summary>
+        /// <summary>sin(2*pi*phase), phase in cycles (-4096 .. +500000). Interpolated table, ~-140 dB error.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float Sin01(double phase)
         {
@@ -238,6 +238,17 @@ namespace SecondCursor.Core.Audio
             int k = (int)x;
             float f = (float)(x - k);
             int i = k & (SinSize - 1);
+            float a = SinTable[i];
+            return a + (SinTable[i + 1] - a) * f;
+        }
+
+        /// <summary>sin(2*pi*phase) for a phase already in [0, 1) - the oscillators' fast path.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float SinUnit(double phase)
+        {
+            double x = phase * SinSize;
+            int i = (int)x;
+            float f = (float)(x - i);
             float a = SinTable[i];
             return a + (SinTable[i + 1] - a) * f;
         }
@@ -258,14 +269,7 @@ namespace SecondCursor.Core.Audio
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public float Sin(float hz)
-            {
-                double x = Advance(hz) * SinSize;
-                int i = (int)x;
-                float f = (float)(x - i);
-                float a = SinTable[i];
-                return a + (SinTable[i + 1] - a) * f;
-            }
+            public float Sin(float hz) => SinUnit(Advance(hz));
         }
 
         /// <summary>
@@ -843,8 +847,8 @@ namespace SecondCursor.Core.Audio
         }
 
         /// <summary>
-        /// Adds amp * exp(-t/tau) * sin(2*pi*hz*t) with a raised-cosine attack. Uses the exact two-pole
-        /// recursion (a damped rotation) instead of per-sample sin/exp: ~1 ns per sample.
+        /// Adds amp * exp(-t/tau) * sin(2*pi*hz*t) with a raised-cosine attack, using the exact two-pole
+        /// recursion (a damped rotation) instead of a sin and an exp per sample.
         /// </summary>
         private static void AddDecaySine(float[] b, int start, float hz, float amp, float tau, float attack)
         {
@@ -872,9 +876,11 @@ namespace SecondCursor.Core.Audio
         {
             int start = Sec(startSec), count = 0;
             if (start >= b.Length) return;
+            // Longest decay first, so partials can retire from the end of the list as they die out.
+            // A stable insertion sort: Array.Sort is unstable and differs between runtimes.
             var order = (Partial[])partials.Clone();
-            for (int i = 1; i < order.Length; i++) // stable insertion sort, longest decay first, so dead partials
-            {                                      // drop off the end (Array.Sort is unstable and runtime-specific)
+            for (int i = 1; i < order.Length; i++)
+            {
                 Partial p = order[i];
                 int j = i - 1;
                 for (; j >= 0 && order[j].Tau < p.Tau; j--) order[j + 1] = order[j];
@@ -1002,22 +1008,38 @@ namespace SecondCursor.Core.Audio
             if (softLimit && Peak(b) * g > PeakCeiling)
             {
                 const float knee = 0.5f, span = PeakCeiling - knee;
-                for (int pass = 0; pass < 2; pass++)
+                for (int i = 0; i < b.Length; i++)
                 {
-                    for (int i = 0; i < b.Length; i++)
-                    {
-                        float x = b[i] * g, a = MathF.Abs(x);
-                        b[i] = a <= knee ? x : MathF.Sign(x) * (knee + span * SoftClip((a - knee) / span));
-                    }
-                    g = target / Rms(b);
+                    float x = b[i] * g, a = MathF.Abs(x);
+                    b[i] = a <= knee ? x : MathF.Sign(x) * (knee + span * SoftClip((a - knee) / span));
                 }
+                g = target / Rms(b);
             }
             float peak = Peak(b);
             if (peak * g > PeakCeiling) g = PeakCeiling / peak;
             Scale(b, g);
         }
 
-
+        /// <summary>
+        /// Rotates a (seamless, hence rotation-invariant) loop so it starts on the quietest near-zero sample of its
+        /// first 10 ms: an AudioSource starting the loop cold then begins at ~0 instead of mid-waveform (no click),
+        /// and rhythmic loops keep their phase to within a few ms.
+        /// </summary>
+        private static float[] StartAtZeroCrossing(float[] b)
+        {
+            int n = b.Length, best = 0;
+            float bestScore = float.MaxValue;
+            for (int i = 0; i < Math.Min(n, Ms(10f)); i++)
+            {
+                float score = MathF.Abs(b[i]) + 0.5f * MathF.Abs(b[i] - b[(i + n - 1) % n]);
+                if (score < bestScore) { bestScore = score; best = i; }
+            }
+            if (best == 0) return b;
+            var rotated = new float[n];
+            Array.Copy(b, best, rotated, 0, n - best);
+            Array.Copy(b, 0, rotated, n - best, best);
+            return rotated;
+        }
 
         /// <summary>
         /// DC-block, de-click the ends, set the level (optionally rounding off overshooting transients), then the
@@ -1044,7 +1066,8 @@ namespace SecondCursor.Core.Audio
 
         /// <summary>
         /// Loop version of <see cref="FinishOneShot"/>: optional circular high-pass / "air" low-pass (circular, so
-        /// the seam stays intact), zero mean, level. Loops are built from DC-free parts, so most skip the filters.
+        /// the seam stays intact), zero mean, level, start on a zero crossing. Loops are built from DC-free parts,
+        /// so most skip the filters.
         /// </summary>
         private static float[] FinishLoop(float[] b, float rmsDb, float airHz = 0f, float hpHz = 0f)
         {
@@ -1060,7 +1083,7 @@ namespace SecondCursor.Core.Audio
             }
             RemoveMean(b);
             Normalize(b, rmsDb, false);
-            return b;
+            return StartAtZeroCrossing(b);
         }
 
         // ====================================================================
@@ -1566,7 +1589,7 @@ namespace SecondCursor.Core.Audio
         {
             int n = Sec(1f);
             const int strokes = 8;
-            float[] accents = { 1.0f, 0.55f, 0.8f, 0.5f, 1.0f, 0.6f, 0.85f, 0.45f };
+            float[] accents = { 0.95f, 0.55f, 0.8f, 0.5f, 1.0f, 0.6f, 0.85f, 0.65f };
             float[] b = new float[n];
             float[] env = new float[n];
             for (int k = 0; k < strokes; k++)

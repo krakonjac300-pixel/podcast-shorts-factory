@@ -38,7 +38,10 @@ namespace SecondCursor.Core.Entity
         public MovementProfileData Clone() => (MovementProfileData)MemberwiseClone();
     }
 
-    /// <summary>Built-in movement presets (brief section 20). Returned as fresh copies so callers may tweak them.</summary>
+    /// <summary>
+    /// Built-in movement presets (brief section 20). Returned as fresh copies so callers may tweak them.
+    /// Designers can override any preset by name at runtime (see EntityTuningAsset).
+    /// </summary>
     public static class MovementProfiles
     {
         public const string HumanLikeName = "HumanLike";
@@ -49,44 +52,58 @@ namespace SecondCursor.Core.Entity
         public const string LurkingName = "Lurking";
         public const string ImitatingName = "ImitatingPlayer";
 
-        public static MovementProfileData HumanLike => new MovementProfileData { name = HumanLikeName };
+        static readonly Dictionary<string, MovementProfileData> Overrides = new Dictionary<string, MovementProfileData>(StringComparer.Ordinal);
 
-        public static MovementProfileData Hesitant => new MovementProfileData
+        /// <summary>Replace presets by name (null/empty clears all overrides).</summary>
+        public static void SetOverrides(IEnumerable<MovementProfileData> profiles)
+        {
+            Overrides.Clear();
+            if (profiles == null) return;
+            foreach (var p in profiles)
+                if (p != null && !string.IsNullOrEmpty(p.name)) Overrides[p.name] = p.Clone();
+        }
+
+        static MovementProfileData Resolve(string name, MovementProfileData builtIn) =>
+            Overrides.TryGetValue(name, out var o) ? o.Clone() : builtIn;
+
+        public static MovementProfileData HumanLike => Resolve(HumanLikeName, new MovementProfileData { name = HumanLikeName });
+
+        public static MovementProfileData Hesitant => Resolve(HesitantName, new MovementProfileData
         {
             name = HesitantName, speed = 420f, maxDuration = 4f, curveRandomness = 0.22f, overshoot = 0f,
             microCorrections = 3, correctionSize = 6f, pauseProbability = 0.7f, pauseDuration = 0.6f,
             tremor = 0.8f, tremorFrequency = 7f, reactionDelay = 0.35f,
-        };
+        });
 
-        public static MovementProfileData Aggressive => new MovementProfileData
+        public static MovementProfileData Aggressive => Resolve(AggressiveName, new MovementProfileData
         {
             name = AggressiveName, speed = 2400f, minDuration = 0.07f, curveRandomness = 0.06f, overshoot = 0.08f,
             microCorrections = 0, tremor = 0.2f, reactionDelay = 0f, durationJitter = 0.05f,
-        };
+        });
 
-        public static MovementProfileData Panicked => new MovementProfileData
+        public static MovementProfileData Panicked => Resolve(PanickedName, new MovementProfileData
         {
             name = PanickedName, speed = 1900f, minDuration = 0.08f, curveRandomness = 0.3f, overshoot = 0.15f,
             microCorrections = 2, correctionSize = 10f, pauseProbability = 0.15f, pauseDuration = 0.12f,
             tremor = 2.2f, tremorFrequency = 14f, reactionDelay = 0f,
-        };
+        });
 
-        public static MovementProfileData Mechanical => new MovementProfileData
+        public static MovementProfileData Mechanical => Resolve(MechanicalName, new MovementProfileData
         {
             name = MechanicalName, speed = 700f, curveRandomness = 0f, overshoot = 0f, microCorrections = 0,
             tremor = 0f, reactionDelay = 0.25f, linear = true, durationJitter = 0f, maxDuration = 5f,
-        };
+        });
 
-        public static MovementProfileData Lurking => new MovementProfileData
+        public static MovementProfileData Lurking => Resolve(LurkingName, new MovementProfileData
         {
             name = LurkingName, speed = 160f, maxDuration = 8f, curveRandomness = 0.25f, overshoot = 0f,
             microCorrections = 0, tremor = 0.5f, pauseProbability = 0.4f, pauseDuration = 1.2f, reactionDelay = 0.5f,
-        };
+        });
 
-        public static MovementProfileData ImitatingPlayer => new MovementProfileData
+        public static MovementProfileData ImitatingPlayer => Resolve(ImitatingName, new MovementProfileData
         {
             name = ImitatingName, speed = 1000f, curveRandomness = 0.12f, overshoot = 0.04f, microCorrections = 1,
-        };
+        });
 
         public static MovementProfileData Get(string name)
         {

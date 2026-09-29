@@ -44,6 +44,8 @@ namespace SecondCursor.Entity
             go.transform.SetParent(parent, false);
             var c = go.AddComponent<ConflictSystem>();
             c._g = g;
+            var tuning = EntityTuningAsset.LoadOptional();
+            if (tuning != null && tuning.tugOfWar != null) c.Settings = tuning.tugOfWar;
             c._model = new TugOfWar(c.Settings);
             for (int i = 0; i < BandDots; i++)
             {

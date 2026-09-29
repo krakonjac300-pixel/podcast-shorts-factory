@@ -1,0 +1,67 @@
+{
+  "tasks": [
+    {
+      "id": "t_read_briefing",
+      "title": "Read the shift briefing",
+      "description": "Your supervisor left tonight's briefing in Mail. Read it before you start.",
+      "hint": "Double-click the Mail icon, then click the unread message to open it.",
+      "type": "ReadEmail",
+      "targets": ["mail_welcome"],
+      "param": ""
+    },
+    {
+      "id": "t_archive_ledger",
+      "title": "Archive ledger_1994.dat",
+      "description": "The 1994 ledger has cleared review. Move it from Intake to the Archive folder.",
+      "hint": "Open File Manager, open Intake, then drag ledger_1994.dat onto the Archive folder.",
+      "type": "MoveFile",
+      "targets": ["ledger_1994"],
+      "param": "archive"
+    },
+    {
+      "id": "t_verify_3317",
+      "title": "Verify work order #3317",
+      "description": "Check the drive owner's status in Personnel. Approve the wipe only if the owner is TERMINATED.",
+      "hint": "Open Work Orders, note the owner's number, look it up in Personnel, then click Approve or Reject.",
+      "type": "DecideOrder",
+      "targets": ["wo_3317"],
+      "param": ""
+    },
+    {
+      "id": "t_verify_3318",
+      "title": "Verify work order #3318",
+      "description": "Check the drive owner's status in Personnel. Approve the wipe only if the owner is TERMINATED.",
+      "hint": "Same as before: Work Orders, then Personnel. If the owner is not TERMINATED, click Reject.",
+      "type": "DecideOrder",
+      "targets": ["wo_3318"],
+      "param": ""
+    },
+    {
+      "id": "t_shred_cache",
+      "title": "Shred ~nxs2258.tmp",
+      "description": "A temporary cache file is taking up space in Intake. Shred it.",
+      "hint": "Drag ~nxs2258.tmp onto the Disposal bin, then confirm. Or right-click it for options.",
+      "type": "DeleteFile",
+      "targets": ["cache_tmp"],
+      "param": ""
+    },
+    {
+      "id": "t_archive_batch",
+      "title": "Archive Batch 44 (3 files)",
+      "description": "Batch 44 has been verified. Move batch44_a, batch44_b and batch44_c from Intake to Archive.",
+      "hint": "Drag each batch44 file from Intake onto the Archive folder, one at a time.",
+      "type": "MoveFile",
+      "targets": ["batch_a", "batch_b", "batch_c"],
+      "param": "archive"
+    },
+    {
+      "id": "t_shred_017",
+      "title": "PRIORITY: Shred employee_017.dat",
+      "description": "Order from the Office of Retention. Shred employee_017.dat immediately. Do not open it.",
+      "hint": "Drag employee_017.dat from the Desktop onto the Disposal bin and confirm.",
+      "type": "DeleteFile",
+      "targets": ["employee_017"],
+      "param": ""
+    }
+  ]
+}

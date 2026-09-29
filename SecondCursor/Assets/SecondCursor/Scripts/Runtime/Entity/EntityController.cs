@@ -77,6 +77,18 @@ namespace SecondCursor.Entity
             c._agent.Visible = false;
             c._agent.Position = new Vector2(ScreenRig.Width + 20, ScreenRig.Height * 0.5f);
             c._view.Alpha = 0f;
+            var tuning = EntityTuningAsset.LoadOptional();
+            if (tuning != null)
+            {
+                c.Personality = tuning.personality.Clone();
+                c.BlockRadius = tuning.blockRadius;
+                MovementProfiles.SetOverrides(tuning.movementOverrides);
+                GameLog.Info(LogChannel.Entity, "Loaded designer tuning asset '" + tuning.name + "'");
+            }
+            else
+            {
+                MovementProfiles.SetOverrides(null);
+            }
             c.Brain = new EntityBrain(g, c);
             g.Router.PressBlocked = c.BlocksPress;
             g.Router.PressRefused += (a, hit) =>

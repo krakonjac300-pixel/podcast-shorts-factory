@@ -114,19 +114,21 @@ internal static class Program
                 meanStep /= n;
                 double p1 = Percentile(d1, jump), p2 = Percentile(d2, curv);
                 double ratio = jump / Math.Max(meanStep, 1e-12);
-                // Envelope level: 25 ms RMS either side of the seam vs. every adjacent 25 ms window pair
-                // (25 ms spans 1.5 cycles of 60 Hz hum, so mains ripple does not masquerade as a level jump).
-                int w = Ms(25);
+                // Envelope level: 100 ms RMS either side of the seam vs. every adjacent 100 ms window pair
+                // (long enough that 60 Hz ripple or a rhythmic loop starting on a stroke is not a "level jump").
+                int w = Ms(100);
                 double seamDb = Db(Rms(x, 0, w)) - Db(Rms(x, n - w, w));
                 var pairs = new List<double>();
                 for (int s = w; s + w <= n; s += w) pairs.Add(Math.Abs(Db(Rms(x, s, w)) - Db(Rms(x, s - w, w))));
                 double pRms = Percentile(pairs.ToArray(), Math.Abs(seamDb));
+                double maxOther = pairs.Count > 0 ? pairs.Max() : 0;
                 edge = jump.ToString("0.00000");
                 stepRatio = ratio.ToString("0.00");
                 seamRms = seamDb.ToString("+0.00;-0.00");
                 seamPct = $"{p1,5:0.0}/{p2,5:0.0}/{pRms,5:0.0}";
                 if (p2 >= 99.9 && curv > 3 * Median(d2)) failures.Add($"{id}: seam curvature is an outlier ({p2:0.00} pct)");
-                if (pRms >= 99.5 && Math.Abs(seamDb) > 3) failures.Add($"{id}: seam level jump {seamDb:0.0} dB is an outlier");
+                if (Math.Abs(seamDb) > 3 && Math.Abs(seamDb) > maxOther + 1)
+                    failures.Add($"{id}: seam level jump {seamDb:0.0} dB exceeds every other window step ({maxOther:0.0} dB)");
                 if (dur < 0.99 || dur > 8.01) failures.Add($"{id}: loop length {dur:0.00}s outside 1-8 s");
             }
             else
