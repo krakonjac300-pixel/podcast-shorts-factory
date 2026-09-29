@@ -38,9 +38,9 @@
     },
     {
       "id": "t_shred_cache",
-      "title": "Shred ~nxs2258.tmp",
+      "title": "Shred ~nxs0148.tmp",
       "description": "A temporary cache file is taking up space in Intake. Shred it.",
-      "hint": "Drag ~nxs2258.tmp onto the Disposal bin, then confirm. Or right-click it for options.",
+      "hint": "Drag ~nxs0148.tmp onto the Disposal bin, then confirm. Or right-click it for options.",
       "type": "DeleteFile",
       "targets": ["cache_tmp"],
       "param": ""

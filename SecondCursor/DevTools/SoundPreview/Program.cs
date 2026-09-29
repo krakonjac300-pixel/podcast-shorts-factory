@@ -61,6 +61,11 @@ internal static class Program
         if (ProceduralSoundBank.Has("nope") || ProceduralSoundBank.Has(null)) failures.Add("Has() accepts unknown ids");
         try { ProceduralSoundBank.Generate("nope"); failures.Add("Generate(unknown) did not throw"); }
         catch (ArgumentException) { }
+        // thread safety: generating everything concurrently must give the same buffers
+        var parallel = new System.Collections.Concurrent.ConcurrentDictionary<string, float[]>();
+        System.Threading.Tasks.Parallel.ForEach(ids, id => parallel[id] = ProceduralSoundBank.Generate(id));
+        foreach (string id in ids)
+            if (!parallel[id].SequenceEqual(buffers[id])) failures.Add($"{id}: differs when generated concurrently");
         var keyVariants = Enumerable.Range(0, 6).Select(s => ProceduralSoundBank.Generate("key_tap", s)).ToList();
         for (int a = 0; a < keyVariants.Count; a++)
             for (int b = a + 1; b < keyVariants.Count; b++)

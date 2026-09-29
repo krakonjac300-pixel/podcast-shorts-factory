@@ -242,15 +242,38 @@ namespace SecondCursor.Core.Audio
             return a + (SinTable[i + 1] - a) * f;
         }
 
-        /// <summary>sin(2*pi*phase) for a phase already in [0, 1) - the oscillators' fast path.</summary>
+        // Hot loops stay in one numeric domain: per-sample int/float/double conversions are what is slow
+        // (on .NET float->double stalls on a false register dependency, on Mono int->float/double does).
+        // Oscillators therefore run on double phases, envelopes on float ones.
+
+        /// <summary>sin(2*pi*phase) for a double phase in [0, 1] - the oscillators' fast path.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float SinUnit(double phase)
+        private static float SinPhase(double phase)
         {
             double x = phase * SinSize;
             int i = (int)x;
             float f = (float)(x - i);
             float a = SinTable[i];
             return a + (SinTable[i + 1] - a) * f;
+        }
+
+        /// <summary>sin(2*pi*phase) for a float phase in [0, 1] - the envelopes' fast path.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float SinUnit(float phase)
+        {
+            float x = phase * SinSize;
+            int i = (int)x;
+            float f = x - i;
+            float a = SinTable[i];
+            return a + (SinTable[i + 1] - a) * f;
+        }
+
+        /// <summary>sin(2*pi*phase) for a small float phase of either sign.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float SinWrap(float phase)
+        {
+            phase -= (int)phase;
+            return SinUnit(phase < 0f ? phase + 1f : phase);
         }
 
         /// <summary>Free-running phase accumulator for one-shots (frequency may change every sample).</summary>
@@ -269,33 +292,32 @@ namespace SecondCursor.Core.Audio
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public float Sin(float hz) => SinUnit(Advance(hz));
+            public float Sin(float hz) => SinPhase(Advance(hz));
         }
 
         /// <summary>
-        /// Exactly periodic phase for loops: the frequency is rounded to a whole number of cycles per loop
-        /// and tracked with an integer accumulator, so the loop point is sample-exact.
+        /// Periodic phase for loops: the frequency is rounded to a whole number of cycles per loop, so the phase
+        /// is back at its start at the loop point (to ~1e-11 cycles with double accumulation).
         /// </summary>
         private struct LoopOsc
         {
-            private readonly int _cycles, _n;
-            private readonly double _invN;
-            private int _acc;
+            private readonly double _inc;
+            private double _phase;
 
             public LoopOsc(float hz, int loopSamples, float startPhase = 0f)
             {
-                _n = loopSamples;
-                _cycles = Math.Max(0, (int)Math.Round(hz * (double)loopSamples / SampleRate));
-                _invN = 1.0 / loopSamples;
-                _acc = (int)(startPhase * loopSamples) % loopSamples;
+                int cycles = Math.Max(0, (int)Math.Round(hz * (double)loopSamples / SampleRate));
+                _inc = (double)cycles / loopSamples;
+                _phase = startPhase - Math.Floor(startPhase);
             }
 
+            /// <summary>Phase in [0, 1), then advance one sample.</summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public double Next()
             {
-                double p = _acc * _invN;
-                _acc += _cycles;
-                if (_acc >= _n) _acc -= _n;
+                double p = _phase;
+                _phase += _inc;
+                if (_phase >= 1.0) _phase -= 1.0;
                 return p;
             }
         }
@@ -315,15 +337,15 @@ namespace SecondCursor.Core.Audio
         /// <see cref="LoopFm"/> evaluated every 32 samples and linearly interpolated (the vibrato is slow, so this
         /// is exact to ~1e-7 cycles); the last block ends exactly on the value at sample 0, keeping the seam.
         /// </summary>
-        private static float[] LoopFmCurve(int n, float depthHz, int cycles, double phase0 = 0.0)
+        private static double[] LoopFmCurve(int n, float depthHz, int cycles, double phase0 = 0.0)
         {
             const int block = 32;
-            var c = new float[n];
+            var c = new double[n];
             for (int i0 = 0; i0 < n; i0 += block)
             {
                 int len = Math.Min(block, n - i0);
                 double a = LoopFm(i0, n, depthHz, cycles, phase0), b = LoopFm(i0 + len, n, depthHz, cycles, phase0);
-                for (int j = 0; j < len; j++) c[i0 + j] = (float)(a + (b - a) * j / len);
+                for (int j = 0; j < len; j++) c[i0 + j] = a + (b - a) * j / len;
             }
             return c;
         }
@@ -613,7 +635,7 @@ namespace SecondCursor.Core.Audio
         private static float Decay(float t, float tau) => t < 0f || t > 40f * tau ? 0f : MathF.Exp(-t / tau);
 
         /// <summary>Raised-cosine rise over [0, 1].</summary>
-        private static float Rise(float u) => u <= 0f ? 0f : (u >= 1f ? 1f : 0.5f - 0.5f * Sin01(0.25 + 0.5 * u));
+        private static float Rise(float u) => u <= 0f ? 0f : (u >= 1f ? 1f : 0.5f - 0.5f * SinUnit(0.25f + 0.5f * u));
 
         /// <summary>Raised-cosine attack followed by exponential decay.</summary>
         private static float AttackDecay(float t, float attack, float tau)
@@ -627,7 +649,7 @@ namespace SecondCursor.Core.Audio
         private static float Bump(float t, float c, float w)
         {
             float d = (t - c) / w;
-            return d <= -1f || d >= 1f ? 0f : 0.5f + 0.5f * Sin01(0.25 + 0.5 * d);
+            return d <= -1f || d >= 1f ? 0f : 0.5f + 0.5f * SinWrap(0.25f + 0.5f * d);
         }
 
         /// <summary>Circular distance between two positions on a loop, both in [0, 1).</summary>
@@ -649,9 +671,11 @@ namespace SecondCursor.Core.Audio
 
         // ---------------- Buffers ----------------
 
-        private static int Sec(float s) => (int)(s * SampleRate + 0.5f);
+        // Sample counts are computed in double: float intermediates may be evaluated at higher precision on some
+        // runtimes (e.g. Mono without float32 mode), which would change buffer lengths by a sample.
+        private static int Sec(float s) => (int)(s * (double)SampleRate + 0.5);
 
-        private static int Ms(float ms) => (int)(ms * 0.001f * SampleRate + 0.5f);
+        private static int Ms(float ms) => (int)(ms * (SampleRate / 1000.0) + 0.5);
 
         private static float[] Buf(float seconds) => new float[Sec(seconds)];
 
@@ -662,10 +686,10 @@ namespace SecondCursor.Core.Audio
             return b;
         }
 
-        private static void Mix(float[] dst, float[] src, float gain, int offset = 0)
+        private static void Mix(float[] dst, float[] src, float gain)
         {
-            int end = Math.Min(src.Length, dst.Length - offset);
-            for (int i = Math.Max(0, -offset); i < end; i++) dst[i + offset] += gain * src[i];
+            int end = Math.Min(src.Length, dst.Length);
+            for (int i = 0; i < end; i++) dst[i] += gain * src[i];
         }
 
         /// <summary>Adds src into a loop buffer starting at 'offset', wrapping around the loop end.</summary>
@@ -957,31 +981,38 @@ namespace SecondCursor.Core.Audio
             for (int i = 0; i < len; i++) b[n - 1 - i] *= Rise((float)i / len);
         }
 
+        /// <summary>Sum (or sum of squares) accumulated in float per 256-sample block and in double across blocks.</summary>
+        private static double Sum(float[] b, bool squares)
+        {
+            double total = 0;
+            for (int i0 = 0; i0 < b.Length; i0 += 256)
+            {
+                int end = Math.Min(b.Length, i0 + 256);
+                float block = 0f;
+                if (squares) for (int i = i0; i < end; i++) block += b[i] * b[i];
+                else for (int i = i0; i < end; i++) block += b[i];
+                total += block;
+            }
+            return total;
+        }
+
         /// <summary>Removes the mean with a Hann-shaped correction, so the (already faded) ends stay at zero.</summary>
         private static void RemoveDcWindowed(float[] b)
         {
             int n = b.Length;
             if (n < 3) return;
-            double sum = 0;
-            for (int i = 0; i < n; i++) sum += b[i];
-            float c = (float)(sum / ((n - 1) * 0.5));
-            for (int i = 0; i < n; i++) b[i] -= c * Sq(Sin01(0.5 * i / (n - 1)));
+            float c = (float)(Sum(b, false) / ((n - 1) * 0.5)); // the Hann window sums to (n - 1) / 2
+            double phase = 0.0, step = 0.5 / (n - 1);
+            for (int i = 0; i < n; i++, phase += step) b[i] -= c * Sq(SinPhase(phase));
         }
 
         private static void RemoveMean(float[] b)
         {
-            double sum = 0;
-            for (int i = 0; i < b.Length; i++) sum += b[i];
-            float m = (float)(sum / b.Length);
+            float m = (float)(Sum(b, false) / b.Length);
             for (int i = 0; i < b.Length; i++) b[i] -= m;
         }
 
-        private static float Rms(float[] b)
-        {
-            double e = 0;
-            for (int i = 0; i < b.Length; i++) e += (double)b[i] * b[i];
-            return (float)Math.Sqrt(e / b.Length);
-        }
+        private static float Rms(float[] b) => (float)Math.Sqrt(Sum(b, true) / b.Length);
 
         private static float Peak(float[] b)
         {
@@ -1143,7 +1174,7 @@ namespace SecondCursor.Core.Audio
             {
                 float t = i * Dt;
                 if ((i & 15) == 0) air.Set(800f * MathF.Pow(3.2f, Clamp01(t / swellEnd)), 1.3f);
-                float env = t < swellEnd ? Sq(Sin01(0.25 * t / swellEnd)) : Decay(t - swellEnd, 0.010f);
+                float env = t < swellEnd ? Sq(SinUnit(0.25f * t / swellEnd)) : Decay(t - swellEnd, 0.010f);
                 float w = r.Signed();
                 float s = soft.Process(env * (0.75f * air.Bp(w) + 0.3f * body.Bp(w)));
                 float tt = t - tickAt;
@@ -1263,8 +1294,8 @@ namespace SecondCursor.Core.Audio
             for (int j = 0; j < env.Length; j++)
             {
                 float t = j * Dt, tr = t + start - holdEnd;
-                env[j] = Sq(Sin01(0.25 * Math.Min(1f, t / attack)));
-                if (tr > 0f) env[j] *= Sq(Sin01(0.25 + 0.25 * Math.Min(1f, tr / release)));
+                env[j] = Sq(SinUnit(0.25f * Math.Min(1f, t / attack)));
+                if (tr > 0f) env[j] *= Sq(SinUnit(0.25f + 0.25f * Math.Min(1f, tr / release)));
             }
             float per = 0.5f / MathF.Sqrt(notes.Length);
             foreach (float f in notes)
@@ -1752,7 +1783,7 @@ namespace SecondCursor.Core.Audio
             }
 
             var whine = new LoopOsc(7867f, n, r.Float());
-            float[] fm1 = LoopFmCurve(n, 2.5f, 1), fm2 = LoopFmCurve(n, 1f, 5, 0.3);
+            double[] fm1 = LoopFmCurve(n, 2.5f, 1), fm2 = LoopFmCurve(n, 1f, 5, 0.3);
             float[] b = new float[n];
             for (int i = 0, c = 0; i < n; i++)
             {
@@ -1842,7 +1873,7 @@ namespace SecondCursor.Core.Audio
             for (int i = 0; i < n; i++)
             {
                 if ((i & 63) == 0) breath = 0.6f + 0.4f * Sin01(i * (double)invN + 0.4);
-                float sub = 0.275f * (Sin01(s1.Next()) + Sin01(s2.Next()));
+                float sub = 0.275f * (SinPhase(s1.Next()) + SinPhase(s2.Next()));
                 b[i] = SoftClip(1.2f * (0.35f * b[i] + sub + 0.6f * metal[i] + 0.12f * breath * air[i]));
             }
             return FinishLoop(b, -27f);
@@ -1851,7 +1882,7 @@ namespace SecondCursor.Core.Audio
         // ---------------- The entity ----------------
 
         /// <summary>Slow "breath" of the entity's activity over a loop (0..1, periodic in u).</summary>
-        private static float Breath(float u) => 0.5f - 0.5f * Sin01(u + 0.25);
+        private static float Breath(float u) => 0.5f - 0.5f * SinWrap(u + 0.25f);
 
         /// <summary>
         /// 2 s loop of electrical life: many small spark clusters, each with its own resonant colour, denser in one
@@ -1900,7 +1931,7 @@ namespace SecondCursor.Core.Audio
                 float fl = r.Range(25f, 45f);
                 for (int j = 0; j < len; j++)
                 {
-                    float env = Sq(Sin01(0.5 * j / len)) * (0.7f + 0.3f * flicker.Sin(fl));
+                    float env = Sq(SinUnit(0.5f * j / len)) * (0.7f + 0.3f * flicker.Sin(fl));
                     float g = MathF.Max(0f, gate.Sin(120f));
                     ev[j] = 0.45f * env * g * g * g * bp.Bp(r.Signed());
                 }
@@ -2033,11 +2064,11 @@ namespace SecondCursor.Core.Audio
             var o1 = new LoopOsc(98f, n, r.Float());
             var o2 = new LoopOsc(103.333f, n, r.Float());
             var o3 = new LoopOsc(146.667f, n, r.Float());
-            float[] fm3 = LoopFmCurve(n, 1.5f, 3), fmWhine = LoopFmCurve(n, 6f, 9);
+            double[] fm3 = LoopFmCurve(n, 1.5f, 3), fmWhine = LoopFmCurve(n, 6f, 9);
             float[] buzz = new float[n];
             for (int i = 0; i < n; i++)
                 buzz[i] = 0.5f * wt.At(o1.Next()) + 0.45f * wt.At(o2.Next())
-                        + 0.25f * wt.At(PositiveFrac(o3.Next() + fm3[i]));
+                        + 0.25f * wt.At(Frac(o3.Next() + fm3[i]));
             // strain: a resonant band-pass sweeping twice per loop; grit: band-passed noise (gated below)
             float[] grit = WhiteNoise(n, r);
             var bp = new Svf(900f, 3.5f);
@@ -2055,7 +2086,7 @@ namespace SecondCursor.Core.Audio
             for (int k = 0; k < 14; k++)
             {
                 var ev = new float[Ms(r.Range(8f, 30f))];
-                for (int j = 0; j < ev.Length; j++) ev[j] = Sq(Sin01(0.5 * j / ev.Length));
+                for (int j = 0; j < ev.Length; j++) ev[j] = Sq(SinUnit(0.5f * j / ev.Length));
                 AddWrapped(gate, ev, r.Int(0, n), r.Range(0.4f, 1f));
             }
 
@@ -2064,7 +2095,7 @@ namespace SecondCursor.Core.Audio
             float[] b = new float[n];
             for (int i = 0; i < n; i++)
             {
-                float th = 0.78f + 0.22f * Sin01(throb.Next());
+                float th = 0.78f + 0.22f * SinPhase(throb.Next());
                 float s = th * buzz[i]
                         + 0.06f * Sin01(whine.Next() + fmWhine[i])
                         + 0.05f * Math.Min(1f, gate[i]) * grit[i];
@@ -2073,7 +2104,8 @@ namespace SecondCursor.Core.Audio
             return FinishLoop(b, -25f, 6000f);
         }
 
-        private static double PositiveFrac(double x)
+        /// <summary>Fractional part in [0, 1) for small values of either sign.</summary>
+        private static double Frac(double x)
         {
             double f = x - (int)x;
             return f < 0.0 ? f + 1.0 : f;

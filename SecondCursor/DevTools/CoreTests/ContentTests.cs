@@ -44,6 +44,9 @@ namespace SecondCursor.Tests
         static bool ContentPresent => File.Exists(Path.Combine(Dir, "dialogue.json")) && File.Exists(Path.Combine(Dir, "strings.json"));
 
         [Fact]
+        public void ContentFilesArePresent() => Assert.True(ContentPresent, "content not found in " + Dir);
+
+        [Fact]
         public void AllRequiredContentExistsWithoutPlaceholders()
         {
             if (!ContentPresent) return;

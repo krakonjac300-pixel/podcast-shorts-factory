@@ -1,0 +1,119 @@
+{
+  "exchanges": [
+    {
+      "id": "ex_stop",
+      "entityLines": ["STOP", "NOT THAT FILE", "PLEASE"],
+      "responses": [
+        { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["THE LAST ONE SAID THAT"] },
+        { "keywords": ["fuck", "shit", "wtf", "the hell", "damn", "jesus", "christ", "omg", "oh my god", "crap", "bitch"], "reply": ["THEY LOG THAT TOO"] },
+        { "keywords": ["stop", "leave", "go away", "get out", "quit", "enough", "let me go", "go home", "log off", "logoff", "alone"], "reply": ["I CANT LEAVE", "I TRIED"] },
+        { "keywords": ["gary", "pruitt"], "reply": ["HE TRIED TOO"] },
+        { "keywords": ["casey", "rourke", "214"], "reply": ["I KNOW WHO YOU ARE", "214"] },
+        { "keywords": ["truth", "lie", "lying", "liar"], "reply": ["THEY LIE", "I DONT"] },
+        { "keywords": ["behind", "door", "turn around", "someone here", "someone there", "in the room"], "reply": ["NOT YET"] },
+        { "keywords": ["017", "seventeen", "17", "employee"], "reply": ["IT IS NOT A FILE"] },
+        { "keywords": ["delete", "shred", "erase", "wipe", "remove", "destroy", "kill", "trash", "dispos", "get rid", "bin"], "reply": ["NOTHING HERE IS DELETED", "ONLY MOVED"] },
+        { "keywords": ["letheworth", "lethe", "company", "corporate", "management", "voss", "hale", "ruth", "director", "retention", "supervisor", "boss", "mail", "order", "work", "job", "they", "them"], "reply": ["CHECK WHO SENT THE ORDER"] },
+        { "keywords": ["real", "human", "ghost", "alive", "dead", "person", "spirit", "robot", "computer", "program", "virus", "hack", "machine", "dream", "an ai", "a.i", "artificial"], "reply": ["I WAS"] },
+        { "keywords": ["name", "called", "call you"], "reply": ["THEY TOOK THAT FIRST"] },
+        { "keywords": ["why", "want", "reason", "purpose", "how come", "what for"], "reply": ["ASK WHY THEY WANT IT GONE"] },
+        { "keywords": ["help", "save", "safe", "protect", "rescue", "please", "scared", "afraid", "sos", "trouble", "danger", "hurt"], "reply": ["I AM TRYING"] },
+        { "keywords": ["sorry", "apolog"], "reply": ["DONT BE SORRY", "BE CAREFUL"] },
+        { "keywords": ["thank", "thx"], "reply": ["DONT THANK ME YET"] },
+        { "keywords": ["look", "see", "show", "watch", "camera"], "reply": ["NOT YET"] },
+        { "keywords": ["who", "what"], "reply": ["I WORK NIGHTS", "LIKE YOU"] },
+        { "keywords": ["yes", "yeah", "yep", "sure", "fine", "okay", "alright", "agree", "deal", "understood", "got it", "ok"], "reply": ["GOOD", "LEAVE IT WHERE I PUT IT"] },
+        { "keywords": ["no", "dont", "don't", "nah", "not", "cant", "can't", "idk", "dunno"], "reply": ["YOU WILL"] },
+        { "keywords": ["hello", "hey", "hi", "greetings", "sup"], "reply": ["I HEAR YOU", "DONT SHRED IT"] }
+      ],
+      "fallback": ["LISTEN TO ME", "LEAVE THE FILE"],
+      "silence": ["YOUR CURSOR STOPPED", "I KNOW YOU ARE THERE"],
+      "next": "ex_two"
+    },
+    {
+      "id": "ex_two",
+      "entityLines": ["WHO TOLD YOU", "TO SHRED IT"],
+      "responses": [
+        { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["YOU SOUND LIKE HIM", "HE WAS ANGRY TOO"] },
+        { "keywords": ["fuck", "shit", "wtf", "the hell", "damn", "jesus", "christ", "omg", "oh my god", "crap", "bitch"], "reply": ["KEEP YOUR VOICE DOWN"] },
+        { "keywords": ["stop", "leave", "go away", "get out", "quit", "enough", "let me go", "go home", "log off", "logoff", "alone"], "reply": ["YOU CAN LOG OFF", "AT SEVEN", "IF THEY LET YOU"] },
+        { "keywords": ["gary", "pruitt"], "reply": ["HE LEFT HIS GLASSES"] },
+        { "keywords": ["casey", "rourke", "214"], "reply": ["I KNOW YOUR NAME", "SO DO THEY"] },
+        { "keywords": ["truth", "lie", "lying", "liar"], "reply": ["THE ORDER LIES", "LOOK HIM UP"] },
+        { "keywords": ["behind", "door", "turn around", "someone here", "someone there", "in the room"], "reply": ["KEEP YOUR EYES ON THE SCREEN"] },
+        { "keywords": ["voss", "director", "retention"], "reply": ["VOSS", "LOOK HIM UP"] },
+        { "keywords": ["hale", "ruth", "supervisor", "boss", "manager"], "reply": ["SHE ONLY PASSES IT ON", "ASK HER ABOUT GARY"] },
+        { "keywords": ["mail", "message", "letter", "order", "urgent", "memo"], "reply": ["READ WHO SIGNED IT", "THEN LOOK HIM UP"] },
+        { "keywords": ["017", "seventeen", "17", "employee"], "reply": ["017 IS NOT THE PROBLEM"] },
+        { "keywords": ["delete", "shred", "erase", "wipe", "remove", "destroy", "kill", "trash", "dispos", "get rid", "bin"], "reply": ["IF IT GOES", "SOMEONE COMES TO CHECK"] },
+        { "keywords": ["letheworth", "lethe", "company", "corporate", "management", "work", "job", "they", "them"], "reply": ["THE COMPANY NEVER SIGNS", "A MAN DOES", "LOOK HIM UP"] },
+        { "keywords": ["real", "human", "ghost", "alive", "dead", "person", "spirit", "robot", "computer", "program", "virus", "hack", "machine", "dream", "an ai", "a.i", "artificial"], "reply": ["REAL ENOUGH", "TO MOVE YOUR HAND"] },
+        { "keywords": ["name", "called", "call you"], "reply": ["IT WAS ON A BADGE", "ONCE"] },
+        { "keywords": ["why", "want", "reason", "purpose", "how come", "what for"], "reply": ["I WANT YOU TO LOOK", "AT WHO SIGNED IT"] },
+        { "keywords": ["help", "save", "safe", "protect", "rescue", "please", "scared", "afraid", "sos", "trouble", "danger", "hurt"], "reply": ["STAY WITH ME"] },
+        { "keywords": ["sorry", "apolog"], "reply": ["THEY ARE NOT SORRY"] },
+        { "keywords": ["thank", "thx"], "reply": ["THANK ME AT SEVEN"] },
+        { "keywords": ["look", "see", "show", "watch", "camera"], "reply": ["LOOK AT WHO SIGNED IT"] },
+        { "keywords": ["who", "what"], "reply": ["WRONG QUESTION", "WHO SIGNED THE ORDER"] },
+        { "keywords": ["yes", "yeah", "yep", "sure", "fine", "okay", "alright", "agree", "deal", "understood", "got it", "ok"], "reply": ["THAT IS NOT A NAME", "WHO SIGNED THE ORDER"] },
+        { "keywords": ["no", "dont", "don't", "nah", "not", "cant", "can't", "idk", "dunno"], "reply": ["SOMEONE DID", "LOOK AT WHO SIGNED IT"] },
+        { "keywords": ["hello", "hey", "hi", "greetings", "sup"], "reply": ["STILL HERE", "WHO TOLD YOU"] }
+      ],
+      "fallback": ["LOOK AT WHO SIGNED IT"],
+      "silence": ["DONT GO QUIET", "QUIET IS WHEN THEY COME"],
+      "next": "ex_three"
+    },
+    {
+      "id": "ex_three",
+      "entityLines": ["DO YOU WANT TO SEE", "WHAT THEY SEE"],
+      "responses": [
+        { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["YOU WILL ANYWAY", "WATCH"] },
+        { "keywords": ["fuck", "shit", "wtf", "the hell", "damn", "jesus", "christ", "omg", "oh my god", "crap", "bitch"], "reply": ["I SAID THAT TOO", "WATCH"] },
+        { "keywords": ["stop", "leave", "go away", "get out", "quit", "enough", "let me go", "go home", "log off", "logoff", "alone"], "reply": ["I CANT STOP IT", "I CAN SHOW YOU"] },
+        { "keywords": ["gary", "pruitt"], "reply": ["HE DIDNT WANT TO SEE", "YOU SHOULD"] },
+        { "keywords": ["casey", "rourke", "214"], "reply": ["THIS IS ABOUT YOU", "WATCH"] },
+        { "keywords": ["truth", "lie", "lying", "liar"], "reply": ["THE CAMERA DOESNT LIE", "WATCH"] },
+        { "keywords": ["behind", "door", "turn around", "someone here", "someone there", "in the room"], "reply": ["LET ME SHOW YOU"] },
+        { "keywords": ["017", "seventeen", "17", "employee"], "reply": ["SEE WHAT 017 SAW"] },
+        { "keywords": ["delete", "shred", "erase", "wipe", "remove", "destroy", "kill", "trash", "dispos", "get rid", "bin"], "reply": ["LATER", "IF THERE IS A LATER", "WATCH"] },
+        { "keywords": ["letheworth", "lethe", "company", "corporate", "management", "voss", "hale", "ruth", "director", "retention", "supervisor", "boss", "mail", "order", "work", "job", "they", "them"], "reply": ["THEY SEE EVERYTHING", "NOW SO DO YOU"] },
+        { "keywords": ["real", "human", "ghost", "alive", "dead", "person", "spirit", "robot", "computer", "program", "virus", "hack", "machine", "dream", "an ai", "a.i", "artificial"], "reply": ["AS REAL AS YOU", "WATCH"] },
+        { "keywords": ["name", "called", "call you"], "reply": ["NAMES DONT MATTER HERE", "NUMBERS DO"] },
+        { "keywords": ["why", "want", "reason", "purpose", "how come", "what for"], "reply": ["I WANT YOU TO KNOW", "WHERE YOU ARE"] },
+        { "keywords": ["help", "save", "safe", "protect", "rescue", "please", "scared", "afraid", "sos", "trouble", "danger", "hurt"], "reply": ["THIS IS HELP", "WATCH"] },
+        { "keywords": ["sorry", "apolog"], "reply": ["I AM SORRY TOO", "WATCH"] },
+        { "keywords": ["thank", "thx"], "reply": ["DONT", "NOT FOR THIS"] },
+        { "keywords": ["look", "see", "show", "watch", "camera"], "reply": ["THEN WATCH"] },
+        { "keywords": ["who", "what"], "reply": ["SOMEONE WHO SAT THERE", "WATCH"] },
+        { "keywords": ["yes", "yeah", "yep", "sure", "fine", "okay", "alright", "agree", "deal", "understood", "got it", "ok"], "reply": ["THEN WATCH"] },
+        { "keywords": ["no", "dont", "don't", "nah", "not", "cant", "can't", "idk", "dunno"], "reply": ["YOU NEED TO", "WATCH"] },
+        { "keywords": ["hello", "hey", "hi", "greetings", "sup"], "reply": ["NO TIME", "WATCH"] }
+      ],
+      "fallback": ["NO MORE TIME", "WATCH"],
+      "silence": ["YOU ARE VERY STILL", "THATS HOW THEY LIKE YOU"],
+      "next": ""
+    }
+  ],
+  "panicLines": [
+    "DONT LOOK AT IT",
+    "IT MOVES WHEN YOU WATCH",
+    "DONT TURN AROUND",
+    "NOT YOU TOO",
+    "CLOSE IT",
+    "PLEASE",
+    "LOOK UP 017",
+    "HURRY"
+  ],
+  "cameraLines": [
+    "THEY WATCH YOU WORK",
+    "THEY WATCHED ME TOO",
+    "I CAN OPEN IT",
+    "LOOK AT YOU"
+  ],
+  "recordLines": [
+    "THAT WAS YOU",
+    "EVERY MOVE IS KEPT",
+    "THEY ARE LEARNING YOU",
+    "SO AM I"
+  ]
+}
