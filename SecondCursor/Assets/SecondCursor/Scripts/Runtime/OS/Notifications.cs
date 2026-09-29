@@ -70,7 +70,7 @@ namespace SecondCursor.OS
             Layout(0f);
         }
 
-        void Update() => Layout(Time.unscaledDeltaTime);
+        void Update() => Layout(Time.deltaTime);   // game time: toasts wait behind the pause menu
 
         void Layout(float dt)
         {

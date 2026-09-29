@@ -35,7 +35,4 @@ namespace SecondCursor.Game
             go.AddComponent<GameRoot>();
         }
     }
-
-    /// <summary>Put this on any GameObject in a scene where SECOND CURSOR should NOT start automatically.</summary>
-    public sealed class DisableAutoBoot : MonoBehaviour { }
 }

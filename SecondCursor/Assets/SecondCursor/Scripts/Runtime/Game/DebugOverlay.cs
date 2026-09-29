@@ -28,6 +28,12 @@ namespace SecondCursor.Game
         GUIStyle _box;
         GUIStyle _label;
         float _fps;
+        // Button actions run in the next Update, never in the middle of an OnGUI pass: changing game state
+        // (which also writes log lines) between IMGUI's Layout and input events breaks GUILayout.
+        readonly System.Collections.Generic.List<System.Action> _pending = new System.Collections.Generic.List<System.Action>();
+        System.Collections.Generic.List<LogEntry> _logSnapshot;
+
+        void Defer(System.Action action) => _pending.Add(action);
 
         public static DebugOverlay Create(GameServices g, Transform parent)
         {
@@ -41,6 +47,12 @@ namespace SecondCursor.Game
         void Update()
         {
             _fps = Mathf.Lerp(_fps, 1f / Mathf.Max(0.0001f, Time.unscaledDeltaTime), 0.05f);
+            if (_pending.Count > 0)
+            {
+                var run = _pending.ToArray();
+                _pending.Clear();
+                foreach (var action in run) action();
+            }
             var input = _g.Input;
             if (input.KeyDown(GameKey.F1)) _open = !_open;
             if (input.KeyDown(GameKey.F2)) _g.Director.SkipBeat();
@@ -100,19 +112,19 @@ namespace SecondCursor.Game
             int col = 0;
             foreach (var beat in EventDirector.Beats)
             {
-                if (GUILayout.Button(beat)) _g.Director.JumpTo(beat);
+                if (GUILayout.Button(beat)) Defer(() => _g.Director.JumpTo(beat));
                 if (++col % 3 == 0) { GUILayout.EndHorizontal(); GUILayout.BeginHorizontal(); }
             }
             GUILayout.EndHorizontal();
 
             GUILayout.Label("Entity:", _label);
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Summon (F3)")) SummonToMouse();
-            if (GUILayout.Button("Dismiss")) { e.Interrupt(); e.SetPresent(false, 0.3f); }
-            if (GUILayout.Button(e.Brain.Enabled ? "Brain OFF" : "Brain ON")) e.Brain.Enabled = !e.Brain.Enabled;
+            if (GUILayout.Button("Summon (F3)")) Defer(SummonToMouse);
+            if (GUILayout.Button("Dismiss")) Defer(() => { e.Interrupt(); e.SetPresent(false, 0.3f); });
+            if (GUILayout.Button(e.Brain.Enabled ? "Brain OFF" : "Brain ON")) Defer(() => e.Brain.Enabled = !e.Brain.Enabled);
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Close top window"))
+            if (GUILayout.Button("Close top window")) Defer(() =>
             {
                 var w = _g.Windows.Active;
                 if (w != null && w.CloseButton != null)
@@ -120,46 +132,46 @@ namespace SecondCursor.Game
                     e.SetPresent(true, 0.1f);
                     e.Run(e.ClickElement(w.CloseButton.Hit, MovementProfiles.Aggressive), "debug:close");
                 }
-            }
-            if (GUILayout.Button("Type STOP"))
+            });
+            if (GUILayout.Button("Type STOP")) Defer(() =>
             {
                 e.SetPresent(true, 0.1f);
                 e.Run(DebugType(), "debug:type");
-            }
-            if (GUILayout.Button("Mimic me"))
+            });
+            if (GUILayout.Button("Mimic me")) Defer(() =>
             {
                 e.SetPresent(true, 0.1f);
                 e.Run(e.Replay(_g.Recorder.Last(5f, Time.time)), "debug:mimic");
-            }
+            });
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             foreach (var st in new[] { EntityState.Observing, EntityState.Defensive, EntityState.Aggressive, EntityState.Panicked })
-                if (GUILayout.Button(st.ToString())) e.State = st;
+                if (GUILayout.Button(st.ToString())) Defer(() => e.State = st);
             GUILayout.EndHorizontal();
 
             GUILayout.Label("World:", _label);
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Complete task"))
+            if (GUILayout.Button("Complete task")) Defer(() =>
             {
                 var t = _g.Tasks.Current;
                 if (t != null) _g.Tasks.ForceComplete(t.Id);
-            }
-            if (GUILayout.Button("Spawn file"))
+            });
+            if (GUILayout.Button("Spawn file")) Defer(() =>
             {
                 string id = "debug_" + Random.Range(1000, 9999);
                 _g.Files.CreateFile(id, id + ".dat", "dat", ContentIds.FolderDesktop, "DEBUG FILE " + id, Actor.System);
-            }
-            if (GUILayout.Button("017 to desktop"))
+            });
+            if (GUILayout.Button("017 to desktop")) Defer(() =>
             {
                 if (_g.Files.GetFile(ContentIds.File017)?.Shredded ?? false) _g.Files.Restore(ContentIds.File017, ContentIds.FolderDesktop, Actor.System);
                 else _g.Files.Move(ContentIds.File017, ContentIds.FolderDesktop, Actor.System);
-            }
+            });
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Unlock camera")) _g.Flags.Set(Flags.CameraUnlocked);
-            if (GUILayout.Button("CRT (F6)")) _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled;
-            if (GUILayout.Button("Glitch")) _g.Fx.Glitch(0.4f, 1f);
-            if (GUILayout.Button("Restart (F5)")) GameBootstrap.Restart();
+            if (GUILayout.Button("Unlock camera")) Defer(() => _g.Flags.Set(Flags.CameraUnlocked));
+            if (GUILayout.Button("CRT (F6)")) Defer(() => _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled);
+            if (GUILayout.Button("Glitch")) Defer(() => _g.Fx.Glitch(0.4f, 1f));
+            if (GUILayout.Button("Restart (F5)")) Defer(GameBootstrap.Restart);
             GUILayout.EndHorizontal();
 
             if (_g.CameraRig != null)
@@ -167,7 +179,7 @@ namespace SecondCursor.Game
                 GUILayout.Label("Camera 03 set:", _label);
                 GUILayout.BeginHorizontal();
                 foreach (CameraFeed.FigureStage s in System.Enum.GetValues(typeof(CameraFeed.FigureStage)))
-                    if (GUILayout.Button(s.ToString())) _g.CameraRig.Figure = s;
+                    if (GUILayout.Button(s.ToString())) Defer(() => _g.CameraRig.Figure = s);
                 GUILayout.EndHorizontal();
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Door", GUILayout.Width(40));
@@ -183,7 +195,9 @@ namespace SecondCursor.Game
             GUILayout.Label(sb.ToString(), _label);
 
             GUILayout.Label("Log:", _label);
-            foreach (var line in GameLog.Recent(24)) GUILayout.Label(line.ToString(), _label);
+            // Same number of rows in every event of this frame (IMGUI requires Layout and input passes to match).
+            if (Event.current.type == EventType.Layout || _logSnapshot == null) _logSnapshot = GameLog.Recent(24);
+            foreach (var line in _logSnapshot) GUILayout.Label(line.ToString(), _label);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
         }

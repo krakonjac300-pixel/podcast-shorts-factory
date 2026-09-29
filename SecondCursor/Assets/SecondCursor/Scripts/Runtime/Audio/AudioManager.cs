@@ -27,7 +27,8 @@ namespace SecondCursor.Audio
             public bool StopWhenSilent;
         }
 
-        readonly Dictionary<string, AudioClip> _clips = new Dictionary<string, AudioClip>();
+        // Synthesized once per session and shared: a restarted shift reuses the clips instead of leaking a new set.
+        static readonly Dictionary<string, AudioClip> Clips = new Dictionary<string, AudioClip>();
         readonly List<AudioSource> _pool = new List<AudioSource>();
         readonly Dictionary<string, Loop> _loops = new Dictionary<string, Loop>();
         int _next;
@@ -58,7 +59,7 @@ namespace SecondCursor.Audio
             float start = Time.realtimeSinceStartup;
             foreach (var id in ProceduralSoundBank.Ids)
             {
-                if (_clips.ContainsKey(id)) continue;
+                if (Clips.TryGetValue(id, out var existing) && existing != null) continue;
                 float[] data;
                 try
                 {
@@ -72,7 +73,7 @@ namespace SecondCursor.Audio
                 if (data == null || data.Length == 0) continue;
                 var clip = AudioClip.Create(id, data.Length, 1, ProceduralSoundBank.SampleRate, false);
                 clip.SetData(data, 0);
-                _clips[id] = clip;
+                Clips[id] = clip;
                 if (Time.realtimeSinceStartup - start > budget)
                 {
                     yield return null;
@@ -80,16 +81,16 @@ namespace SecondCursor.Audio
                 }
             }
             Ready = true;
-            GameLog.Info(LogChannel.Audio, "Generated " + _clips.Count + " sounds");
+            GameLog.Info(LogChannel.Audio, "Sound bank ready (" + Clips.Count + " sounds)");
         }
 
-        public bool Has(string id) => _clips.ContainsKey(id);
+        public bool Has(string id) => Clips.TryGetValue(id, out var clip) && clip != null;
 
         static float DefaultVolume(string id) => ProceduralSoundBank.Has(id) ? ProceduralSoundBank.DefaultVolume(id) : 0.6f;
 
         public void Play(string id, float volume = 1f, float pitch = 1f, float pan = 0f)
         {
-            if (!_clips.TryGetValue(id, out var clip)) return;
+            if (!Clips.TryGetValue(id, out var clip) || clip == null) return;
             var src = _pool[_next];
             _next = (_next + 1) % _pool.Count;
             src.pitch = pitch;
@@ -123,7 +124,7 @@ namespace SecondCursor.Audio
 
         public void PlayLoop(string id, float volume, float fadeTime = 0.4f)
         {
-            if (!_clips.TryGetValue(id, out var clip)) return;
+            if (!Clips.TryGetValue(id, out var clip) || clip == null) return;
             if (!_loops.TryGetValue(id, out var loop))
             {
                 var s = gameObject.AddComponent<AudioSource>();

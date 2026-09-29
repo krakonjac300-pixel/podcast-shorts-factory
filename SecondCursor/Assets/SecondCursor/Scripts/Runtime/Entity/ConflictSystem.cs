@@ -158,6 +158,24 @@ namespace SecondCursor.Entity
             }
         }
 
+        /// <summary>
+        /// Stops a fight with no winner (the game was paused mid-fight): the file flies back to where it was,
+        /// and neither side's memory, flags or grip changes.
+        /// </summary>
+        public void Interrupt()
+        {
+            var p = _payload;
+            if (p == null) return;
+            _payload = null;   // so the PayloadFinished handler does not score the cancelled drag
+            foreach (var d in _band) d.enabled = false;
+            if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
+            if (_g.EntityView != null) _g.EntityView.Jitter = 0f;
+            _g.Audio?.StopLoop("tug_strain", 0.08f);
+            if (_g.Fx != null) _g.Fx.ExtraGrain = 0f;
+            _g.DragDrop.Cancel(p);
+            GameLog.Info(LogChannel.Entity, "Tug-of-war interrupted: no winner");
+        }
+
         void End(TugOutcome outcome, bool transfer)
         {
             var p = _payload;

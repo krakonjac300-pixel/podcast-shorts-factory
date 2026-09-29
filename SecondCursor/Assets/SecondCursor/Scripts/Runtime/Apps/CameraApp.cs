@@ -62,7 +62,8 @@ namespace SecondCursor.Apps
             _feed.rectTransform.Stretch(2, 2, 2, 2);
             _feed.color = new Color(0.86f, 0.93f, 0.88f, 1f);
 
-            _noiseTex = new Texture2D(80, 60, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+            _noiseTex = OwnedAssets.Own(Window.gameObject,
+                new Texture2D(80, 60, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat });
             _noise = UIBuilder.Raw(screen.rectTransform, _noiseTex, "Noise");
             _noise.rectTransform.Stretch(2, 2, 2, 2);
 
@@ -129,7 +130,6 @@ namespace SecondCursor.Apps
         protected override void OnClosed(CursorAgent by)
         {
             if (G.CameraRig != null) G.CameraRig.SetViewing(false);
-            if (_noiseTex != null) UnityEngine.Object.Destroy(_noiseTex);
         }
     }
 }

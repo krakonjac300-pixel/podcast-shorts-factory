@@ -25,6 +25,7 @@ namespace SecondCursor.FX
         Image _flash;
         Image _black;
         Texture2D _scanTex;
+        readonly List<Texture2D> _ownedTextures = new List<Texture2D>();
         readonly List<RawImage> _strips = new List<RawImage>();
         readonly List<RawImage> _fringes = new List<RawImage>();
         float _glitchTime;
@@ -74,6 +75,7 @@ namespace SecondCursor.FX
             }
 
             _scanTex = SpriteLibrary.MakeTexture(1, 2, (x, y) => y == 0 ? new Color32(0, 0, 0, 58) : new Color32(0, 0, 0, 0), FilterMode.Point, TextureWrapMode.Repeat);
+            _ownedTextures.Add(_scanTex);
             _scanlines = UIBuilder.Raw(parent, _scanTex, "Scanlines");
             _scanlines.rectTransform.Stretch();
             _scanlines.uvRect = new Rect(0f, 0f, 1f, ScreenRig.Height);
@@ -83,6 +85,7 @@ namespace SecondCursor.FX
                 byte v = (byte)UnityEngine.Random.Range(0, 256);
                 return new Color32(v, v, v, (byte)UnityEngine.Random.Range(0, 22));
             }, FilterMode.Point, TextureWrapMode.Repeat);
+            _ownedTextures.Add(grain);
             _grain = UIBuilder.Raw(parent, grain, "Grain");
             _grain.rectTransform.Stretch();
 
@@ -99,6 +102,7 @@ namespace SecondCursor.FX
                 if (d > 0.995f) a = 1f;
                 return new Color32(0, 0, 0, (byte)(Mathf.Clamp01(a) * 255f));
             }, FilterMode.Bilinear, TextureWrapMode.Clamp);
+            _ownedTextures.Add(vig);
             _vignette = UIBuilder.Raw(parent, vig, "Vignette");
             _vignette.rectTransform.Stretch();
 
@@ -174,6 +178,12 @@ namespace SecondCursor.FX
             _rig.DisplayImage.enabled = true;
             _rig.DisplayImage.color = Color.white;
             Flash(0.35f);
+        }
+
+        void OnDestroy()
+        {
+            foreach (var t in _ownedTextures) if (t != null) Destroy(t);
+            _ownedTextures.Clear();
         }
 
         void LateUpdate()

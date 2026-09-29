@@ -41,6 +41,8 @@ namespace SecondCursor.Game
         {
             if (IsPaused) return;
             IsPaused = true;
+            // Letting go of the mouse to use the menu must not decide a tug-of-war: call it off instead.
+            if (_g.Conflict != null) _g.Conflict.Interrupt();
             _savedScale = Time.timeScale;
             Time.timeScale = 0f;
             AudioListener.pause = true;

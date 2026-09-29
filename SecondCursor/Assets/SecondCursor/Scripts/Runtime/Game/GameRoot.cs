@@ -198,10 +198,11 @@ namespace SecondCursor.Game
 
         void OnDestroy()
         {
+            // The input backend belongs to this root (it may hold Input System subscriptions): always release it.
+            G?.Input?.Dispose();
             // Only the current instance owns the global hooks (a restart creates the new root first).
             if (Instance != this && Instance != null) return;
             if (Instance == this) Instance = null;
-            G?.Input?.Dispose();
             Cursor.visible = true;
             Sfx.Handler = null;
             GameLog.Output = null;

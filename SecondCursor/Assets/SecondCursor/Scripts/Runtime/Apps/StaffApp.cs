@@ -56,7 +56,8 @@ namespace SecondCursor.Apps
 
             var photoFrame = UIBuilder.Bevel(_card, BevelStyle.Sunken, "Photo Frame");
             photoFrame.rectTransform.At(10, 10, 68, 84);
-            _photoTex = new Texture2D(64, 80, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            _photoTex = OwnedAssets.Own(Window.gameObject,
+                new Texture2D(64, 80, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp });
             _photo = UIBuilder.Raw(photoFrame.rectTransform, _photoTex, "Photo");
             _photo.rectTransform.Stretch(2, 2, 2, 2);
             _photoCaption = UIBuilder.Text(photoFrame.rectTransform, "", Palette.BiosBright, true);
@@ -166,11 +167,6 @@ namespace SecondCursor.Apps
             if (_staticTimer > 0f) return;
             _staticTimer = 0.08f;
             DrawPhoto("static");
-        }
-
-        protected override void OnClosed(CursorAgent by)
-        {
-            if (_photoTex != null) Object.Destroy(_photoTex);
         }
     }
 }
