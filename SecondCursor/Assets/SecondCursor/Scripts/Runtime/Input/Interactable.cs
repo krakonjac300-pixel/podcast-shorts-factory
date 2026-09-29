@@ -26,6 +26,8 @@ namespace SecondCursor.Input
         public string elementId = "";
         [Tooltip("Pixels the pointer must move before a press becomes a drag.")]
         public float dragThreshold = 3f;
+        [Tooltip("Ignored by a cursor that is carrying something (e.g. toasts never block a drop).")]
+        public bool passThroughWhileCarrying;
 
         /// <summary>Optional owner used for focus-on-press and entity queries.</summary>
         public OS.OSWindow Window { get; set; }
@@ -51,7 +53,9 @@ namespace SecondCursor.Input
         readonly List<CursorAgent> _hoveredBy = new List<CursorAgent>(2);
         readonly List<CursorAgent> _pressedBy = new List<CursorAgent>(2);
 
-        public RectTransform Rect { get; private set; }
+        RectTransform _rect;
+        /// <summary>Lazy: Awake may not have run yet when created under an inactive parent.</summary>
+        public RectTransform Rect => _rect != null ? _rect : (_rect = (RectTransform)transform);
         public bool IsHovered => _hoveredBy.Count > 0;
         public bool IsHoveredBy(CursorAgent a) => _hoveredBy.Contains(a);
         public bool IsPressedBy(CursorAgent a) => _pressedBy.Contains(a);
@@ -62,14 +66,8 @@ namespace SecondCursor.Input
         internal int Serial;
         static int _nextSerial;
 
-        void Awake()
-        {
-            Rect = (RectTransform)transform;
-        }
-
         void OnEnable()
         {
-            if (Rect == null) Rect = (RectTransform)transform;
             Serial = ++_nextSerial;
             Registry.Add(this);
         }

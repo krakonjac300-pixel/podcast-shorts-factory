@@ -65,9 +65,25 @@ namespace SecondCursor.Input
         {
             if (!a.Enabled)
             {
+                // A disabled agent lets go of everything properly (payload, drop highlight, drag).
+                if (a.Payload != null)
+                {
+                    var p = a.Payload;
+                    PayloadReleased?.Invoke(a, p, false);
+                    if (a.Payload == p) a.Payload = null;
+                }
+                if (st.DropHover != null)
+                {
+                    st.DropHover.RaiseDropHover(a, null, false);
+                    st.DropHover = null;
+                }
                 if (a.Hovered != null) a.Hovered.RaiseHoverExit(a);
                 a.Hovered = null;
-                if (a.Pressed != null) a.Pressed.RaisePointerUp(a);
+                if (a.Pressed != null)
+                {
+                    if (a.IsDragging) a.Pressed.RaiseDragEnd(a);
+                    a.Pressed.RaisePointerUp(a);
+                }
                 a.Pressed = null;
                 a.IsDragging = false;
                 return;
@@ -112,7 +128,7 @@ namespace SecondCursor.Input
                 st.LastPosition = st.PressPosition;
                 pressed.RaiseDragBegin(a);
             }
-            if (a.IsDragging && pressed != null)
+            if (a.IsDragging && pressed != null && a.Held)
             {
                 Vector2 delta = a.Position - st.LastPosition;
                 if (delta.sqrMagnitude > 0f) pressed.RaiseDrag(a, delta);
@@ -212,6 +228,8 @@ namespace SecondCursor.Input
             {
                 if (it == null || !it.interactable) continue;
                 if (forAgent != null && it.Tag is DragPayload dp && (dp.Holder == forAgent || dp.Contender == forAgent)) continue;
+                // The icon a file is being dragged FROM is transparent to its carrier (so short moves can land on the desktop).
+                if (forAgent != null && forAgent.Payload != null && (forAgent.Payload.Source == it || it.passThroughWhileCarrying)) continue;
                 if (!it.WorldRect.Contains(point)) continue;
                 if (IsClipped(it.transform, point)) continue;
                 _candidates.Add(it);

@@ -33,8 +33,8 @@ namespace SecondCursor.Input
         public event Action<DragPayload, CursorAgent> ContestStarted;
         /// <summary>A cursor released a payload while it was contested: (payload, releasing agent).</summary>
         public event Action<DragPayload, CursorAgent> ContestReleased;
-        /// <summary>Payload finished (dropped somewhere or returned): (payload, accepted).</summary>
-        public event Action<DragPayload, bool> PayloadFinished;
+        /// <summary>Payload finished (dropped somewhere or returned): (payload, accepted, agent that released it or null).</summary>
+        public event Action<DragPayload, bool, CursorAgent> PayloadFinished;
 
         public DragDropSystem(RectTransform layer, PointerRouter router)
         {
@@ -115,7 +115,7 @@ namespace SecondCursor.Input
 
         static void Place(RectTransform rt, Vector2 topLeft)
         {
-            rt.anchoredPosition = new Vector2(Mathf.Round(topLeft.x), Mathf.Round(topLeft.y));
+            rt.anchoredPosition = new Vector2(Mathf.Floor(topLeft.x + 0.5f), Mathf.Floor(topLeft.y + 0.5f));
         }
 
         /// <summary>Per-frame: ghosts follow holders (contested ghosts are positioned by the conflict system).</summary>
@@ -160,7 +160,7 @@ namespace SecondCursor.Input
         {
             if (p.Holder != null && p.Holder.Payload == p) p.Holder.Payload = null;
             if (p.Contender != null && p.Contender.Payload == p) p.Contender.Payload = null;
-            Finish(p, false);
+            Finish(p, false, null);
         }
 
         void OnReleased(CursorAgent a, DragPayload p, bool accepted)
@@ -172,10 +172,10 @@ namespace SecondCursor.Input
             }
             if (p.Holder != a) return;
             a.Payload = null;
-            Finish(p, accepted);
+            Finish(p, accepted, a);
         }
 
-        void Finish(DragPayload p, bool accepted)
+        void Finish(DragPayload p, bool accepted, CursorAgent by)
         {
             _active.Remove(p);
             p.Holder = null;
@@ -187,11 +187,15 @@ namespace SecondCursor.Input
                 {
                     var it = g.GetComponent<Interactable>();
                     if (it != null) it.interactable = false;
-                    if (accepted) UnityEngine.Object.Destroy(g.gameObject);
+                    if (accepted)
+                    {
+                        g.gameObject.SetActive(false);
+                        UnityEngine.Object.Destroy(g.gameObject);
+                    }
                     else _returning.Add(new Returning { Payload = p, Ghost = g, From = p.GhostPosition, To = p.Origin });
                 }
             }
-            PayloadFinished?.Invoke(p, accepted);
+            PayloadFinished?.Invoke(p, accepted, by);
         }
 
         public RectTransform GhostOf(DragPayload p) => _ghosts.TryGetValue(p, out var g) ? g : null;

@@ -25,6 +25,8 @@ namespace SecondCursor.UI
         Interactable _trackHit;
         UiButton _up, _down;
         bool _showBar = true;
+        float _dragStartOffset;
+        float _dragStartY;
 
         public float ContentHeight
         {
@@ -83,7 +85,8 @@ namespace SecondCursor.UI
                 var thumbHit = UIBuilder.Hit(thumbFace.gameObject, name + ":thumb");
                 thumbHit.draggable = true;
                 thumbHit.dragThreshold = 0f;
-                thumbHit.Drag += (a, d) => sa.DragThumb(d.y);
+                thumbHit.DragBegin += a => { sa._dragStartOffset = sa._offset; sa._dragStartY = a.Position.y; };
+                thumbHit.Drag += (a, d) => sa.DragThumb(a.Position.y);
             }
             return sa;
         }
@@ -116,18 +119,20 @@ namespace SecondCursor.UI
             ScrollBy(worldPoint.y > thumbCenter ? -ViewportHeight + LineStep : ViewportHeight - LineStep);
         }
 
-        void DragThumb(float deltaY)
+        void DragThumb(float pointerY)
         {
             float trackH = _bar.rect.height - BarWidth * 2;
             float thumbH = _thumb.rect.height;
             float range = trackH - thumbH;
             if (range <= 1f) return;
-            ScrollBy(-deltaY * MaxOffset / range);
+            // Absolute mapping from where the drag started: no accumulated rounding, thumb stays under the pointer.
+            ScrollTo(_dragStartOffset + (_dragStartY - pointerY) * MaxOffset / range);
         }
 
         void Clamp()
         {
-            _offset = Mathf.Clamp(Mathf.Round(_offset), 0f, MaxOffset);
+            // Keep sub-pixel precision; only the on-screen position is rounded (in Layout).
+            _offset = Mathf.Clamp(_offset, 0f, MaxOffset);
             Layout();
         }
 
@@ -136,7 +141,7 @@ namespace SecondCursor.UI
         void Layout()
         {
             if (Content == null) return;
-            Content.anchoredPosition = new Vector2(0f, _offset);
+            Content.anchoredPosition = new Vector2(0f, Mathf.Floor(_offset + 0.5f));
             Content.sizeDelta = new Vector2(0f, Mathf.Max(_contentHeight, 1f));
             if (_bar == null) return;
 
@@ -148,7 +153,7 @@ namespace SecondCursor.UI
             if (!needed) return;
             float trackH = Mathf.Max(8f, _bar.rect.height - BarWidth * 2);
             float thumbH = Mathf.Max(8f, Mathf.Round(trackH * vh / Mathf.Max(1f, _contentHeight)));
-            float t = MaxOffset > 0f ? _offset / MaxOffset : 0f;
+            float t = MaxOffset > 0f ? Mathf.Floor(_offset + 0.5f) / MaxOffset : 0f;
             float y = BarWidth + Mathf.Round((trackH - thumbH) * t);
             _thumb.offsetMin = new Vector2(0f, -y - thumbH);
             _thumb.offsetMax = new Vector2(0f, -y);

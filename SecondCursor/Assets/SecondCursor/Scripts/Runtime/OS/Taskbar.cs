@@ -139,7 +139,11 @@ namespace SecondCursor.OS
             foreach (var kv in _buttons) if (kv.Key == null || kv.Key.IsClosed || !visible.Contains(kv.Key)) stale.Add(kv.Key);
             foreach (var w in stale)
             {
-                if (_buttons.TryGetValue(w, out var b) && b != null) Destroy(b.gameObject);
+                if (_buttons.TryGetValue(w, out var b) && b != null)
+                {
+                    b.gameObject.SetActive(false);
+                    Destroy(b.gameObject);
+                }
                 _buttons.Remove(w);
             }
 
@@ -161,10 +165,13 @@ namespace SecondCursor.OS
 
         UiButton CreateButton(OSWindow w)
         {
-            var b = UiButton.Create(_buttonArea, w.Title, null, "taskbar.window:" + w.AppId);
+            var b = UiButton.Create(_buttonArea, string.IsNullOrEmpty(w.Title) ? " " : w.Title, null, "taskbar.window:" + w.AppId);
             b.ClickSound = "";
-            b.Label.Align = TextAlign.Left;
-            b.Label.rectTransform.Stretch(20, 0, 2, 0);
+            if (b.Label != null)
+            {
+                b.Label.Align = TextAlign.Left;
+                b.Label.rectTransform.Stretch(20, 0, 2, 0);
+            }
             if (!string.IsNullOrEmpty(w.IconSprite))
             {
                 var icon = UIBuilder.Icon(b.transform.GetChild(0), w.IconSprite, 1);

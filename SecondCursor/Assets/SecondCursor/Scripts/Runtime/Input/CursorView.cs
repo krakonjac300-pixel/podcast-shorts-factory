@@ -132,7 +132,7 @@ namespace SecondCursor.Input
                 p += _flinch * Mathf.Clamp01(_flinchTime / 0.8f);
             }
             if (Jitter > 0f) p += Random.insideUnitCircle * Jitter;
-            Vector2 topLeft = new Vector2(Mathf.Round(p.x - hot.x), Mathf.Round(p.y + hot.y));
+            Vector2 topLeft = new Vector2(Mathf.Floor(p.x - hot.x + 0.5f), Mathf.Floor(p.y + hot.y + 0.5f));
             _rt.anchoredPosition = topLeft;
 
             bool visible = _agent.Visible && Alpha > 0.01f && !(Flicker > 0f && Random.value < Flicker);

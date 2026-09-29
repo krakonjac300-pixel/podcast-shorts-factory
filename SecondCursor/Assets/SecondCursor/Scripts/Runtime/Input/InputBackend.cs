@@ -17,7 +17,7 @@ namespace SecondCursor.Input
     /// Reads the REAL mouse/keyboard only while the game window is focused. It never moves the OS cursor
     /// or reads anything outside the game (brief section 3).
     /// </summary>
-    public interface IInputBackend
+    public interface IInputBackend : System.IDisposable
     {
         Vector2 MouseScreenPosition { get; }
         bool LeftHeld { get; }
@@ -61,6 +61,7 @@ namespace SecondCursor.Input
         public bool KeyHeld(GameKey key) => false;
         public string TypedText => "";
         public void Poll() { }
+        public void Dispose() { }
     }
 
 #if ENABLE_LEGACY_INPUT_MANAGER
@@ -89,11 +90,13 @@ namespace SecondCursor.Input
             foreach (char c in raw)
             {
                 if (c == '\r' || c == '\n') sb.Append('\n');
-                else if (c == '\b') sb.Append('\b');
+                else if (c == '\b' || c == (char)127) sb.Append('\b');
                 else if (c >= 32 && c <= 126) sb.Append(c);
             }
             _typed = sb.ToString();
         }
+
+        public void Dispose() { }
 
         public bool KeyDown(GameKey key) => UnityEngine.Input.GetKeyDown(Map(key)) || (key == GameKey.Enter && UnityEngine.Input.GetKeyDown(KeyCode.KeypadEnter))
             || (key == GameKey.Shift && UnityEngine.Input.GetKeyDown(KeyCode.RightShift)) || (key == GameKey.Ctrl && UnityEngine.Input.GetKeyDown(KeyCode.RightControl));
@@ -178,8 +181,14 @@ namespace SecondCursor.Input
         void OnText(char c)
         {
             if (c == '\r' || c == '\n') _pending.Append('\n');
-            else if (c == '\b') _pending.Append('\b');
+            else if (c == '\b' || c == (char)127) _pending.Append('\b'); // macOS sends DEL for backspace
             else if (c >= 32 && c <= 126) _pending.Append(c);
+        }
+
+        public void Dispose()
+        {
+            if (_subscribed != null) _subscribed.onTextInput -= OnText;
+            _subscribed = null;
         }
 
         public bool KeyDown(GameKey key)

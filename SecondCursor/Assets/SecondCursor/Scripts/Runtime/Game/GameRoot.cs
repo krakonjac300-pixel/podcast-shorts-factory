@@ -201,6 +201,7 @@ namespace SecondCursor.Game
             // Only the current instance owns the global hooks (a restart creates the new root first).
             if (Instance != this && Instance != null) return;
             if (Instance == this) Instance = null;
+            G?.Input?.Dispose();
             Cursor.visible = true;
             Sfx.Handler = null;
             GameLog.Output = null;

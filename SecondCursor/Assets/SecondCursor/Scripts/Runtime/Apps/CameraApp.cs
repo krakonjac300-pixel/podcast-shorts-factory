@@ -30,6 +30,7 @@ namespace SecondCursor.Apps
         string _current;
         float _t;
         float _switchNoise;
+        Color32[] _noisePixels;
 
         public override string AppId => AppIds.Camera;
         public string CurrentCamera => _current;
@@ -113,7 +114,9 @@ namespace SecondCursor.Apps
 
             // Animated grain: stronger on dead channels and right after switching.
             float amount = !signal ? 0.9f : Mathf.Max(0.12f, _switchNoise * 3f) + (G.CameraRig != null ? G.CameraRig.ExtraNoise : 0f);
-            var px = _noiseTex.GetPixels32();
+            if (G.CameraRig != null && _feed.texture != G.CameraRig.Feed) _feed.texture = G.CameraRig.Feed;
+            if (_noisePixels == null) _noisePixels = new Color32[_noiseTex.width * _noiseTex.height];
+            var px = _noisePixels;
             for (int i = 0; i < px.Length; i++)
             {
                 byte v = (byte)UnityEngine.Random.Range(0, 256);

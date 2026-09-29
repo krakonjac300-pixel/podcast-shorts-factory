@@ -66,6 +66,9 @@ namespace SecondCursor.Input
         /// <summary>Player driver: exact edges from the input backend (so a press+release inside one frame is not lost).</summary>
         public void SetButtonEdges(bool held, bool downEdge, bool upEdge)
         {
+            // A release that happened while the game lost focus (Alt-Tab) still counts as a release.
+            if (Held && !held) upEdge = true;
+            if (!Held && held) downEdge = true;
             Held = held;
             if (downEdge) PressedThisFrame = true;
             if (upEdge) ReleasedThisFrame = true;

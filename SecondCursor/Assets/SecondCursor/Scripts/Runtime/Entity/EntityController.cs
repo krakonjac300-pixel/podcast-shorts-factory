@@ -25,8 +25,7 @@ namespace SecondCursor.Entity
         CursorAgent _agent;
         CursorView _view;
         readonly Rng _rng = new Rng(20171);
-        Coroutine _current;
-        string _currentName;
+        Routine _current;
         float _targetAlpha;
         float _alphaSpeed = 2f;
         EntityState _state = EntityState.Dormant;
@@ -46,8 +45,8 @@ namespace SecondCursor.Entity
         public CursorAgent Agent => _agent;
         public CursorView View => _view;
         public bool IsVisible => _view != null && _view.Alpha > 0.05f && _agent.Visible;
-        public bool Busy => _current != null;
-        public string CurrentAction => _currentName;
+        public bool Busy => _current != null && !_current.Done;
+        public string CurrentAction => Busy ? _current.Name : null;
 
         public event Action<EntityState, EntityState> StateChanged;
 
@@ -113,6 +112,11 @@ namespace SecondCursor.Entity
             }
             _agent.UpdateVelocity(dt);
             UpdateStaticSound();
+            if (_current != null)
+            {
+                _current.Tick();
+                if (_current.Done) _current = null;
+            }
             if (_current == null && Brain.Enabled) Brain.Tick(dt);
         }
 
@@ -147,28 +151,21 @@ namespace SecondCursor.Entity
 
         // ------------------------------------------------------------------ action runner
 
-        /// <summary>Run a behaviour, interrupting whatever the entity was doing.</summary>
-        public Coroutine Run(IEnumerator routine, string name)
+        /// <summary>Run a behaviour, interrupting whatever the entity was doing. Ticked in Update.</summary>
+        public Routine Run(IEnumerator routine, string name)
         {
             Interrupt();
-            _currentName = name;
-            _current = StartCoroutine(Wrap(routine));
+            _current = new Routine(routine, name);
+            _current.Tick(); // start immediately, like StartCoroutine
+            if (_current.Done) _current = null;
             return _current;
         }
 
-        IEnumerator Wrap(IEnumerator routine)
-        {
-            yield return routine;
-            _current = null;
-            _currentName = null;
-        }
-
-        /// <summary>Stop the current behaviour and let go of anything held.</summary>
+        /// <summary>Stop the current behaviour (including everything it started) and let go of anything held.</summary>
         public void Interrupt()
         {
-            if (_current != null) StopCoroutine(_current);
+            if (_current != null) _current.Stop();
             _current = null;
-            _currentName = null;
             ReleaseEverything();
         }
 
@@ -181,7 +178,7 @@ namespace SecondCursor.Entity
         /// <summary>Wait for the current behaviour (use from story coroutines: yield return entity.WaitIdle()).</summary>
         public IEnumerator WaitIdle()
         {
-            while (_current != null) yield return null;
+            while (Busy) yield return null;
         }
 
         // ------------------------------------------------------------------ presence
@@ -201,13 +198,13 @@ namespace SecondCursor.Entity
             SetPresent(true, fadeSeconds);
             if (sound) _g.Audio?.Play("entity_appear", 0.8f, 1f, Audio.AudioManager.PanFor(_agent.Position.x));
             if (_g.Taskbar != null) _g.Taskbar.PointingDevices = 2;
-            yield return new WaitForSeconds(fadeSeconds);
+            yield return Waits.Seconds(fadeSeconds);
         }
 
         public IEnumerator Vanish(float fadeSeconds = 0.5f)
         {
             SetPresent(false, fadeSeconds);
-            yield return new WaitForSeconds(fadeSeconds);
+            yield return Waits.Seconds(fadeSeconds);
         }
 
         /// <summary>Instantly place the cursor (e.g. off-screen before entering).</summary>
@@ -276,7 +273,7 @@ namespace SecondCursor.Entity
             {
                 var p = around + UnityEngine.Random.insideUnitCircle * radius;
                 yield return MoveTo(ScreenRig.ClampToScreen(p), profile ?? MovementProfiles.Lurking, 30f);
-                yield return new WaitForSeconds(_rng.Range(0.2f, 0.9f));
+                yield return Waits.Seconds(_rng.Range(0.2f, 0.9f));
             }
         }
 
@@ -298,7 +295,7 @@ namespace SecondCursor.Entity
         {
             _agent.SetButton(true);
             yield return null;
-            yield return new WaitForSeconds(_rng.Range(0.05f, 0.1f));
+            yield return Waits.Seconds(_rng.Range(0.05f, 0.1f));
             _agent.SetButton(false);
             yield return null;
         }
@@ -306,7 +303,7 @@ namespace SecondCursor.Entity
         public IEnumerator DoubleClick()
         {
             yield return Click();
-            yield return new WaitForSeconds(0.08f);
+            yield return Waits.Seconds(0.08f);
             yield return Click();
         }
 
@@ -347,10 +344,12 @@ namespace SecondCursor.Entity
                 Vector2 probe = _g.Player.Position + away.normalized * (BlockRadius + 3f) + UnityEngine.Random.insideUnitCircle * 4f;
                 probe = new Vector2(Mathf.Clamp(probe.x, r.xMin + 2, r.xMax - 2), Mathf.Clamp(probe.y, r.yMin + 2, r.yMax - 2));
                 yield return MoveTo(probe, MovementProfiles.Panicked, 6f);
-                yield return new WaitForSeconds(0.05f);
+                yield return Waits.Seconds(0.05f);
             }
             if (element == null || !element.isActiveAndEnabled) yield break;
             if (!element.WorldRect.Contains(_agent.Position)) yield return MoveToElement(element, MovementProfiles.Aggressive);
+            // Never click something else by accident (the target may have closed or been covered meanwhile).
+            if (element == null || !element.isActiveAndEnabled || _g.Router.HitTest(_agent.Position, _agent) != element) yield break;
             if (doubleClick) yield return DoubleClick();
             else yield return Click();
             if (result != null && result.Length > 0) result[0] = true;
@@ -364,12 +363,12 @@ namespace SecondCursor.Entity
             if (source == null || !source.isActiveAndEnabled) yield break;
             _agent.SetButton(true);
             yield return null;
-            yield return new WaitForSeconds(holdBefore);
+            yield return Waits.Seconds(holdBefore);
             // Tear it loose (crosses the drag threshold).
             _agent.Position += new Vector2(6f, -4f);
             yield return null;
             yield return MoveToDynamic(destination, profile, 24f);
-            yield return new WaitForSeconds(0.08f);
+            yield return Waits.Seconds(0.08f);
             _agent.SetButton(false);
             yield return null;
         }
@@ -382,7 +381,7 @@ namespace SecondCursor.Entity
             if (window == null || window.IsClosed) yield break;
             _agent.SetButton(true);
             yield return null;
-            yield return new WaitForSeconds(0.06f);
+            yield return Waits.Seconds(0.06f);
             yield return MoveTo(captionDestination, profile, 30f);
             _agent.SetButton(false);
             yield return null;
@@ -400,7 +399,7 @@ namespace SecondCursor.Entity
                 yield break;
             }
             yield return ClickElement(icon.Hit, profile, null, 2f, true);
-            yield return new WaitForSeconds(0.25f);
+            yield return Waits.Seconds(0.25f);
             if (_g.Apps.FindById(appId) == null) _g.Apps.Launch(appId, _agent, icon.GlyphWorldRect);
         }
 
@@ -443,6 +442,16 @@ namespace SecondCursor.Entity
             if (down) _agent.SetButton(false);
         }
 
+        // ------------------------------------------------------------------ desktop spots
+
+        /// <summary>True if a point shows bare desktop (no window, icon or menu over it) - safe to drop a file there.</summary>
+        public bool IsBareDesktop(Vector2 world)
+        {
+            if (world.x < 24f || world.x > ScreenRig.Width - 60f) return false;
+            if (world.y < WindowManager.TaskbarHeight + 50f || world.y > ScreenRig.Height - 16f) return false;
+            return _g.Router.HitTest(world, _agent) == _g.Desktop.Background;
+        }
+
         // ------------------------------------------------------------------ recoil (lost a fight)
 
         public IEnumerator Recoil(Vector2 awayFrom)
@@ -453,7 +462,7 @@ namespace SecondCursor.Entity
             var prevJitter = _view.Jitter;
             _view.Jitter = 2.5f;
             yield return MoveTo(target, MovementProfiles.Aggressive, 40f);
-            yield return new WaitForSeconds(0.25f);
+            yield return Waits.Seconds(0.25f);
             _view.Jitter = prevJitter;
         }
     }

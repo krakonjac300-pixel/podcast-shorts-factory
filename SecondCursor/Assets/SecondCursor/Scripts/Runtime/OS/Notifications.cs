@@ -59,6 +59,7 @@ namespace SecondCursor.OS
 
             var toast = new Toast { Rect = rt, Slot = _toasts.Count };
             var hit = UIBuilder.Hit(rt.gameObject, "toast:" + title, onClick != null ? CursorShape.Hand : CursorShape.Arrow);
+            hit.passThroughWhileCarrying = true;
             hit.Click += (a, n) =>
             {
                 toast.Dismissed = true;
@@ -89,7 +90,8 @@ namespace SecondCursor.OS
                 t.Slot = Mathf.MoveTowards(t.Slot, i, dt * 6f);
                 float slideIn = Mathf.Clamp01(t.Age / 0.2f);
                 float slideOut = Mathf.Clamp01((t.Age - Life) / 0.3f);
-                float y = WindowManager.TaskbarHeight + 4 + t.Slot * (H + 4);
+                // Stack above the Disposal bin so toasts never cover the drop target.
+                float y = WindowManager.TaskbarHeight + 84 + t.Slot * (H + 4);
                 y -= (1f - slideIn) * (H + 8);
                 t.Rect.anchoredPosition = new Vector2(-4f, Mathf.Round(y - slideOut * (H + 8)));
             }

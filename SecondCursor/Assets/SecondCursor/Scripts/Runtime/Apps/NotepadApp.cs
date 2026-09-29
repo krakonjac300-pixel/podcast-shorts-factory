@@ -140,7 +140,7 @@ namespace SecondCursor.Apps
                 if (c == ' ') delay *= 1.6f;
                 if (c == '\n') delay *= 3f;
                 delay *= UnityEngine.Random.Range(0.7f, 1.4f);
-                yield return new WaitForSeconds(delay);
+                yield return Waits.Seconds(delay);
             }
             _inputStart = _text.Length;
             PlayerCanType = previous;

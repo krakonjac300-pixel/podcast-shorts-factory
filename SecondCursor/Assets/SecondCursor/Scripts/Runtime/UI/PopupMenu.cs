@@ -152,9 +152,10 @@ namespace SecondCursor.UI
 
         public void Close()
         {
-            if (this == null) return;
+            if (this == null || !gameObject.activeSelf) return;
             Closed?.Invoke();
             Closed = null;
+            gameObject.SetActive(false); // no second click on a dying menu
             Destroy(gameObject);
         }
     }

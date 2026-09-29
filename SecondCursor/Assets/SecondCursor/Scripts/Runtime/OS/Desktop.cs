@@ -194,7 +194,7 @@ namespace SecondCursor.OS
             d.DisposalIcon.Hit.Drop += (a, p) => g.Shred.Request(p.FileId, a);
             d.DisposalIcon.Hit.DropHover += (a, p, entering) => d.DisposalIcon.Selected = entering;
 
-            g.DragDrop.PayloadFinished += (p, accepted) => d.UndimAll();
+            g.DragDrop.PayloadFinished += (p, accepted, by) => d.UndimAll();
             return d;
         }
 
@@ -322,7 +322,11 @@ namespace SecondCursor.OS
                 var icon = _fileIcons[id];
                 _fileIcons.Remove(id);
                 _icons.Remove(icon);
-                if (icon != null) Destroy(icon.gameObject);
+                if (icon != null)
+                {
+                    icon.gameObject.SetActive(false);
+                    Destroy(icon.gameObject);
+                }
             }
         }
 

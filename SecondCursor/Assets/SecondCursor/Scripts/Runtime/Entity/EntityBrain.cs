@@ -127,25 +127,37 @@ namespace SecondCursor.Entity
             return new Vector2(target.x, ScreenRig.Height + 8f);
         }
 
-        /// <summary>A spot far from the player and from the Disposal bin to hide the file.</summary>
+        /// <summary>
+        /// A spot on BARE desktop (a drop there always lands the file on the desktop), preferably far from the
+        /// player's cursor and the Disposal bin. Falls back to the least-bad spot if the screen is covered.
+        /// </summary>
         Vector2 SafeSpot()
         {
-            var candidates = new[]
-            {
-                new Vector2(560f, 470f), new Vector2(420f, 480f), new Vector2(700f, 420f), new Vector2(300f, 440f),
-                new Vector2(620f, 300f), new Vector2(200f, 470f), new Vector2(480f, 380f),
-            };
             Vector2 disposal = _g.Desktop.DisposalIcon.Hit.Center;
-            Vector2 best = candidates[0];
+            Vector2 best = new Vector2(480f, 400f);
             float bestScore = float.MinValue;
-            foreach (var c in candidates)
+            for (float x = 110f; x <= ScreenRig.Width - 90f; x += 50f)
             {
-                float s = Vector2.Distance(c, Player.Position) + Vector2.Distance(c, disposal) * 0.7f + UnityEngine.Random.Range(0f, 40f);
-                // Avoid dropping onto windows (the file must land on the desktop).
-                if (_g.Windows.TopmostAt(c) != null) s -= 400f;
-                if (s > bestScore) { bestScore = s; best = c; }
+                for (float y = WindowManager.TaskbarHeight + 70f; y <= ScreenRig.Height - 40f; y += 45f)
+                {
+                    var c = new Vector2(x, y);
+                    float s = Vector2.Distance(c, Player.Position) + Vector2.Distance(c, disposal) * 0.7f + UnityEngine.Random.Range(0f, 30f);
+                    if (!_c.IsBareDesktop(c)) s -= 2000f;
+                    if (s > bestScore) { bestScore = s; best = c; }
+                }
             }
             return best;
+        }
+
+        /// <summary>Make sure the protected file ends up visible on the desktop (a refused drop would leave it elsewhere).</summary>
+        void EnsureFileOnDesktop(Vector2 spot)
+        {
+            if (!_g.Files.Exists(ProtectedFileId)) return;
+            if (_g.Files.FolderOf(ProtectedFileId) != ContentIds.FolderDesktop)
+                _g.Files.Move(ProtectedFileId, ContentIds.FolderDesktop, Core.FileSystem.Actor.Entity);
+            var icon = _g.Desktop.IconForFile(ProtectedFileId);
+            var desk = OSLayers.WorldToDesktop(spot) - new Vector2(DesktopIcon.CellW * 0.5f, 18f);
+            if (icon == null || !_c.IsBareDesktop(icon.Hit.Center)) _g.Desktop.SetFilePosition(ProtectedFileId, desk);
         }
 
         // ------------------------------------------------------------------ InterceptDrag
@@ -185,16 +197,35 @@ namespace SecondCursor.Entity
 
             if (payload.Holder == _c.Agent && !payload.Dropped)
             {
-                // Won: run off with it and leave it somewhere safe on the desktop.
+                // Won: run off with it and leave it somewhere safe on the desktop. If the player grabs it
+                // again on the way, the fight resumes (ConflictSystem moves the cursor meanwhile).
                 RegisterDefense("tug");
                 Vector2 spot = SafeSpot();
-                yield return _c.MoveTo(spot, MovementProfiles.Aggressive, 40f);
-                yield return new WaitForSeconds(0.1f);
-                _c.Agent.SetButton(false);
-                yield return null;
-                yield return new WaitForSeconds(0.4f);
-                _c.State = Core.Entity.EntityState.Defensive;
-                yield return _c.Loiter(spot, 50f, 1.2f, MovementProfiles.Hesitant);
+                int guard = 0;
+                while (payload.Holder == _c.Agent && !payload.Dropped && guard++ < 20)
+                {
+                    if (_g.Conflict.IsFighting) { yield return null; continue; }
+                    spot = SafeSpot();
+                    yield return _c.MoveToDynamic(() => _g.Conflict.IsFighting || payload.Holder != _c.Agent ? (Vector2?)null : spot, MovementProfiles.Aggressive, 40f);
+                    if (_g.Conflict.IsFighting || payload.Holder != _c.Agent) continue;
+                    yield return Waits.Seconds(0.1f);
+                    _c.Agent.SetButton(false);
+                    yield return null;
+                    yield return null;
+                    EnsureFileOnDesktop(spot);
+                    break;
+                }
+                if (_c.Agent.Held) _c.Agent.SetButton(false);
+                if (payload.Holder == _c.Agent || payload.Dropped)
+                {
+                    yield return Waits.Seconds(0.4f);
+                    _c.State = Core.Entity.EntityState.Defensive;
+                    yield return _c.Loiter(spot, 50f, 1.2f, MovementProfiles.Hesitant);
+                }
+                else
+                {
+                    yield return _c.Recoil(Player.Position);
+                }
             }
             else
             {
@@ -222,7 +253,7 @@ namespace SecondCursor.Entity
             yield return EnsurePresent(EntryPointNear(no.Hit.Center));
             _c.State = Core.Entity.EntityState.Aggressive;
             // A beat of reaction time: the player gets a real chance to click Yes first.
-            yield return new WaitForSeconds(UnityEngine.Random.Range(0.15f, 0.35f) * _c.Personality.reactionScale);
+            yield return Waits.Seconds(UnityEngine.Random.Range(0.15f, 0.35f) * _c.Personality.reactionScale);
             var result = new bool[1];
             yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 1.5f);
             if (result[0] && box.Result == "No") RegisterDefense("no");
@@ -246,6 +277,7 @@ namespace SecondCursor.Entity
             var box = _g.Shred.Confirm;
             if (box == null || !box.IsOpen) yield break;
             yield return EnsurePresent(EntryPointNear(box.Window.CaptionCenter));
+            if (!box.IsOpen) yield break;
             _c.State = Core.Entity.EntityState.Aggressive;
             // Haul it toward the side of the screen away from the player's cursor.
             Vector2 caption = box.Window.CaptionCenter;
@@ -353,8 +385,13 @@ namespace SecondCursor.Entity
             yield return EnsurePresent(EntryPointNear(icon.Hit.Center));
             _c.State = Core.Entity.EntityState.Defensive;
             Vector2 spot = SafeSpot();
+            icon = _g.Desktop.IconForFile(ProtectedFileId);
+            if (icon == null || Player.Payload != null) yield break;
+            Vector2 before = icon.TopLeft;
             yield return _c.DragTo(icon.Hit, () => spot, MovementProfiles.Aggressive, 0.02f);
-            RegisterDefense("keepaway");
+            yield return null;
+            icon = _g.Desktop.IconForFile(ProtectedFileId);
+            if (icon != null && Vector2.Distance(icon.TopLeft, before) > 20f) RegisterDefense("keepaway");
         }
 
         // ------------------------------------------------------------------ CloseFilesWindow
@@ -395,7 +432,7 @@ namespace SecondCursor.Entity
             Vector2 offset = UnityEngine.Random.insideUnitCircle.normalized * UnityEngine.Random.Range(120f, 190f);
             Vector2 target = ScreenRig.ClampToScreen(Player.Position + offset);
             yield return _c.MoveTo(target, MovementProfiles.Lurking, 40f);
-            yield return new WaitForSeconds(UnityEngine.Random.Range(0.4f, 1.4f));
+            yield return Waits.Seconds(UnityEngine.Random.Range(0.4f, 1.4f));
         }
     }
 }

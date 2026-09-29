@@ -58,6 +58,7 @@ namespace SecondCursor.OS
                 if (w != null) { w.Focus(by); w.Shake(0.2f, 2f); }
                 return;
             }
+            SpeedMultiplier = 1f;
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.Player, (by?.Name ?? "System") + " attempted shred " + fileId);
             if (by != null && by.IsPlayer) _g.Memory.Record(MemoryKind.ShredAttempt, fileId, _g.Now);
             Requested?.Invoke(fileId, by);
@@ -74,11 +75,32 @@ namespace SecondCursor.OS
                 Dialogs.Message(_g, c.Text("restricted.denied.title"), c.Text("restricted.denied.body"), "icon_lock", new[] { "OK" }, null);
                 return;
             }
+            if (file.Protected)
+            {
+                Dialogs.Message(_g, c.Text("shred.confirm.title"), file.Name + " is protected.\nAccess is denied.", "icon_lock", new[] { "OK" }, null);
+                return;
+            }
+            if (IsPendingArchive(fileId))
+            {
+                // Never let the player destroy a file a task still needs (that would soft-lock the shift).
+                Dialogs.Message(_g, c.Text("shred.confirm.title"), file.Name + " is scheduled for archiving.\nIt cannot be shredded.", "icon_info", new[] { "OK" }, null);
+                return;
+            }
 
             PendingFileId = fileId;
             Confirm = Dialogs.Message(_g, c.Text("shred.confirm.title"), c.Format("shred.confirm.body", file.Name), "icon_question",
                 new[] { "Yes", "No" }, OnConfirm, 0);
             ConfirmShown?.Invoke(fileId, Confirm);
+        }
+
+        bool IsPendingArchive(string fileId)
+        {
+            foreach (var t in _g.Tasks.Tasks)
+            {
+                if (t.Type != TaskType.MoveFile || t.IsDone) continue;
+                foreach (var target in t.Data.targets) if (target == fileId) return true;
+            }
+            return false;
         }
 
         void OnConfirm(string result, CursorAgent by)

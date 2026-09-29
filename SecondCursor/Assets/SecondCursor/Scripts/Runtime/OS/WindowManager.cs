@@ -36,6 +36,8 @@ namespace SecondCursor.OS
         public event Action<OSWindow, CursorAgent> ClosedEvent;
         public event Action<OSWindow, CursorAgent> Focused;
         public event Action<OSWindow> Changed;
+        /// <summary>A minimized window was restored (by whom).</summary>
+        public event Action<OSWindow, CursorAgent> Restored;
         /// <summary>Resolves where a window minimizes to (the taskbar button), in world coordinates.</summary>
         public Func<OSWindow, Rect?> TaskbarRectOf;
 
@@ -146,6 +148,7 @@ namespace SecondCursor.OS
             var from = TaskbarRectOf?.Invoke(w);
             if (from.HasValue) Zoom(from.Value, w.WorldRect);
             Changed?.Invoke(w);
+            Restored?.Invoke(w, by);
         }
 
         void FocusTopmost(CursorAgent by)
@@ -181,6 +184,9 @@ namespace SecondCursor.OS
                 var rt = g.rectTransform;
                 rt.anchorMin = rt.anchorMax = Vector2.zero;
                 rt.pivot = Vector2.zero;
+                rt.anchoredPosition = from.position;
+                rt.sizeDelta = from.size;
+                g.enabled = false;
                 anim.Frames.Add(g);
             }
             _anims.Add(anim);

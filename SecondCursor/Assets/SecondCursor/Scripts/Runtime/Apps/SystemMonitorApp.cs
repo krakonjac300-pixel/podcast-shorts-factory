@@ -56,14 +56,19 @@ namespace SecondCursor.Apps
             if (G.Flags.Has(Flags.EntitySeen)) yield return (GhostProcess, "017", 0f, "????");
         }
 
+        readonly List<string> _shownNames = new List<string>();
+
         void Refresh()
         {
-            string sel = _list.Selected?.Tag as string;
-            _list.Clear();
+            var procs = new List<(string name, string user, float baseCpu, string mem)>(Processes());
+            bool sameSet = procs.Count == _shownNames.Count;
+            for (int i = 0; sameSet && i < procs.Count; i++) sameSet = procs[i].name == _shownNames[i];
+
             float total = 0f;
-            int n = 0;
-            foreach (var p in Processes())
+            var cpus = new float[procs.Count];
+            for (int i = 0; i < procs.Count; i++)
             {
+                var p = procs[i];
                 float cpu;
                 if (p.name == GhostProcess)
                 {
@@ -76,14 +81,31 @@ namespace SecondCursor.Apps
                     _cpu.TryGetValue(p.name, out var prev);
                     cpu = Mathf.Lerp(prev, p.baseCpu + Random.Range(-0.8f, 1.2f), 0.5f);
                 }
-                cpu = Mathf.Max(0f, cpu);
-                _cpu[p.name] = cpu;
-                total += cpu;
-                _list.AddRow(null, p.name, "process:" + p.name, p.name, p.user, Mathf.RoundToInt(cpu) + "%", p.mem);
-                n++;
+                cpus[i] = Mathf.Max(0f, cpu);
+                _cpu[p.name] = cpus[i];
+                total += cpus[i];
             }
-            if (sel != null) _list.SelectWhere(r => (string)r.Tag == sel, null);
-            _status.text = n + " processes   CPU " + Mathf.Clamp(Mathf.RoundToInt(total), 0, 100) + "%";
+
+            if (sameSet)
+            {
+                // Update the numbers in place so clicks and selection are never disturbed.
+                for (int i = 0; i < procs.Count && i < _list.Rows.Count; i++)
+                    if (_list.Rows[i].Columns.Count > 2) _list.Rows[i].Columns[2].text = Mathf.RoundToInt(cpus[i]) + "%";
+            }
+            else
+            {
+                string sel = _list.Selected?.Tag as string;
+                _list.Clear();
+                _shownNames.Clear();
+                for (int i = 0; i < procs.Count; i++)
+                {
+                    var p = procs[i];
+                    _list.AddRow(null, p.name, "process:" + p.name, p.name, p.user, Mathf.RoundToInt(cpus[i]) + "%", p.mem);
+                    _shownNames.Add(p.name);
+                }
+                if (sel != null) _list.SelectWhere(r => (string)r.Tag == sel, null);
+            }
+            _status.text = procs.Count + " processes   CPU " + Mathf.Clamp(Mathf.RoundToInt(total), 0, 100) + "%";
         }
 
         void EndProcess(CursorAgent a)

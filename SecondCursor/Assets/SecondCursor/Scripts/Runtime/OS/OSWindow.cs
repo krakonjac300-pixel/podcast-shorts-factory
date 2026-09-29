@@ -103,7 +103,7 @@ namespace SecondCursor.OS
             win._caption.rectTransform.TopStrip(3, CaptionHeight, 3, 3);
             win.TitleHit = UIBuilder.Hit(win._caption.gameObject, "caption");
             win.TitleHit.draggable = true;
-            win.TitleHit.dragThreshold = 1f;
+            win.TitleHit.dragThreshold = 4f;
             win.TitleHit.DragBegin += win.OnCaptionDragBegin;
             win.TitleHit.Drag += win.OnCaptionDrag;
             win.TitleHit.DragEnd += a => { if (win._dragOwner == a) win._dragOwner = null; };
@@ -139,9 +139,6 @@ namespace SecondCursor.OS
                 ((RectTransform)win.MinimizeButton.transform).TopRight(bx, 2, 16, 14);
             }
 
-            win.Client = UIBuilder.Rect("Client", rt).Stretch(4, 4 + CaptionHeight + 1, 4, 4);
-            UIBuilder.Clip(win.Client);
-
             if ((flags & WindowFlags.Resizable) != 0)
             {
                 var grip = UIBuilder.Rect("Resize Grip", rt).BottomRight(3, 3, 12, 12);
@@ -166,6 +163,9 @@ namespace SecondCursor.OS
                 gh.DragEnd += a => { if (win._resizeOwner == a) win._resizeOwner = null; };
             }
 
+            win.Client = UIBuilder.Rect("Client", rt).Stretch(4, 4 + CaptionHeight + 1, 4, 4);
+            UIBuilder.Clip(win.Client);
+
             win.SetTitle(title);
             win.SetActive(false);
             return win;
@@ -180,13 +180,14 @@ namespace SecondCursor.OS
 
         public void SetTopLeft(Vector2 topLeft)
         {
-            Rect.anchoredPosition = new Vector2(Mathf.Round(topLeft.x), -Mathf.Round(topLeft.y));
+            Rect.anchoredPosition = new Vector2(Mathf.Floor(topLeft.x + 0.5f), -Mathf.Floor(topLeft.y + 0.5f));
         }
 
         /// <summary>Move so the top-left lands at the given desktop position (clamped so the caption stays reachable).</summary>
         public void MoveTo(Vector2 topLeft, CursorAgent by = null)
         {
             if (IsMaximized) return;
+            StopShake();
             var before = TopLeft;
             SetTopLeft(ClampTopLeft(topLeft));
             if (TopLeft != before) Moved?.Invoke(this, by);
@@ -279,6 +280,7 @@ namespace SecondCursor.OS
             Sfx.Play("ui_window", by);
             Closed?.Invoke(this, by);
             Manager.OnClosed(this, by);
+            gameObject.SetActive(false); // unregister its interactables now, not at end of frame
             Destroy(gameObject);
         }
 
@@ -305,6 +307,7 @@ namespace SecondCursor.OS
         public void ToggleMaximize(CursorAgent by = null)
         {
             if ((Flags & WindowFlags.CanMaximize) == 0) return;
+            StopShake();
             if (!IsMaximized)
             {
                 _restore = new Rect(TopLeft, Size);
@@ -329,6 +332,14 @@ namespace SecondCursor.OS
             if (_shakeTime <= 0f) _shakeBase = TopLeft;
             _shakeTime = Mathf.Max(_shakeTime, duration);
             _shakeAmp = Mathf.Max(_shakeAmp, amplitude);
+        }
+
+        void StopShake()
+        {
+            if (_shakeTime <= 0f) return;
+            _shakeTime = 0f;
+            _shakeAmp = 0f;
+            SetTopLeft(_shakeBase);
         }
 
         void Update()

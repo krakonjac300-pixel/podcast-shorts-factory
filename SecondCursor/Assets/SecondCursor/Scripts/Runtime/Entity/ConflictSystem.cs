@@ -58,9 +58,12 @@ namespace SecondCursor.Entity
                 c._band.Add(dot);
             }
             g.DragDrop.ContestStarted += c.OnContestStarted;
-            g.DragDrop.PayloadFinished += (p, accepted) =>
+            g.DragDrop.PayloadFinished += (p, accepted, by) =>
             {
-                if (p == c._payload) c.End(accepted ? TugOutcome.PlayerWins : TugOutcome.EntityWins, false);
+                if (p != c._payload) return;
+                // Whoever managed to drop it somewhere won; a returned (refused) payload goes to the entity.
+                bool playerWon = accepted && by != null && by.IsPlayer;
+                c.End(playerWon ? TugOutcome.PlayerWins : TugOutcome.EntityWins, false);
             };
             return c;
         }
@@ -91,6 +94,13 @@ namespace SecondCursor.Entity
             var player = _g.Player;
             var entity = _g.EntityAgent;
             bool playerGrips = (_payload.Holder == player || _payload.Contender == player) && player.Held;
+            bool entityGrips = (_payload.Holder == entity || _payload.Contender == entity) && entity.Held;
+            if (!entityGrips)
+            {
+                // It let go: the file is simply yours.
+                End(TugOutcome.PlayerWins, true);
+                return;
+            }
             float grip = _g.Entity != null ? _g.Entity.Brain.Grip : 0.62f;
 
             // The entity's end drags away (strength-dependent), with a nervous tremble.
@@ -168,9 +178,9 @@ namespace SecondCursor.Entity
             {
                 var winner = outcome == TugOutcome.PlayerWins ? _g.Player : _g.EntityAgent;
                 _g.DragDrop.TransferTo(p, winner);
-                if (winner == _g.Player && !_g.Player.Held)
+                if (!winner.Held)
                 {
-                    // Player won but already let go: the file just drops back where it came from.
+                    // The winner isn't holding the button any more: the file just drops back where it came from.
                     _g.DragDrop.Cancel(p);
                 }
             }

@@ -17,10 +17,18 @@ namespace SecondCursor.Story
     public sealed class EndingSequence
     {
         readonly GameServices _g;
+        RectTransform _room;
 
         public EndingSequence(GameServices g)
         {
             _g = g;
+        }
+
+        /// <summary>Remove the ending's screens (debug jump away from the ending).</summary>
+        public void Clear()
+        {
+            if (_room != null) Object.Destroy(_room.gameObject);
+            _room = null;
         }
 
         public IEnumerator Run()
@@ -36,26 +44,27 @@ namespace SecondCursor.Story
             g.Audio.StopAllLoops(0.2f);
             g.Audio.Play("power_down");
             if (g.CameraRig != null) g.CameraRig.LightsOn = false;
-            yield return new WaitForSeconds(0.5f);
+            yield return Waits.Seconds(0.5f);
             g.Audio.Play("crt_off");
             yield return g.Fx.PowerOff(0.9f);
             g.Fx.SetBlack(true);
-            yield return new WaitForSeconds(2.6f);
+            yield return Waits.Seconds(2.6f);
 
             // In the dark: a black OS screen with only the second cursor.
             var black = UIBuilder.Rect("Black Room", g.Layers.Fullscreen).Stretch();
+            _room = black;
             var bg = black.gameObject.AddComponent<Image>();
             bg.color = Color.black;
             bg.raycastTarget = false;
+            UIBuilder.Hit(black.gameObject, "ending"); // nothing behind the dark screen can be clicked
             g.Windows.CloseAll();
             g.Fx.SetBlack(false);
             g.Fx.PowerOn();
-            g.Fx.CrtEnabled = true;
 
             g.Entity.Teleport(new Vector2(ScreenRig.Width * 0.5f, ScreenRig.Height * 0.62f));
             g.Entity.State = Core.Entity.EntityState.Communicating;
             yield return g.Entity.Appear(null, 1.5f, false);
-            yield return new WaitForSeconds(1.2f);
+            yield return Waits.Seconds(1.2f);
 
             var text = UIBuilder.Text(black, "", Palette.EntityText, true);
             text.Scale = 2;
@@ -71,13 +80,13 @@ namespace SecondCursor.Story
                     g.Audio.Play(c == ' ' ? "key_space" : "key_tap", 0.9f, Random.Range(0.9f, 1.05f), AudioPanFor(g));
                     // The cursor jitters with each keystroke.
                     g.Entity.Teleport(g.Entity.Agent.Position + Random.insideUnitCircle * 0.8f);
-                    yield return new WaitForSeconds(c == ' ' ? 0.16f : Random.Range(0.07f, 0.16f));
+                    yield return Waits.Seconds(c == ' ' ? 0.16f : Random.Range(0.07f, 0.16f));
                 }
-                yield return new WaitForSeconds(1.6f);
+                yield return Waits.Seconds(1.6f);
                 sb.Append('\n');
                 text.text = sb.ToString();
             }
-            yield return new WaitForSeconds(2.5f);
+            yield return Waits.Seconds(2.5f);
             yield return g.Entity.Vanish(1.5f);
             float a = 1f;
             while (a > 0f)
@@ -86,7 +95,7 @@ namespace SecondCursor.Story
                 text.color = new Color(0.91f, 0.9f, 0.87f, Mathf.Max(0f, a));
                 yield return null;
             }
-            yield return new WaitForSeconds(1f);
+            yield return Waits.Seconds(1f);
             yield return EndCard(black);
         }
 

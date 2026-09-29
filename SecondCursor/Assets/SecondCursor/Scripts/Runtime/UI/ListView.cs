@@ -137,7 +137,12 @@ namespace SecondCursor.UI
 
         public void Clear()
         {
-            foreach (var r in _rows) if (r.Rect != null) UnityEngine.Object.Destroy(r.Rect.gameObject);
+            foreach (var r in _rows)
+            {
+                if (r.Rect == null) continue;
+                r.Rect.gameObject.SetActive(false); // unregister now; Destroy is deferred to end of frame
+                UnityEngine.Object.Destroy(r.Rect.gameObject);
+            }
             _rows.Clear();
             _selected = -1;
             Scroll.ContentHeight = 0;

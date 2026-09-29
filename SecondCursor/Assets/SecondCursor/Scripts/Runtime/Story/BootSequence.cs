@@ -131,7 +131,7 @@ namespace SecondCursor.Story
             text.rectTransform.Stretch(24, 20, 24, 20);
             var sb = new System.Text.StringBuilder();
             _g.Audio.Play("crt_on");
-            yield return new WaitForSeconds(quick ? 0.2f : 0.9f);
+            yield return Waits.Seconds(quick ? 0.2f : 0.9f);
             _g.Audio.Play("bios_beep");
             var lines = _g.Content.Story.biosLines;
             for (int i = 0; i < lines.Length; i++)
@@ -143,17 +143,17 @@ namespace SecondCursor.Story
                     for (int k = 0; k <= 32768; k += 2048)
                     {
                         text.text = sb + "Memory Test: " + k + "K";
-                        yield return new WaitForSeconds(0.03f);
+                        yield return Waits.Seconds(0.03f);
                     }
                 }
                 sb.Append(line).Append('\n');
                 text.text = sb.ToString();
                 if (i % 3 == 1) _g.Audio.Play("hdd_seek", 0.7f);
                 if (SkipPressed) quick = true;
-                yield return new WaitForSeconds(quick ? 0.02f : Random.Range(0.12f, 0.35f));
+                yield return Waits.Seconds(quick ? 0.02f : Random.Range(0.12f, 0.35f));
             }
             _g.Audio.Play("hdd_spinup", 0.6f);
-            yield return new WaitForSeconds(quick ? 0.2f : 1.0f);
+            yield return Waits.Seconds(quick ? 0.2f : 1.0f);
         }
 
         IEnumerator Splash(bool quick)
@@ -245,9 +245,9 @@ namespace SecondCursor.Story
             status.text = "Applying your personal settings...";
             _g.Player.ShapeOverride = CursorShape.Busy;
             _g.Audio.Play("hdd_seek", 0.8f);
-            yield return new WaitForSeconds(1.6f);
+            yield return Waits.Seconds(1.6f);
             _g.Audio.Play("hdd_seek", 0.6f);
-            yield return new WaitForSeconds(0.8f);
+            yield return Waits.Seconds(0.8f);
             _g.Player.ShapeOverride = null;
             GameLog.Info(LogChannel.Player, "Logged on as " + c.Text("login.username"));
         }
