@@ -157,8 +157,9 @@ namespace SecondCursor.Apps
                 if (ConversationMode) HoldKeys(text, by);
                 return;
             }
-            foreach (char c in text)
+            for (int i = 0; i < text.Length; i++)
             {
+                char c = text[i];
                 LastPlayerKeyTime = Time.time;
                 if (c == '\b')
                 {
@@ -173,7 +174,14 @@ namespace SecondCursor.Apps
                         _inputStart = _text.Length;
                         Changed(true);
                         Sfx.Play("key_enter", by);
-                        if (line.Length > 0) LineSubmitted?.Invoke(line, by);
+                        if (line.Length > 0)
+                        {
+                            // A sent line ends your turn at once: later keys (even this frame's) are typed ahead.
+                            PlayerCanType = false;
+                            LineSubmitted?.Invoke(line, by);
+                            if (i + 1 < text.Length) HoldKeys(text.Substring(i + 1), by);
+                            break;
+                        }
                         continue;
                     }
                     _text.Append('\n');

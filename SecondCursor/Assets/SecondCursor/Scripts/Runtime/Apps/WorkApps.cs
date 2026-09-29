@@ -178,7 +178,7 @@ namespace SecondCursor.Apps
 
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
-            CreateWindow(G.Content.Text("app.help"), "icon_help", 300, 120, 360, 240, WindowFlags.Standard, zoomFrom);
+            CreateWindow(G.Content.Text("app.help"), "icon_help", 270, 80, 440, 330, WindowFlags.Standard, zoomFrom);
             var frame = UIBuilder.Bevel(Window.Client, BevelStyle.Sunken, "Help Text");
             frame.rectTransform.Stretch(2, 2, 2, 2);
             // help.body carries its own "NEXUS OS 4.1 -- QUICK HELP" heading.

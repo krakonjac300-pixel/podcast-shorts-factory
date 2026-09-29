@@ -48,8 +48,34 @@ already includes. Built-in and URP both work, as do the old Input Manager and th
 | `Delete` | Shred the file selected in Files |
 | `Esc` | Pause menu (CRT effects on/off, volume, restart, quit) |
 
-**Developer keys** (Editor and development builds only): `F1` debug panel · `F2` skip to next story beat · `F3` summon/dismiss the second cursor at your mouse ·
-`F4` game speed (1x/2x/4x/0.5x) · `F5` restart the shift · `F6` CRT effects on/off.
+**Developer keys** (`F1`-`F5` in the Editor and development builds only): `F1` debug panel · `F2` skip to next story beat · `F3` summon/dismiss the second cursor at your mouse ·
+`F4` game speed (1x/2x/4x/0.5x) · `F5` restart the shift · `F6` CRT effects on/off (works everywhere; also in the Esc menu).
+
+### How to play (your first shift)
+
+You are a night operator at a data-reclamation company, alone at a 1998 computer. The whole game is
+that computer screen. You just do your job, and the job slowly stops being normal.
+
+1. **Start:** click the title screen, then click **Log On**. A **Quick Start** window explains the
+   controls; click **Begin**.
+2. **Your tasks** are in the **Work Queue** window (top right) and on the **Task** button in the taskbar
+   (bottom). Do them in order. The text under each task says exactly how. If you close the Work Queue,
+   click the Task button or the Work Queue icon to get it back. If you are stuck, the hint pops up again.
+3. **The tutorial tasks:**
+   - *Read the shift briefing:* double-click **Mail**; the unread message opens.
+   - *Archive ledger_1994.dat:* double-click **Workstation** (the File Manager), double-click
+     **Intake**, then **drag** `ledger_1994.dat` with the mouse onto **Archive** in the left pane.
+     During the first shift the file and its destination blink.
+   - *Verify work orders:* open **Work Orders**, note the owner's employee number, find that number in
+     **Personnel**; **Approve** only if the status is TERMINATED, otherwise **Reject**.
+   - *Shred ~nxs0148.tmp:* drag it onto the **Disposal** bin (desktop, bottom right) and click **Yes**.
+4. **After that, keep working and watch the screen.** Things start to happen on their own. When
+   another cursor shows up and fights you for a file, hold the mouse button and **pull away hard**.
+   When it wants to talk, it opens Notepad: type a reply and press **Enter**.
+5. **Locked things are locked on purpose.** The **Camera Viewer** and the **Restricted** folder say
+   *Access Denied* at the start. The story opens them for you later; don't wait on them.
+
+A full shift takes about 10-15 minutes and ends on the **WISHLIST NOW** card.
 
 ## 3. What to test
 

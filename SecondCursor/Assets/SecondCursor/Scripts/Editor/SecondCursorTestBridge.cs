@@ -68,6 +68,7 @@ namespace SecondCursor.EditorTools
             EditorApplication.update += Update;
             Application.logMessageReceived += OnLog;
             CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompiled;
+            CompilationPipeline.compilationStarted += _ => { if (Enabled && File.Exists(CompileErrorsPath)) File.Delete(CompileErrorsPath); };
         }
 
         static bool Enabled => Directory.Exists(Dir);
@@ -176,9 +177,9 @@ namespace SecondCursor.EditorTools
 
         static void AppendCompileErrors()
         {
-            if (!File.Exists(CompileErrorsPath)) return;
+            if (!EditorUtility.scriptCompilationFailed || !File.Exists(CompileErrorsPath)) return;
+            // Kept until the next compilation starts, so "play" can report them too.
             foreach (var l in File.ReadAllLines(CompileErrorsPath).Distinct()) _out.Append("  COMPILE ").Append(l).Append('\n');
-            File.Delete(CompileErrorsPath);
         }
 
         static readonly HashSet<string> PointerCommands = new HashSet<string>
@@ -437,7 +438,6 @@ namespace SecondCursor.EditorTools
 
         static IEnumerator Refresh()
         {
-            if (File.Exists(CompileErrorsPath)) File.Delete(CompileErrorsPath);
             Persist();
             AssetDatabase.Refresh();
             // If scripts changed and compiled, the domain reloads and TryResume continues the script.
@@ -455,6 +455,12 @@ namespace SecondCursor.EditorTools
         static IEnumerator Play(bool play)
         {
             if (EditorApplication.isPlaying == play) { Say("already " + (play ? "playing" : "stopped")); yield break; }
+            if (play && EditorUtility.scriptCompilationFailed)
+            {
+                Say("ERROR: scripts have compile errors, Play is blocked");
+                AppendCompileErrors();
+                yield break;
+            }
             Persist();
             EditorApplication.isPlaying = play;
             // Entering play mode reloads the domain; the script continues from TryResume.

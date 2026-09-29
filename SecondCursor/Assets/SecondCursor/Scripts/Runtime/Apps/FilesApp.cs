@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Tasks;
 using SecondCursor.Input;
 using SecondCursor.OS;
 using SecondCursor.Rendering;
@@ -222,6 +223,45 @@ namespace SecondCursor.Apps
         public override void Tick(float dt)
         {
             if (_revision != G.Files.Revision) Refresh();
+            GuideTick();
+        }
+
+        // ------------------------------------------------------------------ tutorial guide
+
+        /// <summary>First-shift file tasks: the file to drag and where it goes blink softly until it is done.</summary>
+        static readonly HashSet<string> GuidedTasks = new HashSet<string>
+        {
+            ContentIds.TaskArchiveLedger, ContentIds.TaskShredCache, ContentIds.TaskArchiveBatch,
+        };
+        static readonly Color32 GuideColor = new Color32(0xFF, 0xE9, 0x9A, 0xFF);
+        readonly List<ListView.Row> _guided = new List<ListView.Row>();
+
+        void GuideTick()
+        {
+            // Put back whatever blinked last frame (rows may have been rebuilt since).
+            foreach (var r in _guided)
+            {
+                if (r.Rect == null || r.Background == null) continue;
+                r.Background.color = Palette.Selection;
+                r.Background.enabled = r == _files.Selected || r == _folders.Selected;
+            }
+            _guided.Clear();
+
+            var task = G.Tasks.Current;
+            if (task == null || !GuidedTasks.Contains(task.Id) || G.Player.Payload != null) return;
+            if ((Time.unscaledTime % 1.2f) > 0.6f) return;
+            foreach (var target in task.Data.targets) Blink(RowFor(target), _files);
+            string destination = task.Type == TaskType.MoveFile ? task.Data.param : ContentIds.FolderDisposal;
+            foreach (var r in _folders.Rows)
+                if (r.Tag is string id && id == destination) Blink(r, _folders);
+        }
+
+        void Blink(ListView.Row r, ListView list)
+        {
+            if (r == null || r.Rect == null || r.Background == null || r == list.Selected) return;
+            r.Background.color = GuideColor;
+            r.Background.enabled = true;
+            _guided.Add(r);
         }
 
         public void OnTyped(string text, CursorAgent by) { }

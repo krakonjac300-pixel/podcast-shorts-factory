@@ -150,6 +150,25 @@ conversation, escalation, reveal, ending) passes with no errors. It found:
 - Window placement also keeps the desktop Disposal bin uncovered (weighted 8x a window pixel).
 - Bridge: `waittext TEXT [timeout]`; pointer commands aim at the visible part of a partly covered element.
 
+### Polish pass 7 (onboarding, after the first real playtest)
+
+The first human session (read from the game log) got lost: the player closed the Work Queue, tried the
+camera three times, and never discovered that files are dragged between folders, so the archive task
+timed out after about 5 minutes. Changes:
+
+- **Quick Start** window right after log-on (`quickstart.*` strings): where the tasks are and the five
+  basic moves; the first task is given when it is dismissed.
+- **Task button on the taskbar**: the current Work Queue task (with progress) is always visible and
+  blinks when a new one arrives; click it to reopen the Work Queue.
+- **Hints repeat**: first after 30 s (25 s for the briefing), then every 40 s while stuck.
+- **Tutorial guide**: during the archive and shred tutorial tasks, File Manager blinks the file to
+  drag and its destination folder pale yellow.
+- Camera denial now says "Night Operators: your work is in the Work Queue."; NEXUS Help has a proper
+  how-to (bigger window); the README has a player-facing "How to play".
+- Second code review (all LOW): a sent Notepad line ends the turn at once (no stray keystroke), the
+  drop-spot search keeps a 2 ms per-frame budget, the conflict hint handler is removed on any jump,
+  debug jumps past the shred task show a full Disposal bin, README F6 note corrected.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

@@ -24,6 +24,9 @@ namespace SecondCursor.OS
         CursorAgent _confirmedBy;
 
         public bool AnyShredded { get; private set; }
+
+        /// <summary>Something was shredded outside the dialogs (story setup): the bin shows full.</summary>
+        public void MarkShredded() => AnyShredded = true;
         public MessageBox Confirm { get; private set; }
         public ProgressDialog Progress { get; private set; }
         public string PendingFileId { get; private set; }

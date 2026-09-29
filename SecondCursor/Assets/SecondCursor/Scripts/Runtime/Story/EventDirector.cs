@@ -126,6 +126,7 @@ namespace SecondCursor.Story
             g.Entity.Interrupt();
             g.Entity.Brain.Enabled = false;
             g.Entity.Urgency = 1f;
+            RemoveConflictHint();
             _boot?.Clear();
             _boot = null;
             _ending?.Clear();
@@ -195,7 +196,7 @@ namespace SecondCursor.Story
                 // Leave the world the way a player who did the tutorial would have.
                 g.Mail.MarkRead(ContentIds.MailWelcome, null);
                 MoveIfIn(ContentIds.FileLedger, ContentIds.FolderIntake, ContentIds.FolderArchive);
-                if (g.Files.Exists(ContentIds.FileCache)) g.Files.Shred(ContentIds.FileCache, Actor.System);
+                if (g.Files.Exists(ContentIds.FileCache) && g.Files.Shred(ContentIds.FileCache, Actor.System)) g.Shred.MarkShredded();
                 foreach (var id in new[] { ContentIds.Order3317, ContentIds.Order3318 })
                 {
                     var order = g.Content.Order(id);
@@ -266,11 +267,14 @@ namespace SecondCursor.Story
             while (!condition() && Time.time < end) yield return null;
         }
 
-        /// <summary>Waits for a task; after <paramref name="hintAfter"/> seconds shows its hint as a toast (once).</summary>
-        IEnumerator WaitTask(string taskId, float hintAfter = 45f)
+        /// <summary>
+        /// Waits for a task. After <paramref name="hintAfter"/> seconds its hint pops up as a toast, and again
+        /// every 40 seconds while the player is still stuck.
+        /// </summary>
+        IEnumerator WaitTask(string taskId, float hintAfter = 30f)
         {
             float start = Time.time;
-            bool hinted = false;
+            float nextHint = start + hintAfter;
             while (!_g.Tasks.IsCompleted(taskId))
             {
                 // Safety nets: a needed file must never be lost, and no task may block the shift forever.
@@ -289,9 +293,9 @@ namespace SecondCursor.Story
                     _g.Tasks.ForceComplete(taskId);
                     break;
                 }
-                if (!hinted && Time.time - start > hintAfter)
+                if (Time.time > nextHint)
                 {
-                    hinted = true;
+                    nextHint = Time.time + 40f;
                     var t = _g.Tasks.Get(taskId);
                     if (t != null && !string.IsNullOrEmpty(t.Data.hint))
                         _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Data.hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
@@ -370,13 +374,18 @@ namespace SecondCursor.Story
         {
             E.Phase = EntityPhase.Invisible;
             _g.Apps.Launch(AppIds.WorkQueue, null);
-            yield return Wait(1.5f);
+            yield return Wait(1.2f);
+            // How to play, in the OS's own words: the first shift starts with a Quick Start the player dismisses.
+            var quick = Dialogs.Message(_g, _g.Content.Text("quickstart.title"), _g.Content.Text("quickstart.body"), "icon_info", new[] { "Begin" }, null);
+            yield return WaitUntil(() => !quick.IsOpen, 120f);
+            if (quick.IsOpen) quick.Window.Close(null);
+            yield return Wait(0.6f);
             GiveTask(ContentIds.TaskReadBriefing);
             yield return Wait(1.5f);
             if (_g.Mail.UnreadCount > 0)
                 _g.Notifications.Show(_g.Content.Text("app.mail"), _g.Content.Format("notify.newmail", _g.Mail.UnreadCount), "icon_mail_unread",
                     a => _g.Apps.Launch(AppIds.Mail, a));
-            yield return WaitTask(ContentIds.TaskReadBriefing, 35f);
+            yield return WaitTask(ContentIds.TaskReadBriefing, 25f);
 
             GiveTask(ContentIds.TaskArchiveLedger);
             yield return WaitTask(ContentIds.TaskArchiveLedger);
@@ -537,6 +546,7 @@ namespace SecondCursor.Story
                     candidates.Add(new Vector2(x, y));
             candidates.Sort((a, b) => (a - preferred).sqrMagnitude.CompareTo((b - preferred).sqrMagnitude));
             int bestScore = -1;
+            float frameStart = Time.realtimeSinceStartup;
             for (int i = 0; i < candidates.Count; i++)
             {
                 int score = VisibleProbes(candidates[i]);
@@ -546,7 +556,12 @@ namespace SecondCursor.Story
                     _dropSpot = candidates[i];
                     if (score == DropCellProbes.Length) yield break;
                 }
-                if (i % 40 == 39) yield return null;
+                // About 2 ms of hit-testing per frame, however crowded the desktop is.
+                if (Time.realtimeSinceStartup - frameStart > 0.002f)
+                {
+                    yield return null;
+                    frameStart = Time.realtimeSinceStartup;
+                }
             }
         }
 
@@ -576,6 +591,14 @@ namespace SecondCursor.Story
 
         // ------------------------------------------------------------------ PHASE 3: interference (key fun test)
 
+        Action<DragPayload, TugOutcome> _conflictHint;
+
+        void RemoveConflictHint()
+        {
+            if (_conflictHint != null) _g.Conflict.TugEnded -= _conflictHint;
+            _conflictHint = null;
+        }
+
         IEnumerator Conflict()
         {
             E.Phase = EntityPhase.Interference;
@@ -591,13 +614,14 @@ namespace SecondCursor.Story
 
             // After the first lost tug-of-war the OS explains the fight once, in its own dry voice.
             bool explained = false;
-            Action<DragPayload, TugOutcome> onTug = (p, outcome) =>
+            RemoveConflictHint();
+            _conflictHint = (p, outcome) =>
             {
                 if (explained || outcome != TugOutcome.EntityWins || CurrentBeat != "conflict") return;
                 explained = true;
                 _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.conflict"), "icon_info", null, "sys_warning");
             };
-            _g.Conflict.TugEnded += onTug;
+            _g.Conflict.TugEnded += _conflictHint;
 
             while (true)
             {
@@ -647,7 +671,7 @@ namespace SecondCursor.Story
                 _g.Mail.Deliver(ContentIds.MailSupervisorCheck);
             }
             _g.Shred.IsInUse = id => id == ContentIds.File017;
-            _g.Conflict.TugEnded -= onTug;
+            RemoveConflictHint();
             brain.Enabled = false;
             E.Urgency = 1f;
             yield return E.WaitIdle();

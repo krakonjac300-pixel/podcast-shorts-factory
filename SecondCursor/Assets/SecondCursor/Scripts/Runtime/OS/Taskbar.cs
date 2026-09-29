@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SecondCursor.Core.Content;
 using SecondCursor.Game;
 using SecondCursor.Input;
 using SecondCursor.Rendering;
@@ -9,13 +10,15 @@ using UnityEngine.UI;
 namespace SecondCursor.OS
 {
     /// <summary>
-    /// Bottom bar: NEXUS start button, one button per open window, and a tray with pointing-device icons
-    /// and the shift clock. The tray shows ONE mouse normally... and two once the second cursor is here.
+    /// Bottom bar: NEXUS start button, one button per open window, the current Work Queue task, and a tray
+    /// with pointing-device icons and the shift clock. The tray shows ONE mouse normally... and two once
+    /// the second cursor is here.
     /// </summary>
     public sealed class Taskbar : MonoBehaviour
     {
         const int Height = WindowManager.TaskbarHeight;
         const int ButtonMax = 150;
+        const int TaskWidth = 236;
 
         GameServices _g;
         RectTransform _root;
@@ -27,6 +30,9 @@ namespace SecondCursor.OS
         readonly List<OSWindow> _order = new List<OSWindow>();
         bool _dirty = true;
         int _deviceCount = 1;
+        UiButton _task;
+        int _taskRevision = -1;
+        float _taskFlash;
 
         public UiButton StartButton { get; private set; }
         public StartMenu StartMenu { get; private set; }
@@ -78,7 +84,20 @@ namespace SecondCursor.OS
                 bar._mice.Add(m);
             }
 
-            bar._buttonArea = UIBuilder.Rect("Window Buttons", root).Stretch(72, 4, 104, 2);
+            // The current task, always in view even with the Work Queue closed; click it to open the queue.
+            bar._task = UiButton.Create(root, " ", a => g.Apps.Launch(AppIds.WorkQueue, a), "taskbar.task");
+            ((RectTransform)bar._task.transform).At(ScreenRig.Width - 104 - TaskWidth, 4, TaskWidth - 4, 22);
+            if (bar._task.Label != null)
+            {
+                bar._task.Label.Align = TextAlign.Left;
+                bar._task.Label.rectTransform.Stretch(20, 0, 2, 0);
+            }
+            var taskIcon = UIBuilder.Icon(bar._task.transform.GetChild(0), "icon_task_active", 1);
+            taskIcon.rectTransform.anchoredPosition = new Vector2(1f, -1f);
+            bar._task.gameObject.SetActive(false);
+            g.Tasks.TaskActivated += t => bar._taskFlash = 2.4f;
+
+            bar._buttonArea = UIBuilder.Rect("Window Buttons", root).Stretch(72, 4, 104 + TaskWidth, 2);
 
             g.Windows.Changed += w => bar._dirty = true;
             g.Windows.Opened += w => { bar._order.Add(w); bar._dirty = true; };
@@ -120,10 +139,32 @@ namespace SecondCursor.OS
             if (_g == null) return;
             _clock.text = _g.Clock.Format12();
             if (_dirty) Rebuild();
+            UpdateTask();
             foreach (var kv in _buttons)
             {
                 if (kv.Key == null || kv.Value == null) continue;
                 kv.Value.Toggled = kv.Key == _g.Windows.Active && !kv.Key.IsMinimized;
+            }
+        }
+
+        void UpdateTask()
+        {
+            if (_taskRevision != _g.Tasks.Revision)
+            {
+                _taskRevision = _g.Tasks.Revision;
+                var current = _g.Tasks.Current;
+                _task.gameObject.SetActive(current != null);
+                if (current != null)
+                {
+                    string progress = current.Goal > 1 ? " (" + current.Progress + "/" + current.Goal + ")" : "";
+                    _task.SetLabel(Ellipsize("Task: " + current.Title + progress, TaskWidth - 30));
+                }
+            }
+            // A new task blinks a few times so the eye finds it.
+            if (_taskFlash > 0f)
+            {
+                _taskFlash -= Time.unscaledDeltaTime;
+                _task.Toggled = _taskFlash > 0f && (_taskFlash * 3f) % 1f > 0.5f;
             }
         }
 
