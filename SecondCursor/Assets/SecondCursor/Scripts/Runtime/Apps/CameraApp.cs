@@ -26,6 +26,9 @@ namespace SecondCursor.Apps
         PixelText _time;
         Image _rec;
         PixelText _noSignal;
+        PixelText _caption;
+        RectTransform _side;
+        bool _hiddenShown;
         readonly Dictionary<string, UiButton> _buttons = new Dictionary<string, UiButton>();
         string _current;
         float _t;
@@ -41,18 +44,8 @@ namespace SecondCursor.Apps
             CreateWindow(G.Content.Text("app.camera"), "icon_camera", 90, 40, FeedW + 128, FeedH + 60, WindowFlags.CanClose | WindowFlags.CanMinimize, zoomFrom);
             var client = Window.Client;
 
-            var side = UIBuilder.Rect("Cameras", client).At(2, 2, 110, FeedH + 26);
-            int y = 0;
-            foreach (var cam in G.Content.Story.cameras)
-            {
-                string id = cam.id;
-                var b = UiButton.Create(side, ButtonLabel(cam.label, 96), a => Select(id, a), "camera:" + id);
-                b.Label.Align = TextAlign.Left;
-                b.Label.rectTransform.Stretch(4, 0, 2, 0);
-                ((RectTransform)b.transform).At(0, y, 110, 22);
-                _buttons[id] = b;
-                y += 25;
-            }
+            _side = UIBuilder.Rect("Cameras", client).At(2, 2, 110, FeedH + 26);
+            BuildButtons();
 
             var screen = UIBuilder.Bevel(client, BevelStyle.Sunken, "Monitor");
             screen.rectTransform.At(116, 2, FeedW + 4, FeedH + 4);
@@ -80,6 +73,10 @@ namespace SecondCursor.Apps
             _time.Shadow = true;
             _time.rectTransform.BottomStrip(8, 12, 10, 10);
             _time.Align = TextAlign.Right;
+            // Bottom-left caption above the time (CAM 04's shelf labels).
+            _caption = UIBuilder.Text(screen.rectTransform, "", Palette.BiosBright, true);
+            _caption.Shadow = true;
+            _caption.rectTransform.BottomStrip(22, 12, 10, 10);
             var recHolder = UIBuilder.Rect("REC", screen.rectTransform).TopRight(10, 8, 40, 12);
             _rec = UIBuilder.Icon(recHolder, "rec_dot", 1);
             _rec.rectTransform.anchoredPosition = new Vector2(0f, -3f);
@@ -90,6 +87,38 @@ namespace SecondCursor.Apps
             Select(G.CameraRig != null ? (G.CameraRig.ActiveCamera ?? ContentIds.Cam01) : ContentIds.Cam01, by);
             if (G.CameraRig != null) G.CameraRig.SetViewing(true);
         }
+
+        /// <summary>
+        /// One button per camera. A hidden camera (CAM 00) is listed only once camview.cfg allows it; the list is
+        /// rebuilt when that changes.
+        /// </summary>
+        void BuildButtons()
+        {
+            for (int i = _side.childCount - 1; i >= 0; i--)
+            {
+                var old = _side.GetChild(i).gameObject;
+                old.SetActive(false);
+                UnityEngine.Object.Destroy(old);
+            }
+            _buttons.Clear();
+            _hiddenShown = G.Flags.Has(Core.Story.MemoryFlags.N3Cam00);
+            int y = 0;
+            foreach (var cam in G.Content.Story.cameras)
+            {
+                if (cam == null || (cam.hidden && !_hiddenShown)) continue;
+                string id = cam.id;
+                var b = UiButton.Create(_side, ButtonLabel(cam.label, 96), a => Select(id, a), "camera:" + id);
+                b.Label.Align = TextAlign.Left;
+                b.Label.rectTransform.Stretch(4, 0, 2, 0);
+                ((RectTransform)b.transform).At(0, y, 110, 22);
+                b.Toggled = id == _current;
+                _buttons[id] = b;
+                y += 25;
+            }
+        }
+
+        /// <summary>The viewer is open, not minimized, and shows this camera.</summary>
+        public bool IsShowing(string camId) => IsOpen && !Window.IsMinimized && _current == camId;
 
         /// <summary>"CAM 04 - SUBLEVEL C" -> "CAM 04 SUBLEVEL C", dropping trailing words until it fits.</summary>
         static string ButtonLabel(string label, int maxWidth)
@@ -113,12 +142,21 @@ namespace SecondCursor.Apps
             _switchNoise = 0.25f;
             Sfx.Play("camera_switch", by);
             if (G.CameraRig != null) G.CameraRig.SetCamera(camId);
+            if (camId == ContentIds.Cam00 && by != null && by.IsPlayer && !G.Flags.Has(Core.Story.Flags.N3Cam00Viewed))
+            {
+                // Watch the Watchers (achievement hook, Phase E).
+                G.Flags.Set(Core.Story.Flags.N3Cam00Viewed);
+                Core.GameLog.Info(Core.LogChannel.Story, "Hook: ACH_WATCHERS (CAM 00 selected)");
+            }
             CameraSelected?.Invoke(camId, by);
         }
 
         public override void Tick(float dt)
         {
             _t += dt;
+            if (_hiddenShown != G.Flags.Has(Core.Story.MemoryFlags.N3Cam00)) BuildButtons();
+            string caption = G.CameraRig != null ? G.CameraRig.CaptionFor(_current) : "";
+            if (_caption.text != caption) _caption.text = caption;
             _switchNoise = Mathf.Max(0f, _switchNoise - dt);
             bool signal = G.CameraRig != null && G.CameraRig.HasSignal(_current);
             _feed.enabled = signal;

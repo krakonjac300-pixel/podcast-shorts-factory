@@ -235,6 +235,21 @@ namespace SecondCursor.OS
                 System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : System.DateTime.MinValue;
         }
 
+        /// <summary>
+        /// Put the inbox back in date order (oldest first, so the newest shows on top). A later night's setup
+        /// delivers the earlier nights' mail after tonight's preloads; this keeps tonight's briefing on top.
+        /// </summary>
+        public void SortByDate()
+        {
+            var before = new List<string>(_inbox);
+            _inbox.Sort((a, b) =>
+            {
+                int c = SortDate(a).CompareTo(SortDate(b));
+                return c != 0 ? c : before.IndexOf(a).CompareTo(before.IndexOf(b));
+            });
+            Revision++;
+        }
+
         public IReadOnlyList<string> Inbox => _inbox;
         public bool Has(string id) => _inbox.Contains(id);
         public bool IsRead(string id) => _read.Contains(id);
@@ -294,6 +309,30 @@ namespace SecondCursor.OS
         }
 
         public string DecisionFor(string orderId) => orderId != null && _decisions.TryGetValue(orderId, out var d) ? d : null;
+
+        /// <summary>The decision an order gets when the company takes it back undecided (not a wrong answer).</summary>
+        public const string Cancelled = "cancelled";
+
+        readonly HashSet<string> _hidden = new HashSet<string>();
+
+        /// <summary>Orders that are not in Work Orders yet (Night 3's shelf checks arrive with the round).</summary>
+        public bool IsHidden(string orderId) => orderId != null && _hidden.Contains(orderId);
+
+        public void SetHidden(string orderId, bool hidden)
+        {
+            if (string.IsNullOrEmpty(orderId) || (hidden ? !_hidden.Add(orderId) : !_hidden.Remove(orderId))) return;
+            Revision++;
+        }
+
+        /// <summary>An undecided order is withdrawn by the company: it shows Cancelled and counts as decided.</summary>
+        public void Cancel(string orderId)
+        {
+            if (string.IsNullOrEmpty(orderId) || DecisionFor(orderId) != null) return;
+            _decisions[orderId] = Cancelled;
+            Revision++;
+            GameLog.Info(LogChannel.OS, "Order " + orderId + " cancelled");
+            _g.Tasks.Evaluate();
+        }
 
         public void Decide(string orderId, string decision, CursorAgent by)
         {

@@ -201,9 +201,10 @@ namespace SecondCursor.Core.Game
                 var list = new List<string>(endingsSeen) { r.EndingId };
                 endingsSeen = list.ToArray();
             }
-            // The night's flags started from the memory it was given, so its "m." snapshot is the whole path
-            // so far: it replaces the saved memory (a replayed night never mixes two runs' choices).
-            memory = r.Memory ?? new FlagSnapshot();
+            // The keys of this night and later nights ("m.n2." and on for Night 2) come from this run only (a
+            // replayed night never mixes two runs' choices, and later nights built on the old path are stale);
+            // earlier nights' keys and keys of no night (m.said_name) are kept.
+            memory = MergeNightMemory(memory, r.Memory, r.Night);
             entityTrust = MathUtil.Clamp(r.Trust, -1f, 1f);
             assistCarry = r.AssistLevel;
             nightUnlocked = Math.Max(nightUnlocked, Math.Min(r.Night + 1, Nights + 1));
@@ -302,6 +303,48 @@ namespace SecondCursor.Core.Game
             s.choiceKeys = hk.ToArray();
             s.choiceValues = hv.ToArray();
             return s;
+        }
+
+        /// <summary>
+        /// The saved memory after <paramref name="night"/> ends: the saved keys of earlier nights (and of no night,
+        /// such as m.said_name) stay, the keys of this night and later nights are dropped, then everything the run
+        /// remembered is added on top (its own keys, and the earlier memory it started from).
+        /// </summary>
+        public static FlagSnapshot MergeNightMemory(FlagSnapshot saved, FlagSnapshot run, int night)
+        {
+            int first = Math.Max(1, Math.Min(Nights, night));
+            bool Keep(string key)
+            {
+                if (string.IsNullOrEmpty(key)) return false;
+                for (int n = first; n <= Nights; n++)
+                    if (key.StartsWith(MemoryFlags.Prefix + "n" + n + ".", StringComparison.Ordinal)) return false;
+                return true;
+            }
+            saved = saved ?? new FlagSnapshot();
+            var kept = new FlagSnapshot();
+            var flags = new List<string>();
+            foreach (var f in saved.flags ?? Array.Empty<string>()) if (Keep(f)) flags.Add(f);
+            kept.flags = flags.ToArray();
+            var ck = new List<string>();
+            var cv = new List<int>();
+            var keys = saved.counterKeys ?? Array.Empty<string>();
+            var values = saved.counterValues ?? Array.Empty<int>();
+            for (int i = 0; i < Math.Min(keys.Length, values.Length); i++)
+                if (Keep(keys[i])) { ck.Add(keys[i]); cv.Add(values[i]); }
+            kept.counterKeys = ck.ToArray();
+            kept.counterValues = cv.ToArray();
+            var hk = new List<string>();
+            var hv = new List<string>();
+            var choiceKeys = saved.choiceKeys ?? Array.Empty<string>();
+            var choiceValues = saved.choiceValues ?? Array.Empty<string>();
+            for (int i = 0; i < Math.Min(choiceKeys.Length, choiceValues.Length); i++)
+                if (Keep(choiceKeys[i])) { hk.Add(choiceKeys[i]); hv.Add(choiceValues[i]); }
+            kept.choiceKeys = hk.ToArray();
+            kept.choiceValues = hv.ToArray();
+            var merged = new NarrativeFlags();
+            merged.Restore(kept);
+            merged.Merge(run);
+            return merged.Snapshot();
         }
 
         /// <summary>Trust decays toward neutral each night so the new night's choices weigh most (2.3).</summary>

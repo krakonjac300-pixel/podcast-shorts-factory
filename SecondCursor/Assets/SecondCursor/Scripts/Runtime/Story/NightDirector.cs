@@ -71,9 +71,12 @@ namespace SecondCursor.Story
                 case 2:
                     d = go.AddComponent<Night2Director>();
                     break;
+                case 3:
+                    d = go.AddComponent<Night3Director>();
+                    break;
                 default:
-                    // Night 3 is built in a later phase: run Night 1's beats with that night's difficulty.
-                    GameLog.Warn(LogChannel.Story, "Night " + night + " has no director yet: running Night 1's beats (nothing is saved)");
+                    // No such night: run Night 1's beats with that night's difficulty (nothing is saved).
+                    GameLog.Warn(LogChannel.Story, "Night " + night + " has no director: running Night 1's beats (nothing is saved)");
                     d = go.AddComponent<Night1Director>();
                     break;
             }
@@ -363,6 +366,11 @@ namespace SecondCursor.Story
             public string MoveProfile = MovementProfiles.HumanLikeName;
             /// <summary>True while lines are being typed (so two routines never type into the same pad at once).</summary>
             public bool Typing;
+            /// <summary>
+            /// Types without moving the cursor (its Notepad is opened by its session, not by double-clicking the
+            /// icon): used while the cursor's hands are busy elsewhere, e.g. Ellen talking while her brain fights.
+            /// </summary>
+            public bool Direct;
 
             public Speaker(EntityController cursor)
             {
@@ -390,6 +398,13 @@ namespace SecondCursor.Story
         {
             var c = s.Cursor;
             if (EnsurePad(s) != null) { s.Pad.Window.Restore(c.Agent); yield break; }
+            if (s.Direct)
+            {
+                s.Pad = (NotepadApp)_g.Apps.Launch(AppIds.Notepad, c.Agent);
+                s.Pad.ConversationMode = true;
+                s.Pad.PlayerCanType = false;
+                yield break;
+            }
             var before = new HashSet<App>(_g.Apps.OpenApps);
             yield return c.OpenApp(AppIds.Notepad, MovementProfiles.Get(s.MoveProfile));
             foreach (var app in _g.Apps.OpenApps)
@@ -414,7 +429,8 @@ namespace SecondCursor.Story
                 if (string.IsNullOrEmpty(line)) continue;
                 if (EnsurePad(s) == null) yield return OpenNotepadAs(s);
                 if (s.Pad.Text.Length > 0 && !s.Pad.Text.EndsWith("\n")) s.Pad.Append("\n");
-                yield return s.Cursor.Type(s.Pad, line, cps);
+                if (s.Direct) yield return s.Pad.TypeAsEntity(line, cps, s.Cursor.Agent, s.Cursor.TypoRate);
+                else yield return s.Cursor.Type(s.Pad, line, cps);
                 yield return Wait(0.5f);
             }
             if (s.Pad != null && s.Pad.IsOpen && !s.Pad.Text.EndsWith("\n")) s.Pad.Append("\n");

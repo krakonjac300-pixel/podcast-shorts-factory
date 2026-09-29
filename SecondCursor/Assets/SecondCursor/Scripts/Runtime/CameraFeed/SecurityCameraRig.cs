@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 
 namespace SecondCursor.CameraFeed
 {
-    public enum FigureStage { None, Corridor, Doorway, Middle, BehindChair, HallFar }
+    public enum FigureStage { None, Corridor, Doorway, Middle, BehindChair, HallFar, SublevelC, Lobby, Seated00 }
 
     /// <summary>
     /// SecureView's CCTV: a tiny 3D building (lobby, corridor, the operator's own office) built from primitives at
@@ -19,7 +19,7 @@ namespace SecondCursor.CameraFeed
     /// against the west wall facing a glowing CRT, their mouse arm follows the player's real mouse, and the door in
     /// the far (south) wall is behind their back. The figure never moves while watched; it only cuts between stages.
     /// </summary>
-    public sealed class SecurityCameraRig : MonoBehaviour
+    public sealed partial class SecurityCameraRig : MonoBehaviour
     {
         const int Layer = ScreenRig.SceneLayer;
         const int FeedWidth = 160, FeedHeight = 120;
@@ -97,7 +97,7 @@ namespace SecondCursor.CameraFeed
 
         // Animated parts
         Transform _doorHinge, _corridorDoor, _torso, _head, _upperArm, _forearm, _hand, _figure, _clockHand;
-        Material _tubeMat, _screenMat, _corridorLampMat, _corridorGapMat, _lobbyLampMat;
+        Material _tubeMat, _screenMat, _corridorLampMat, _corridorGapMat, _lobbyLampMat, _lobbyGlassMat;
 
         // Story state as displayed
         float _doorTarget, _door, _doorVelocity, _headTurn, _monitorPulse = 1f;
@@ -121,7 +121,7 @@ namespace SecondCursor.CameraFeed
             RefreshCameras();
         }
 
-        public bool HasSignal(string camId) => !SignalLost && AreaFor(camId) != null;   // cam04 has no camera
+        public bool HasSignal(string camId) => !SignalLost && AreaFor(camId) != null;   // cam04 only while it is online (Night 3)
 
         public void SetViewing(bool viewing)
         {
@@ -165,6 +165,7 @@ namespace SecondCursor.CameraFeed
             _lobby = BuildLobby();
             _corridor = BuildCorridor();
             _office = BuildOffice();
+            BuildExtraAreas();
             _figure = BuildFigure();
             SetFigure(_figureStage);
         }
@@ -302,9 +303,9 @@ namespace SecondCursor.CameraFeed
             Panel(r, "East Wall", new Vector3(4f, 1.6f, 3.5f), new Vector3(0f, 90f, 0f), 7f, 3.2f, wall);
             Box(r, "Reception Counter", new Vector3(2.1f, 0.55f, 2.6f), new Vector3(2.6f, 1.1f, 0.7f), Mat(0.30f));
             Box(r, "Counter Top", new Vector3(2.1f, 1.125f, 2.6f), new Vector3(2.7f, 0.05f, 0.85f), Mat(0.66f));
-            var glass = Mat(0.05f, 0.2f);   // street light through the glass doors
-            Panel(r, "Glass Door L", new Vector3(-1.95f, 1.2f, 6.994f), Vector3.zero, 0.95f, 2.4f, glass);
-            Panel(r, "Glass Door R", new Vector3(-0.95f, 1.2f, 6.994f), Vector3.zero, 0.95f, 2.4f, glass);
+            _lobbyGlassMat = Mat(0.05f, 0.2f, false);   // street light through the glass doors (brighter at dawn)
+            Panel(r, "Glass Door L", new Vector3(-1.95f, 1.2f, 6.994f), Vector3.zero, 0.95f, 2.4f, _lobbyGlassMat);
+            Panel(r, "Glass Door R", new Vector3(-0.95f, 1.2f, 6.994f), Vector3.zero, 0.95f, 2.4f, _lobbyGlassMat);
             Box(r, "Exit Sign", new Vector3(-1.45f, 2.66f, 6.96f), new Vector3(0.4f, 0.15f, 0.05f), Mat(0.2f, 0.85f));
             var clock = new Vector3(1f, 2.35f, 6.985f);
             Prim(PrimitiveType.Cylinder, r, "Clock", clock, new Vector3(90f, 0f, 0f), new Vector3(0.5f, 0.012f, 0.5f), Mat(0.85f));
@@ -429,7 +430,7 @@ namespace SecondCursor.CameraFeed
             if (camId == ContentIds.Cam01) return _lobby;
             if (camId == ContentIds.Cam02) return _corridor;
             if (camId == ContentIds.Cam03) return _office;
-            return null;   // cam04 (server room) has no camera
+            return ExtraAreaFor(camId);
         }
 
         /// <summary>Cuts the figure to a stage instantly. It never moves while watched.</summary>
@@ -448,7 +449,7 @@ namespace SecondCursor.CameraFeed
             if (_figure == null) return;
             Area area = _office;
             Vector3 pos;
-            float yaw;
+            float yaw, pitch = 0f;
             switch (stage)
             {
                 case FigureStage.HallFar: area = _corridor; pos = new Vector3(0f, 0f, 3.0f); yaw = 0f; break;   // near end of the hall, walking away
@@ -456,9 +457,15 @@ namespace SecondCursor.CameraFeed
                 case FigureStage.Doorway: pos = new Vector3(DoorX, 0f, -RoomHalfD + 0.13f); yaw = 0f; break;
                 case FigureStage.Middle: pos = new Vector3(0.22f, 0f, -0.62f); yaw = 300f; break;
                 case FigureStage.BehindChair: pos = new Vector3(SeatX + 0.48f, 0f, DeskZ - 0.33f); yaw = 280f; break;   // behind, a little to the left
-                default: _figure.gameObject.SetActive(false); return;
+                default:
+                    if (!ExtraStage(stage, out area, out pos, out yaw, out pitch))
+                    {
+                        _figure.gameObject.SetActive(false);
+                        return;
+                    }
+                    break;
             }
-            _figure.SetPositionAndRotation(area.Root.TransformPoint(pos), area.Root.rotation * Quaternion.Euler(0f, yaw, 0f));
+            _figure.SetPositionAndRotation(area.Root.TransformPoint(pos), area.Root.rotation * Quaternion.Euler(pitch, yaw, 0f));
             _figure.gameObject.SetActive(true);
         }
 
@@ -493,9 +500,9 @@ namespace SecondCursor.CameraFeed
             UpdateDoor(dt, cut);
             if (_active == _office) UpdateOperator(dt, t, cut);
 
-            // Faint sway of the camera housing: the picture is never perfectly still.
+            // Faint sway of the camera housing: the picture is never perfectly still (CAM 04 also pans the aisle).
             float pitch = (Mathf.PerlinNoise(t * 0.21f, 4.2f) - 0.5f) * 0.6f;
-            float yaw = (Mathf.PerlinNoise(9.7f, t * 0.19f) - 0.5f) * 0.6f;
+            float yaw = (Mathf.PerlinNoise(9.7f, t * 0.19f) - 0.5f) * 0.6f + PanFor(_active, t);
             _active.Cam.transform.localRotation = _active.CamRotation * Quaternion.Euler(pitch, yaw, 0f);
 
             ApplyLighting(_active, t);
@@ -613,6 +620,7 @@ namespace SecondCursor.CameraFeed
             float intensity = a.LightIntensity * level;
             float ambient = a.Ambient;
             float monitor = 0f;
+            Transform monitorRoot = _office.Root;
             if (a == _office)
             {
                 intensity = a.LightIntensity * officeLevel;
@@ -626,11 +634,22 @@ namespace SecondCursor.CameraFeed
                 SetGrey(_corridorLampMat, 0.5f, 0.9f * level);
                 SetGrey(_corridorGapMat, 0f, 0.05f + 0.3f * officeLevel);   // office light spilling past the door
             }
-            else
+            else if (a == _lobby)
             {
-                SetGrey(_lobbyLampMat, 0.5f, 0.9f * level);
+                // Dawn (the LOG OFF ending): brighter glass doors, and the lamp is off once it is light out.
+                float dawn = Mathf.Clamp01(DawnLevel);
+                bool lampOff = dawn > 0.5f;
+                SetGrey(_lobbyLampMat, 0.5f, lampOff ? 0.02f : 0.9f * level);
+                SetGrey(_lobbyGlassMat, 0.05f, 0.2f + 0.5f * dawn);
+                // Grey morning light through the doors instead of the lamp.
+                if (lampOff) intensity = a.LightIntensity * 0.3f;
+                ambient = a.Ambient + 0.3f * dawn;
                 int minutes = _g != null && _g.Clock != null ? _g.Clock.TotalMinutes : 167 + (int)(t / 60f);
                 _clockHand.localRotation = Quaternion.Euler(0f, 0f, -(minutes % 60) * 6f);
+            }
+            else
+            {
+                ApplyExtraLighting(a, t, level, ref intensity, ref ambient, ref monitor, ref monitorRoot);
             }
 
             if (a.Fallback != null)
@@ -644,8 +663,8 @@ namespace SecondCursor.CameraFeed
             Shader.SetGlobalFloat(LightIntensityId, intensity);
             Shader.SetGlobalFloat(LightRangeId, a.LightRange);
             Shader.SetGlobalFloat(AmbientId, ambient);
-            Shader.SetGlobalVector(MonitorPosId, _office.Root.TransformPoint(new Vector3(MonitorX, 0.965f, DeskZ)));
-            Shader.SetGlobalVector(MonitorDirId, _office.Root.TransformDirection(Vector3.right));
+            Shader.SetGlobalVector(MonitorPosId, monitorRoot.TransformPoint(new Vector3(MonitorX, 0.965f, DeskZ)));
+            Shader.SetGlobalVector(MonitorDirId, monitorRoot.TransformDirection(Vector3.right));
             Shader.SetGlobalFloat(MonitorIntensityId, monitor);
             Shader.SetGlobalVector(FogColorId, new Vector4(0.03f, 0.03f, 0.03f, 1f));
             Shader.SetGlobalFloat(FogDensityId, a.FogDensity);
@@ -654,7 +673,7 @@ namespace SecondCursor.CameraFeed
 
         void OnDestroy()
         {
-            foreach (var a in new[] { _lobby, _corridor, _office })
+            foreach (var a in new[] { _lobby, _corridor, _office, _sublevel, _admin })
                 if (a != null && a.Cam != null) a.Cam.targetTexture = null;
             if (Feed != null)
             {

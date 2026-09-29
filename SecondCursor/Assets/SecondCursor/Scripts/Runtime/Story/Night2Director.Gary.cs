@@ -281,6 +281,8 @@ namespace SecondCursor.Story
             GameLog.Info(LogChannel.Story, "Gary: " + outcome);
 
             _finishOver = true;
+            // No shred dialog outlives the decision (a confirm left open could still shred a kept 209).
+            g.Shred.Abort();
             UnhookFinish();
             _garyRoutine?.Stop();
             _gary.Typing = false;

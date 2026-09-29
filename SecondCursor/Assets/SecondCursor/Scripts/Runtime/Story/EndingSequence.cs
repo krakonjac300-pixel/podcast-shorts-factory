@@ -10,6 +10,19 @@ using UnityEngine.UI;
 
 namespace SecondCursor.Story
 {
+    /// <summary>Which ending sequence plays (spec 6.2).</summary>
+    public enum EndingKind
+    {
+        /// <summary>Nights 1 and 2: power down, the second cursor types in the dark, the card.</summary>
+        Blackout,
+        /// <summary>Night 3 SHRED: the player's own arrow types in the dark.</summary>
+        Shred,
+        /// <summary>Night 3 KEEP: Ellen and the player's arrow type together.</summary>
+        Keep,
+        /// <summary>Night 3 LOG OFF: log-off screen, the lobby at dawn, the log, Ellen alone.</summary>
+        LogOff,
+    }
+
     /// <summary>
     /// What an ending shows (expansion spec 6): the lines typed in the dark, an optional faint goodnight from
     /// Gary, and the card with its title, subtitle and buttons.
@@ -17,6 +30,17 @@ namespace SecondCursor.Story
     public sealed class EndingSpec
     {
         public string Id = "";
+        public EndingKind Kind = EndingKind.Blackout;
+        /// <summary>Who types each line (entity, casey, both, system); null = the second cursor types them all.</summary>
+        public string[] Speakers;
+        /// <summary>Typed first, in the BIOS colour with no cursor (LOG OFF's log lines).</summary>
+        public string[] SystemLines;
+        /// <summary>The CAM 00 stinger plays before the card (the operator override was saved).</summary>
+        public bool Stinger;
+        /// <summary>A line under the subtitle ("" = none).</summary>
+        public string ThanksKey = "";
+        /// <summary>The last night's card: Title (and Night Select once it exists) and Quit, no Continue.</summary>
+        public bool FinalCard;
         /// <summary>Lines the second cursor types in the dark (null = story.json endingLines, Night 1).</summary>
         public string[] Lines;
         /// <summary>Typed after them by Gary's faint cursor, small and lowercase (Night 2 KEEP).</summary>
@@ -43,7 +67,7 @@ namespace SecondCursor.Story
     /// The blackout: the monitor dies, silence, then in the dark the second cursor types its last lines,
     /// followed by the end card (Night 1: SECOND CURSOR / WISHLIST NOW; later nights: the night's own card).
     /// </summary>
-    public sealed class EndingSequence
+    public sealed partial class EndingSequence
     {
         readonly GameServices _g;
         readonly EndingSpec _spec;
@@ -62,10 +86,16 @@ namespace SecondCursor.Story
         {
             if (_room != null) Object.Destroy(_room.gameObject);
             _room = null;
+            ClearNight3();
         }
 
         public IEnumerator Run()
         {
+            if (_spec.Kind != EndingKind.Blackout)
+            {
+                yield return RunNight3();
+                yield break;
+            }
             var g = _g;
             // Progress was saved by the night's director just before this (NightDirector.CompleteNight).
             g.Flags.Set(Flags.Ending);
@@ -198,6 +228,12 @@ namespace SecondCursor.Story
             var sub = UIBuilder.Text(parent, c.Text(_spec.SubtitleKey), Palette.BiosText);
             sub.rectTransform.At(0, 222, ScreenRig.Width, 12);
             sub.Align = TextAlign.Center;
+            if (!string.IsNullOrEmpty(_spec.ThanksKey) && !_spec.DemoCard)
+            {
+                var line = UIBuilder.Text(parent, c.Text(_spec.ThanksKey), new Color32(0x8A, 0x8A, 0x84, 0xFF));
+                line.rectTransform.At(0, 250, ScreenRig.Width, 12);
+                line.Align = TextAlign.Center;
+            }
             if (!_spec.DemoCard)
             {
                 yield return NightCardButtons(parent);
@@ -253,8 +289,15 @@ namespace SecondCursor.Story
             var c = g.Content;
             g.Player.Enabled = true;
             g.Player.Visible = true;
-            bool next = _spec.ContinueNight > 0;
-            int x0 = ScreenRig.Width / 2 - (next ? 225 : 150);
+            bool next = _spec.ContinueNight > 0 && !_spec.FinalCard;
+            bool select = _spec.FinalCard && GameBootstrap.NightSelectAvailable;
+            int x0 = ScreenRig.Width / 2 - (next || select ? 225 : 150);
+            if (select)
+            {
+                // Night Select arrives with the title menu (Phase E); the hook is here already.
+                var sel = UiButton.Create(parent, c.Text("end.card.select"), a => GameBootstrap.ToNightSelect(), "button:Night Select");
+                ((RectTransform)sel.transform).At(x0 + 150, 420, 140, 24);
+            }
             if (next)
             {
                 int night = _spec.ContinueNight;
@@ -264,6 +307,7 @@ namespace SecondCursor.Story
             }
             var menu = UiButton.Create(parent, c.Text("end.card.menu"), a => GameBootstrap.ToTitle(), "button:Title");
             ((RectTransform)menu.transform).At(x0, 420, 140, 24);
+            if (select) x0 += 150;
             var quit = UiButton.Create(parent, "Quit", a => Quit(), "button:Quit");
             ((RectTransform)quit.transform).At(x0 + 150, 420, 140, 24);
             while (true)

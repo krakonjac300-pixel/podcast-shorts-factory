@@ -171,6 +171,14 @@ namespace SecondCursor.Game
             foreach (float trust in new[] { -0.5f, 0f, 0.5f })
                 if (GUILayout.Button("Trust " + trust.ToString("+0.0;-0.0;0"))) Defer(() => _g.Memory.Seed(trust));
             GUILayout.EndHorizontal();
+            if (_g.Director is Story.Night3Director n3)
+            {
+                // Night 3's exits, straight to their ending (the finale must be running).
+                GUILayout.BeginHorizontal();
+                foreach (var exit in new[] { Night3Exit.Shred, Night3Exit.Keep, Night3Exit.LogOff })
+                    if (GUILayout.Button("Force " + exit.ToString().ToUpperInvariant())) Defer(() => n3.ForceExit(exit));
+                GUILayout.EndHorizontal();
+            }
 
             GUILayout.Label("Entity:", _label);
             GUILayout.BeginHorizontal();

@@ -176,6 +176,17 @@ namespace SecondCursor.Core.Story
         public const string N2EllenHelped = "n2.ellen_helped";
         public const string N2GaryArrived = "n2.gary_arrived";
         public const string N2RoundsDone = "n2.rounds_done";
+
+        // Night 3 (this night only)
+        /// <summary>The Start menu offers "Log Off CROURKE..." (from the lost hours on).</summary>
+        public const string LogoffItem = "logoff_item";
+        /// <summary>Counter: wrong codes typed into the Restricted prompt.</summary>
+        public const string CounterAuthFail = "auth.fail";
+        public const string N3RuthRead = "n3.ruth_read";
+        public const string N3Cam00Viewed = "n3.cam00_viewed";
+        public const string N3RoundsSafe = "n3.rounds_safe";
+        public const string N3RoundsDone = "n3.rounds_done";
+        public const string N3Lost = "n3.lost";
     }
 
     /// <summary>

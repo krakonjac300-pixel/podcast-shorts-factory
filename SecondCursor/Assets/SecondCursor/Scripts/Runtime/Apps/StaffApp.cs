@@ -108,6 +108,12 @@ namespace SecondCursor.Apps
             _list.SelectWhere(r => r.Tag is EmployeeData d && d.id == employeeId, by);
         }
 
+        /// <summary>Records changed in memory (Night 3's live Personnel): show them again as they are now.</summary>
+        public void Refresh() => RefreshNames();
+
+        /// <summary>The record on the card, or null.</summary>
+        public EmployeeData Shown => _shown;
+
         public void RefreshNames()
         {
             foreach (var r in _list.Rows)
@@ -126,7 +132,7 @@ namespace SecondCursor.Apps
                 case "TERMINATED": return Palette.Red;
                 case "ON LEAVE": return Palette.Amber;
                 case "DECEASED": return Palette.Dark;
-                case "RETAINED": return Palette.Link;
+                case "RETAINED": return Palette.Dark;
                 default: return Palette.Shadow;
             }
         }

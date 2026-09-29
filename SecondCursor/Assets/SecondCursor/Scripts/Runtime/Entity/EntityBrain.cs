@@ -462,7 +462,12 @@ namespace SecondCursor.Entity
             yield return EnsurePresent(EntryPointNear(close.Hit.Center));
             _c.State = Core.Entity.EntityState.Panicked;
             yield return Waits.Seconds(_g.Rounds.CloseReaction());
-            if (!_g.Rounds.IsFigureOnShownCamera || cam == null || !cam.IsOpen) yield break;
+            if (!_g.Rounds.IsFigureOnShownCamera || cam == null || !cam.IsOpen)
+            {
+                // The viewer was closed or switched first: she calms down again.
+                _c.State = Core.Entity.EntityState.Observing;
+                yield break;
+            }
             // Another window over the close box is simply pushed aside (the viewer comes to the front).
             if (_g.Router.HitTest(close.Hit.Center, _c.Agent) != close.Hit && !_c.IsBlockedByOthers(close.Hit)) cam.Window.Focus(_c.Agent);
             var result = new bool[1];

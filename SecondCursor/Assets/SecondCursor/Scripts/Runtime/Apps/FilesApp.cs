@@ -114,7 +114,9 @@ namespace SecondCursor.Apps
             if (folder == null) return;
             if (folder.Locked && by != null && by.IsPlayer && !force)
             {
-                Denied(by);
+                // A folder with an authorization code asks for it (the code prompt navigates here on success).
+                if (folder.HasCode) G.Apps.OpenAuthPrompt(folder.Id, by);
+                else Denied(by);
                 _folders.SelectWhere(r => (string)r.Tag == _folderId, null);
                 return;
             }

@@ -64,6 +64,60 @@ namespace SecondCursor.Core.Story
             return c;
         }
 
+        /// <summary>
+        /// Night 3's full round, 3:00 to 3:30 (360 s): from Sublevel C up to the seat. Watching the last stage
+        /// long enough clears the seat. Starts in the Lobby if the figure was watched to the door on Night 2;
+        /// slower if 214's source file was hidden. Security forces the viewer open at once, then every 22-30 s.
+        /// </summary>
+        public static RoundsConfig Night3(DifficultyMode mode, float trust, bool watchedToDoor, bool hid214)
+        {
+            var c = new RoundsConfig
+            {
+                Id = "n3_round",
+                Stages = new[] { "SublevelC", "Lobby", "HallFar", "Corridor", "Doorway", "Middle", "BehindChair" },
+                Cameras = new[] { "cam04", "cam01", "cam02", "cam02", "cam03", "cam03", "cam03" },
+                StartStage = watchedToDoor ? 1 : 0,
+                WatchSeconds = hid214 ? 5f : 4f,
+                ReopenPenalty = 1f,
+                AtLastStage = RoundsFinalRule.ClearSeat,
+                Duration = 360f,
+                ForcedOpenTimes = new[] { 0f },
+                ForcedOpenRepeatMin = 22f,
+                ForcedOpenRepeatMax = 30f,
+            };
+            ApplyCloseReaction(c, mode, trust);
+            if (mode == DifficultyMode.Story) ApplyStory(c);
+            return c;
+        }
+
+        /// <summary>
+        /// Night 3's finale feed (6:41 until an exit): the corridor to the seat, 3 s per stage; a cleared seat is
+        /// KEEP. The director forces the viewer open by the clock (6:50, 6:55, 7:00, 7:02), not by elapsed time.
+        /// </summary>
+        public static RoundsConfig Night3Finale(DifficultyMode mode, float trust)
+        {
+            var c = new RoundsConfig
+            {
+                Id = "n3_finale",
+                Stages = new[] { "Corridor", "Doorway", "Middle", "BehindChair" },
+                Cameras = new[] { "cam02", "cam03", "cam03", "cam03" },
+                StartStage = 0,
+                WatchSeconds = 3f,
+                ReopenPenalty = 1f,
+                AtLastStage = RoundsFinalRule.ClearSeat,
+                Duration = 0f,
+            };
+            ApplyCloseReaction(c, mode, trust);
+            if (mode == DifficultyMode.Story)
+            {
+                // Same as ApplyStory, but the clock still decides the forced opens.
+                c.WatchSeconds = 10f;
+                c.ReopenPenalty = 0f;
+                c.ClampStage = c.IndexOf("Middle");
+            }
+            return c;
+        }
+
         /// <summary>Ellen's close reaction from trust (7.4): she protects a player she trusts sooner.</summary>
         public static void ApplyCloseReaction(RoundsConfig c, DifficultyMode mode, float trust)
         {
@@ -84,6 +138,13 @@ namespace SecondCursor.Core.Story
         }
 
         public float CloseReaction(float random01) => CloseReactionMin + (CloseReactionMax - CloseReactionMin) * MathUtil.Clamp01(random01);
+
+        /// <summary>Ellen closes the viewer <paramref name="seconds"/> sooner from now on (Night 3: once it reaches the doorway).</summary>
+        public void Hasten(float seconds)
+        {
+            CloseReactionMin = Math.Max(0.2f, CloseReactionMin - seconds);
+            CloseReactionMax = Math.Max(CloseReactionMin, CloseReactionMax - seconds);
+        }
     }
 
     /// <summary>

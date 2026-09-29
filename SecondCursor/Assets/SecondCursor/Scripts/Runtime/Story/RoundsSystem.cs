@@ -33,6 +33,13 @@ namespace SecondCursor.Story
         public int PlayerReopens { get; private set; }
         /// <summary>Who performs forced opens (null = Security, no cursor).</summary>
         [NonSerialized] public CursorAgent ForcedBy;
+        /// <summary>Night 3: Personnel follows the figure (spec 5.6).</summary>
+        [NonSerialized] public bool PatchPersonnel;
+        /// <summary>
+        /// Called instead of opening the viewer itself when set (finished Gary opens it by hand); the round passes
+        /// the camera to show. The handler must end up calling <see cref="ShowOnViewer"/>.
+        /// </summary>
+        [NonSerialized] public Action<string> ForcedOpenHandler;
 
         /// <summary>Security opened the viewer on the figure: the index of this forced open (0 = the first).</summary>
         public event Action<int> ForcedOpen;
@@ -77,6 +84,7 @@ namespace SecondCursor.Story
             _g.Apps.Launched += _onLaunched;
             _g.Windows.Restored += _onRestored;
             PlaceFigure(false);
+            if (PatchPersonnel) PatchPersonnelFor(Model.FigureStage);
             GameLog.Info(LogChannel.Story, "Rounds: begin " + config.Id + " at stage " + Model.Stage + " (" + Model.FigureStage + ")");
         }
 
@@ -131,18 +139,34 @@ namespace SecondCursor.Story
         }
 
         /// <summary>Security (or <see cref="ForcedBy"/>) opens or restores the viewer on the figure's camera.</summary>
-        public void OpenViewer()
+        public void OpenViewer() => OpenViewer(null);
+
+        /// <summary>A forced open on a given camera (null = the figure's camera).</summary>
+        public void OpenViewer(string camera)
+        {
+            if (Model == null || Model.Finished) return;
+            string cam = string.IsNullOrEmpty(camera) ? Model.FigureCamera : camera;
+            if (ForcedOpenHandler != null)
+            {
+                ForcedOpenHandler(cam);
+                return;
+            }
+            ShowOnViewer(cam, ForcedBy);
+        }
+
+        /// <summary>The viewer comes up (launched or restored) on <paramref name="camera"/>: counted and announced as a forced open.</summary>
+        public void ShowOnViewer(string camera, CursorAgent by)
         {
             if (Model == null || Model.Finished) return;
             var cam = _g.Apps.Find<CameraApp>();
-            if (cam == null) cam = _g.Apps.Launch(AppIds.Camera, ForcedBy) as CameraApp;
-            else cam.Window.Restore(ForcedBy);
+            if (cam == null) cam = _g.Apps.Launch(AppIds.Camera, by) as CameraApp;
+            else cam.Window.Restore(by);
             if (cam == null) return;
-            cam.Select(Model.FigureCamera, ForcedBy);
+            if (cam.CurrentCamera != camera) cam.Select(string.IsNullOrEmpty(camera) ? Model.FigureCamera : camera, by);
             int index = ForcedOpens++;
             var text = _g.Content;
             _g.Notifications.Show(text.Text("app.camera"), text.Text(index == 0 ? "rounds.begin" : "rounds.reopen"), "icon_camera", null, "sys_warning");
-            GameLog.Info(LogChannel.Story, "Rounds: viewer forced open (" + (index + 1) + ") on " + Model.FigureCamera);
+            GameLog.Info(LogChannel.Story, "Rounds: viewer forced open (" + (index + 1) + ") on " + cam.CurrentCamera);
             ForcedOpen?.Invoke(index);
         }
 
@@ -161,6 +185,52 @@ namespace SecondCursor.Story
             _g.Audio?.Play("footstep_distant", 0.45f, 0.9f, 0.2f);
             StageAdvanced?.Invoke(stage);
             PlaceFigure(true);
+            if (PatchPersonnel) PatchPersonnelFor(Model.FigureStage);
+        }
+
+        /// <summary>
+        /// Night 3's live Personnel (spec 5.6): Custodial's office follows the figure, 001's last login copies
+        /// 000's, and Ruth goes on leave when it reaches the B-Level hall. The records are patched in memory
+        /// (the content database is rebuilt every shift) and an open Personnel window shows them at once.
+        /// </summary>
+        public void PatchPersonnelFor(string stage)
+        {
+            var c = _g.Content;
+            var custodial = c.Employee(ContentIds.Employee000);
+            if (custodial == null) return;
+            string office = OfficeFor(stage);
+            if (office == null) return;
+            custodial.office = office;
+            custodial.lastLogin = "11/20/98 3:00 AM (on rounds)";
+            var twin = c.Employee(ContentIds.Employee001);
+            if (twin != null) twin.lastLogin = custodial.lastLogin;
+            if (stage == "HallFar")
+            {
+                var ruth = c.Employee(ContentIds.Employee118);
+                if (ruth != null && ruth.status != "ON LEAVE")
+                {
+                    ruth.status = "ON LEAVE";
+                    ruth.notes = "Extended leave from 11/20/98. Do not forward calls. Personal effects held by Custodial.";
+                    GameLog.Info(LogChannel.Story, "Personnel: 118 on leave");
+                }
+            }
+            _g.Apps.Find<StaffApp>()?.Refresh();
+        }
+
+        /// <summary>Custodial's office as Personnel lists it at each stage.</summary>
+        public static string OfficeFor(string stage)
+        {
+            switch (stage)
+            {
+                case "SublevelC": return "Sublevel C";
+                case "Lobby": return "Lobby";
+                case "HallFar": return "B-Level hall";
+                case "Corridor": return "B-Level hall (B-7)";
+                case "Doorway":
+                case "Middle": return "B-7";
+                case "BehindChair": return "B-7 (WS-04)";
+                default: return null;
+            }
         }
 
         /// <summary>Put the figure where the model says; on screen it moves under a burst of static.</summary>

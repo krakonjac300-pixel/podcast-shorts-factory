@@ -437,7 +437,10 @@ namespace SecondCursor.Story
             yield return WaitUntil(() => Time.time - _firstEntityTaskAt >= 20f, 30f);
             _g.Mail.Deliver(ContentIds.MailN2RuthWarning);
             yield return WaitUntil(() => _g.Mail.IsRead(ContentIds.MailN2RuthWarning), 900f);
-            if (_g.Mail.IsRead(ContentIds.MailN2RuthWarning)) _ellenQueue.AddRange(Lines("n2_ruth"));
+            if (!_g.Mail.IsRead(ContentIds.MailN2RuthWarning) || CurrentBeat == "ending") yield break;
+            // During her asks the answer waits its turn; read later, she answers straight away.
+            if (CurrentBeat == "asks") _ellenQueue.AddRange(Lines("n2_ruth"));
+            else RunSide(SayDirect(_ellen, Lines("n2_ruth"), 4.5f), "ruth-reply");
         }
 
         IEnumerator FlushEllenQueue()
@@ -464,6 +467,12 @@ namespace SecondCursor.Story
                 yield return Wait(1.5f);
             }
             yield return WriteIntoQueue(task);
+            // Only what the player does after she asks counts (a record looked up for a work order earlier does not).
+            foreach (var target in task.Data.targets)
+            {
+                _g.Flags.SetCounter(Flags.OpenedByPlayerPrefix + target, 0);
+                _g.Flags.SetCounter(Flags.ViewedByPlayerPrefix + target, 0);
+            }
             GiveEntityTask(taskId);
             float t0 = Time.time;
             if (_firstEntityTaskAt < 0f) _firstEntityTaskAt = t0;

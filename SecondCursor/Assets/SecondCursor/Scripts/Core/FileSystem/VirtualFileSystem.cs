@@ -16,6 +16,10 @@ namespace SecondCursor.Core.FileSystem
         public string ParentId;
         public bool Hidden;
         public bool Locked;
+        /// <summary>Authorization code ("" = none): a locked folder with a code asks for it instead of refusing.</summary>
+        public string Code = "";
+
+        public bool HasCode => !string.IsNullOrEmpty(Code);
     }
 
     public sealed class VFile
@@ -76,7 +80,7 @@ namespace SecondCursor.Core.FileSystem
             foreach (var f in data.folders)
             {
                 if (f == null || f.removed || string.IsNullOrEmpty(f.id) || _folders.ContainsKey(f.id)) continue;
-                _folders[f.id] = new VFolder { Id = f.id, Name = f.name, ParentId = f.parent ?? "", Hidden = f.hidden, Locked = f.locked };
+                _folders[f.id] = new VFolder { Id = f.id, Name = f.name, ParentId = f.parent ?? "", Hidden = f.hidden, Locked = f.locked, Code = f.code ?? "" };
                 _folderOrder.Add(f.id);
             }
             foreach (var d in data.files)
@@ -284,6 +288,40 @@ namespace SecondCursor.Core.FileSystem
             if (f == null || f.Locked == locked) return;
             f.Locked = locked;
             Revision++;
+        }
+
+        /// <summary>
+        /// The code prompt (expansion spec 5.5): unlocks a locked folder if <paramref name="input"/> matches its
+        /// code (<see cref="CodeMatches"/>). False for a wrong code, an unlocked folder or a folder without one.
+        /// </summary>
+        public bool TryUnlock(string folderId, string input)
+        {
+            var f = GetFolder(folderId);
+            if (f == null || !f.Locked || !f.HasCode || !CodeMatches(f.Code, input)) return false;
+            SetFolderLocked(folderId, false);
+            GameLog.Info(LogChannel.OS, "Folder " + folderId + " unlocked with its code");
+            return true;
+        }
+
+        /// <summary>
+        /// Only the digits of the input count, and leading zeros do not: for "0217", "217", "2:17", "02:17" and
+        /// "2 17 am" all pass, "0218" and "" do not.
+        /// </summary>
+        public static bool CodeMatches(string code, string input)
+        {
+            string want = Digits(code), got = Digits(input);
+            if (want.Length == 0 || got.Length == 0) return false;
+            if (got == want) return true;
+            string a = want.TrimStart('0'), b = got.TrimStart('0');
+            return a.Length > 0 && a == b;
+        }
+
+        static string Digits(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            var sb = new System.Text.StringBuilder(s.Length);
+            foreach (char c in s) if (c >= '0' && c <= '9') sb.Append(c);
+            return sb.ToString();
         }
 
         void Mutate(string fileId, Action<VFile> change)

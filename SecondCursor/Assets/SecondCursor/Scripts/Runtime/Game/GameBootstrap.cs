@@ -63,6 +63,12 @@ namespace SecondCursor.Game
             Restart(Mathf.Clamp(save.currentNight, 1, Mathf.Min(3, save.nightUnlocked)));
         }
 
+        /// <summary>The Night Select screen exists (Phase E sets this; until then the last card shows Title and Quit).</summary>
+        public static bool NightSelectAvailable => false;
+
+        /// <summary>"Night Select" on the last night's card (Phase E replaces this with the real screen).</summary>
+        public static void ToNightSelect() => ToTitle();
+
         public static void Restart(int night, string beat = null, bool fromCheckpoint = false)
         {
             GameRoot.StartNight = Mathf.Clamp(night, 1, 3);

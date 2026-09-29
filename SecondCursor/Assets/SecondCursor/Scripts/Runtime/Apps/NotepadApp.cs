@@ -81,7 +81,7 @@ namespace SecondCursor.Apps
             if (label == "File")
             {
                 items.Add(MenuItem.Of("New", x => { if (!EntityTyping) SetText(""); }));
-                items.Add(MenuItem.Of("Save", null, enabled: false));
+                items.Add(MenuItem.Of("Save", x => Save(x), enabled: CanSave));
                 items.Add(MenuItem.Sep());
                 items.Add(MenuItem.Of("Exit", x => Window.RequestClose(x)));
             }
@@ -97,6 +97,32 @@ namespace SecondCursor.Apps
             var rt = Window.Client.Find("Menu Bar/Button " + label) as RectTransform;
             Vector2 pos = rt != null ? new Vector2(rt.WorldRect().xMin, rt.WorldRect().yMin) : a.Position;
             PopupMenu.Show(G.Layers.Popups, pos, items, 120);
+        }
+
+        /// <summary>Only files tagged "editable" can be saved (Night 3's config files); everything else stays read-only.</summary>
+        public bool CanSave
+        {
+            get
+            {
+                var f = _fileId != null ? G.Files.GetFile(_fileId) : null;
+                return f != null && !f.Shredded && f.HasTag("editable");
+            }
+        }
+
+        /// <summary>
+        /// File, Save: the text goes back into the virtual file system (never to a real file) and the OS says so.
+        /// Also used by scripted saves (a cursor saving a file it edited). Returns false if the file cannot be saved.
+        /// </summary>
+        public bool Save(CursorAgent by)
+        {
+            if (!IsOpen || !CanSave || (EntityTyping && (by == null || by.IsPlayer))) return false;
+            var file = G.Files.GetFile(_fileId);
+            string text = _text.ToString();
+            G.Files.SetContent(_fileId, text);
+            bool remote = by != null && by.IsEntity;
+            G.Notifications.Show(G.Content.Text("os.name"), G.Content.Format(remote ? "file.saved.remote" : "file.saved", file.Name), "icon_notepad", null, "ui_select");
+            G.Apps.RaiseFileSaved(_fileId, text, by);
+            return true;
         }
 
         public void SetText(string text)
@@ -143,6 +169,15 @@ namespace SecondCursor.Apps
             {
                 char c = text[i];
                 if (!IsOpen) break;
+                if (c == '\b')
+                {
+                    // A scripted Backspace (code only, never content): the last character goes.
+                    if (_text.Length > 0) _text.Length -= 1;
+                    Changed(true);
+                    Sfx.Play("key_tap", entity);
+                    yield return Waits.Seconds(Mathf.Max(0.2f, 1.5f / Mathf.Max(1f, charsPerSecond)));
+                    continue;
+                }
                 if (i > 0 && text[i - 1] == ' ') typoAt = PickTypo(text, i, typoRate);
                 if (i == typoAt)
                 {

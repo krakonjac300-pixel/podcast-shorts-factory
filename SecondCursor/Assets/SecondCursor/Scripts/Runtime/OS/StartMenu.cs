@@ -54,8 +54,11 @@ namespace SecondCursor.OS
                 MenuItem.Of("System Monitor", x => _g.Apps.Launch(SecondCursor.Apps.SystemMonitorApp.Id, x), "icon_system", elementId: "start:sysmon"),
                 MenuItem.Of(c.Text("start.help"), x => _g.Apps.Launch(AppIds.Help, x), "icon_help", elementId: "start:help"),
                 MenuItem.Sep(),
-                MenuItem.Of(c.Text("start.shutdown"), ShutDown, "icon_shutdown", elementId: "start:shutdown"),
             };
+            // Night 3, from the lost hours on: the operator's own Log Off (the director decides what it does).
+            if (_g.Flags.Has(Core.Story.Flags.LogoffItem))
+                items.Add(MenuItem.Of(c.Text("logoff.item"), x => { if (_g.Director != null) _g.Director.RequestLogOff(x); }, "icon_shutdown", elementId: "start:logoff"));
+            items.Add(MenuItem.Of(c.Text("start.shutdown"), ShutDown, "icon_shutdown", elementId: "start:shutdown"));
             const int width = 176;
             const int headerH = 26;
             int bodyH = 4;

@@ -1,0 +1,18 @@
+{
+  "entries": [
+    { "key": "login.welcome", "value": "Welcome, Night Operator.\nPress Log On to continue your shift." },
+    { "key": "login.progress", "value": "Restoring your personal settings from a copy..." },
+    { "key": "camera.denied.body", "value": "Camera Viewer access has been restored to Security staff only.\nThis attempt has been logged.\n\nNight Operators: your work is in the Work Queue." },
+    { "key": "notify.missedcall", "value": "Missed call: ext. 2118 (R. Hale)" },
+    { "key": "rounds.shelf.cancelled", "value": "Office of Retention: shelf check cancelled." },
+    { "key": "lost.recover", "value": "NEXUS OS recovered from an unexpected pause.\nDuration: 3 h 10 min." },
+    { "key": "shred.closed017", "value": "Session 017 closed (11 years, 263 days)." },
+    { "key": "end.shred.title", "value": "SHRED" },
+    { "key": "end.shred.subtitle", "value": "You took the seat." },
+    { "key": "end.keep.title", "value": "KEEP" },
+    { "key": "end.keep.subtitle", "value": "You stayed." },
+    { "key": "end.logoff.title", "value": "LOG OFF" },
+    { "key": "end.logoff.subtitle", "value": "The log shows nobody left." },
+    { "key": "end.card.thanks", "value": "Thank you for working nights at Letheworth." }
+  ]
+}

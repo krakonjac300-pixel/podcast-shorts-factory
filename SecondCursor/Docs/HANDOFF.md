@@ -257,6 +257,109 @@ before; its only visible change is a **Continue to Night 2** button on its end c
 - **Not yet:** Night 3 (still the stand-in), title menu / Night Select / Records, achievements hooks,
   AuthPrompt, Notepad Save, Log Off, CAM 04 / CAM 00 sets, live Personnel, Night 1's night card.
 
+### Expansion phase D (Night 3)
+
+Night 3, RECLAIM, per `Docs/Design/Expansion.md` Section 5 and the endings of Section 6. Night 2's end card
+**Continue to Night 3** now starts the real night (the stand-in is gone). Nights 1 and 2 play as before, apart
+from the review fixes and the mail order below.
+
+- **Director.** `Runtime/Story/Night3Director.cs` (setup, boot, work), `.Ruth.cs` (missed call, the 0217 glitch,
+  Ruth's mail and exchange, code hints), `.Rounds.cs` (the full round, the lost hours), `.Finale.cs` (finale, Log
+  Off, exits, ending), `.Gary.cs` (both Gary branches). Beats boot, work, ruth, rounds, lost, finale, ending;
+  checkpoints at work, ruth, rounds, finale; `Prepare` per 5.7 (`RestoreEdits` puts the code and the config edits
+  back from the flags for any checkpoint after work). Clock: 1:52 at log-on, 0.113 min/s, held at 2:16 during
+  work, 2:17 at the missed call, held at 2:57 until the round, 3:00 to 3:30 at 1/12, 6:41 after the lost hours,
+  0.09 to 7:00, then 1/12. Log lines: `Missed call`, `Code accepted`, `session.cfg saved: ...`, `Rounds: ...`,
+  `Lost time`, `Finale exit: Shred|LogOff|Keep (confirm|time|seat)`, `Ending: ...` phases, `Night 3 complete`.
+- **Content.** `Resources/Content/night3/*.json`, copied verbatim from Section 5.4 by
+  `_work/2026-09-29/extract_night3.py` (on the D: work folder, not in the repo). Loaded on top of base + night2.
+- **World setup.** `NightSetup.ForNight3`: both nights' end state (ledger and Batches 44 to 46 archived; 214
+  visible, in Archive if hidden on Night 2; 209 shredded, archived or on the desktop), their mail read, their
+  orders decided, the shelf orders hidden until the round, 017 in use until the finale, 209's record patched when
+  finished, templates and the BIOS `{p3}` filled. A Night 3 with no Night 2 memory keeps Gary.
+  `MailService.SortByDate` keeps tonight's mail on top after the old mail is delivered (Night 2 too).
+- **Code prompt.** `Apps/AuthPromptApp.cs` and `VirtualFileSystem.TryUnlock` / `CodeMatches` (digits only,
+  leading zeros ignored). `FilesApp` opens it for a locked folder with a `code`, for the player only. A wrong code
+  shakes it and counts `auth.fail`; `auth.format` shows from the difficulty's `CodeFormatAfterFailures`. The right
+  one unlocks, File Manager goes in, `auth.ok`, and `m.n3.restricted_open` (set only by the prompt, never by Gary).
+- **Jotter Save.** File > Save for files tagged `editable` (`NotepadApp.CanSave` / `Save`), toast `file.saved` or
+  `file.saved.remote`, event `AppManager.FileSaved`. `TypeAsEntity` treats `'\b'` as delete-last.
+  `Night3Rules.AllowsLogoff` / `OperatorOverride` read the saved text (exactly `=1`); saving anything else clears
+  the flag again.
+- **Log Off.** Start menu item `logoff.item` once flag `logoff_item` is set (`StartMenu`), handled by
+  `Night3Director.RequestLogOff`: `logoff.early` before 7:00, `logoff.disabled` without `ALLOW_LOGOFF=1`, else
+  the confirm and a 6 s progress with Cancel.
+- **Cameras.** `CameraFeed/SecurityCameraRig.Sublevels.cs` (the rig is now `partial`): CAM 04 Sublevel C (a
+  shelved aisle with a 28 s pan and the `n3_shelves` captions in step with it; picture only while `Cam04Online`,
+  so Nights 1 and 2 still show NO SIGNAL) and CAM 00 Admin 1 (a dark copy of the office with a second, always
+  seated Custodian at the CRT, and the bright point for the stinger). New figure stages `SublevelC`, `Lobby`,
+  `Seated00`; `DawnLevel` for the lobby. `CameraApp`: hidden cameras listed once `m.n3.cam00` is set (the buttons
+  rebuild), a bottom-left caption line, `IsShowing`.
+- **Rounds.** `RoundsConfig.Night3` (7 stages, 4 s, or 5 s after hiding 214; starts in the Lobby after the Night 2
+  door; forced opens at 0 s then every 22 to 30 s; 360 s), `Night3Finale` (4 stages, 3 s; the director forces the
+  viewer open by the clock at 6:50, 6:55 on CAM 03, 7:00 and 7:02) and `Hasten`. `RoundsSystem`: `PatchPersonnel`
+  (5.6: 000's office follows the figure, 001's last login copies 000's, 118 goes on leave at the hall),
+  `OpenViewer(camera)`, `ShowOnViewer`, `ForcedOpenHandler` (finished Gary opens the viewer by hand).
+  `WorkOrderService.SetHidden` / `Cancel` (shown as Cancelled); undecided shelf orders are cancelled at the end
+  of the round, after the task is withdrawn.
+- **Endings.** `EndingSpec.Kind` (Blackout, Shred, Keep, LogOff), `Speakers`, `SystemLines`, `Stinger`,
+  `ThanksKey`, `FinalCard`. `Story/EndingSequence.Night3.cs` plays SHRED (your own arrow types in the dark), KEEP
+  (Ellen and your arrow in her palette; `both` lines one letter each; the name line goes before the last),
+  LOG OFF (session closed, the lobby at 7:02 in morning light with nobody leaving, the log in the BIOS colour,
+  Ellen alone) and the CAM 00 stinger. The director plays the CAM 03 final image (head turn) before SHRED and
+  KEEP. Night 3's card: title, subtitle, `end.card.thanks`, Title and Quit (Night Select appears when
+  `GameBootstrap.NightSelectAvailable`, a Phase E hook).
+- **Core.** `Core/Story/Night3Rules.cs` (Log Off check, config values, trust thresholds and line sets, the shelf
+  rule, KEEP's lines, `KeepByTime`), `RoundsConfig` additions, `VirtualFileSystem.TryUnlock`, `ContentIds`
+  (Night 3 ids, `n3_shred` / `n3_keep` / `n3_logoff`), `Flags.LogoffItem` and the Night 3 per-night flags.
+- **Achievement hooks for Phase E.** Flags plus `[STORY] Hook: ACH_*` log lines: `ACH_AUTHORIZED`
+  (`m.n3.restricted_open`), `ACH_REMAIN_SEATED` (`n3.rounds_safe`: round safe with max stage 1 or less),
+  `ACH_NOT_ON_MY_SHELF` (`m.n3.own_shelf_rejected`), `ACH_WATCHERS` (`n3.cam00_viewed`), `ACH_HER_NAME`
+  (`m.said_name`), `ACH_NIGHT_3`; the endings are in `endingsSeen`.
+- **Debug.** F1 panel on Night 3: Force SHRED / KEEP / LOG OFF (`Night3Director.ForceExit`). Bridge: `type`
+  understands `\b` (Backspace). Note: `waitlog` matches its text literally, so do not put quotes around it.
+- **Phase C review fixes (same commit).** Ellen's asks only count what the player does after she asks (the
+  `opened_by_player:` / `viewed_by_player:` counters of the task's targets are zeroed before `GiveEntityTask`;
+  Night 3 has no entity-authored tasks, so nothing to apply there). Every finish outcome aborts an open shred
+  dialog (a leftover confirm can no longer shred a kept 209). Ruth's warning read outside the asks beat is
+  answered at once instead of queued. `RunCloseCamera` sets Ellen back to Observing when the viewer was closed or
+  switched first.
+- **Save memory.** `SaveData.RecordNightComplete` no longer replaces the whole memory: `MergeNightMemory` drops
+  the finished night's keys and later nights' keys (they were built on the old path), keeps earlier nights' keys
+  and keys of no night (`m.said_name`), then adds the run's snapshot (unit-tested). Phase E: Night Select must
+  start a night from `nightStartMemory[N]` (spec 8.1), not from `memory`.
+- **Tested through the bridge.** A full Night 3 from the night card (real work, the code, both config edits, the
+  round, the shelf check, the lost hours) to SHRED; LOG OFF with finished Gary (after a Night 2 finished run and
+  Continue); KEEP by confirmation, by time and by watching the feed; kept Gary unlocking Log Off at 6:48;
+  checkpoint restores at ruth and finale; the 5.8 script. Night 1 (tutorial, tug, reveal, card) and Night 2
+  (start, Gary finished, round, card, Continue to Night 3) regressions. 0 game errors, 0 compiler warnings;
+  CoreTests 180 (40 new in `Night3Tests.cs`).
+- **Judgement calls.**
+  - The code prompt works all night, not only from the Ruth beat: the temp file's clipboard and batch47_b already
+    say 02:17. Hints start when Ruth's mail is read; a hint waits up to 20 s while the prompt is open.
+  - The clock holds at 2:16 during work, so the phone rings at 2:17 as the mail and the secret say.
+  - Finished Gary arrives when Batch 47 is given (at order 3330 the batch is already done).
+  - Ellen's close reaction in the Night 3 round is the spec's value minus 0.4 s (her hand's travel), and she stops
+    lurking when the round starts: a player who does nothing ends near the doorway or the middle of the room
+    (the 7.4 budget) instead of losing the seat.
+  - Kept Gary shows the lesson first (switches to a camera without the figure 1 to 1.5 s after the first forced
+    open), then types it; after that he looks away on every second forced open.
+  - Kept Gary guards No and then Cancel with no pause between them; on the Log Off confirm he sits on No
+    (harmless). Finished Gary goes back to the left edge after racing to No, and a No he wins counts as a defense
+    for the adaptive assist, so the race stays winnable.
+  - After the lost hours the desktop comes back bare (every window closes), so employee_017.dat lands in view for
+    the finale.
+  - CAM 00 always shows a second Custodian at the Admin 1 CRT (000 is on rounds; 001 logs on at the same minute);
+    the stinger uses it instead of moving the rounds figure.
+  - The spec's 5.8 script needs the player's cursor on Cancel after Yes (Ellen's CancelShred has 7 s of patience
+    on Night 3): add `moveid button:Cancel`.
+  - `ex3_final`'s `letgo` and `go` tags are logged but change nothing: the exits are what you do.
+  - The lobby at dawn gets ambient and a dim fill so the empty lobby reads at 7:02.
+- **Play length.** About 21 to 25 minutes for a first-time player: boot 1, work 5 to 6, Ruth 3 to 5, round 6,
+  lost hours 1, finale 3 to 5 (an idle player waits until 7:05), ending 1.5.
+- **Not yet:** title menu, Night Select, Records, achievements (the hooks above), `SC_DEMO`, the post-game echo
+  `{p2}`, fast-forwarding an idle finale (spec 13.5).
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

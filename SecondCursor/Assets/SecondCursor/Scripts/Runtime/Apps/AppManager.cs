@@ -53,6 +53,8 @@ namespace SecondCursor.Apps
         readonly List<App> _open = new List<App>();
 
         public event Action<string, CursorAgent> Launched;
+        /// <summary>A file was saved from Jotter: file id, the saved text, who saved it.</summary>
+        public event Action<string, string, CursorAgent> FileSaved;
         /// <summary>Return false to block a launch (e.g. SecureView before it is unlocked). Args: appId, agent.</summary>
         public Func<string, CursorAgent, bool> CanLaunch;
 
@@ -118,6 +120,26 @@ namespace SecondCursor.Apps
             if (by != null && by.IsPlayer) _g.Memory.Record(MemoryKind.OpenedApp, label, _g.Now);
             Launched?.Invoke(label, by);
             return app;
+        }
+
+        /// <summary>The code prompt for a locked folder that has a code (one at a time).</summary>
+        public AuthPromptApp OpenAuthPrompt(string folderId, CursorAgent by)
+        {
+            var open = Find<AuthPromptApp>();
+            if (open != null)
+            {
+                open.Window.Restore(by);
+                open.Window.Focus(by);
+                return open;
+            }
+            return (AuthPromptApp)Start(new AuthPromptApp(folderId), by, null, AuthPromptApp.Id);
+        }
+
+        /// <summary>Jotter saved a file (the file system already holds the new text).</summary>
+        internal void RaiseFileSaved(string fileId, string text, CursorAgent by)
+        {
+            GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.Player, (by?.Name ?? "System") + " saved " + fileId);
+            FileSaved?.Invoke(fileId, text, by);
         }
 
         public FilesApp OpenFolder(string folderId, CursorAgent by, Rect? zoomFrom = null)

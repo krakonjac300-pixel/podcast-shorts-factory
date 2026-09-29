@@ -67,10 +67,11 @@ namespace SecondCursor.Apps
             _list.Clear();
             foreach (var o in G.Content.WorkOrders.orders)
             {
-                if (o == null) continue;
+                if (o == null || G.Orders.IsHidden(o.id)) continue;
                 string d = G.Orders.DecisionFor(o.id);
-                _list.AddRow(null, o, "order:" + o.id, o.id.Replace("wo_", "WO-"), d == null ? "Pending" : (d == "approve" ? "Approved" : "Rejected"));
+                _list.AddRow(null, o, "order:" + o.id, o.id.Replace("wo_", "WO-"), StatusText(d));
             }
+            if (_shown != null && G.Orders.IsHidden(_shown.id)) _shown = null;
             if (sel != null) _list.SelectWhere(r => ((WorkOrderData)r.Tag).id == sel, null);
             UpdateButtons();
         }
@@ -92,8 +93,15 @@ namespace SecondCursor.Apps
             bool open = _shown != null && d == null;
             _approve.Enabled = open;
             _reject.Enabled = open;
-            _stamp.text = d == null ? "" : (d == "approve" ? "APPROVED" : "REJECTED");
-            _stamp.color = d == "approve" ? Palette.Green : Palette.Red;
+            _stamp.text = d == null ? "" : StatusText(d).ToUpperInvariant();
+            _stamp.color = d == "approve" ? Palette.Green : d == WorkOrderService.Cancelled ? Palette.Shadow : Palette.Red;
+        }
+
+        static string StatusText(string decision)
+        {
+            if (decision == null) return "Pending";
+            if (decision == "approve") return "Approved";
+            return decision == WorkOrderService.Cancelled ? "Cancelled" : "Rejected";
         }
 
         void Decide(string decision, CursorAgent a)

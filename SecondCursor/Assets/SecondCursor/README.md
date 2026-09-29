@@ -75,7 +75,9 @@ that computer screen. You just do your job, and the job slowly stops being norma
 5. **Locked things are locked on purpose.** The **Camera Viewer** and the **Restricted** folder say
    *Access Denied* at the start. The story opens them for you later; don't wait on them.
 
-A full shift takes about 10-15 minutes and ends on the **WISHLIST NOW** card.
+Night 1 takes about 10-15 minutes and ends on the **WISHLIST NOW** card. The full game has three nights (about
+an hour): the end cards of Nights 1 and 2 offer **Continue to Night N**, and Night 3 ends in one of three
+endings (SHRED, KEEP or LOG OFF).
 
 ## 3. What to test
 
@@ -94,6 +96,7 @@ Use `F1` → **Jump to beat** to go straight to any milestone (it starts a fresh
 | **M9 Security camera** | `escalation` / `reveal` | It replays your own earlier mouse movement, unlocks **SecureView** (normally *Access Denied*) and opens **CAM 03**: your office, from behind. The seated figure's arm follows *your* mouse. Keep watching... the door... |
 | **M10 Slice** | `boot` → end | Disclaimer → title → BIOS → splash → log-on → the shift → blackout → end card (**WISHLIST NOW**). |
 | **M11 Night 2 (HELD)** | F1 → **Night 2**, or **Continue to Night 2** on Night 1's end card | Night card, Batch 45/46 and orders 3319/3321 (a file renames itself). The second cursor helps with Batch 46, then writes her own tasks into your Work Queue (black rows, *remote session*): do them or let them expire. Gary, a third, faint amber hand, talks in his own Jotter and brings `employee_209.dat`: shred it (fight the second cursor; Gary covers **No** and **Cancel** for you), drag it to Archive, or let 3:00 pass. Then the first Custodial round on the Camera Viewer: the figure only moves while you watch it. |
+| **M12 Night 3 (RECLAIM)** | F1 → **Night 3**, or **Continue to Night 3** on Night 2's end card | Batch 47 (one file turns *damaged*), orders 3330/3331, the temp file (its clipboard holds a number). At 2:17 the phone rings and Ruth's mail explains the **Restricted** code: the folder now asks for it (`0217`, `2:17`...). In Restricted, `session.cfg` decides whether you may log off at 7:00: open it in Jotter, **Backspace**, type `1`, **File > Save** (`System\camview.cfg` has a secret too). At 3:00 Custodial walks from Sublevel C to your seat while Security keeps forcing the viewer open; do the shelf check on **CAM 04**, look away, or track it in Personnel (000). Then three hours are gone. From 6:41: shred `employee_017.dat` (**SHRED**), log off at 7:00 (**LOG OFF**), or stay (**KEEP**). Gary is a weak ally if you kept him on Night 2, a company pointer if you finished him. |
 
 ## 4. How it is built
 
@@ -105,7 +108,8 @@ Scripts/
     FileSystem/  VirtualFileSystem: files/folders by stable ID, move/shred/restore, attribution (player/entity)
     Tasks/       WorkTaskManager: data-driven work tasks judged against world state
     Story/       NarrativeFlags (save-ready), DialogueEngine (keyword replies, "=word" whole words), GameClock,
-                 CustodialRounds (watch meter), NightTemplates ({line1}-style tokens)
+                 CustodialRounds (watch meter), NightTemplates ({line1}-style tokens), Night3Rules (log off,
+                 config files, the shelf rule, KEEP's lines, the time exits)
     Entity/      TugOfWar (conflict model), Difficulty (per-night DifficultyProfile, DifficultyTable,
                  AdaptiveAssist), MovementPlanner + MovementProfiles (personality in motion),
                  EntityMemory, CursorRecorder (mimic), EntityState/Phase/Personality
@@ -122,21 +126,23 @@ Scripts/
     UI/          UIBuilder, UiButton, ScrollArea, ListView, PopupMenu
     OS/          WindowManager, OSWindow, Desktop, Taskbar, StartMenu, Dialogs, Notifications,
                  ShredService / MailService / WorkOrderService
-    Apps/        Files, Mail, Notepad, DataViewer, Staff Directory, Work Orders, Work Queue, SecureView, System Monitor,
-                 Help, Disposal
+    Apps/        Files, Mail, Notepad (Save for editable files), DataViewer, Staff Directory, Work Orders, Work Queue,
+                 SecureView, System Monitor, Help, Disposal, AuthPrompt (a locked folder's code)
     Entity/      EntityController (awaitable MoveTo/Click/DragTo/Type/Replay...), EntityBrain (utility AI),
                  ConflictSystem (runs the tug-of-war)
-    Story/       NightDirector (shared beat flow, checkpoints, helpers) + Night1Director and Night2Director
-                 (each night's beats), NightSetup (a later night's starting world), RoundsSystem (Custodial on
-                 the cameras), BootSequence (night card), EndingSequence (EndingSpec per night)
-    CameraFeed/  SecurityCameraRig (small 3D office set rendered to a low-res CCTV feed)
+    Story/       NightDirector (shared beat flow, checkpoints, helpers) + Night1Director, Night2Director and
+                 Night3Director (each night's beats), NightSetup (a later night's starting world), RoundsSystem
+                 (Custodial on the cameras, live Personnel), BootSequence (night card), EndingSequence
+                 (EndingSpec per night; Night 3's SHRED, KEEP and LOG OFF sequences and the CAM 00 stinger)
+    CameraFeed/  SecurityCameraRig (small 3D sets rendered to a low-res CCTV feed: lobby, hall, office, and on
+                 Night 3 Sublevel C and Admin 1)
     FX/          VisualFx (CRT scanlines/vignette/grain/flicker, glitch tearing, shake, power-off)
     Audio/       AudioManager (entity sounds panned to where it is on screen)
     Game/        GameRoot (composition root + frame order), GameBootstrap, DebugOverlay, PauseMenu, SaveSystem
   Editor/      one-time project setup + SECOND CURSOR menu
 Resources/
   Content/     strings, story, filesystem, emails, employees, workorders, tasks, dialogue (JSON);
-               night2/ holds Night 2's overlay (same file names, merged by id)
+               night2/ and night3/ hold each night's overlay (same file names, merged by id, cumulatively)
   Shaders/     CCTV shader for the camera set (Built-in and URP; falls back to default materials if unsupported)
 ```
 
