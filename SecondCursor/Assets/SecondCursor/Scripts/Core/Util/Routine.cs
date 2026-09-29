@@ -1,10 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using SecondCursor.Core;
-using UnityEngine;
 
-namespace SecondCursor
+namespace SecondCursor.Core
 {
     /// <summary>
     /// Wait for game-time seconds inside a <see cref="Routine"/> (the Routine runner cannot see inside
@@ -24,14 +22,15 @@ namespace SecondCursor
     /// <summary>
     /// A coroutine runner that flattens nested IEnumerators into one stack, so stopping it stops EVERYTHING
     /// it started (Unity's StopCoroutine leaves nested "yield return enumerator" children running, which
-    /// would let an interrupted entity keep moving and clicking). Ticked explicitly by its owner's Update.
+    /// would let an interrupted entity keep moving and clicking). Ticked explicitly by its owner's Update
+    /// with the current game time. Engine-free, so it is unit-tested outside Unity.
     /// Supports: null (next frame), WaitSeconds, nested IEnumerator, and Routine (wait for it).
     /// </summary>
     public sealed class Routine
     {
         readonly Stack<IEnumerator> _stack = new Stack<IEnumerator>();
         readonly string _name;
-        float _resumeAt;
+        float _resumeAt = float.NegativeInfinity;
         Routine _waitingFor;
 
         public bool Done { get; private set; }
@@ -51,11 +50,11 @@ namespace SecondCursor
             _waitingFor = null;
         }
 
-        /// <summary>Advance until the next yield that needs time to pass. Call once per frame.</summary>
-        public void Tick()
+        /// <summary>Advance until the next yield that needs time to pass. Call once per frame with game time.</summary>
+        public void Tick(float now)
         {
             if (Done) return;
-            if (Time.time < _resumeAt) return;
+            if (now < _resumeAt) return;
             if (_waitingFor != null)
             {
                 if (!_waitingFor.Done) return;
@@ -97,7 +96,7 @@ namespace SecondCursor
                         _stack.Push(child);
                         continue;
                     case WaitSeconds w:
-                        _resumeAt = Time.time + Mathf.Max(0f, w.Seconds);
+                        _resumeAt = now + Math.Max(0f, w.Seconds);
                         return;
                     case Routine other:
                         if (!other.Done) { _waitingFor = other; return; }

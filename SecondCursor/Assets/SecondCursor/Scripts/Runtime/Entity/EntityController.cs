@@ -114,7 +114,7 @@ namespace SecondCursor.Entity
             UpdateStaticSound();
             if (_current != null)
             {
-                _current.Tick();
+                _current.Tick(Time.time);
                 if (_current.Done) _current = null;
             }
             if (_current == null && Brain.Enabled) Brain.Tick(dt);
@@ -156,7 +156,7 @@ namespace SecondCursor.Entity
         {
             Interrupt();
             _current = new Routine(routine, name);
-            _current.Tick(); // start immediately, like StartCoroutine
+            _current.Tick(Time.time); // start immediately, like StartCoroutine
             if (_current.Done) _current = null;
             return _current;
         }

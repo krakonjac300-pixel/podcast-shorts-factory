@@ -47,7 +47,7 @@ namespace SecondCursor.Story
         void RunSide(IEnumerator routine, string name)
         {
             var r = new Routine(routine, name);
-            r.Tick();
+            r.Tick(Time.time);
             if (!r.Done) _side.Add(r);
         }
 
@@ -104,18 +104,18 @@ namespace SecondCursor.Story
             _side.Clear();
             CleanUpForJump();
             _flow = new Routine(Flow(index), "story");
-            _flow.Tick();
+            _flow.Tick(Time.time);
         }
 
         void Update()
         {
             for (int i = _side.Count - 1; i >= 0; i--)
             {
-                _side[i].Tick();
+                _side[i].Tick(Time.time);
                 if (_side[i].Done) _side.RemoveAt(i);
             }
             if (_flow == null) return;
-            _flow.Tick();
+            _flow.Tick(Time.time);
             if (_flow.Done) _flow = null;
         }
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Text;
+using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Input;
 using SecondCursor.OS;

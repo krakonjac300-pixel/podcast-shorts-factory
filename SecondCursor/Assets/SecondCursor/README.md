@@ -81,6 +81,8 @@ Scripts/
                  EntityMemory, CursorRecorder (mimic), EntityState/Phase/Personality
     Art/         PixelFontData (bitmap font), PixelArtData (icons, cursors, logos as pixel strings)
     Audio/       ProceduralSoundBank (every sound synthesized at startup)
+    Util/        GameLog (tagged logging), Routine (coroutine runner: stopping it stops nested children too),
+                 Vec2/MathUtil, Rng
   Runtime/
     Rendering/   ScreenRig (960x540 virtual screen -> RenderTexture -> letterboxed), PixelText, BevelGraphic,
                  SpriteLibrary, Palette
@@ -89,7 +91,8 @@ Scripts/
     UI/          UIBuilder, UiButton, ScrollArea, ListView, PopupMenu
     OS/          WindowManager, OSWindow, Desktop, Taskbar, StartMenu, Dialogs, Notifications,
                  ShredService / MailService / WorkOrderService
-    Apps/        Files, Mail, Notepad, DataViewer, Staff Directory, Work Orders, Work Queue, SecureView, Help, Disposal
+    Apps/        Files, Mail, Notepad, DataViewer, Staff Directory, Work Orders, Work Queue, SecureView, System Monitor,
+                 Help, Disposal
     Entity/      EntityController (awaitable MoveTo/Click/DragTo/Type/Replay...), EntityBrain (utility AI),
                  ConflictSystem (runs the tug-of-war)
     Story/       EventDirector (beats + escalation), BootSequence, EndingSequence
@@ -100,7 +103,7 @@ Scripts/
   Editor/      one-time project setup + SECOND CURSOR menu
 Resources/
   Content/     strings, story, filesystem, emails, employees, workorders, tasks, dialogue (JSON)
-  Shaders/     CCTV shader for the camera set (with a fallback if unsupported)
+  Shaders/     CCTV shader for the camera set (Built-in and URP; falls back to default materials if unsupported)
 ```
 
 **Key design choices**
@@ -129,5 +132,8 @@ Resources/
 
 - `CompileCheck/`: compiles every script against real Unity reference assemblies in 5 configurations
   (player, editor, legacy input, Input System only, editor scripts). `./setup.sh` once, then `./check.sh`.
-- `CoreTests/`: `dotnet test` unit tests for the engine-free core (conflict model, movement, tasks, files, dialogue...).
+  `./check_shaders.sh` compiles the CCTV shader (needs `glslang-tools`).
+- `CoreTests/`: `dotnet test` unit tests for the engine-free core (conflict model, movement, tasks, files, dialogue,
+  the Routine runner, and validation of every JSON content file).
+- `Package/make_unitypackage.py`: rebuilds `SecondCursor.unitypackage` from `Assets/SecondCursor`.
 - `FontPreview/`, `ArtPreview/`, `SoundPreview/`: render the font, pixel art and sounds to PNG/WAV for review.
