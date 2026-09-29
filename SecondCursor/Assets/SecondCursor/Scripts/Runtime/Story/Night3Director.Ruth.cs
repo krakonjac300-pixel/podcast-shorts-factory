@@ -67,6 +67,7 @@ namespace SecondCursor.Story
             if (GaryFinished) RunSide(GaryDoesBatch48(), "gary-48");
             RunSide(RuthExchange(), "ruth-exchange");
             RunSide(CodeHints(), "code-hints");
+            RunSide(WaitForRoundsLine(), "wait-rounds");
 
             // At least 150 s after the mail, and the batch done; at 300 s the batch is done for you.
             while (!(Done(ContentIds.TaskN3Batch48) && Time.time - mailAt >= RuthMinSeconds))
@@ -85,6 +86,18 @@ namespace SecondCursor.Story
             while (_ellen.Typing && Time.time < talk) yield return null;
             _holdAt = -1;
             yield return EnsureClockAtLeast(3, 0, Time.time - mailAt >= RuthMaxSeconds ? 10f : 30f);
+        }
+
+        /// <summary>
+        /// Phase H: once Batch 48 is archived the queue says what comes next (Custodial at 3:00), so the quiet stretch
+        /// before the round reads as intended. The round beat ticks it.
+        /// </summary>
+        IEnumerator WaitForRoundsLine()
+        {
+            yield return WaitUntil(() => Done(ContentIds.TaskN3Batch48), 900f);
+            if (!Done(ContentIds.TaskN3Batch48) || CurrentBeat != "ruth") yield break;
+            yield return Wait(1.5f);
+            if (CurrentBeat == "ruth") GiveTask(ContentIds.TaskN3WaitRounds);
         }
 
         /// <summary>Every .dat in Intake is called 0217.dat for 2.5 s (a glitch and a click you did not make).</summary>
@@ -121,9 +134,7 @@ namespace SecondCursor.Story
                 if (Time.time > next)
                 {
                     next = Time.time + d.TaskHintRepeat;
-                    var t = _g.Tasks.Get(taskId);
-                    if (t != null && t.State == TaskState.Active && !string.IsNullOrEmpty(t.Data.hint))
-                        _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Data.hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
+                    ShowTaskHint(taskId);
                 }
                 yield return null;
             }

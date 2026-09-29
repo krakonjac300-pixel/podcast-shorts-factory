@@ -49,6 +49,14 @@ namespace SecondCursor.Story
             var sub = UIBuilder.Text(parent, c.Text(spec.SubtitleKey), Palette.BiosText);
             sub.rectTransform.At(0, 222, ScreenRig.Width, 12);
             sub.Align = TextAlign.Center;
+            if (!string.IsNullOrEmpty(spec.Outcome))
+            {
+                // How the night ended for you, under the subtitle (the demo card too: above WISHLIST NOW).
+                var outcome = UIBuilder.Text(parent, spec.Outcome, new Color32(0x8A, 0x8A, 0x84, 0xFF));
+                outcome.rectTransform.At(0, 244, ScreenRig.Width, 12);
+                outcome.Align = TextAlign.Center;
+                GameLog.Info(LogChannel.Story, "End card outcome: " + spec.Outcome);
+            }
             PixelText cta = null;
             if (spec.DemoCard)
             {

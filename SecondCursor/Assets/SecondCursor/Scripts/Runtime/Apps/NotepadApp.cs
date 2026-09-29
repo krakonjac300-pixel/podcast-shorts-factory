@@ -81,7 +81,9 @@ namespace SecondCursor.Apps
             // An editable file (Night 3's config files) gets a status line: how typing works and that Save applies it.
             bool editable = CanSave;
             var frame = UIBuilder.Bevel(client, BevelStyle.Sunken, "Text Frame");
-            frame.rectTransform.Stretch(0, 20, 0, editable ? 15 : 0);
+            _frameBottom = editable ? 15 : 0;
+            frame.rectTransform.Stretch(0, 20, 0, _frameBottom);
+            _frame = frame.rectTransform;
             if (editable)
             {
                 _status = UIBuilder.Text(client, G.Content.Text("notepad.editable.hint", "Text is added at the end. File > Save to apply."), Palette.Shadow);
@@ -98,6 +100,63 @@ namespace SecondCursor.Apps
 
             if (file != null) SetText(file.Content);
             _inputStart = _text.Length;
+
+            // Phase H: a conversation says when your typing waits (the other session is typing) or goes nowhere.
+            _convStatus = UIBuilder.Rect("Conversation Status", client).BottomStrip(2, 15, 3, 19);
+            var face = _convStatus.gameObject.AddComponent<BevelGraphic>();
+            face.Style = BevelStyle.Window;
+            face.Fill = Palette.Tooltip;
+            face.raycastTarget = false;
+            _convStatusText = UIBuilder.Text(_convStatus, "", Palette.Text);
+            _convStatusText.rectTransform.Stretch(5, 1, 4, 1);
+            _convStatusText.VAlign = TextVAlign.Middle;
+            _convStatus.gameObject.SetActive(false);
+        }
+
+        RectTransform _convStatus;
+        PixelText _convStatusText;
+        RectTransform _frame;
+        int _frameBottom;
+        /// <summary>The last moment the other side was typing, thinking, or waiting for your reply (or you sent one).</summary>
+        float _remoteActiveAt;
+        float _notReadingUntil = -1f;
+        /// <summary>
+        /// Typing into a conversation nobody has answered for this long goes nowhere, and says so. Long enough for a reply
+        /// that is on its way (the think pause and the cursor reaching its pad after you sent a line).
+        /// </summary>
+        const float NotListeningAfter = 3f, NotReadingShow = 3f;
+
+        bool NobodyListening => ConversationMode && !PlayerCanType && !EntityTyping && !ThinkingCaret && Time.time - _remoteActiveAt > NotListeningAfter;
+
+        void UpdateConversationStatus()
+        {
+            if (_convStatus == null) return;
+            if (!ConversationMode || PlayerCanType || EntityTyping || ThinkingCaret)
+            {
+                _remoteActiveAt = Time.time;
+                _notReadingUntil = -1f;   // someone is there again: the "not reading" line goes at once
+            }
+            if (_held.Length > 0 && NobodyListening)
+            {
+                // The other side stopped without giving you a turn: a reply typed ahead would otherwise be sent much later,
+                // as an answer to something else. It is dropped, and the Jotter says nobody is reading.
+                _held.Length = 0;
+                _notReadingUntil = Time.time + NotReadingShow;
+                GameLog.Info(LogChannel.Player, "Jotter: typed-ahead reply dropped (the remote session is not reading)");
+            }
+            string text = null;
+            if (ConversationMode && _held.Length > 0 && (EntityTyping || !PlayerCanType)) text = G.Content.Text("notepad.status.typing", "Remote session is typing. Your reply is sent when it stops.");
+            else if (ConversationMode && Time.time < _notReadingUntil) text = G.Content.Text("notepad.status.away", "Remote session is not reading.");
+            bool show = text != null;
+            if (show) _convStatusText.text = text;
+            if (_convStatus.gameObject.activeSelf == show) return;
+            _convStatus.gameObject.SetActive(show);
+            // The strip must not hide the newest line: the text frame gives it room while it shows.
+            if (_frame != null)
+            {
+                _frame.offsetMin = new Vector2(_frame.offsetMin.x, show ? Mathf.Max(_frameBottom, 17) : _frameBottom);
+                Changed(true);
+            }
         }
 
         PixelText _status;
@@ -198,7 +257,13 @@ namespace SecondCursor.Apps
             G.Files.SetContent(_fileId, text);
             SetDirty(false);
             bool remote = by != null && by.IsEntity;
-            G.Notifications.Show(G.Content.Text("os.name"), G.Content.Format(remote ? "file.saved.remote" : "file.saved", file.Name), "icon_notepad", null, "ui_select");
+            // Phase H: the notice names who saved it and what the saved file now decides (session.cfg: Log Off at 7:00).
+            string msg = !remote ? G.Content.Format("file.saved", file.Name)
+                : G.Content.HasText("file.saved.by") ? G.Content.Format("file.saved.by", file.Name, SystemNotices.SessionOf(G, by))
+                : G.Content.Format("file.saved.remote", file.Name);
+            string note = G.Apps.SavedNote?.Invoke(_fileId, text);
+            if (!string.IsNullOrEmpty(note)) msg += "\n" + note;
+            G.Notifications.Show(G.Content.Text("os.name"), msg, "icon_notepad", null, "ui_select");
             G.Apps.RaiseFileSaved(_fileId, text, by);
             return true;
         }
@@ -310,6 +375,14 @@ namespace SecondCursor.Apps
         {
             if (!PlayerCanType || EntityTyping)
             {
+                if (ConversationMode && NobodyListening)
+                {
+                    // Nobody on the other side (Phase H): the keys go nowhere, and the Jotter says so instead of eating them.
+                    if (Time.time >= _notReadingUntil) GameLog.Info(LogChannel.Player, "Jotter: typed while the remote session is not reading");
+                    _notReadingUntil = Time.time + NotReadingShow;
+                    Sfx.Play("key_tap", by);
+                    return;
+                }
                 // Mid-conversation keystrokes are not lost: they are typed ahead and play out on your line
                 // when it is your turn, one line (up to its Enter) per turn.
                 if (ConversationMode) HoldKeys(text, by);
@@ -344,6 +417,7 @@ namespace SecondCursor.Apps
                         {
                             // A sent line ends your turn at once: later keys (even this frame's) are typed ahead.
                             PlayerCanType = false;
+                            _remoteActiveAt = Time.time;   // a reply is on its way: the idle clock starts now
                             LineSubmitted?.Invoke(line, by);
                             if (i + 1 < text.Length) HoldKeys(text.Substring(i + 1), by);
                             break;
@@ -406,6 +480,8 @@ namespace SecondCursor.Apps
                 _view.Scale = scale;
                 Changed(true);
             }
+            // The status first: it sees the turn that ReleaseHeldKeys may end on this frame (a typed-ahead line sent).
+            UpdateConversationStatus();
             ReleaseHeldKeys();
             bool focused = Window.IsActive && PlayerCanType && !EntityTyping;
             bool typingCaret = EntityTyping;

@@ -4,9 +4,10 @@ namespace SecondCursor.Core.Story
 {
     /// <summary>
     /// CAM 04's caption loop (M10): the shelf labels one after another, each for <see cref="StepSeconds"/>, except the
-    /// held one (the player's own shelf) which stays for <see cref="HoldSeconds"/>. Every time the feed is switched to
+    /// held one (the player's own shelf) which stays for <see cref="HoldSeconds"/>. The first time the feed is switched to
     /// CAM 04 the loop starts at <see cref="StartShelf"/>, so the player's shelf comes up after one step instead of most
-    /// of a cycle. The loop still passes every shelf the shelf-check orders need.
+    /// of a cycle; after that it keeps running while the player looks elsewhere (Phase H: a viewer that keeps being
+    /// closed still reaches every shelf within one cycle). The loop passes every shelf the shelf-check orders need.
     /// </summary>
     public static class ShelfCaptions
     {

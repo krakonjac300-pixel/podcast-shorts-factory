@@ -31,19 +31,34 @@ namespace SecondCursor.CameraFeed
         /// <summary>The bright point crossing the Admin 1 CRT: 0..1 along the screen, below 0 hidden.</summary>
         public float AdminPointer { get; set; } = -1f;
 
-        /// <summary>When the feed last switched to CAM 04 (the caption loop starts there, M10).</summary>
-        float _cam04Since;
+        /// <summary>When the feed first switched to CAM 04 (the caption loop starts there, M10); below 0 = not yet.</summary>
+        float _cam04Since = -1f;
 
         /// <summary>
         /// The bottom-left caption for a camera (CAM 04's current shelf label), or "". M10: the loop starts at shelf 17
-        /// each time CAM 04 comes up and holds the player's own shelf 18 for 5 s (<see cref="Core.Story.ShelfCaptions"/>).
+        /// the first time CAM 04 comes up and holds the player's own shelf 18 for 5 s (<see cref="Core.Story.ShelfCaptions"/>).
         /// </summary>
-        public string CaptionFor(string camId)
+        public string CaptionFor(string camId) => ShelfCaption(camId, 0);
+
+        /// <summary>
+        /// Phase H: the shelf label that comes after the current one on CAM 04 ("SHELF 13"), or "": the viewer shows it as
+        /// NEXT so a player waiting for one shelf knows how long.
+        /// </summary>
+        public string NextShelfFor(string camId)
+        {
+            string next = ShelfCaption(camId, 1);
+            int colon = next.IndexOf(':');
+            return colon > 0 ? next.Substring(0, colon) : next;
+        }
+
+        string ShelfCaption(string camId, int ahead)
         {
             if (camId != ContentIds.Cam04 || !Cam04Online || SignalLost || ShelfLabels == null || ShelfLabels.Length == 0) return "";
             int start = Core.Story.ShelfCaptions.Find(ShelfLabels, Core.Story.ShelfCaptions.StartShelf);
             int hold = Core.Story.ShelfCaptions.Find(ShelfLabels, Core.Story.ShelfCaptions.HoldShelf);
-            return ShelfLabels[Core.Story.ShelfCaptions.Index(Time.time - _cam04Since, ShelfLabels.Length, start, hold)];
+            float since = _cam04Since < 0f ? Time.time : _cam04Since;
+            int i = Core.Story.ShelfCaptions.Index(Time.time - since, ShelfLabels.Length, start, hold);
+            return ShelfLabels[(i + ahead) % ShelfLabels.Length];
         }
 
         /// <summary>Which of <paramref name="count"/> labels shows at time <paramref name="t"/> (one full cycle per pan).</summary>

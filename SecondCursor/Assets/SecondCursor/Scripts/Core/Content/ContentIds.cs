@@ -66,7 +66,7 @@ namespace SecondCursor.Core.Content
         public const string TaskN2Briefing = "t2_read_briefing", TaskN2Batch45 = "t2_archive_batch45", TaskN2Verify3319 = "t2_verify_3319",
             TaskN2Verify3321 = "t2_verify_3321", TaskN2Cache = "t2_shred_cache", TaskN2Batch46 = "t2_archive_batch46",
             TaskE2DoorLog = "e2_door_log", TaskE2Lookup163 = "e2_lookup_163", TaskE2Hide214 = "e2_hide_214",
-            TaskN2Shred209 = "t2_shred_209", TaskE2Archive209 = "e2_archive_209";
+            TaskN2Shred209 = "t2_shred_209", TaskE2Archive209 = "e2_archive_209", TaskN2RoundsWatch = "t2_rounds_watch";
         public const string ExchangeN2Back = "ex2_back", ExchangeN2GaryOne = "ex2_gary_one";
         public const string Employee163 = "163", Employee214 = "214";
         public const string Batch45A = "batch45_a", Batch45B = "batch45_b", Batch45C = "batch45_c";
@@ -78,7 +78,8 @@ namespace SecondCursor.Core.Content
         public const string FileBatch47B = "batch47_b", FileCacheN3 = "cache_tmp_n3", FileSessionCfg = "session_cfg", FileCamviewCfg = "camview_cfg", FileSeatB7 = "seat_b7";
         public const string Order3330 = "wo_3330", Order3331 = "wo_3331", Order3340 = "wo_3340", Order3341 = "wo_3341", Order3342 = "wo_3342";
         public const string TaskN3Briefing = "t3_read_briefing", TaskN3Batch47 = "t3_archive_batch47", TaskN3Verify3330 = "t3_verify_3330",
-            TaskN3Verify3331 = "t3_verify_3331", TaskN3Cache = "t3_shred_cache", TaskN3Batch48 = "t3_archive_batch48", TaskN3Shelf = "t3_shelf_check";
+            TaskN3Verify3331 = "t3_verify_3331", TaskN3Cache = "t3_shred_cache", TaskN3Batch48 = "t3_archive_batch48", TaskN3Shelf = "t3_shelf_check",
+            TaskN3WaitRounds = "t3_wait_rounds";
         public const string ExchangeN3Ruth = "ex3_ruth", ExchangeN3Final = "ex3_final", ExchangeN3Confirm = "ex3_confirm";
         public const string Employee000 = "000", Employee001 = "001", Employee118 = "118", Employee209 = "209";
         public const string Batch47A = "batch47_a", Batch47C = "batch47_c", Batch48A = "batch48_a", Batch48B = "batch48_b";

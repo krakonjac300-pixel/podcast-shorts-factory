@@ -57,6 +57,16 @@ namespace SecondCursor.OS
         public bool IsClosed { get; private set; }
         /// <summary>A locked window cannot be moved or closed by the player (entity ability).</summary>
         public bool Locked;
+        /// <summary>
+        /// Phase H: how much a new window should avoid covering this one, per pixel (1 = any window; the Work Queue asks
+        /// for more, it holds the player's instructions).
+        /// </summary>
+        [System.NonSerialized] public float CoverCost = 1f;
+        /// <summary>
+        /// Phase H: a part of this window new windows keep clear of at all costs (the Work Orders' Approve and Reject), as
+        /// a size measured from the window's bottom-right corner. Zero = none.
+        /// </summary>
+        [System.NonSerialized] public Vector2 KeepVisibleBottomRight;
         public bool AlwaysOnTop => (Flags & WindowFlags.AlwaysOnTop) != 0;
         public bool ShowInTaskbar => (Flags & WindowFlags.NoTaskbar) == 0;
 

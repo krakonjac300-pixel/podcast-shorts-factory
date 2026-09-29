@@ -35,6 +35,7 @@ namespace SecondCursor.Story
             yield return EnsureEllenLurking();
             var rig = g.CameraRig;
             if (rig != null) rig.Cam04Online = true;
+            if (g.Tasks.IsActive(ContentIds.TaskN3WaitRounds)) g.Tasks.ForceComplete(ContentIds.TaskN3WaitRounds);
             g.Mail.Deliver(ContentIds.MailN3SecurityRounds);
             g.Flags.Set(Flags.CameraUnlocked);
             yield return Wait(2f);
@@ -136,7 +137,7 @@ namespace SecondCursor.Story
             bool cancelled = false;
             if (!Done(ContentIds.TaskN3Shelf))
             {
-                g.Tasks.Withdraw(ContentIds.TaskN3Shelf);
+                g.Tasks.Withdraw(ContentIds.TaskN3Shelf, g.Content.Text("workqueue.withdrawn.cancelled"));
                 cancelled = true;
             }
             foreach (var id in ShelfOrders)

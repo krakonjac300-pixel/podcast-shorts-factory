@@ -28,6 +28,7 @@ namespace SecondCursor.Apps
         Image _rec;
         PixelText _noSignal;
         PixelText _caption;
+        PixelText _next;
         RectTransform _side;
         bool _hiddenShown;
         readonly Dictionary<string, UiButton> _buttons = new Dictionary<string, UiButton>();
@@ -74,10 +75,14 @@ namespace SecondCursor.Apps
             _time.Shadow = true;
             _time.rectTransform.BottomStrip(8, 12, 10, 10);
             _time.Align = TextAlign.Right;
-            // Bottom-left caption above the time (CAM 04's shelf labels).
+            // CAM 04's shelf label under the camera name (Phase H: at the top, where a window over the viewer's lower half
+            // cannot hide it), and the label that comes next, so waiting for one shelf has a visible end.
             _caption = UIBuilder.Text(screen.rectTransform, "", Palette.BiosBright, true);
             _caption.Shadow = true;
-            _caption.rectTransform.BottomStrip(22, 12, 10, 10);
+            _caption.rectTransform.TopStrip(24, 12, 10, 10);
+            _next = UIBuilder.Text(screen.rectTransform, "", Palette.BiosText);
+            _next.Shadow = true;
+            _next.rectTransform.TopStrip(38, 12, 10, 10);
             // M1: the workstation's own tag over the seated operator on CAM 03 (it is you).
             _nameTag = UIBuilder.Text(_feed.rectTransform, G.Content.Text("camera.operatortag", "CROURKE / WS-04"), new Color32(0xD8, 0xDC, 0xD2, 0xFF));
             _nameTag.Shadow = true;
@@ -180,6 +185,8 @@ namespace SecondCursor.Apps
                 // M10: a shelf label swap is a one-frame static flicker.
                 if (caption.Length > 0 && _caption.text.Length > 0) _captionFlickerFrame = Time.frameCount;
                 _caption.text = caption;
+                string next = caption.Length > 0 && G.CameraRig != null ? G.CameraRig.NextShelfFor(_current) : "";
+                _next.text = next.Length > 0 ? string.Format(G.Content.Text("camera.next", "NEXT: {0}"), next) : "";
             }
             _switchNoise = Mathf.Max(0f, _switchNoise - dt);
             bool signal = G.CameraRig != null && G.CameraRig.HasSignal(_current);

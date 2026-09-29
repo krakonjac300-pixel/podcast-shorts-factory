@@ -64,25 +64,38 @@ namespace SecondCursor.OS
         }
 
         /// <summary>
+        /// Phase H: app windows open right of the desktop icon column (the icons stay reachable: the player's Help, Camera
+        /// Viewer and Personnel live there), unless a window is too wide to fit beside it.
+        /// </summary>
+        public const int IconColumnRight = 88;
+        /// <summary>Where the notices stack, above the Disposal bin (desktop px): reading windows keep clear of it.</summary>
+        static readonly Rect ToastColumn = new Rect(730f, 150f, 230f, 280f);
+        /// <summary>Cost per covered pixel of a window's must-stay-visible part (the Work Orders' buttons).</summary>
+        const float KeepVisibleWeight = 12f;
+        const float ToastColumnWeight = 3f;
+
+        /// <summary>
         /// A top-left (desktop pixels) near the requested one where a new app window covers as little of
         /// the open windows as possible, so opening Personnel does not bury the Work Orders you are reading.
-        /// The requested spot wins when it already covers under 15% of its own area.
+        /// The requested spot wins when it already covers under 15% of its own area. <paramref name="avoidToasts"/>:
+        /// a window read for a while (Mail) also keeps clear of the notices' column.
         /// </summary>
-        public Vector2Int PlaceAvoidingOverlap(int x, int y, int w, int h)
+        public Vector2Int PlaceAvoidingOverlap(int x, int y, int w, int h, bool avoidToasts = false)
         {
-            int maxX = Mathf.Max(0, ScreenRig.Width - w);
+            int minX = w <= ScreenRig.Width - IconColumnRight ? IconColumnRight : 0;
+            int maxX = Mathf.Max(minX, ScreenRig.Width - w);
             int maxY = Mathf.Max(0, ScreenRig.Height - TaskbarHeight - h);
-            x = Mathf.Clamp(x, 0, maxX);
+            x = Mathf.Clamp(x, minX, maxX);
             y = Mathf.Clamp(y, 0, maxY);
-            float requested = CoveredArea(x, y, w, h);
+            float requested = CoveredArea(x, y, w, h, avoidToasts);
             if (requested <= w * h * 0.15f) return new Vector2Int(x, y);
             var best = new Vector2Int(x, y);
             float bestScore = requested;
             for (int cy = 0; cy <= maxY; cy += 16)
-                for (int cx = 0; cx <= maxX; cx += 16)
+                for (int cx = minX; cx <= maxX; cx += 16)
                 {
                     // Distance costs a little, so a window only moves far when that really uncovers things.
-                    float score = CoveredArea(cx, cy, w, h) + (Mathf.Abs(cx - x) + Mathf.Abs(cy - y)) * 20f;
+                    float score = CoveredArea(cx, cy, w, h, avoidToasts) + (Mathf.Abs(cx - x) + Mathf.Abs(cy - y)) * 20f;
                     if (score < bestScore)
                     {
                         bestScore = score;
@@ -92,23 +105,26 @@ namespace SecondCursor.OS
             return best;
         }
 
-        float CoveredArea(int x, int y, int w, int h)
+        static float Overlap(int x, int y, int w, int h, Rect k)
+        {
+            float kx = Mathf.Min(x + w, k.xMax) - Mathf.Max(x, k.xMin);
+            float ky = Mathf.Min(y + h, k.yMax) - Mathf.Max(y, k.yMin);
+            return kx > 0f && ky > 0f ? kx * ky : 0f;
+        }
+
+        float CoveredArea(int x, int y, int w, int h, bool avoidToasts)
         {
             float sum = 0f;
-            for (int i = 0; i < KeepClear.Length; i++)
-            {
-                var k = KeepClear[i];
-                float kx = Mathf.Min(x + w, k.xMax) - Mathf.Max(x, k.xMin);
-                float ky = Mathf.Min(y + h, k.yMax) - Mathf.Max(y, k.yMin);
-                if (kx > 0f && ky > 0f) sum += kx * ky * KeepClearWeight[i];
-            }
+            for (int i = 0; i < KeepClear.Length; i++) sum += Overlap(x, y, w, h, KeepClear[i]) * KeepClearWeight[i];
+            if (avoidToasts) sum += Overlap(x, y, w, h, ToastColumn) * ToastColumnWeight;
             foreach (var win in _windows)
             {
                 if (win == null || win.IsClosed || win.IsMinimized || win.AlwaysOnTop) continue;
                 Vector2 tl = win.TopLeft, size = win.Size;
-                float ix = Mathf.Min(x + w, tl.x + size.x) - Mathf.Max(x, tl.x);
-                float iy = Mathf.Min(y + h, tl.y + size.y) - Mathf.Max(y, tl.y);
-                if (ix > 0f && iy > 0f) sum += ix * iy;
+                sum += Overlap(x, y, w, h, new Rect(tl, size)) * Mathf.Max(1f, win.CoverCost);
+                var keep = win.KeepVisibleBottomRight;
+                if (keep.x > 0f && keep.y > 0f)
+                    sum += Overlap(x, y, w, h, new Rect(tl + size - keep, keep)) * KeepVisibleWeight;
             }
             return sum;
         }

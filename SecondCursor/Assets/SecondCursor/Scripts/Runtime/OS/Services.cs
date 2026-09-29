@@ -209,6 +209,29 @@ namespace SecondCursor.OS
         readonly GameServices _g;
         readonly List<string> _inbox = new List<string>();
         readonly HashSet<string> _read = new HashSet<string>();
+        /// <summary>Mail that arrived during this shift with a notice (not the preloaded or story-restored mail), oldest first.</summary>
+        readonly List<string> _live = new List<string>();
+
+        /// <summary>The newest mail that arrived with a notice this shift and is still unread (null = none); the Work Queue lists it.</summary>
+        public string NewestUnreadLive
+        {
+            get
+            {
+                for (int i = _live.Count - 1; i >= 0; i--) if (!_read.Contains(_live[i])) return _live[i];
+                return null;
+            }
+        }
+
+        /// <summary>How many mails that arrived with a notice this shift are still unread.</summary>
+        public int UnreadLiveCount
+        {
+            get
+            {
+                int n = 0;
+                foreach (var id in _live) if (!_read.Contains(id)) n++;
+                return n;
+            }
+        }
 
         public event Action<string> Delivered;
         public event Action<string> Read;
@@ -277,6 +300,7 @@ namespace SecondCursor.OS
             Delivered?.Invoke(id);
             if (notify)
             {
+                _live.Add(id);
                 var mail = _g.Content.Email(id);
                 // Sender on the toast, and the date too when it is not from tonight's year (the 1987 mail).
                 string sender = string.IsNullOrEmpty(mail.from) ? "(no sender)" : (mail.from.IndexOf('<') > 0 ? mail.from.Substring(0, mail.from.IndexOf('<')).Trim() : mail.from);
@@ -305,7 +329,11 @@ namespace SecondCursor.OS
         readonly Dictionary<string, string> _decisions = new Dictionary<string, string>();
 
         public event Action<string, string, CursorAgent> Decided;
+        /// <summary>An order was opened in Work Orders (order id, by whom).</summary>
+        public event Action<string, CursorAgent> Viewed;
         public int Revision { get; private set; }
+
+        public void NotifyViewed(string orderId, CursorAgent by) => Viewed?.Invoke(orderId, by);
 
         public WorkOrderService(GameServices g)
         {

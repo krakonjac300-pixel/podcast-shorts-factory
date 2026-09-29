@@ -4,8 +4,8 @@
       "id": "t_read_briefing",
       "title": "Read the shift briefing",
       "description": "Your supervisor left tonight's briefing in Mail. Read it before you start.",
-      "hint": "Double-click the Mail icon, then click the unread message to open it.",
-      "hintDeck": "Press A twice on the Mail icon, then choose the unread message to open it.",
+      "hint": "Double-click the Mail icon. The briefing opens by itself.",
+      "hintDeck": "Press A twice on the Mail icon. The briefing opens by itself.",
       "type": "ReadEmail",
       "targets": ["mail_welcome"],
       "param": ""

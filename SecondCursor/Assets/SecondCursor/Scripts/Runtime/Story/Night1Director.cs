@@ -95,7 +95,10 @@ namespace SecondCursor.Story
                 default:
                     StopSideRoutines();
                     CompleteNight(ContentIds.EndingN1Blackout);
-                    _ending = new EndingSequence(_g);
+                    // Phase H: the card says how the night ended (WS-04 went dark; the file came back or never went).
+                    var spec = EndingSpec.Night1();
+                    spec.Outcome = _g.Content.Format(_g.Flags.Has(Flags.File017ShreddedOnce) ? "end.n1.outcome.shredded" : "end.n1.outcome.kept", _g.Clock.Format12());
+                    _ending = new EndingSequence(_g, spec);
                     return _ending.Run();
             }
         }

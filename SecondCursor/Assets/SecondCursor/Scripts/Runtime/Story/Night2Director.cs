@@ -379,9 +379,7 @@ namespace SecondCursor.Story
                 if (Time.time > next)
                 {
                     next = Time.time + d.TaskHintRepeat;
-                    var t = _g.Tasks.Get(taskId);
-                    if (t != null && t.State == TaskState.Active && !string.IsNullOrEmpty(t.Data.hint))
-                        _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Data.hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
+                    ShowTaskHint(taskId);
                 }
                 yield return null;
             }

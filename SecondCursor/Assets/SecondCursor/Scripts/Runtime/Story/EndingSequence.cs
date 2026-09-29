@@ -53,6 +53,8 @@ namespace SecondCursor.Story
         public bool DemoCard = true;
         /// <summary>Night offered by a "Continue to Night N" button (0 = none).</summary>
         public int ContinueNight;
+        /// <summary>Phase H: one line under the subtitle saying how the night ended for you ("" = none).</summary>
+        public string Outcome = "";
 
         /// <summary>
         /// Night 1: the slice's blackout. The demo keeps the WISHLIST card; the full game shows the night's own card

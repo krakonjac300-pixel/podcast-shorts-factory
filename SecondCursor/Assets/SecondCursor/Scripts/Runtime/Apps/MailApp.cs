@@ -7,7 +7,10 @@ using UnityEngine;
 
 namespace SecondCursor.Apps
 {
-    /// <summary>Company mail client: message list on top (unread in bold), reading pane below.</summary>
+    /// <summary>
+    /// Company mail client: message list on top (unread in bold), reading pane below. Phase H: a taller reading pane, a
+    /// "More below" marker while the message goes on under the fold, and it opens clear of the notices' column.
+    /// </summary>
     public sealed class MailApp : App
     {
         ListView _list;
@@ -15,14 +18,16 @@ namespace SecondCursor.Apps
         PixelText _header;
         PixelText _body;
         PixelText _status;
+        RectTransform _more;
         int _revision = -1;
         string _showing;
 
         public override string AppId => AppIds.Mail;
+        protected override bool AvoidsNotices => true;
 
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
-            var win = CreateWindow(G.Content.Text("app.mail"), "icon_mail", 150, 30, 560, 380, WindowFlags.Standard, zoomFrom);
+            var win = CreateWindow(G.Content.Text("app.mail"), "icon_mail", 150, 16, 560, 460, WindowFlags.Standard, zoomFrom);
             var client = win.Client;
 
             _list = new ListView(client, "Inbox", new[] { 150, 250, 130 }, new[] { "From", "Subject", "Received" }, true);
@@ -37,6 +42,19 @@ namespace SecondCursor.Apps
             _header.Wrap = true;
             _body = UIBuilder.Text(_reader.Content, "", Palette.Text);
             _body.Wrap = true;
+
+            // The message goes on below the fold: say so at the bottom of the pane until it is scrolled to the end.
+            _more = UIBuilder.Rect("More Below", readerFrame.rectTransform).BottomRight(20, 3, 96, 14);
+            var moreFace = _more.gameObject.AddComponent<BevelGraphic>();
+            moreFace.Style = BevelStyle.Window;
+            moreFace.Fill = Palette.Tooltip;
+            moreFace.raycastTarget = false;
+            var arrow = UIBuilder.Icon(_more, "glyph_arrow_down", 1);
+            arrow.rectTransform.anchoredPosition = new Vector2(4f, -3f);
+            var moreText = UIBuilder.Text(_more, G.Content.Text("mail.more", "More below"), Palette.Text, true);
+            moreText.rectTransform.Stretch(16, 1, 2, 1);
+            moreText.VAlign = TextVAlign.Middle;
+            _more.gameObject.SetActive(false);
 
             var status = UIBuilder.Bevel(client, BevelStyle.StatusField, "Status");
             status.rectTransform.BottomStrip(0, 18, 2, 2);
@@ -106,10 +124,20 @@ namespace SecondCursor.Apps
             _reader.ContentHeight = hs.y + bs.y + 30;
         }
 
+        /// <summary>Selects and shows one message (the Work Queue's new-mail line opens it this way).</summary>
+        public void ShowMail(string id, CursorAgent by)
+        {
+            if (string.IsNullOrEmpty(id) || !G.Mail.Has(id)) return;
+            if (_revision != G.Mail.Revision) Refresh();
+            _list.SelectWhere(r => (string)r.Tag == id, by);
+        }
+
         public override void Tick(float dt)
         {
             if (_revision != G.Mail.Revision) Refresh();
             if (_showing != null && _body.Scale != Game.DisplaySettings.ReadingScale) Layout();
+            bool more = _showing != null && _reader.MaxOffset > 2f && _reader.Offset < _reader.MaxOffset - 2f;
+            if (_more != null && _more.gameObject.activeSelf != more) _more.gameObject.SetActive(more);
         }
     }
 }

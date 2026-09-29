@@ -320,12 +320,17 @@ namespace SecondCursor.Story
             yield return Wait(0.8f);
         }
 
-        /// <summary>The Work Queue's hint toast for a task (clicking it opens the Work Queue).</summary>
+        /// <summary>
+        /// The Work Queue's hint toast for a task (clicking it opens the Work Queue). It goes away by itself once the task
+        /// is done or withdrawn, so a hint never outlives its task (Phase H).
+        /// </summary>
         protected void ShowTaskHint(string taskId)
         {
             var t = _g.Tasks.Get(taskId);
-            if (t != null && !string.IsNullOrEmpty(t.Data.hint))
-                _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Data.hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
+            if (t == null || string.IsNullOrEmpty(t.Data.hint) || t.State != Core.Tasks.TaskState.Active) return;
+            var tasks = _g.Tasks;
+            _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Data.hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select",
+                false, () => tasks.IsActive(taskId));
         }
 
         /// <summary>

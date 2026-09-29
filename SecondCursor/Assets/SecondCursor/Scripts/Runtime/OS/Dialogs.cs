@@ -80,6 +80,8 @@ namespace SecondCursor.OS
     {
         const int ButtonW = 72;
         const int ButtonH = 22;
+        /// <summary>Seconds after a progress dialog opens during which the player's Cancel click is ignored.</summary>
+        public const float CancelGrace = 0.5f;
 
         public static MessageBox Message(GameServices g, string title, string text, string icon, string[] buttons,
             Action<string, CursorAgent> onResult, int defaultIndex = 0, Vector2? desktopTopLeft = null)
@@ -147,7 +149,18 @@ namespace SecondCursor.OS
             Canvas.ForceUpdateCanvases();
             dlg.BuildBar(bar.rectTransform);
 
-            dlg.CancelButton = UiButton.Create(win.Client, "Cancel", a => dlg.RaiseCancel(a), "button:Cancel");
+            // Phase H: the dialog opens where Yes was, so Cancel can land under the pointer. A click of the player's in the
+            // first moment is a reflex, not a decision: it is ignored (another cursor's click never is).
+            float openedAt = Time.unscaledTime;
+            dlg.CancelButton = UiButton.Create(win.Client, "Cancel", a =>
+            {
+                if (a != null && a.IsPlayer && Time.unscaledTime - openedAt < CancelGrace)
+                {
+                    Core.GameLog.Info(Core.LogChannel.Player, "Cancel ignored (clicked " + (Time.unscaledTime - openedAt).ToString("0.00") + " s after " + title + " opened)");
+                    return;
+                }
+                dlg.RaiseCancel(a);
+            }, "button:Cancel");
             ((RectTransform)dlg.CancelButton.transform).At((w - 8 - ButtonW) / 2, 76, ButtonW, ButtonH);
             dlg.Progress = 0f;
             return dlg;

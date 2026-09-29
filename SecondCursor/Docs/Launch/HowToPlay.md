@@ -78,7 +78,7 @@ Click [b]Nexus[/b] (bottom left) for every program, plus [b]Documents[/b], [b]Sy
 
 [h2]The apps you use[/h2]
 [list]
-[*][b]Mail:[/b] your briefing. Click the unread message to open it.
+[*][b]Mail:[/b] your briefing. Double-click Mail and it opens by itself. New mail during the shift also gets a line in the Work Queue until you read it.
 [*][b]File Manager[/b] (double-click [b]Workstation[/b]): click a folder on the left, such as Intake, to see its files. Drag a file onto another folder to move it there.
 [*][b]Work Orders:[/b] select an order and note the [b]Owner Emp. No.[/b]
 [*][b]Personnel:[/b] click that number in the list to see the owner's status. [b]Approve[/b] only if it says TERMINATED. Anything else, [b]Reject[/b].
@@ -90,10 +90,10 @@ Click [b]Nexus[/b] (bottom left) for every program, plus [b]Documents[/b], [b]Sy
 When a remote session types to you in the Jotter, a notice says so. Type a reply and press [b]Enter[/b]. One line at a time, anything you like. If your letters do not appear, click the Jotter window (or the notice) first. Some files can be changed in the Jotter: text is added at the end, and [b]File > Save[/b] (or [b]Ctrl+S[/b]) keeps the change.
 
 [h2]Camera Viewer[/h2]
-It shows the building's security cameras. The camera list is on the left: click a camera to switch to it. The viewer is meant for Security staff, so "Access Denied" is normal. Your work is in the Work Queue.
+It shows the building's security cameras. The camera list is on the left: click a camera to switch to it. The viewer is meant for Security staff, so "Access Denied" is normal. Your work is in the Work Queue. If another session closes the viewer, a notice says so: double-click Camera Viewer to open it again.
 
 [h2]If a file gets pulled away from you[/h2]
-Keep the mouse button held and drag firmly away from the other pointer. Hold still, or let go, and it keeps the file. You can always try again.
+A label above the file says [b]SESSION 017 IS PULLING[/b]. Keep the mouse button held and drag firmly away from the other pointer. The bar under the label shows who is winning. Hold still, or let go, and it keeps the file. You can always try again.
 
 [h2]If you are stuck[/h2]
 [list]
@@ -169,9 +169,9 @@ Store copy = `MarketingPackFull.md` section 2 as it stands today. Items LaunchAu
 
 | # | Where in the store copy | Store says | Game shows | Fix | Priority |
 |---|---|---|---|---|---|
-| 1 | Demo page, last paragraph | "A Reduce flashing option is in the Esc menu." | No screen is called the Esc menu. First launch: buttons **Full effects** / **Reduce flashing**. In a shift, Esc or **\|\|** opens a menu captioned **SESSION PAUSED** whose row reads **Flashing: Full** / **Flashing: Reduced**; on the title the same panel is **Options**. The disclaimer says "in Options (Esc, or the \|\| button on the taskbar)". | "Choose Reduce flashing on the first screen, or set Flashing to Reduced in Options (Esc, or the \|\| button on the taskbar)." | Medium (photosensitivity) |
+| 1 | Demo page, last paragraph | "A Reduce flashing option is in the Esc menu." | No screen is called the Esc menu. First launch: buttons **Full effects** / **Reduce flashing**. In a shift, Esc or **\|\|** opens a menu captioned **SESSION PAUSED: OPTIONS** (Phase H; it was **SESSION PAUSED**) whose row reads **Flashing: Full** / **Flashing: Reduced**; on the title the same panel is **Options**. The disclaimer says "in Options (Esc, or the \|\| button on the taskbar)". | "Choose Reduce flashing on the first screen, or set Flashing to Reduced in Options (Esc, or the \|\| button on the taskbar)." | Medium (photosensitivity) |
 | 2 | Long description, Photosensitivity | "A Reduce flashing option tones ... down" (at the very bottom) | Same labels as row 1. SteamChecklist 5.2 wants the warning near the top of About This Game. | "You can choose Reduce flashing on the first screen, or set Flashing to Reduced in Options at any time. It tones glitches, flashes, shake and flicker spikes down, and the CRT effects can be switched off." Move the paragraph up, or add one line near the top pointing to it. | Medium |
-| 3 | Long description ("THE GHOST USES THE MOUSE"), also Key Features | "Yank away hard to win it back. Hold still and you lose it." | Help: "keep the mouse button held and drag firmly away from it. If you let go, it keeps the file." Notice after a lost tug: "Drag firmly away from it to take it back." Both are true (holding still also loses). | Use the game's verbs so the page and the in-game notice teach the same move: "Keep the button held and drag firmly away to win it back. Hold still, or let go, and it keeps the file." | Low |
+| 3 | Long description ("THE GHOST USES THE MOUSE"), also Key Features | "Yank away hard to win it back. Hold still and you lose it." | Help: "keep the mouse button held and drag firmly away from it. If you let go, it keeps the file." Notice after a lost tug (Phase H): "Input conflict: session 017 kept the file. Grab it again, keep the button held and drag away from its pointer." Both are true (holding still also loses). | Use the game's verbs so the page and the in-game notice teach the same move: "Keep the button held and drag firmly away to win it back. Hold still, or let go, and it keeps the file." | Low |
 | 4 | Demo, "Things worth trying" | "Open the System Monitor and end the process that should not be there." | System Monitor has no desktop icon. It is only in the Nexus menu (bottom left). | "Open System Monitor from the Nexus menu and end the process that should not be there." | Low |
 | 5 | Long description, camera section; demo "What is in the demo" | "Camera 03" | The camera list button reads **CAM 03 OFFICE B-7** (`story.json`: "CAM 03 - OFFICE B-7"); the Security mail says "CAM 03". | Write "CAM 03" so players recognise the button. | Low |
 | 6 | Long description, Night 3 bullet | "a longer round that reaches the basement" | The same description opens with you already "in the basement". Night 3's round starts in Sublevel C (**CAM 04 SUBLEVEL C**, a label visible from Night 1). | "a longer round that starts down in Sublevel C" (or simply "a full round"). | Low |
@@ -184,10 +184,10 @@ Store copy = `MarketingPackFull.md` section 2 as it stands today. Items LaunchAu
 
 | # | Where | Issue | Fix |
 |---|---|---|---|
-| a | `strings.json` `quickstart.body` | The PC Quick Start never says how to pause; the Deck version does ("B or the Menu button pauses the shift."). | Add the line "- Esc or the \|\| button on the taskbar pauses the shift." before "Some programs need clearance...". |
-| b | `strings.json` `notify.conflict` | No `.deck` variant, so the Deck shows "Drag firmly away", while Deck Help says "keep R2 held and pull firmly away". `ContentDatabase` picks up any `key.deck`, so no code is needed. | Add `notify.conflict.deck`: "Input conflict: device 2 is holding the file. Keep R2 held and pull firmly away from it to take it back." |
-| c | `strings.json` `start.button` vs `Taskbar.cs` | The taskbar button text "Nexus" is hard-coded; the unused `start.button` still says "Start". Invisible today, but the data can drift and "Start" is the wrong word to ever ship. | Set `start.button` to "Nexus" and read it in `Taskbar.Create`. |
-| d | Pause menu caption | During a shift the menu is captioned **SESSION PAUSED**, while the disclaimer and the title call it **Options**. The copy in this file says "pauses the shift and opens the options", which fits both. | Optional: leave as is (it reads in-fiction), or have the disclaimer say "the pause menu (Esc, or the \|\| button on the taskbar)". |
+| a | `strings.json` `quickstart.body` | The PC Quick Start never says how to pause; the Deck version does ("B or the Menu button pauses the shift."). | Done in Phase H: "- Esc or the \|\| button on the taskbar: pause and Options." |
+| b | `strings.json` `notify.conflict` | No `.deck` variant, so the Deck shows "Drag firmly away", while Deck Help says "keep R2 held and pull firmly away". `ContentDatabase` picks up any `key.deck`, so no code is needed. | Done in Phase H: `notify.conflict.deck` names R2 ("...keep R2 held and pull away from its pointer."). |
+| c | `strings.json` `start.button` vs `Taskbar.cs` | The taskbar button text "Nexus" is hard-coded; the unused `start.button` still says "Start". Invisible today, but the data can drift and "Start" is the wrong word to ever ship. | Done in Phase H: `start.button` is "Nexus" and `Taskbar.Create` reads it. |
+| d | Pause menu caption | During a shift the menu is captioned **SESSION PAUSED**, while the disclaimer and the title call it **Options**. The copy in this file says "pauses the shift and opens the options", which fits both. | Done in Phase H: the caption reads **SESSION PAUSED: OPTIONS**. |
 
 ---
 
@@ -196,7 +196,7 @@ Store copy = `MarketingPackFull.md` section 2 as it stands today. Items LaunchAu
 | Label used | Source |
 |---|---|
 | Workstation, Mail, Work Queue, Work Orders, Personnel, Jotter, Camera Viewer, NEXUS Help, Disposal, File Manager | `app.*` in `strings.json`; desktop order from `Desktop.cs` |
-| Nexus (button), Task (button, shows "Task: ..."), \|\| | `Taskbar.cs` (hard-coded) |
+| Nexus (button), Task (button, shows "Task: ...", or "8 min left: ..." for a task with a due time), \|\| | `start.button`, `taskbar.due`, `Taskbar.cs` |
 | Documents, System Monitor, Help, Shut Down... | `start.documents`, `StartMenu.cs`, `start.help`, `start.shutdown` |
 | Full effects, Reduce flashing (first launch) | `BootSequence.cs` |
 | New Game, Normal, Story, Continue, Night Select, Records, Options, Quit | `title.new`, `title.normal`, `title.story`, `title.continue.at`, `title.select`, `title.records`, `title.settings`, `title.quit` |
@@ -208,7 +208,7 @@ Store copy = `MarketingPackFull.md` section 2 as it stands today. Items LaunchAu
 | TERMINATED | `tasks.json` task description, briefing mail |
 | File > Save, Ctrl+S; "Text is added at the end" | `NotepadApp.cs` File menu; `notepad.editable.hint`, `help.body` |
 | Remote session typing notice; "Type a reply and press Enter" | `notify.jotter.reply` |
-| Drag firmly away; if you let go, it keeps the file | `notify.conflict`, `help.body` |
+| Drag firmly away; if you let go, it keeps the file; SESSION 017 IS PULLING, the bar above the file | `notify.conflict`, `help.body`, `tug.label` |
 | "Access Denied"; "your work is in the Work Queue" | `camera.denied.title`, `camera.denied.body` |
 | Some programs need clearance you do not have. Stick to your tasks. | `quickstart.body` |
 | CRT effects, Flashing (Full/Reduced), Display, Volume | `PauseMenu.cs` (hard-coded) |

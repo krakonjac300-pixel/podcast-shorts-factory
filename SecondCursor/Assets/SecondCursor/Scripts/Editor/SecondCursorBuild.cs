@@ -152,6 +152,7 @@ namespace SecondCursor.EditorTools
             };
             var report = BuildPipeline.BuildPlayer(options);
             MoveSymbolsOut(OutputDir, "Windows");
+            StripUnusedGraphicsFiles(OutputDir, "Windows");
             return report;
         }
 
@@ -219,6 +220,35 @@ namespace SecondCursor.EditorTools
                 foreach (var d in Directory.GetDirectories(dir)) Directory.Delete(d, true);
             }
             Directory.CreateDirectory(dir);
+        }
+
+        /// <summary>
+        /// Phase H: Unity copies the D3D12 Agility SDK (D3D12\D3D12Core.dll) into every Windows player. This game renders with
+        /// Direct3D 11 only, so it is never loaded: it goes to Builds/Symbols/&lt;build&gt;/NotShipped instead of shipping (4.5 MB).
+        /// The DirectStorage runtime (dstorage.dll, dstoragecore.dll, 1.7 MB) must stay although DirectStorage is off: a
+        /// player without it hangs at startup before writing its log (tested on the Phase H build). If Direct3D 12 is ever
+        /// enabled, D3D12 stays in the build.
+        /// </summary>
+        static void StripUnusedGraphicsFiles(string outputDir, string build)
+        {
+            if (!Directory.Exists(outputDir)) return;
+            var apis = PlayerSettings.GetGraphicsAPIs(BuildTarget.StandaloneWindows64);
+            bool d3d11Only = !PlayerSettings.GetUseDefaultGraphicsAPIs(BuildTarget.StandaloneWindows64)
+                             && apis.Length == 1 && apis[0] == UnityEngine.Rendering.GraphicsDeviceType.Direct3D11;
+            if (!d3d11Only)
+            {
+                Debug.Log("[SYSTEM] Build: D3D12 kept (the build uses more than Direct3D 11)");
+                return;
+            }
+            string dest = Path.Combine(SymbolsDir, build, "NotShipped");
+            if (Directory.Exists(dest)) Directory.Delete(dest, true);
+            Directory.CreateDirectory(dest);
+            string d3d12 = Path.Combine(outputDir, "D3D12");
+            if (Directory.Exists(d3d12))
+            {
+                Directory.Move(d3d12, Path.Combine(dest, "D3D12"));
+                Debug.Log("[SYSTEM] Build: moved D3D12 out (Direct3D 11 only)");
+            }
         }
 
         /// <summary>The *_BackUpThisFolder_ButDontShipItWithYourGame folders go to Builds/Symbols/&lt;build&gt;.</summary>
@@ -291,6 +321,7 @@ namespace SecondCursor.EditorTools
                 AssetDatabase.SaveAssets();
             }
             MoveSymbolsOut(DemoOutputDir, "WindowsDemo");
+            StripUnusedGraphicsFiles(DemoOutputDir, "WindowsDemo");
             return report;
         }
 

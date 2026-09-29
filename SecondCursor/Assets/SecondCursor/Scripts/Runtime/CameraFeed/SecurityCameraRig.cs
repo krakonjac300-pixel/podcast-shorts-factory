@@ -494,7 +494,9 @@ namespace SecondCursor.CameraFeed
             if (_active != null) EnableArea(_active, false);
             // M1: the office feed just came up: the seated arm plays dead for a moment before it answers the mouse.
             if (want == _office && _office != null) _officeSince = Time.time;
-            if (want != null && want == _sublevel) _cam04Since = Time.time;
+            // M10: the loop starts at shelf 17 the first time CAM 04 comes up. Phase H: after that it keeps running while
+            // you look elsewhere, so a viewer that keeps being closed or switched still reaches every shelf in one cycle.
+            if (want != null && want == _sublevel && _cam04Since < 0f) _cam04Since = Time.time;
             _active = want;
             if (_active == null) return;
             EnableArea(_active, true);

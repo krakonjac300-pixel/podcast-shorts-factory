@@ -181,7 +181,7 @@ namespace SecondCursor.OS
             var c = g.Content;
             int y = 8;
             d.AddApp(AppIds.Workstation, c.Text("app.workstation"), "icon_workstation", 6, y); y += DesktopIcon.CellH + 2;
-            d.AddApp(AppIds.Mail, c.Text("app.mail"), "icon_mail", 6, y); y += DesktopIcon.CellH + 2;
+            d._mailIcon = d.AddApp(AppIds.Mail, c.Text("app.mail"), "icon_mail", 6, y); y += DesktopIcon.CellH + 2;
             d.AddApp(AppIds.WorkQueue, c.Text("app.workqueue"), "icon_workorders", 6, y); y += DesktopIcon.CellH + 2;
             d.AddApp(AppIds.WorkOrders, c.Text("app.workorders"), "icon_file_log", 6, y); y += DesktopIcon.CellH + 2;
             d.AddApp(AppIds.Staff, c.Text("app.staff"), "icon_staff", 6, y); y += DesktopIcon.CellH + 2;
@@ -259,8 +259,20 @@ namespace SecondCursor.OS
             _attentionUntil = Time.time + seconds;
         }
 
+        DesktopIcon _mailIcon;
+        int _mailRevision = -1;
+
+        /// <summary>Phase H: the Mail icon shows an unread envelope while anything in the inbox is unread.</summary>
+        void UpdateMailIcon()
+        {
+            if (_mailIcon == null || _g.Mail == null || _mailRevision == _g.Mail.Revision) return;
+            _mailRevision = _g.Mail.Revision;
+            _mailIcon.SetSprite(_g.Mail.UnreadCount > 0 ? "icon_mail_unread" : "icon_mail");
+        }
+
         void LateUpdate()
         {
+            UpdateMailIcon();
             if (_attention == null) return;
             if (Time.time >= _attentionUntil)
             {

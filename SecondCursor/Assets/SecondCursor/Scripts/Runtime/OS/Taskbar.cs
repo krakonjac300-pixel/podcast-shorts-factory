@@ -67,7 +67,7 @@ namespace SecondCursor.OS
             ((RectTransform)bar.StartButton.transform).At(2, 4, 62, 22);
             var logo = UIBuilder.Icon(bar.StartButton.transform.GetChild(0), "icon_nexus", 1);
             logo.rectTransform.anchoredPosition = new Vector2(2f, -1f);
-            var startLabel = UIBuilder.Text(bar.StartButton.transform.GetChild(0), "Nexus", Palette.Text, true);
+            var startLabel = UIBuilder.Text(bar.StartButton.transform.GetChild(0), g.Content.Text("start.button", "Nexus"), Palette.Text, true);
             startLabel.rectTransform.Stretch(21, 0, 0, 0);
             startLabel.VAlign = TextVAlign.Middle;
             bar.StartMenu = new StartMenu(g, bar.StartButton);
@@ -193,17 +193,29 @@ namespace SecondCursor.OS
             }
         }
 
+        /// <summary>Minutes left at or below which a due task's button text turns red.</summary>
+        const int DueSoonMinutes = 5;
+        int _taskMinute = -1;
+
         void UpdateTask()
         {
-            if (_taskRevision != _g.Tasks.Revision)
+            var current = _g.Tasks.Current;
+            bool timed = current != null && !string.IsNullOrEmpty(current.Data.deadline);
+            if (_taskRevision != _g.Tasks.Revision || (timed && _taskMinute != _g.Clock.TotalMinutes))
             {
                 _taskRevision = _g.Tasks.Revision;
-                var current = _g.Tasks.Current;
+                _taskMinute = _g.Clock.TotalMinutes;
                 _task.gameObject.SetActive(current != null);
                 if (current != null)
                 {
                     string progress = current.Goal > 1 ? " (" + current.Progress + "/" + current.Goal + ")" : "";
-                    _task.SetLabel(Ellipsize("Task: " + current.Title + progress, TaskWidth - 30));
+                    // Phase H: a task with a due time counts down on the button (the clock's speed changes during a night).
+                    int left = timed ? Core.Tasks.TaskDeadline.MinutesLeft(current.Data.deadline, _g.Clock.TotalMinutes) : -1;
+                    string text = left > 0 ? _g.Content.Format("taskbar.due", current.Title + progress, left)
+                        : left == 0 ? _g.Content.Format("taskbar.duenow", current.Title + progress)
+                        : "Task: " + current.Title + progress;
+                    _task.SetLabel(Ellipsize(text, TaskWidth - 30));
+                    if (_task.Label != null) _task.Label.color = left >= 0 && left <= DueSoonMinutes ? (Color)Palette.Red : (Color)Palette.Text;
                 }
             }
             // A new task blinks a few times so the eye finds it.

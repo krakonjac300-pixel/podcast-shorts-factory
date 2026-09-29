@@ -4,7 +4,11 @@ using SecondCursor.Core.Content;
 
 namespace SecondCursor.Core.Tasks
 {
-    public enum TaskType { ReadEmail, MoveFile, DeleteFile, DecideOrder, OpenFile, ViewEmployee, Unknown }
+    /// <summary>
+    /// Wait: an information line the story completes itself ("Wait for Custodial rounds (3:00 AM)"); nothing the world
+    /// does ever completes it.
+    /// </summary>
+    public enum TaskType { ReadEmail, MoveFile, DeleteFile, DecideOrder, OpenFile, ViewEmployee, Wait, Unknown }
 
     /// <summary>Withdrawn: taken back out of the queue (an entity task that expired); it never comes back.</summary>
     public enum TaskState { Hidden, Active, Completed, Withdrawn }
@@ -31,6 +35,12 @@ namespace SecondCursor.Core.Tasks
         public TaskState State;
         public int Progress;
         public int Goal;
+        /// <summary>The task was in the queue at some point (a task withdrawn before it was ever given stays out of sight).</summary>
+        public bool WasShown;
+        /// <summary>Why a shown company task was withdrawn ("missed 3:00 AM"); the Work Queue keeps it, struck through. Null = it vanishes.</summary>
+        public string WithdrawNote;
+        /// <summary>What a finished task filed ("1 approved, 2 rejected"); the Work Queue shows it after the title.</summary>
+        public string ResultNote;
 
         public WorkTask(TaskData data)
         {
@@ -56,8 +66,37 @@ namespace SecondCursor.Core.Tasks
                 case "decideorder": return TaskType.DecideOrder;
                 case "openfile": return TaskType.OpenFile;
                 case "viewemployee": return TaskType.ViewEmployee;
+                case "wait": return TaskType.Wait;
                 default: return TaskType.Unknown;
             }
+        }
+    }
+
+    /// <summary>A task's due time ("3:00 AM") against the shift clock, for the countdowns in the Work Queue and the taskbar.</summary>
+    public static class TaskDeadline
+    {
+        /// <summary>"3:00 AM" -> 180 (minutes since midnight); -1 when it cannot be read.</summary>
+        public static int Minutes(string deadline)
+        {
+            if (string.IsNullOrEmpty(deadline)) return -1;
+            string s = deadline.Trim().ToUpperInvariant();
+            bool pm = s.EndsWith("PM", StringComparison.Ordinal);
+            bool am = s.EndsWith("AM", StringComparison.Ordinal);
+            if (am || pm) s = s.Substring(0, s.Length - 2).Trim();
+            int colon = s.IndexOf(':');
+            if (colon <= 0 || !int.TryParse(s.Substring(0, colon), out int h) || !int.TryParse(s.Substring(colon + 1), out int m)) return -1;
+            if (h < 0 || h > 23 || m < 0 || m > 59) return -1;
+            if (pm && h < 12) h += 12;
+            if (am && h == 12) h = 0;
+            return h * 60 + m;
+        }
+
+        /// <summary>Whole minutes from <paramref name="clockMinutes"/> to the deadline (never below 0); -1 when there is none.</summary>
+        public static int MinutesLeft(string deadline, int clockMinutes)
+        {
+            int due = Minutes(deadline);
+            if (due < 0) return -1;
+            return Math.Max(0, due - clockMinutes);
         }
     }
 
@@ -120,6 +159,7 @@ namespace SecondCursor.Core.Tasks
             var t = Get(id);
             if (t == null || t.State != TaskState.Hidden) return;
             t.State = TaskState.Active;
+            t.WasShown = true;
             Revision++;
             GameLog.Info(LogChannel.Task, "Activated " + t.Id + " \"" + t.Title + "\"");
             TaskActivated?.Invoke(t);
@@ -131,22 +171,36 @@ namespace SecondCursor.Core.Tasks
         {
             var t = Get(id);
             if (t == null || t.State == TaskState.Completed || t.State == TaskState.Withdrawn) return;
-            if (t.State == TaskState.Hidden) { t.State = TaskState.Active; TaskActivated?.Invoke(t); }
+            if (t.State == TaskState.Hidden) { t.State = TaskState.Active; t.WasShown = true; TaskActivated?.Invoke(t); }
             Complete(t);
         }
 
         /// <summary>
-        /// Take a task back out of the queue (an entity task that expired, a suspended order). A withdrawn task is
-        /// hidden, never completes, and cannot be activated again. Completed tasks stay completed.
+        /// Take a task back out of the queue (an entity task that expired, a suspended order). A withdrawn task never
+        /// completes and cannot be activated again; completed tasks stay completed. With a <paramref name="note"/>
+        /// ("missed 3:00 AM") a task the player has seen stays listed, struck through, so it never vanishes silently.
         /// </summary>
-        public void Withdraw(string id)
+        public void Withdraw(string id, string note = null)
         {
             var t = Get(id);
             if (t == null || t.State == TaskState.Completed || t.State == TaskState.Withdrawn) return;
             t.State = TaskState.Withdrawn;
+            t.WithdrawNote = t.WasShown && !string.IsNullOrEmpty(note) ? note : null;
             Revision++;
-            GameLog.Info(LogChannel.Task, "Withdrew " + t.Id);
+            GameLog.Info(LogChannel.Task, "Withdrew " + t.Id + (t.WithdrawNote != null ? " (" + t.WithdrawNote + ")" : ""));
             TaskWithdrawn?.Invoke(t);
+        }
+
+        /// <summary>A withdrawn task the Work Queue still lists (shown before, withdrawn with a note).</summary>
+        public static bool IsListedWithdrawn(WorkTask t) => t != null && t.State == TaskState.Withdrawn && t.WasShown && t.WithdrawNote != null;
+
+        /// <summary>What a finished task filed, shown after its title in the Work Queue.</summary>
+        public void SetResult(string id, string note)
+        {
+            var t = Get(id);
+            if (t == null || t.ResultNote == note) return;
+            t.ResultNote = note;
+            Revision++;
         }
 
         /// <summary>Re-check every active task against the world. Call after any relevant game event.</summary>

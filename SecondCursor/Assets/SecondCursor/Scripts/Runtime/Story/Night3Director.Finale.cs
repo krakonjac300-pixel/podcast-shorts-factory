@@ -438,6 +438,10 @@ namespace SecondCursor.Story
                 cancelled = true;
                 GameLog.Info(LogChannel.Story, "Log off cancelled by " + (a?.Name ?? "System"));
                 progress.Close(a);
+                // Phase H: another session's Cancel is named, so it never looks like the log off simply failed.
+                if (a != null && a.IsEntity)
+                    _g.Notifications.Show(c.Text("os.name"), c.Format("logoff.cancelled.by", SystemNotices.SessionOf(_g, a)), "icon_shutdown",
+                        x => _g.Taskbar.StartMenu.OpenFromElsewhere(x), "sys_warning");
             };
             RunSide(LogOffProgress(progress, () => cancelled), "logoff-progress");
             if (GaryFinished) Gary.Run(GaryCancelsLogOff(progress), "gary-cancel-logoff");

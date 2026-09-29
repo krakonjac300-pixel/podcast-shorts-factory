@@ -77,6 +77,19 @@
     { "key": "ach.ACH_WATCHERS.name", "value": "Watch the Watchers" },
     { "key": "ach.ACH_WATCHERS.desc", "value": "Find CAM 00." },
     { "key": "logoff.early.disabled", "value": "Log off is available at the end of your shift (7:00 AM).\nPolicy: Restricted\\session.cfg (ALLOW_LOGOFF=0)" },
-    { "key": "logoff.added", "value": "Log Off CROURKE... added to the Nexus menu." }
+    { "key": "logoff.added", "value": "Log Off CROURKE... added to the Nexus menu." },
+    { "key": "session.gary", "value": "session 209" },
+    { "key": "file.saved.by", "value": "{0} saved by {1}." },
+    { "key": "policy.logoff.on", "value": "Log off at 7:00 AM: allowed (ALLOW_LOGOFF=1)." },
+    { "key": "policy.logoff.off", "value": "Log off at 7:00 AM: not allowed. The last ALLOW_LOGOFF line counts, and it must say ALLOW_LOGOFF=1." },
+    { "key": "policy.cam00.on", "value": "CAM 00: listed in Camera Viewer (OPERATOR_OVERRIDE=1)." },
+    { "key": "policy.cam00.off", "value": "CAM 00: not listed. The last OPERATOR_OVERRIDE line counts." },
+    { "key": "notify.order.missed", "value": "Office of Retention: employee_209.dat was not reclaimed by 3:00 AM.\nOrder suspended." },
+    { "key": "workqueue.withdrawn.missed", "value": "missed {0}" },
+    { "key": "workqueue.withdrawn.suspended", "value": "suspended" },
+    { "key": "workqueue.withdrawn.cancelled", "value": "cancelled" },
+    { "key": "workorders.shelf.filed", "value": "Shelf check filed: {0} approved, {1} rejected" },
+    { "key": "logoff.cancelled.by", "value": "Log off cancelled by {0}." },
+    { "key": "camera.next", "value": "NEXT: {0}" }
   ]
 }

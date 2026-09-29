@@ -25,6 +25,8 @@ namespace SecondCursor.Apps
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
             CreateWindow(G.Content.Text("app.workorders"), "icon_workorders", 120, 110, 500, 320, WindowFlags.Standard, zoomFrom);
+            // Phase H: Personnel (opened next, to check the owner) must never land on Approve and Reject.
+            Window.KeepVisibleBottomRight = new Vector2(186f, 34f);
             var client = Window.Client;
 
             _list = new ListView(client, "Orders", new[] { 60, 110 }, new[] { "Order", "Status" }, false);
@@ -33,7 +35,12 @@ namespace SecondCursor.Apps
             _list.Root.pivot = new Vector2(0f, 1f);
             _list.Root.offsetMin = new Vector2(2f, 2f);
             _list.Root.offsetMax = new Vector2(176f, -2f);
-            _list.RowSelected += (row, a) => Show((WorkOrderData)row.Tag);
+            _list.RowSelected += (row, a) =>
+            {
+                var order = (WorkOrderData)row.Tag;
+                Show(order);
+                G.Orders.NotifyViewed(order.id, a);
+            };
 
             var paper = UIBuilder.Bevel(client, BevelStyle.Sunken, "Form");
             paper.rectTransform.Stretch(180, 2, 2, 34);
@@ -114,130 +121,6 @@ namespace SecondCursor.Apps
         public override void Tick(float dt)
         {
             if (_revision != G.Orders.Revision) Refresh();
-        }
-    }
-
-    /// <summary>Work Queue: tonight's checklist with the current task's instructions and hint.</summary>
-    public sealed class WorkQueueApp : App
-    {
-        RectTransform _listRoot;
-        /// <summary>M9: the remote rows' band and label, faded as their time runs out.</summary>
-        readonly System.Collections.Generic.Dictionary<string, (UnityEngine.UI.Image band, PixelText label)> _remoteRows =
-            new System.Collections.Generic.Dictionary<string, (UnityEngine.UI.Image band, PixelText label)>();
-        PixelText _detail;
-        PixelText _header;
-        int _revision = -1;
-
-        public override string AppId => AppIds.WorkQueue;
-
-        public override void Open(Rect? zoomFrom, CursorAgent by)
-        {
-            // Large reading text (Steam Deck) doubles the task description and hint, so the window opens wider.
-            int scale = Game.DisplaySettings.ReadingScale;
-            int w = scale > 1 ? 420 : 262, h = scale > 1 ? 420 : 290;
-            CreateWindow(G.Content.Text("app.workqueue"), "icon_workorders", Rendering.ScreenRig.Width - w - 8, 16, w, h, WindowFlags.Standard, zoomFrom);
-            var client = Window.Client;
-            _header = UIBuilder.Text(client, G.Content.Text("workqueue.header"), Palette.Text, true);
-            _header.rectTransform.TopStrip(4, 12, 6, 4);
-            var frame = UIBuilder.Bevel(client, BevelStyle.Sunken, "Tasks");
-            frame.rectTransform.TopStrip(20, 128, 2, 2);
-            _listRoot = UIBuilder.Rect("Rows", frame.rectTransform).Stretch(3, 3, 3, 3);
-            UIBuilder.Clip(_listRoot);
-            var detailFrame = UIBuilder.Bevel(client, BevelStyle.StatusField, "Detail");
-            detailFrame.rectTransform.Stretch(2, 152, 2, 2);
-            _detail = UIBuilder.Text(detailFrame.rectTransform, "", Palette.Text);
-            _detail.Wrap = true;
-            _detail.Scale = scale;
-            _detail.rectTransform.Stretch(6, 6, 6, 6);
-            Refresh();
-        }
-
-        /// <summary>Rows that fit the list without scrolling.</summary>
-        const int MaxRows = 7;
-
-        void Refresh()
-        {
-            _revision = G.Tasks.Revision;
-            for (int i = _listRoot.childCount - 1; i >= 0; i--) Object.Destroy(_listRoot.GetChild(i).gameObject);
-            _remoteRows.Clear();
-            int y = 0;
-            WorkTask current = null;
-            foreach (var t in G.Tasks.Tasks)
-                if (t.State == TaskState.Active) { current = t; break; }
-            foreach (var t in VisibleTasks())
-            {
-                var row = UIBuilder.Rect("Task " + t.Id, _listRoot).TopStrip(y, 18);
-                bool remote = t.IsEntityAuthored;
-                UnityEngine.UI.Image band = null;
-                if (remote && t.State != TaskState.Completed)
-                {
-                    // Written by the remote session: the entity's own inverted colours.
-                    band = UIBuilder.Solid(row, Palette.EntityFill, "Remote");
-                    band.rectTransform.Stretch(18, 1, 0, 1);
-                }
-                string icon = t.State == TaskState.Completed ? "icon_task_done" : (t == current ? "icon_task_active" : "icon_task_pending");
-                var ic = UIBuilder.Icon(row, icon, 1);
-                ic.rectTransform.anchoredPosition = new Vector2(1f, -1f);
-                string title = t.Title + (t.Goal > 1 && t.State != TaskState.Completed ? " (" + t.Progress + "/" + t.Goal + ")" : "");
-                if (remote) title += " " + G.Content.Text("workqueue.remote");
-                var color = t.State == TaskState.Completed ? Palette.TextDisabled : (remote ? Palette.EntityText : Palette.Text);
-                var label = UIBuilder.Text(row, title, color, t == current);
-                label.rectTransform.Stretch(20, 0, 2, 0);
-                label.VAlign = TextVAlign.Middle;
-                if (band != null) _remoteRows[t.Id] = (band, label);
-                y += 18;
-            }
-            if (y == 0)
-            {
-                var none = UIBuilder.Text(_listRoot, G.Content.Text("workqueue.empty"), Palette.TextDisabled);
-                none.rectTransform.TopStrip(4, 12, 4, 4);
-            }
-            if (current == null)
-            {
-                _detail.text = "";
-                return;
-            }
-            string due = string.IsNullOrEmpty(current.Data.deadline) ? "" : G.Content.Format("workqueue.deadline", current.Data.deadline) + "\n";
-            _detail.text = due + current.Data.description + (string.IsNullOrEmpty(current.Data.hint) ? "" : "\n\nHint: " + current.Data.hint);
-        }
-
-        /// <summary>M9: every 15 s of a remote item's life takes 10% off its row; the last 3 s it blinks.</summary>
-        void FadeRemoteRows()
-        {
-            foreach (var kv in _remoteRows)
-            {
-                if (!G.RemoteTaskLife.TryGetValue(kv.Key, out var life) || life.y <= 0f) continue;
-                float elapsed = Time.time - life.x, left = life.y - elapsed;
-                float alpha = Mathf.Clamp01(1f - 0.10f * Mathf.Floor(Mathf.Max(0f, elapsed) / RemoteFadeStep));
-                if (left < RemoteBlinkSeconds && (Time.time * 4f) % 1f < 0.5f) alpha = 0f;
-                var (band, label) = kv.Value;
-                if (band != null) band.color = new Color(band.color.r, band.color.g, band.color.b, alpha);
-                if (label != null) label.color = new Color(label.color.r, label.color.g, label.color.b, Mathf.Max(alpha, 0.15f));
-            }
-        }
-
-        const float RemoteFadeStep = 15f, RemoteBlinkSeconds = 3f;
-
-        /// <summary>Tasks shown in the list: given and not withdrawn, at most <see cref="MaxRows"/> (oldest done ones go first).</summary>
-        System.Collections.Generic.List<WorkTask> VisibleTasks()
-        {
-            var list = new System.Collections.Generic.List<WorkTask>();
-            foreach (var t in G.Tasks.Tasks)
-                if (t.State == TaskState.Active || t.State == TaskState.Completed) list.Add(t);
-            while (list.Count > MaxRows)
-            {
-                int done = list.FindIndex(t => t.State == TaskState.Completed);
-                list.RemoveAt(done >= 0 ? done : 0);
-            }
-            return list;
-        }
-
-        public override void Tick(float dt)
-        {
-            if (_revision != G.Tasks.Revision) Refresh();
-            FadeRemoteRows();
-            int scale = Game.DisplaySettings.ReadingScale;
-            if (_detail != null && _detail.Scale != scale) _detail.Scale = scale;
         }
     }
 

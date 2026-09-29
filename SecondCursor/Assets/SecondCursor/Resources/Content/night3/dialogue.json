@@ -104,6 +104,7 @@
     { "id": "n3_rounds_door", "voice": "", "lines": ["TOO CLOSE", "CLOSE IT NOW"], "speakers": [] },
     { "id": "n3_rounds_cleared", "voice": "", "lines": ["I KEPT A COPY", "AGAIN"], "speakers": [] },
     { "id": "n3_rounds_safe", "voice": "", "lines": ["IT WENT BACK DOWN"], "speakers": [] },
+    { "id": "n3_shelf_you", "voice": "", "lines": ["THAT ONE IS YOU", "YOU DONT HAVE TO SIGN IT"], "speakers": [] },
     { "id": "n3_lost", "voice": "", "lines": ["YOU LOST TIME", "THEY DO THAT"], "speakers": [] },
     { "id": "n3_finale_feed", "voice": "", "lines": ["DONT TURN AROUND"], "speakers": [] },
     { "id": "n3_tug_letgo", "voice": "", "lines": ["I CANT STOP MY HAND", "PULL HARDER"], "speakers": [] },

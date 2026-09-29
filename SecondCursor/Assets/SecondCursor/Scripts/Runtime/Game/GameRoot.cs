@@ -181,6 +181,7 @@ namespace SecondCursor.Game
             g.Rounds = RoundsSystem.Create(g, transform);
             NightSetup.ForNight(g);
             g.Director = NightDirector.Create(g, transform, g.Night);
+            SystemNotices.Attach(g);
             // After the world set-up (which may set memory flags): only what happens from here can unlock anything.
             g.AchievementWatch = AchievementWatcher.Attach(g);
             Achievements.Reconcile(g);

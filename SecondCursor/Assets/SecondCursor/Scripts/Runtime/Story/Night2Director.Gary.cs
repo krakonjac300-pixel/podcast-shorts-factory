@@ -562,8 +562,11 @@ namespace SecondCursor.Story
             {
                 g.Tasks.Withdraw(ContentIds.TaskE2Archive209);
             }
-            if (!Done(ContentIds.TaskN2Shred209)) g.Tasks.Withdraw(ContentIds.TaskN2Shred209);
-            g.Notifications.Show(g.Content.Text("app.workqueue"), g.Content.Text("notify.order.suspended"), "icon_info", null, "sys_warning");
+            // Phase H: the order stays in the queue, struck through with why, and the notice says what was missed.
+            if (!Done(ContentIds.TaskN2Shred209))
+                g.Tasks.Withdraw(ContentIds.TaskN2Shred209, archived ? g.Content.Text("workqueue.withdrawn.suspended")
+                    : g.Content.Format("workqueue.withdrawn.missed", g.Content.Task(ContentIds.TaskN2Shred209)?.deadline ?? "3:00 AM"));
+            g.Notifications.Show(g.Content.Text("app.workqueue"), g.Content.Text(archived ? "notify.order.suspended" : "notify.order.missed"), "icon_info", null, "sys_warning");
             if (Gary.Agent.Enabled)
             {
                 Gary.FadeTo(Gary.MaxAlpha * 0.8f, 0.4f);
@@ -625,6 +628,8 @@ namespace SecondCursor.Story
             g.Rounds.TimeUp += _onTimeUp;
             g.Rounds.ForcedBy = null;
             g.Rounds.Begin(RoundsConfig.Night2(g.Difficulty.Mode, g.Memory.Trust));
+            // Phase H: what Security asks for during the round is a line in the queue, not only a mail.
+            GiveTask(ContentIds.TaskN2RoundsWatch);
 
             float start = Time.time;
             bool emptied = false;
@@ -641,6 +646,7 @@ namespace SecondCursor.Story
             }
             g.Rounds.Stop();
             UnhookRounds();
+            if (g.Tasks.IsActive(ContentIds.TaskN2RoundsWatch)) g.Tasks.ForceComplete(ContentIds.TaskN2RoundsWatch);
             brain.Enabled = false;
             brain.AllowCloseCamera = false;
             E.Interrupt();

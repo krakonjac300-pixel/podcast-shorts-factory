@@ -48,6 +48,16 @@ namespace SecondCursor.Entity
         bool _forcedNow;
         public float Strain => _model != null && IsFighting ? _model.Strain : 0f;
         public float EntityShare => _model != null && IsFighting ? _model.EntityShare : 0f;
+        /// <summary>The pull meter's value: 0 = the second cursor is about to take the file, 1 = the player is about to keep it.</summary>
+        public float PlayerLead => _model != null ? _model.PlayerLead : 0.5f;
+        /// <summary>Where the fought-over file sits between the two cursors (virtual px).</summary>
+        public Vector2 ObjectPosition => _model != null && IsFighting ? _model.ObjectPosition.ToUnity() : _lastObject;
+        /// <summary>The last contest was lost because the player let go of the button (not by being out-pulled).</summary>
+        public bool LastLostByRelease { get; private set; }
+        /// <summary>Where the player's cursor was when the last contest ended.</summary>
+        public Vector2 LastEndPlayerPosition { get; private set; }
+        Vector2 _lastObject;
+        bool _playerGripsNow = true;
 
         public event Action<DragPayload> TugStarted;
         public event Action<DragPayload, TugOutcome> TugEnded;
@@ -70,6 +80,8 @@ namespace SecondCursor.Entity
                 c._band.Add(dot);
             }
             g.DragDrop.ContestStarted += c.OnContestStarted;
+            // Phase H: the fight explains itself above the file (label, pull meter, who kept it).
+            TugHud.Create(g, c);
             g.DragDrop.PayloadFinished += (p, accepted, by) =>
             {
                 if (p != c._payload) return;
@@ -130,8 +142,10 @@ namespace SecondCursor.Entity
             var outcome = _model.Step(dt, player.Position.ToCore(), playerGrips, entity.Position.ToCore(), grip);
             if (outcome == TugOutcome.None) outcome = Overrule(dt, playerGrips);
             float strain = _model.Strain;
+            _playerGripsNow = playerGrips;
 
             Vector2 obj = _model.ObjectPosition.ToUnity();
+            _lastObject = obj;
             Vector2 shake = UnityEngine.Random.insideUnitCircle * (strain * 4f);
             _payload.GhostPosition = obj + new Vector2(-16f, 14f) + shake;
 
@@ -270,6 +284,9 @@ namespace SecondCursor.Entity
         void End(TugOutcome outcome, bool transfer)
         {
             var p = _payload;
+            LastLostByRelease = outcome == TugOutcome.EntityWins && !_playerGripsNow;
+            LastEndPlayerPosition = _g.Player.Position;
+            _playerGripsNow = true;
             _payload = null;
             foreach (var d in _band) d.enabled = false;
             if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;

@@ -739,6 +739,96 @@ tuning is unchanged: no difficulty value moved, and its finale idle fast-forward
   DirectStorage files still ship (4.5 MB and 1.7 MB) although D3D11 is the only API; bundleVersion is 0.9.0 (set 1.0.0 by hand before
   release); the store art is a generated first pass (a hand-made key art can replace it); a trailer.
 
+### Phase H (blind playtest fixes)
+
+Input: `_work/2026-09-29/playtest/BlindPlaytest.md` (a screen-only first-time playtest of all three nights, 25 findings) and
+`_work/2026-09-29/launch/PhaseH_Todo.md`. The owner's rule: an average person must understand the game from what the screen says.
+The game got clearer, not easier: no difficulty value, timing or story branch changed.
+
+- **Tug-of-war (finding 1).** `Runtime/Entity/TugHud.cs`: while two cursors grip a file, a NEXUS label beside it reads
+  `SESSION 017 IS PULLING. / HOLD THE BUTTON AND DRAG AWAY.` (`tug.label`, Deck: R2) with a pull meter, YOU on the left and 017 on the
+  right (`ConflictSystem.PlayerLead`, from `TugOfWar.PlayerLead`: 0 = she is about to take it, 1 = you are about to keep it). The label
+  takes the side of the file (above, below, left, right) that hides neither pointer. When the fight ends it says `YOU KEPT THE FILE.` or
+  `SESSION 017 TOOK THE FILE. / GRAB IT, HOLD AND DRAG AWAY.` next to the winner's cursor. `notify.conflict` (first lost tug) names
+  session 017, with a Deck variant. The Quick Start has the tug line; Help says a bar shows who is winning.
+- **Tug verification (Night 1 Normal, first contest, real tugs, not forced).** `dragtug 915 66 2.2` from the desktop file toward the
+  bin (she grabs 0.40 to 0.46 s after the drag begins), `wait 0.25`, then `tugplay SPEED`, a continuous pull straight away from her:
+  before the HUD 10 of 10 won (300 to 600 px/s, 0.63 to 0.93 s), with the HUD 9 of 10 (the 300 px/s try lost once). The tester's
+  pattern (the pointer held still between moves) loses in 1.07 to 1.09 s, 3 of 3, and so does a 0.5 s pause before the pull (0 of 3): after
+  half a second of holding still the file is too far gone for the snap. No balance change: a realistic pull wins the first contest.
+- **Silent refusals (finding 2 to 4, 9, 14).** `Runtime/OS/SystemNotices.cs` says who did it: `Shred of X cancelled by session 017.`
+  (her No or Cancel), `Camera Viewer closed by session 017.` (any app window another cursor closes, at most every 6 s per app),
+  `employee_017.dat moved by session 017.` (KeepAway). A lost tug released over the Disposal bin adds `Disposal refused X: session 017 is
+  holding it...`. `error.inuse.body` names session 017. The Camera Viewer icon was never locked: during rounds the viewer opened and was
+  closed by her within 1.2 to 2 s, between the tester's screenshots; the close notice now says so. Jotter conversations show a status
+  line: `Remote session is typing. Your reply is sent when it stops.` while keys are typed ahead, and `Remote session is not reading.` when
+  nobody has typed, thought or waited for you for 3 s (those keys, and keys typed ahead into a conversation that stopped, are dropped instead of being sent
+  minutes later). A saved config names the saver (`file.saved.by`, session 209 for Gary) and what the file now decides
+  (`AppManager.SavedNote`: `Log off at 7:00 AM: allowed (ALLOW_LOGOFF=1).` or `not allowed. The last ALLOW_LOGOFF line counts...`; the
+  same for camview.cfg). Gary's Cancel on the Log Off progress: `Log off cancelled by session 209.`
+- **Deadlines and the queue (findings 6, 7, 11, 12, 21, 22).** `WorkTaskManager.Withdraw(id, note)`: a task the player saw that is taken
+  back with a note stays in the Work Queue, struck through, with the note in red at the right (`MISSED 3:00 AM` for 209 at the deadline,
+  `SUSPENDED` when 209 was archived, `CANCELLED` for an unfinished shelf check); remote items still vanish as before (M9). The deadline
+  notice: `notify.order.missed`. `TaskDeadline` (Core) turns "3:00 AM" into minutes: the taskbar Task button reads `8 min left: ...` (red
+  from 5 min) and the queue `Due: 3:00 AM (8 min left)`. `TaskType.Wait` (an information line only the story completes):
+  `t2_rounds_watch` "Rounds: keep the Camera Viewer open" during the Night 2 round, `t3_wait_rounds` "Wait for Custodial rounds (3:00 AM)"
+  after Batch 48 until the Night 3 round. Unread mail that arrived with a notice this shift gets a line at the bottom of the queue
+  (`New mail: <subject>`, click opens it) and the desktop Mail icon shows the unread envelope while anything is unread. Notices asked for
+  together arrive 1.1 s apart (`Notifications.Stagger`), slide in and out sideways (never across the Disposal bin), and a task hint goes
+  away as soon as its task is done or withdrawn (`keepWhile`).
+- **Windows (findings 11, 13, 15, 16).** `WindowManager.PlaceAvoidingOverlap`: app windows open right of the icon column (x from 88);
+  covering the Work Queue costs 2.5 per pixel (the viewer Security opens at 3:00 lands left of it); Work Orders keeps its Approve and
+  Reject strip clear (`OSWindow.KeepVisibleBottomRight`, weight 12), so Personnel opens above it when there is room (with Mail and File
+  Manager also open there may be none); Mail opens clear of the notices' column. Mail is 460 px tall (was 380) and shows `More below`
+  while the message continues under the fold.
+- **Night 3 shelf check (findings 5, 23).** The CAM 04 loop starts at shelf 17 the first time CAM 04 comes up (M10) and then keeps
+  running while you look elsewhere (it used to restart at 17 on every switch, so shelf 16, 26 s into the loop, could be unreachable
+  between forced opens every 22 to 30 s). The label and a `NEXT: SHELF 13` line sit at the top of the feed, where a window over the lower
+  half cannot hide them. The hint says shelves 12 to 19 come in order and what to do when the viewer closes. When it is done the queue
+  line becomes `Shelf check filed: 1 approved, 2 rejected` (and a notice). Opening WO-3342 during the round: Ellen types `THAT ONE IS YOU /
+  YOU DONT HAVE TO SIGN IT` (`n3_shelf_you`).
+- **Smaller fixes.** Night 1's card has an outcome line (`WS-04 went dark at 2:40 AM. The file came back.` or `... The file is still on
+  the desktop.`, `EndingSpec.Outcome`, also on the demo card); the Night 1 briefing adds "If WS-04 goes down before then, go home and I will
+  sort it out."; progress dialogs ignore the player's Cancel for 0.5 s (`Dialogs.CancelGrace`: a reflex click after Yes; her and Gary's
+  clicks are never ignored, and hovering Cancel still blocks her); remote Night 2 items have Hint lines (with Deck variants); the briefing
+  hint says the briefing opens by itself. Night 2 and 3 already had date cards (2.5 s, checked); the tester's screenshots fell between.
+- **PhaseH_Todo.** 1: Quick Start "Esc or the || button on the taskbar: pause and Options." 2: `notify.conflict.deck`. 3: `start.button`
+  is "Nexus" and the taskbar reads it. 4: the pause caption is `SESSION PAUSED: OPTIONS`. 5: both builds move `D3D12\D3D12Core.dll`
+  (4.5 MB) to `Builds/Symbols/<build>/NotShipped` while Direct3D 11 is the only API (`SecondCursorBuild.StripUnusedGraphicsFiles`); the
+  players start and render without it. `dstorage.dll` and `dstoragecore.dll` (1.7 MB) must ship although DirectStorage is off: a player
+  without them hangs at startup before it writes a log (tested). 6: fresh builds: full 71.9 MB and demo 71.6 MB on disk (Unity's report
+  76.5 / 76.3 MB counts the D3D12 folder moved out afterwards), Symbols in `Builds/Symbols`, windowed smoke tests with saves on D: clean (full, demo, full with
+  `-scnight 3 -scbeat rounds`), the demo still carries none of the new Night 2/3 text.
+- **Regression from the title on a fresh save** (`_work/2026-09-29/phaseH/reg_n*.cmd`): New Game, Normal, Night 1 to its card (tug won,
+  017 shredded, outcome line), Continue to Night 2 to its card (finished), Continue to Night 3 to its card (KEEP); 0 game errors, 0
+  compiler warnings. The scripted drags met two designed disruptions (Night 2's batch45_c rename reorders the rows mid-drag; Ellen's
+  Jotter opens over File Manager on Night 3), so a few chores there were finished by the existing safety nets; every new line and notice
+  was checked separately above.
+- **Tests.** CoreTests 295 (17 new in `PhaseHTests.cs`: due times, withdrawn-with-note and result lines, Wait lines, the pull meter, the
+  new strings and their Deck variants, remote hints, the shelf check text). CompileCheck: 8 configurations OK.
+- **Checked through the bridge** (saves under `_work/2026-09-29/saves/phaseH*`, screenshots `Library/SecondCursorBridge/shots/h_*.png`): the tug
+  label, meter and both results; the loss notice; Disposal refused (Night 2, released over the bin mid-tug); shred cancelled by session 017;
+  Camera Viewer closed by session 017 (Night 1 reveal, Night 2 and 3 rounds); moved by session 017 (KeepAway); Quick Start; briefing hint;
+  Mail taller with More below; File Manager at x 88; Personnel above Work Orders' buttons; the Cancel grace (shred and Log Off); hint
+  toasts; Jotter typing and not-reading lines; the Night 1 card outcome; the Night 2 card; remote hints; `11 min left`; MISSED 3:00 AM
+  and its notice; the rounds line; staggered notices; the viewer left of the queue; Wait for Custodial rounds; Ruth's mail; CAM 04 NEXT and
+  the loop continuing after a reopen (shelf 13, not 17); THAT ONE IS YOU; the filed line; session.cfg saved by session 209 and by the player
+  (0 then 1); Log off cancelled by session 209; the pause caption.
+- **Judgement calls.**
+  - The tug label is a NEXUS tooltip (the OS voice), not Ellen's: caps because it is an alarm, and it names session 017 like every other
+    system line.
+  - The keep list wins: the M9 remote rows still fade and vanish; only company tasks the player saw stay listed when taken back.
+  - Camera placement: the Work Queue is weighted, not forbidden; when three big windows are open something overlaps, and the player can
+    drag windows.
+  - "Not reading" drops the typed keys instead of sending them at the next turn, which could be minutes later and answer something else.
+  - The mail line lists any mail that arrived with a notice this shift (flavour mail too): one rule the player can learn.
+  - The CAM 04 loop fix changes M10 from "every switch" to "the first switch"; the RESERVED shelf is still the second label anyone sees.
+    After a reopen the loop is wherever it has got to, so one shelf can be up to a cycle (29.5 s) away where shelf 18 used to be 3.5 s
+    away; in exchange shelf 16 is always reachable, and the NEXT line says what comes.
+  - "Not reading" waits 3 s of silence after her last keystroke, think pause or your last sent line, so a reply on its way (the think
+    pause and her hand reaching the pad) is never mistaken for nobody; the status strip gets its own room under the text.
+  - No difficulty change: the realistic continuous pull wins 9 to 10 of 10 first contests.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

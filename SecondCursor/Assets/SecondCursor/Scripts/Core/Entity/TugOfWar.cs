@@ -113,6 +113,20 @@ namespace SecondCursor.Core.Entity
         public float PeakEffort { get; private set; }
 
         /// <summary>
+        /// How close the player is to winning, for the on-screen pull meter: 0 = the entity is about to take the file
+        /// (its win share), 1 = the player is about to keep it (the player's win share), 0.5 = even.
+        /// </summary>
+        public float PlayerLead
+        {
+            get
+            {
+                float span = _s.entityWinShare - _s.playerWinShare;
+                if (span <= 1e-4f) return 0.5f;
+                return 1f - MathUtil.Clamp01((EntityShare - _s.playerWinShare) / span);
+            }
+        }
+
+        /// <summary>
         /// How fast the entity drags its end of the file away during a fight (virtual px/s). Shared by the
         /// runtime conflict and the difficulty tests so both use the same model.
         /// </summary>

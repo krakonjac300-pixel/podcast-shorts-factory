@@ -82,6 +82,16 @@ namespace SecondCursor.Story
             };
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
             g.Rounds.PatchPersonnel = true;
+            // Phase H: a saved config file says what it now decides; the shelf check says what it filed; your own shelf
+            // order gets her line the first time you open it during the round.
+            g.Apps.SavedNote = PolicyNote;
+            g.Tasks.TaskCompleted += t => { if (t.Id == ContentIds.TaskN3Shelf) FileShelfResult(); };
+            g.Orders.Viewed += (id, by) =>
+            {
+                if (id != ContentIds.Order3342 || by == null || !by.IsPlayer || _saidShelfYou || CurrentBeat != "rounds" || g.Orders.DecisionFor(id) != null) return;
+                _saidShelfYou = true;
+                SayLater(_ellen, "n3_shelf_you", 4f);
+            };
             if (g.CameraRig != null)
             {
                 var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
@@ -121,6 +131,7 @@ namespace SecondCursor.Story
             UnhookFinale();
             _holdAt = -1;
             _g.Clock.Frozen = false;
+            _saidShelfYou = false;
             _ellen.Direct = false;
             _gary.Direct = false;
             _g.Rounds.ForcedOpenHandler = null;
@@ -294,6 +305,33 @@ namespace SecondCursor.Story
             {
                 SayLater(_ellen, "n3_restricted_open", 4f);
             }
+        }
+
+        bool _saidShelfYou;
+
+        /// <summary>The line the "saved" notice adds for a config file: what it decides now (the last KEY= line counts).</summary>
+        string PolicyNote(string fileId, string text)
+        {
+            var c = _g.Content;
+            if (fileId == ContentIds.FileSessionCfg) return c.Text(Night3Rules.AllowsLogoff(text) ? "policy.logoff.on" : "policy.logoff.off");
+            if (fileId == ContentIds.FileCamviewCfg) return c.Text(Night3Rules.OperatorOverride(text) ? "policy.cam00.on" : "policy.cam00.off");
+            return null;
+        }
+
+        /// <summary>The shelf check is done: the queue line and a notice say what was filed.</summary>
+        void FileShelfResult()
+        {
+            int approved = 0, rejected = 0;
+            foreach (var id in ShelfOrders)
+            {
+                string d = _g.Orders.DecisionFor(id);
+                if (d == "approve") approved++;
+                else if (d == "reject") rejected++;
+            }
+            string note = _g.Content.Format("workorders.shelf.filed", approved, rejected);
+            _g.Tasks.SetResult(ContentIds.TaskN3Shelf, note);
+            _g.Notifications.Show(_g.Content.Text("app.workorders"), note + ".", "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
+            GameLog.Info(LogChannel.Story, "Shelf check filed: " + approved + " approved, " + rejected + " rejected");
         }
 
         /// <summary>Jotter saved a file: session.cfg decides Log Off, camview.cfg lists CAM 00.</summary>

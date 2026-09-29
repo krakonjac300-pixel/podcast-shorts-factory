@@ -28,9 +28,12 @@ namespace SecondCursor.Apps
 
         internal void Attach(GameServices g) => G = g;
 
+        /// <summary>A window the player reads for a while (Mail) opens clear of the notices' column (Phase H).</summary>
+        protected virtual bool AvoidsNotices => false;
+
         protected OSWindow CreateWindow(string title, string icon, int x, int y, int w, int h, WindowFlags flags, Rect? zoomFrom)
         {
-            var at = G.Windows.PlaceAvoidingOverlap(x, y, w, h);
+            var at = G.Windows.PlaceAvoidingOverlap(x, y, w, h, AvoidsNotices);
             Window = G.Windows.Create(AppId, title, icon, at.x, at.y, w, h, flags, zoomFrom);
             Window.Owner = this;
             Window.Closed += (win, a) => OnClosed(a);
@@ -57,6 +60,8 @@ namespace SecondCursor.Apps
         public event Action<string, string, CursorAgent> FileSaved;
         /// <summary>Return false to block a launch (e.g. SecureView before it is unlocked). Args: appId, agent.</summary>
         public Func<string, CursorAgent, bool> CanLaunch;
+        /// <summary>Phase H: one more line for the "saved" notice (file id, saved text): what the file now decides. Null = none.</summary>
+        public Func<string, string, string> SavedNote;
 
         public AppManager(GameServices g)
         {
