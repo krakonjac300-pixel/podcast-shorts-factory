@@ -31,6 +31,7 @@ namespace SecondCursor.Story
             var bg = _panel.gameObject.AddComponent<Image>();
             bg.color = color;
             bg.raycastTarget = false;
+            _g.Fx.SetBlack(false);
             var hit = UIBuilder.Hit(_panel.gameObject, "boot:" + name);
             hit.Click += (a, n) => _clicked = true;
             _clicked = false;

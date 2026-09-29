@@ -27,9 +27,11 @@ namespace SecondCursor.Story
         {
             var g = _g;
             g.Flags.Set(Flags.Ending);
+            SaveSystem.RecordEnding(g, "night1_blackout");
             g.Entity.Brain.Enabled = false;
             g.Entity.Interrupt();
             g.Player.Enabled = false;
+            g.Player.Visible = false;
 
             g.Audio.StopAllLoops(0.2f);
             g.Audio.Play("power_down");
@@ -113,6 +115,7 @@ namespace SecondCursor.Story
             thanks.Align = TextAlign.Center;
 
             g.Player.Enabled = true;
+            g.Player.Visible = true;
             var again = UiButton.Create(parent, "Start a new shift", a => GameBootstrap.Restart(), "button:Restart");
             ((RectTransform)again.transform).At(ScreenRig.Width / 2 - 150, 420, 140, 24);
             var quit = UiButton.Create(parent, "Quit", a => Quit(), "button:Quit");

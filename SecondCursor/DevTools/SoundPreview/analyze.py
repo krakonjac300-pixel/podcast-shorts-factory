@@ -38,6 +38,43 @@ def spectral_stats(x, sr):
     return 10 * np.log10(hi / total + 1e-30), centroid, f99
 
 
+def k_weight(x, sr):
+    """ITU-R BS.1770 K-weighting (pre-filter high shelf + RLB high-pass), designed for any sample rate."""
+    def high_shelf(g_db, q, fc):
+        a = 10 ** (g_db / 40)
+        w0 = 2 * np.pi * fc / sr
+        al = np.sin(w0) / (2 * q)
+        c = np.cos(w0)
+        b = [a * ((a + 1) + (a - 1) * c + 2 * np.sqrt(a) * al), -2 * a * ((a - 1) + (a + 1) * c),
+             a * ((a + 1) + (a - 1) * c - 2 * np.sqrt(a) * al)]
+        den = [(a + 1) - (a - 1) * c + 2 * np.sqrt(a) * al, 2 * ((a - 1) - (a + 1) * c),
+               (a + 1) - (a - 1) * c - 2 * np.sqrt(a) * al]
+        return np.array(b) / den[0], np.array(den) / den[0]
+
+    def high_pass(q, fc):
+        w0 = 2 * np.pi * fc / sr
+        al = np.sin(w0) / (2 * q)
+        c = np.cos(w0)
+        b = [(1 + c) / 2, -(1 + c), (1 + c) / 2]
+        den = [1 + al, -2 * c, 1 - al]
+        return np.array(b) / den[0], np.array(den) / den[0]
+
+    b1, a1 = high_shelf(3.999843853973347, 0.7071752369554196, 1681.974450955533)
+    b2, a2 = high_pass(0.5003270373238773, 38.13547087602444)
+    return signal.lfilter(b2, a2, signal.lfilter(b1, a1, x))
+
+
+def loudness(x, sr, loop):
+    """(integrated-ish LUFS over the whole file, max momentary LUFS over 400 ms windows)."""
+    y = k_weight(np.concatenate([x, x]) if loop else np.concatenate([x, np.zeros(int(0.4 * sr))]), sr)
+    if loop:
+        y = y[len(x):]
+    integ = -0.691 + 10 * np.log10(np.mean(y[:len(x)] ** 2) + 1e-20)
+    w, hop = int(0.4 * sr), int(0.05 * sr)
+    mom = max(-0.691 + 10 * np.log10(np.mean(y[i:i + w] ** 2) + 1e-20) for i in range(0, max(1, len(y) - w + 1), hop))
+    return integ, mom
+
+
 def seam_test(x):
     d1 = np.abs(np.diff(np.concatenate([x[-1:], x])))           # d1[0] is the seam
     d2 = np.abs(np.diff(np.concatenate([x[-2:], x]), n=2))      # d2[0] is the seam
@@ -94,16 +131,17 @@ def plot(name, x, sr, out_png, is_loop):
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
     names = sorted(f[:-4] for f in os.listdir(out) if f.endswith(".wav"))
-    print(f"{'id':<17} {'>12k dB':>8} {'centroid':>9} {'f99':>7} {'seamP1':>7} {'seamP2':>7}")
+    print(f"{'id':<17} {'>12k dB':>8} {'centroid':>9} {'f99':>7} {'LUFS':>6} {'momMax':>7} {'seamP1':>7} {'seamP2':>7}")
     for name in names:
         sr, x = read_wav(os.path.join(out, name + ".wav"))
         is_loop = name in LOOPS
         hi, cen, f99 = spectral_stats(x, sr)
+        lu, mm = loudness(x, sr, is_loop)
         p1 = p2 = ""
         if is_loop:
             a, b = seam_test(x)
             p1, p2 = f"{a:6.1f}%", f"{b:6.1f}%"
-        print(f"{name:<17} {hi:8.1f} {cen:9.0f} {f99:7.0f} {p1:>7} {p2:>7}")
+        print(f"{name:<17} {hi:8.1f} {cen:9.0f} {f99:7.0f} {lu:6.1f} {mm:7.1f} {p1:>7} {p2:>7}")
         plot(name, x, sr, os.path.join(out, name + ".png"), is_loop)
 
 

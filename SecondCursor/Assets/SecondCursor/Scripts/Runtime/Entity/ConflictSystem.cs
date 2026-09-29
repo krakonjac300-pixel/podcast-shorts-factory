@@ -106,6 +106,9 @@ namespace SecondCursor.Entity
             _payload.GhostPosition = obj + new Vector2(-16f, 14f) + shake;
 
             UpdateBand(player.Position, obj, entity.Position, strain);
+            // Feel: your cursor is dragged a little toward it; its cursor shakes with effort.
+            if (_g.PlayerView != null) _g.PlayerView.VisualOffset = (entity.Position - player.Position).normalized * (strain * 5f);
+            if (_g.EntityView != null) _g.EntityView.Jitter = 0.5f + strain * 2f;
 
             if (_g.Audio != null)
             {
@@ -148,6 +151,8 @@ namespace SecondCursor.Entity
             var p = _payload;
             _payload = null;
             foreach (var d in _band) d.enabled = false;
+            if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
+            if (_g.EntityView != null) _g.EntityView.Jitter = 0f;
             _g.Audio?.StopLoop("tug_strain", 0.08f);
             _g.Audio?.Play("grab_snap", 1f, outcome == TugOutcome.PlayerWins ? 1.15f : 0.9f);
             if (_g.Fx != null)

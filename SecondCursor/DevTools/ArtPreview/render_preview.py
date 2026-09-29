@@ -160,7 +160,8 @@ def ui_font(size):
 CATEGORIES = [
     ('ICONS 16x16', lambda n: n.startswith('icon_')),
     ('CURSORS (K/W only, hotspot ticks in magenta)', lambda n: n.startswith('cursor_')),
-    ('UI GLYPHS', lambda n: n.startswith('glyph_')),
+    ('UI GLYPHS (K on transparent, drawn for button faces - see desktop_preview.png)',
+     lambda n: n.startswith('glyph_')),
     ('LOGOS', lambda n: n.startswith('logo_')),
     ('PATTERN + MISC', lambda n: not n.startswith(('icon_', 'cursor_', 'glyph_', 'logo_'))),
 ]

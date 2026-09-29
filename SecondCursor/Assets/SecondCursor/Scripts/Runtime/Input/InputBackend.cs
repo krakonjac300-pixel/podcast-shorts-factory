@@ -150,7 +150,16 @@ namespace SecondCursor.Input
         public bool LeftUp => Mouse.current != null && Mouse.current.leftButton.wasReleasedThisFrame;
         public bool RightDown => Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
         public bool RightUp => Mouse.current != null && Mouse.current.rightButton.wasReleasedThisFrame;
-        public float Scroll => Mouse.current != null ? Mouse.current.scroll.ReadValue().y / 120f : 0f;
+        public float Scroll
+        {
+            get
+            {
+                if (Mouse.current == null) return 0f;
+                // Depending on package version/settings scroll is either raw (120 per notch) or normalized (1 per notch).
+                float y = Mouse.current.scroll.ReadValue().y;
+                return Mathf.Abs(y) >= 10f ? y / 120f : y;
+            }
+        }
         public string TypedText => _typed;
 
         public void Poll()

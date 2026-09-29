@@ -30,6 +30,17 @@ namespace SecondCursor.Input
         public float Jitter;
         /// <summary>0..1 chance per frame of skipping a frame (glitchy flicker).</summary>
         public float Flicker;
+        /// <summary>Visual-only displacement (e.g. the pull of a tug-of-war, a "flinch"). Hit-testing ignores it.</summary>
+        public Vector2 VisualOffset;
+        Vector2 _flinch;
+        float _flinchTime;
+
+        /// <summary>The cursor twitches by itself for a moment, then settles back (did I do that?).</summary>
+        public void Flinch(Vector2 offset, float settleSeconds = 0.8f)
+        {
+            _flinch = offset;
+            _flinchTime = settleSeconds;
+        }
 
         public CursorAgent Agent => _agent;
 
@@ -114,7 +125,12 @@ namespace SecondCursor.Input
             Apply(_agent.Shape);
 
             var hot = SpriteLibrary.Hotspot(_shownSprite);
-            Vector2 p = _agent.Position;
+            Vector2 p = _agent.Position + VisualOffset;
+            if (_flinchTime > 0f)
+            {
+                _flinchTime -= Time.deltaTime;
+                p += _flinch * Mathf.Clamp01(_flinchTime / 0.8f);
+            }
             if (Jitter > 0f) p += Random.insideUnitCircle * Jitter;
             Vector2 topLeft = new Vector2(Mathf.Round(p.x - hot.x), Mathf.Round(p.y + hot.y));
             _rt.anchoredPosition = topLeft;

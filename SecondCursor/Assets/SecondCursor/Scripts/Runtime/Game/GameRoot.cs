@@ -63,8 +63,12 @@ namespace SecondCursor.Game
             g.Screen.Build();
             g.Layers = new OSLayers(g.Screen.OsRoot);
             g.Fx = VisualFx.Create(g.Screen);
+            g.Fx.SetBlack(true); // nothing is shown until the boot sequence (or a debug jump) starts
             g.Audio = AudioManager.Create(transform);
             EnsureAudioListener();
+            var save = SaveSystem.Load();
+            g.Audio.MasterVolume = save.masterVolume;
+            g.Fx.CrtEnabled = save.crtEffects;
 
             // Content + simulation
             g.Content = ContentLoader.Load();

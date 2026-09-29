@@ -55,6 +55,7 @@ namespace SecondCursor.Game
             AudioListener.pause = false;
             if (_panel != null) Destroy(_panel.gameObject);
             _panel = null;
+            SaveSystem.SaveSettings(_g);
         }
 
         void Build()

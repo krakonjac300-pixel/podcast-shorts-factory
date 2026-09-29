@@ -408,7 +408,6 @@ namespace SecondCursor.Core.Art
             Add(s, "icon_mail", 0, 0,
                 "................",
                 "................",
-                "................",
                 ".KKKKKKKKKKKKKK.",
                 ".KSWWWWWWWWWWSK.",
                 ".KPSWWWWWWWWSPK.",
@@ -417,6 +416,7 @@ namespace SecondCursor.Core.Art
                 ".KPPPPSTTSPPPPK.",
                 ".KPPPPTTTTPPPPK.",
                 ".KPPPPPttPPPPPK.",
+                ".KPPPPPPPPPPPPK.",
                 ".KPPPPPPPPPPPPK.",
                 ".KLLLLLLLLLLLLK.",
                 ".KKKKKKKKKKKKKK.",
@@ -427,15 +427,15 @@ namespace SecondCursor.Core.Art
             Add(s, "icon_mail_unread", 0, 0,
                 "............KKK.",
                 "...........KERRK",
-                "...........KRRRK",
-                ".KKKKKKKKKKKRRrK",
-                ".KSWWWWWWWWWKKK.",
-                ".KPSWWWWWWWWSPK.",
+                ".KKKKKKKKKKKRRRK",
+                ".KSWWWWWWWWKRRrK",
+                ".KPSWWWWWWWWKKK.",
                 ".KPPSWWWWWWSPPK.",
                 ".KPPPSWWWWSPPPK.",
                 ".KPPPPSTTSPPPPK.",
                 ".KPPPPTTTTPPPPK.",
                 ".KPPPPPttPPPPPK.",
+                ".KPPPPPPPPPPPPK.",
                 ".KPPPPPPPPPPPPK.",
                 ".KLLLLLLLLLLLLK.",
                 ".KKKKKKKKKKKKKK.",
@@ -468,13 +468,13 @@ namespace SecondCursor.Core.Art
                 "..KKKKKMMKKKKK..",
                 "..KTTTTmmTTTTK..",
                 "..KTTTTTTTTTTK..",
-                "..KPPPPPPPPPLK..",
-                "..KPPKKKKKKPLK..",
-                "..KPPKASSAKPLK..",
-                "..KPPKASSAKPLK..",
-                "..KPPKSSSSKPLK..",
-                "..KPPKSSSSKPLK..",
-                "..KPPKKKKKKPLK..",
+                "..KPKKKKKKKPLK..",
+                "..KPKAAAAAKPLK..",
+                "..KPKASSSAKPLK..",
+                "..KPKASSSAKPLK..",
+                "..KPKSSSSSKPLK..",
+                "..KPKSSSSSKPLK..",
+                "..KPKKKKKKKPLK..",
                 "..KPPPPPPPPPLK..",
                 "..KPDDDDDDDPLK..",
                 "..KLLLLLLLLLLK..",
@@ -528,12 +528,12 @@ namespace SecondCursor.Core.Art
                 ".KYYKKYYKKYYKKK.",
                 ".KYKKYYKKYYKKYK.",
                 ".KKKKKKKKKKKKKK.",
-                "..KWLLLLLLLLGK..",
-                "..KWLKKKKKKLGK..",
-                "..KWLKSSSSKLGK..",
-                "..KWLKSSSSKLGK..",
-                "..KWLKKKKKKLGK..",
-                "..KLGGGGGGGGDK..",
+                "..KWMMMMMMMMmK..",
+                "..KWMKKKKKKMmK..",
+                "..KWMKDSSSKMmK..",
+                "..KWMKSSSSKMmK..",
+                "..KWMKKKKKKMmK..",
+                "..KMmmmmmmmmmK..",
                 "..KKKKKKKKKKKK..",
                 "..KSK......KSK..");
 
@@ -547,12 +547,12 @@ namespace SecondCursor.Core.Art
                 ".KYYKKYYKKYYKKK.",
                 ".KYKKYYKKYYKKYK.",
                 ".KKKKKKKKKKKKKK.",
-                "..KWLLLLLLLLGK..",
-                "..KWLKKKKKKLGK..",
-                "..KWLKWLWPKLGK..",
-                "..KWLKPWLWKLGK..",
-                "..KWLKKKKKKLGK..",
-                "..KLGGGGGGGGDK..",
+                "..KWMMMMMMMMmK..",
+                "..KWMKKKKKKMmK..",
+                "..KWMKWLWPKMmK..",
+                "..KWMKWLWPKMmK..",
+                "..KWMKKKKKKMmK..",
+                "..KMmmmmmmmmmK..",
                 "..KKKKKKKKKKKK..",
                 "..KSK......KSK..");
 
@@ -882,11 +882,11 @@ namespace SecondCursor.Core.Art
                 "KWWWWWWWWK......",
                 "KWWWWWKKKKK.....",
                 "KWWKWWK....KKK..",
-                "KWK.KWWK..KWWKK.",
-                "KK..KWWK.KWWWKKK",
-                "K....KWWKKKKKKKK",
-                ".....KWWKKKKWWWK",
-                "......KK..KKWWK.",
+                "KWK.KWWK..KWKWK.",
+                "KK..KWWK.KWWKWWK",
+                "K....KWWKKWWKWWK",
+                ".....KWWKKWWKWWK",
+                "......KK..KWKWK.",
                 "...........KKK..");
 
             // Busy, frame 1: the disk turned a quarter.
@@ -903,11 +903,11 @@ namespace SecondCursor.Core.Art
                 "KWWWWWWWWK......",
                 "KWWWWWKKKKK.....",
                 "KWWKWWK....KKK..",
-                "KWK.KWWK..KKKWK.",
-                "KK..KWWK.KKKKWWK",
-                "K....KWWKKWWKWWK",
-                ".....KWWKKWWKKKK",
-                "......KK..KWKKK.",
+                "KWK.KWWK..KWWWK.",
+                "KK..KWWK.KWWWWWK",
+                "K....KWWKKKKKKKK",
+                ".....KWWKKWWWWWK",
+                "......KK..KWWWK.",
                 "...........KKK..");
 
             // Move: four-way arrows; hotspot at the centre.
@@ -989,6 +989,7 @@ namespace SecondCursor.Core.Art
         // UI glyphs for bevelled buttons: 'K' on transparent (grip uses 'W'/'D').
         private static void AddGlyphs(Dictionary<string, PixelSprite> s)
         {
+            // Close button X.
             Add(s, "glyph_close", 0, 0,
                 "K.....K",
                 "KK...KK",
@@ -998,15 +999,17 @@ namespace SecondCursor.Core.Art
                 "KK...KK",
                 "K.....K");
 
+            // Minimize: bar near the bottom, centred.
             Add(s, "glyph_minimize", 0, 0,
                 ".......",
                 ".......",
                 ".......",
                 ".......",
                 ".......",
-                "KKKKKK.",
-                "KKKKKK.");
+                ".KKKKK.",
+                ".KKKKK.");
 
+            // Maximize: window box with a thick title edge.
             Add(s, "glyph_maximize", 0, 0,
                 "KKKKKKK",
                 "KKKKKKK",
@@ -1016,6 +1019,7 @@ namespace SecondCursor.Core.Art
                 "K.....K",
                 "KKKKKKK");
 
+            // Restore: two overlapped windows.
             Add(s, "glyph_restore", 0, 0,
                 "..KKKKK",
                 "..KKKKK",
@@ -1025,18 +1029,21 @@ namespace SecondCursor.Core.Art
                 "K...K..",
                 "KKKKK..");
 
+            // Scroll arrow up.
             Add(s, "glyph_arrow_up", 0, 0,
                 "...K...",
                 "..KKK..",
                 ".KKKKK.",
                 "KKKKKKK");
 
+            // Scroll arrow down.
             Add(s, "glyph_arrow_down", 0, 0,
                 "KKKKKKK",
                 ".KKKKK.",
                 "..KKK..",
                 "...K...");
 
+            // Arrow right (menus, spinners).
             Add(s, "glyph_arrow_right", 0, 0,
                 "K...",
                 "KK..",
@@ -1046,6 +1053,7 @@ namespace SecondCursor.Core.Art
                 "KK..",
                 "K...");
 
+            // Arrow left.
             Add(s, "glyph_arrow_left", 0, 0,
                 "...K",
                 "..KK",
@@ -1055,6 +1063,7 @@ namespace SecondCursor.Core.Art
                 "..KK",
                 "...K");
 
+            // Check box tick.
             Add(s, "glyph_check", 0, 0,
                 ".......",
                 "......K",
@@ -1064,12 +1073,14 @@ namespace SecondCursor.Core.Art
                 ".KKK...",
                 "..K....");
 
+            // Radio button dot.
             Add(s, "glyph_radio_dot", 0, 0,
                 ".KK.",
                 "KKKK",
                 "KKKK",
                 ".KK.");
 
+            // Window resize grip: W/D ridges, sits in the bottom-right corner.
             Add(s, "glyph_resize_grip", 0, 0,
                 "..........W",
                 ".........WD",
@@ -1083,6 +1094,7 @@ namespace SecondCursor.Core.Art
                 ".WD..WD..WD",
                 "WD..WD..WD.");
 
+            // Combo box button: arrow dropping onto a bar.
             Add(s, "glyph_dropdown", 0, 0,
                 ".KKKKK.",
                 "..KKK..",
@@ -1090,7 +1102,7 @@ namespace SecondCursor.Core.Art
                 "KKKKKKK");
         }
 
-        // Logos.
+        // Logos: 48x48 NEXUS OS boot emblem (reads on black) and the 32x32 data-reclamation company seal.
         private static void AddLogos(Dictionary<string, PixelSprite> s)
         {
             // NEXUS OS boot emblem.

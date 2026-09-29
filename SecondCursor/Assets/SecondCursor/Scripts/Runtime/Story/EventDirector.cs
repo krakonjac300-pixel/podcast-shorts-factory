@@ -316,6 +316,11 @@ namespace SecondCursor.Story
             yield return Wait(3f);
             GiveTask(ContentIds.TaskArchiveBatch);
 
+            // Anomaly 0: your own cursor twitches a few pixels, once.
+            yield return Wait(6f);
+            _g.PlayerView.Flinch(new Vector2(UnityEngine.Random.Range(3f, 5f), UnityEngine.Random.Range(-4f, -2f)));
+            GameLog.Info(LogChannel.Story, "Anomaly: player cursor flinched");
+
             // Anomaly A: employee_017.dat becomes selected by itself (with a click you didn't make).
             yield return WaitUntil(() =>
             {
@@ -425,7 +430,7 @@ namespace SecondCursor.Story
                 if (brain.Defenses >= 1) brain.AllowIdleLurk = true;
                 bool shredded = _g.Files.GetFile(ContentIds.File017)?.Shredded ?? false;
                 if (shredded) break;
-                if (brain.Defenses >= 4 && !_g.Conflict.IsFighting && !_g.Shred.Busy && !E.Busy) break;
+                if (brain.Defenses >= 4 && !_g.Conflict.IsFighting && !_g.Shred.Busy) break;
                 float elapsed = Time.time - start;
                 int attempts = _g.Memory.Count(MemoryKind.ShredAttempt, ContentIds.File017) - attemptsAtStart;
                 if (!followedUp && elapsed > 45f && attempts == 0)
@@ -555,7 +560,7 @@ namespace SecondCursor.Story
                 GameLog.Info(LogChannel.Entity, "Replayed the player's recorded movement (" + rec.Duration.ToString("0.0") + "s)");
                 yield return Wait(1f);
             }
-            yield return TypeLines(_g.Dialogue.Get(ContentIds.ExchangeStop) != null ? _g.Content.Dialogue.recordLines : new string[0], 4f);
+            yield return TypeLines(_g.Content.Dialogue.recordLines, 4f);
             yield return Wait(1f);
             yield return TypeLines(_g.Content.Dialogue.cameraLines, 3.5f);
 
