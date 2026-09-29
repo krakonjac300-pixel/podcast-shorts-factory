@@ -34,6 +34,14 @@ namespace SecondCursor.Input
         /// <summary>A carried payload was released. bool = accepted by a drop target.</summary>
         public event Action<CursorAgent, DragPayload, bool> PayloadReleased;
 
+        /// <summary>
+        /// Return true to refuse a press (another cursor is physically covering the target). The press
+        /// still counts as "something happened" (menus close) but the target receives nothing.
+        /// </summary>
+        public Func<CursorAgent, Interactable, bool> PressBlocked;
+        /// <summary>A press was refused by <see cref="PressBlocked"/>.</summary>
+        public event Action<CursorAgent, Interactable> PressRefused;
+
         public IReadOnlyList<CursorAgent> Agents => _agents;
 
         public void Register(CursorAgent agent)
@@ -77,7 +85,15 @@ namespace SecondCursor.Input
             }
 
             // Press
-            if (a.PressedThisFrame)
+            if (a.PressedThisFrame && hit != null && PressBlocked != null && PressBlocked(a, hit))
+            {
+                PressRefused?.Invoke(a, hit);
+                a.Pressed = null;
+                a.IsDragging = false;
+                st.PressPosition = a.Position;
+                AnyPointerDown?.Invoke(a, null);
+            }
+            else if (a.PressedThisFrame)
             {
                 a.Pressed = hit;
                 a.IsDragging = false;

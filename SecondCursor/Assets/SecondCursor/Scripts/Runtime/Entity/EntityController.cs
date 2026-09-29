@@ -40,6 +40,9 @@ namespace SecondCursor.Entity
         /// <summary>Speed multiplier applied on top of movement profiles (escalation).</summary>
         public float Urgency = 1f;
 
+        /// <summary>An element the entity is physically covering; the player cannot press it while the entity sits on it.</summary>
+        public Interactable Guarding { get; set; }
+
         public CursorAgent Agent => _agent;
         public CursorView View => _view;
         public bool IsVisible => _view != null && _view.Alpha > 0.05f && _agent.Visible;
@@ -75,6 +78,14 @@ namespace SecondCursor.Entity
             c._agent.Position = new Vector2(ScreenRig.Width + 20, ScreenRig.Height * 0.5f);
             c._view.Alpha = 0f;
             c.Brain = new EntityBrain(g, c);
+            g.Router.PressBlocked = c.BlocksPress;
+            g.Router.PressRefused += (a, hit) =>
+            {
+                // The player's click bounces off the second cursor.
+                g.Audio?.Play("mouse_click", 0.6f, 0.8f, Audio.AudioManager.PanFor(c._agent.Position.x));
+                c._view.Flinch(new Vector2(UnityEngine.Random.Range(-3f, 3f), UnityEngine.Random.Range(-3f, 3f)), 0.25f);
+                g.PlayerView?.Flinch((a.Position - c._agent.Position).normalized * 4f, 0.3f);
+            };
             return c;
         }
 
@@ -152,6 +163,7 @@ namespace SecondCursor.Entity
         void ReleaseEverything()
         {
             if (_agent.Held) _agent.SetButton(false);
+            Guarding = null;
         }
 
         /// <summary>Wait for the current behaviour (use from story coroutines: yield return entity.WaitIdle()).</summary>
@@ -284,6 +296,13 @@ namespace SecondCursor.Entity
             yield return Click();
             yield return new WaitForSeconds(0.08f);
             yield return Click();
+        }
+
+        /// <summary>Router hook: the entity's cursor sitting on a guarded element blocks the player's press on it.</summary>
+        bool BlocksPress(CursorAgent a, Interactable hit)
+        {
+            if (!a.IsPlayer || Guarding == null || hit != Guarding || !IsVisible) return false;
+            return Vector2.Distance(a.Position, _agent.Position) < 16f || Guarding.IsHoveredBy(_agent);
         }
 
         /// <summary>True while the player's own cursor sits on the element near where the entity would click.</summary>

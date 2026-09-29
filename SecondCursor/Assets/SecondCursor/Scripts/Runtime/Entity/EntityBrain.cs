@@ -54,6 +54,7 @@ namespace SecondCursor.Entity
             Add("InterceptDrag", ScoreIntercept, RunIntercept, 1.0f);
             Add("CancelShred", ScoreCancelShred, RunCancelShred, 0.5f);
             Add("DragDialogAway", ScoreDragDialog, RunDragDialog, 2.5f);
+            Add("GuardYes", ScoreGuardYes, RunGuardYes, 1.5f);
             Add("RaceToNo", ScoreRaceToNo, RunRaceToNo, 0.5f);
             Add("KeepAway", ScoreKeepAway, RunKeepAway, 5f);
             Add("CloseFilesWindow", ScoreCloseFiles, RunCloseFiles, 9f);
@@ -260,6 +261,51 @@ namespace SecondCursor.Entity
                 if (no != null) yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 2f);
                 if (result[0] && box.Result == "No") RegisterDefense("dialog");
             }
+        }
+
+        // ------------------------------------------------------------------ GuardYes
+
+        float ScoreGuardYes()
+        {
+            var box = _g.Shred.Confirm;
+            if (box == null || !box.IsOpen || !IsProtected(_g.Shred.PendingFileId) || Defenses < 2) return 0f;
+            // Alternate between guarding and racing so it stays unpredictable.
+            return Defenses % 2 == 0 ? 90f : 0f;
+        }
+
+        /// <summary>Park on "Yes" so the player's clicks bounce off; follow the button if the dialog is dragged.</summary>
+        IEnumerator RunGuardYes()
+        {
+            var box = _g.Shred.Confirm;
+            var yes = box?.Button("Yes");
+            if (yes == null) yield break;
+            yield return EnsurePresent(EntryPointNear(yes.Hit.Center));
+            _c.State = Core.Entity.EntityState.Defensive;
+            yield return _c.MoveToElement(yes.Hit, MovementProfiles.Aggressive);
+            _c.Guarding = yes.Hit;
+            float until = Time.time + UnityEngine.Random.Range(5f, 8f);
+            while (box.IsOpen && Time.time < until)
+            {
+                // Stay glued to the button; if the dialog is dragged away it scrambles after it.
+                Vector2 target = yes.Hit.Center + new Vector2(UnityEngine.Random.Range(-2f, 2f), UnityEngine.Random.Range(-1f, 1f));
+                if (Vector2.Distance(_c.Agent.Position, target) > 12f)
+                {
+                    _c.Guarding = null;
+                    yield return _c.MoveToDynamic(() => box.IsOpen ? yes.Hit.Center : (Vector2?)null, MovementProfiles.Panicked, 20f);
+                    _c.Guarding = yes.Hit;
+                }
+                else
+                {
+                    _c.Agent.Position = Vector2.Lerp(_c.Agent.Position, target, 0.2f);
+                }
+                yield return null;
+            }
+            _c.Guarding = null;
+            if (!box.IsOpen) yield break;
+            var no = box.Button("No");
+            var result = new bool[1];
+            if (no != null) yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 2f);
+            if (result[0] && box.Result == "No") RegisterDefense("guard");
         }
 
         // ------------------------------------------------------------------ CancelShred
