@@ -10,16 +10,26 @@ built procedurally at runtime, so there are no binary assets to import.
 
 ## 1. Put it in Unity (2 minutes)
 
-**Option A: your existing project** (e.g. "project 1")
+**Option A (easiest): import the package into your existing project** (e.g. "project 1")
 
-1. Copy this whole `SecondCursor` folder (the one containing `Scripts/`, `Resources/`, and this README)
-   into your project's `Assets/` folder, giving you `Assets/SecondCursor/...`.
-2. Switch to Unity and let it import and compile. On the first import it automatically creates and
-   opens `Assets/SecondCursor/Scenes/SecondCursor.unity` and adds it to Build Settings. A new
-   **SECOND CURSOR** menu also appears.
-3. Press **Play**. Maximize the Game view (16:9, e.g. Full HD) for the intended look.
+1. With your project open in Unity, double-click `SecondCursor.unitypackage` (it is next to the
+   `Assets` folder in the repository's `SecondCursor/` folder). Alternatively, in Unity use
+   *Assets → Import Package → Custom Package...* and pick it.
+2. Click **Import** in the dialog that lists the files.
+3. Unity compiles the scripts. The first time, it automatically creates and opens
+   `Assets/SecondCursor/Scenes/SecondCursor.unity` and adds it to Build Settings. A new
+   **SECOND CURSOR** menu also appears. If Unity asks whether to save the scene you had open, either
+   answer is fine.
+4. Press **Play**. Maximize the Game view (16:9, e.g. Full HD) for the intended look.
 
-**Option B: standalone project.** In Unity Hub, click *Add → Add project from disk* and pick the
+To update later, import a newer package the same way: it replaces the same files. Don't combine the
+package with a hand-copied `Assets/SecondCursor` folder; delete the copied folder first.
+
+**Option B: copy the folder.** Copy this whole `SecondCursor` folder (the one containing `Scripts/`,
+`Resources/`, and this README) into your project's `Assets/` folder, giving you
+`Assets/SecondCursor/...`. Then continue from step 3 above.
+
+**Option C: standalone project.** In Unity Hub, click *Add → Add project from disk* and pick the
 repository's `SecondCursor/` folder (made for Unity 6 LTS; newer Unity 6 versions upgrade it
 automatically).
 

@@ -12,7 +12,10 @@ visual/runtime fixes.
 
 ## 1. Install into the Unity project
 
-1. Copy `SecondCursor/Assets/SecondCursor` into the project's `Assets/` folder (merge/replace).
+1. With the project open, import `SecondCursor/SecondCursor.unitypackage` (double-click it, or
+   *Assets → Import Package → Custom Package...*). Alternatively, copy `SecondCursor/Assets/SecondCursor`
+   into the project's `Assets/` folder. Don't do both: the package's GUIDs differ from those Unity
+   generates for a copied folder.
 2. Let Unity compile. The one-time editor setup (`Scripts/Editor/SecondCursorProjectSetup.cs`) creates
    and opens `Assets/SecondCursor/Scenes/SecondCursor.unity`.
 3. Check the **Console**. Warnings about the missing asmdef reference `Unity.InputSystem` are expected
