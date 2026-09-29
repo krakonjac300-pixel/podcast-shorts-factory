@@ -138,7 +138,8 @@ namespace SecondCursor.Input
             // Drop-target highlighting while carrying something
             if (a.Payload != null)
             {
-                var target = hit != null && hit.Accepts(a, a.Payload) ? hit : null;
+                // A contested payload cannot be dropped anywhere, so nothing lights up under it.
+                var target = hit != null && !a.Payload.Contested && hit.Accepts(a, a.Payload) ? hit : null;
                 if (target != st.DropHover)
                 {
                     if (st.DropHover != null) st.DropHover.RaiseDropHover(a, a.Payload, false);
@@ -158,7 +159,8 @@ namespace SecondCursor.Input
                 if (a.Payload != null)
                 {
                     var p = a.Payload;
-                    bool accepted = hit != null && hit.Accepts(a, p);
+                    // Letting go during a tug-of-war is letting go, not a drop: the contest decides (Phase F).
+                    bool accepted = hit != null && !p.Contested && hit.Accepts(a, p);
                     if (st.DropHover != null)
                     {
                         st.DropHover.RaiseDropHover(a, p, false);

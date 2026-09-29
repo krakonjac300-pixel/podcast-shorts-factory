@@ -244,8 +244,13 @@ namespace SecondCursor.Tests
             var n = RoundsConfig.Night2(DifficultyMode.Normal, 0f);
             Assert.Equal(1.2f, n.CloseReaction(0f), 3);
             Assert.Equal(2.0f, n.CloseReaction(1f), 3);
-            Assert.Equal(new[] { 0f, 45f }, n.ForcedOpenTimes);
-            Assert.Equal(90f, n.Duration);
+            // Phase F: 80 s with forced opens at 0, 25 and 55 s (was 90 s with 0 and 45 s: two 43 s silent holes).
+            Assert.Equal(new[] { 0f, 25f, 55f }, n.ForcedOpenTimes);
+            Assert.Equal(80f, n.Duration);
+            // Story keeps only the first forced open and repeats every 45 s.
+            var story = RoundsConfig.Night2(DifficultyMode.Story, 0f);
+            Assert.Equal(new[] { 0f }, story.ForcedOpenTimes);
+            Assert.Equal(45f, story.ForcedOpenRepeatMin);
         }
 
         static void Tick(CustodialRounds r, float seconds, string cam)

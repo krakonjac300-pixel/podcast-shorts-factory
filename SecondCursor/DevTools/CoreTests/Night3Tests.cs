@@ -116,7 +116,7 @@ namespace SecondCursor.Tests
         {
             var p = DifficultyTable.For(3, DifficultyMode.Normal);
             float neutral = p.Grip(0, null);
-            Assert.Equal(0.78f, neutral, 3);
+            Assert.Equal(0.74f, neutral, 3); // Phase F: Night 3 grip base 0.78 -> 0.74
             Assert.Equal(neutral * 0.9f, p.Grip(0, null, Night3Rules.GripMultForTrust(0.3f)), 3);
             Assert.Equal(neutral * 1.1f, p.Grip(0, null, Night3Rules.GripMultForTrust(-0.5f)), 3);
         }
@@ -183,7 +183,9 @@ namespace SecondCursor.Tests
             Assert.Equal(new[] { "SublevelC", "Lobby", "HallFar", "Corridor", "Doorway", "Middle", "BehindChair" }, c.Stages);
             Assert.Equal(new[] { "cam04", "cam01", "cam02", "cam02", "cam03", "cam03", "cam03" }, c.Cameras);
             Assert.Equal(0, c.StartStage);
-            Assert.Equal(4f, c.WatchSeconds);
+            // Phase F: 4.5 s per stage (was 4): with Ellen's Phase D close timing about a quarter of players at
+            // neutral trust clear the seat (spec 12.5: 15 to 35%).
+            Assert.Equal(4.5f, c.WatchSeconds);
             Assert.Equal(1f, c.ReopenPenalty);
             Assert.Equal(360f, c.Duration);
             Assert.Equal(new[] { 0f }, c.ForcedOpenTimes);
@@ -196,18 +198,18 @@ namespace SecondCursor.Tests
         public void NightTwoChoicesChangeTheRound()
         {
             Assert.Equal(1, RoundsConfig.Night3(DifficultyMode.Normal, 0f, true, false).StartStage);
-            Assert.Equal(5f, RoundsConfig.Night3(DifficultyMode.Normal, 0f, false, true).WatchSeconds);
+            Assert.Equal(5.5f, RoundsConfig.Night3(DifficultyMode.Normal, 0f, false, true).WatchSeconds);
             Assert.Equal(0.8f, RoundsConfig.Night3(DifficultyMode.Normal, 0.5f, false, false).CloseReactionMin, 3);
         }
 
         [Fact]
-        public void TwentyEightWatchedSecondsClearTheSeat()
+        public void ThirtyOneAndAHalfWatchedSecondsClearTheSeat()
         {
             var r = new CustodialRounds(RoundsConfig.Night3(DifficultyMode.Normal, 0f, false, false));
             bool cleared = false;
             r.SeatCleared += () => cleared = true;
-            // Following the figure camera by camera, as a player who stares would.
-            for (int guard = 0; guard < 20 && !r.Finished; guard++) Tick(r, 4.05f, r.FigureCamera);
+            // Following the figure camera by camera, as a player who stares would: 7 x 4.5 s.
+            for (int guard = 0; guard < 20 && !r.Finished; guard++) Tick(r, 4.55f, r.FigureCamera);
             Assert.True(cleared);
             Assert.Equal(6, r.MaxStage);
             Assert.Equal("BehindChair", r.FigureStage);
@@ -217,7 +219,7 @@ namespace SecondCursor.Tests
         public void WatchingSublevelCAfterTheFigureLeftIsSafe()
         {
             var r = new CustodialRounds(RoundsConfig.Night3(DifficultyMode.Normal, 0f, false, false));
-            Tick(r, 4.05f, "cam04");
+            Tick(r, 4.55f, "cam04");
             Assert.Equal("Lobby", r.FigureStage);
             // Reading the shelves now never moves it.
             Tick(r, 120f, "cam04");

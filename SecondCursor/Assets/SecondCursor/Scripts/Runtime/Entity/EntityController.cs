@@ -156,7 +156,9 @@ namespace SecondCursor.Entity
                 _current.Tick(Time.time);
                 if (_current.Done) _current = null;
             }
-            if (_current == null && Brain != null && Brain.Enabled) Brain.Tick(dt);
+            // The brain thinks while idle, and also while lurking (a lurk is watching, not busy: anything that
+            // scores above it interrupts it at once).
+            if (Brain != null && Brain.Enabled && (_current == null || _current.Name == EntityBrain.LurkName)) Brain.Tick(dt);
         }
 
         void UpdateStaticSound()
@@ -437,11 +439,31 @@ namespace SecondCursor.Entity
             // Tear it loose (crosses the drag threshold).
             _agent.Position += new Vector2(6f, -4f);
             yield return null;
-            yield return MoveToDynamic(destination, profile, 24f);
+            yield return MoveToDynamic(ContestAware(destination), profile, 24f);
+            // Grabbed on the way (Phase F): the tug-of-war moves this cursor until it is decided. Still holding the
+            // file afterwards, it carries on; the player took it, and it lets go.
+            while (InContest())
+            {
+                while (InContest()) yield return null;
+                // A new grab on the way starts another tug: the loop waits it out again.
+                if (_agent.Held && _agent.Payload != null) yield return MoveToDynamic(ContestAware(destination), profile, 24f);
+            }
             yield return Waits.Seconds(0.08f);
             _agent.SetButton(false);
             yield return null;
         }
+
+        /// <summary>A tug-of-war over something this cursor holds is running.</summary>
+        bool InContest()
+        {
+            if (!_agent.Held) return false;
+            foreach (var p in _g.DragDrop.Active)
+                if (p.Contested && (p.Holder == _agent || p.Contender == _agent)) return true;
+            return false;
+        }
+
+        /// <summary>Stops a carry the moment a tug-of-war starts (the conflict moves the cursor then).</summary>
+        Func<Vector2?> ContestAware(Func<Vector2?> destination) => () => InContest() ? null : destination();
 
         /// <summary>Grab the window by its caption and haul it somewhere.</summary>
         public IEnumerator DragWindow(OSWindow window, Vector2 captionDestination, MovementProfileData profile)

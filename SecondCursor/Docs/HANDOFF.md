@@ -488,6 +488,134 @@ changed is how a night starts and ends, what is recorded, and the options.
   for dialogs, toasts, the Work Queue and the hex viewer; carrying demo progress into the full game; the demo's own Steam
   achievements; a separate screen-shake option; the post-game echo `{p2}` and the idle-finale fast-forward (from Phase D).
 
+### Expansion phase F (balance and pacing)
+
+Section 5 of `_work/2026-09-29/balance/BalanceReport.md` (all 39 rows), re-checked against the code after Phases D and E, plus two
+fixes the bridge checks found. Goal: Night 1 (the demo) is winnable by nearly every first-time player within three tugs, each night is
+a little harder, each night has one spike that the adaptive assist softens after two losses, and Story is a real 5 to 8 s struggle that
+everyone still wins. Spec tables updated in `Docs/Design/Expansion.md` 7.1 to 7.7.
+
+- **Contest rules (P0).**
+  - Letting go during a tug is letting go: a release while both cursors grip the file is never a drop (`PointerRouter`), so it cannot
+    win the tug or open the shred dialog, and drop targets do not light up under a contested file.
+  - She thinks while she lurks (`EntityController.Update`, `EntityBrain.Tick`: anything scoring above lurking interrupts it). Measured
+    on the bridge: a drag started while she lurks is grabbed 0.46 to 0.49 s after it begins (was 1.8 s on average, up to 4.5 s).
+  - `DifficultyProfile.InterceptDelay` (N1 0.20, N2 0.15, N3 0.12, Story 0.35 s, fading in counts toward it) before she lunges.
+  - While her file can be shredded and sits on the desktop she lurks 60 to 120 px around the midpoint between it and the Disposal bin
+    (`EntityBrain.PathToBin`), so grabs happen mid-path.
+  - Night 2's 209: she lunges within 420 px of the bin when the drag heads for it (within about 37 degrees), else within 150 px
+    (`InterceptRadiusHeading`; was 230 px any way).
+  - After she loses a tug she does not lunge again for 2 s. The carry loop's 20-step guard no longer counts fight frames.
+  - Assist: a won tug no longer clears the loss streak; a lost confirm race or Cancel fight weighs 1.0 (`ReportDefense(how)`), KeepAway
+    and a closed File Manager 0.5. Finished Gary's won No race on the Log Off confirm reports "no".
+- **Found by the bridge checks (not in the report).**
+  - *Corner trap:* a grab next to the bin (late because she was busy snatching the icon) left the player's pull pointing into the taskbar
+    corner; a scripted 700 px/s yank lost. `Core/Entity/TugOfWar.cs` `TugGeometry.EscapeDirection` turns her escape direction by the
+    smallest angle that leaves the player's pull 200 px of screen (unit-tested; mid-screen it is the old 0.7/0.3 blend).
+  - *Grab during a snatch:* grabbing the icon while KeepAway dragged it started a tug, but her `DragTo` kept moving her at full speed, so
+    the tension snapped in her favour every time. `EntityController.DragTo` now holds still while a tug over what it carries runs and
+    carries on only if she won; KeepAway reports such a tug as a lost tug (grip growth) or, if she lost, gives the 2 s re-grab cooldown.
+- **Values (old -> new, reason).** Tug and entity values are in `Core/Entity/Difficulty.cs`, rounds in `Core/Story/CustodialRounds.cs`.
+
+  | Where | Value | Old | New | Why |
+  |---|---|---|---|---|
+  | All nights | grip growth counts | every defense | lost tugs only (`EntityBrain.TugLosses`) | dialog and KeepAway defenses inflated grip |
+  | N1 | GripGrowth | 0.12 | 0.06 | tug 2 was 20% harder than tug 1 |
+  | N1 | RaceToNo delay | 0.15-0.35 s | 0.40-0.60 s | an alert Ellen beat even skilled players 81% at L0 |
+  | N1/N2/N3/Story | InterceptDelay | none | 0.20/0.15/0.12/0.35 s | human lunge once she is always alert |
+  | N1/N2/N3/Story | CancelDelay | none | 0.35-0.55/0.30-0.50/0.25-0.45/0.80-1.20 s | a first-timer who knew to cover Cancel still lost 82% |
+  | All | Cancel retry after a fully blocked patience | at once, forever | none for that shred | hover 11.7/13.1/15.1 s -> 8.4/8.7/9.7 s (bridge: 8.6 s) |
+  | Normal | TaskForceAfterHint | 240 s | 150 s | a stuck chore waited about 5 min |
+  | N2 | GripBase / GripGrowth | 0.70 / 0.10 | 0.68 / 0.05 | N2 tug 3 = N1 tug 1 (170 vs 184 px/s) |
+  | N2 | RaceToNo delay | 0.12-0.30 s | 0.20-0.40 s | Gary reaches No first 87% instead of 55% |
+  | N3 | pullSpeed / GripBase / GripGrowth | 480 / 0.78 / 0.08 | 460 / 0.74 / 0.05 | first tug 323 px/s, tug 3 218 = N2 tug 1 |
+  | N3 | RaceToNo delay | 0.10-0.25 s | 0.18-0.35 s | finale dialog with Gary 28% -> 70% at L0 |
+  | Story | tug startShare, playerWinShare, shareRate, base, pullSpeed, maxStrength | 0.40, 0.20, 0.70, 0.35, 300, 2.5 | 0.50, 0.15, 0.30, 0.30, 250, 0.65 | holding still won in 3.07 s |
+  | Story | maxTension / strainTension (new) / releaseGrace | 240 / - / 0.15 | off (99999) / 300 / 0.45 | no snap; band and shake stay; a short slip is forgiven |
+  | Story | GripBase = GripCap / RaceToNo delay | 0.45 / 0.60-0.90 | 0.41 / 0.90-1.30 | first-timers lost the Story race (Story shred 20-25%) |
+  | Assist L1 | grip, growth, pull, ramp, grace+, race+ | 0.88, 0.75, 0.90, 0.60, 0.03, 0.12 | 0.82, 0.50, 0.88, 0.50, 0.04, 0.40 | tug 3 clearly easier; average players win the N1 race at L1 |
+  | Assist L2 | same | 0.76, 0.50, 0.82, 0.30, 0.06, 0.25 | 0.68, 0.25, 0.78, 0.20, 0.08, 0.80 | first-time players win the N1 race at L2 (0% -> 99%) |
+  | Assist L3 | same | 0.65, 0, 0.75, 0, 0.10, 0.40 | 0.55, 0, 0.70, 0, 0.12, 1.00 | the top level is never a wall |
+  | Mercy | grip / effort / effort time / hold time (new) | 0.30 / 0.35 / 1.2 s / - | 0.15 / 0.15 / 1.0 s / 2.5 s (`MercyRelease`) | the release decided 0 of 9 000 simulated mercy contests |
+  | Mercy | arming | at L3 only | at L3, or any level in Story (floor +2) | Story: the contest after any loss is a mercy contest |
+  | N1 conflict | ends after | 4 defenses | 6 | a struggling player reaches L2 |
+  | N1 anomaly | Batch 44 first hint | 60 s | 40 s | 60 s silent after the first anomalies |
+  | N1 conflict | player never tries | one mail at 45 s, beat ends at 150 s | mail 45 s, hint toasts 48 and 90 s, beat ends at 100 s | 105 s of dead time |
+  | N2 work | first sign of her | about 6 min in | she looks in from the right edge at 90 s (tray mouse blinks) | returning players did chores alone for 6 min |
+  | N2 round | duration / forced opens / beat guard | 90 s / 0, 45 / 95 s | 80 s / 0, 25, 55 / 85 s | two 43 s silent holes |
+  | N3 round | WatchSeconds (hid 214) | 4.0 (5.0) | 4.5 (5.5) | seat cleared 47-49% -> 28-30% at neutral trust (target 20-30%) |
+  | N3 finale | 6:58 event / idle | none / waits the clock out | footsteps + feed flicker / after 60 s without input the clock runs to 7:00 over 15 s | 55 s gap; spec 13.5 |
+
+- **Simulation, before (Phase E code) and after (Phase F), per archetype.** `_work/2026-09-29/balance`, rerun with
+  `python run_nights.py 500 final` (`out_nights_applied.md`), `run_tugs.py 500`, `run_story.py`, `run_buttons.py`, `rounds_applied.py`,
+  `run_variants_f.py`. The "before" successes are inflated by the release-to-drop bug and the lurk luck (report findings 1 and 2).
+
+  | Night, mode | Player | Shred done in the beat | Median time to shred | First tug lost | A tug won by the 3rd contest | Final assist L |
+  |---|---|---|---|---|---|---|
+  | N1 Normal | first-time | 44% -> 32% | 39 -> 48 s | 17% -> 27% | 99% -> 100% | -1 -> 2 |
+  | N1 Normal | average | 90% -> 88% | 29 -> 33 s | 13% -> 5% | 97% -> 100% | 0 -> 1 |
+  | N1 Normal | skilled | 99% -> 100% | 22 -> 14 s | 16% -> 0% | 92% -> 100% | 0 -> 0 |
+  | N2 Normal | first-time | 100% -> 100% | 28 -> 20 s | 69% -> 24% | 50% -> 100% | 0 -> 0 |
+  | N2 Normal | average | 100% -> 100% | 21 -> 10 s | 27% -> 22% | 77% -> 100% | 0 -> 0 |
+  | N2 Normal | skilled | 100% -> 100% | 14 -> 10 s | 6% -> 3% | 95% -> 100% | 0 -> 0 |
+  | N3 Normal (finale) | first-time | 100% -> 100% | 57 -> 54 s | 89% -> 70% | 82% -> 59% | 1 -> 2 |
+  | N3 Normal (finale) | average | 100% -> 100% | 27 -> 18 s | 12% -> 25% | 96% -> 100% | 0 -> 0 |
+  | N3 Normal (finale) | skilled | 100% -> 100% | 21 -> 11 s | 19% -> 22% | 89% -> 100% | 0 -> 0 |
+  | N1 Story | first-time | 20% -> 97% | 38 -> 26 s | 0% -> 19% | 100% -> 99% | 2 -> 2 |
+  | N1 Story | average | 98% -> 100% | 19 -> 24 s | 0% -> 2% | 100% -> 100% | 2 -> 2 |
+  | N1 Story | skilled | 100% -> 100% | 13 -> 23 s | 0% -> 0% | 100% -> 100% | 2 -> 2 |
+
+  Per contest (win if a tug happens, first-time / average / skilled): N1 tug 1 84/88/89% -> 71/93/100%, tug 3 93/96/100% -> 83/99/100%;
+  N2 tug 1 38/70/95% -> 77/77/97%; N3 tug 1 13/90/86% -> 28/71/79%, tug 3 73/96/100% -> 45/97/100%. Story fight length at L2
+  0.2-0.5 s -> 6.9/6.1/5.7 s. N1 confirm race with Ellen alert, L0..L3: 0/0/19, 0/0/70, 0/10/98, 0/56/100% -> 0/10/98, 18/100/100,
+  99/100/100, 100%. Yank needed on the assist path: see Expansion 7.7 (N1 184, 202, 127...; N2 248, 268, 170...; N3 323, 347, 218...).
+  Rounds: N3 seat cleared (mixed population, kept / finished Gary) low trust 84/85% -> 59/84%, neutral 47/49% -> 28/30%, high 15% -> 15%;
+  N2 a passive player ends at the Corridor (was HallFar 73%), a player who peeks up to three times reaches the doorway 48% (was 0%).
+- **Tests.** CoreTests 253 (33 new): `DifficultyCurveTests` (first-grip table, the growth-aware path of 7.7 within 5%, each lost tug only
+  a little harder, tug 3 under 75% of tug 1, third tug vs last night's first growth-aware, Story holding still does not win in 20 s,
+  a 150 px/s ratchet wins in 4 to 9 s, strain without a snap), `DifficultyProfileTests` (Phase F tables), `AdaptiveAssistTests`
+  ("tug won, dialog lost" twice raises L, lost races weigh 1, keepaway/close 0.5, Story mercy at L2, a lowered level starts a fresh
+  loss streak), `TugGeometryTests`,
+  `MercyReleaseTests` (2.5 s held releases, 1 s of pull releases, a mercy contest cannot be lost by holding on). Updated with reasons:
+  Night 1 slice values (race delay, growth, force-complete), grip formula (0.06), assist scaling (L1 row), "a win breaks a loss streak"
+  (now it does not), hold-still times (N2 0.88 s, N3 0.77 s), third tug vs last night's first (now growth-aware: first-grip N3 L1 202 vs
+  N2 L0 248 is 0.81), Night 3 grip 0.74, Night 2 round (80 s, 0/25/55), Night 3 watch seconds 4.5/5.5.
+- **Bridge checks** (new commands `dragtug X Y DUR [HOLD]`, `tugplay SPEED [TIMEOUT]`, `waitaction NAME`, `tugs` in
+  `SecondCursorTestBridge.Balance.cs`; saves under `_work/2026-09-29/saves/phaseF`): a drag onto the bin released mid-tug ends in
+  EntityWins after 0.10 s with no shred request; a drag started while she lurks is grabbed after 0.46 to 0.49 s; real (not forced) tugs,
+  one lost (holding still, or the release) and one won (steady yank away from her) on each night on Normal; the full Night 1 attempt
+  (tug won, Yes before her No, Cancel held: "Gave up on Cancel" after 6 s, shredded 8.6 s after Yes); Story Night 1 shred with a real
+  200 px/s pull (tug 3.2 s); Night 2 round (opens at 0/25/55 s, ends at 80 s at the Corridor); Night 3 round at 3x speed (safe at Middle
+  after 360 s); finale idle fast-forward (60 s idle at 6:46, flicker at 6:58, 7:00 after 15 s, KEEP at 7:05: 135 s instead of about
+  270 s); Night 1 untried conflict (mail, hints, moves on at 100 s); Night 2 glimpse at 94 s. Regression from the title on a fresh save:
+  New Game, Normal, Night 1 to its card, Continue to Night 2 to its card, Continue to Night 3 to its card (SHRED), each with a real tug
+  win and shred; 0 game errors, 0 compiler warnings. CompileCheck: 8 configurations OK.
+- **Code review before the commit (fixed).** A carry that is grabbed twice in a row waits out the second tug too (it used to let go and
+  hand the player a free win); a stopped idle fast-forward can no longer leave the clock fast in the ending; lowering the assist level
+  clears the loss streak; she gives up on Cancel for that shred only after a whole patience held off (a click that missed for another
+  reason retries as before).
+- **Judgement calls.**
+  - Assist race adds +0.40 (L1) and +0.80 (L2) instead of the report's +0.25/+0.60: Night 1 first-time players shred 017 32% instead of
+    20% of the time (average 88%, skilled 100%) while the first contest stays the same. The shred is optional (the story branches on it).
+  - Night 3 round: 4.5 s per stage (5.5 after hiding 214) with the 22-30 s repeats kept, instead of 5.0/6.0 with 26-34 s. With Phase D's
+    0.4 s faster close the report's values leave only players who keep looking (15%); 4.5 s gives 28-30% at neutral trust.
+  - InterceptDelay counts her fade-in, so an invisible Ellen reacts in the same time as a visible one.
+  - The lurk anchor applies only while her file is on the desktop and can be shredded (Night 3's work beat keeps the lurk near your cursor).
+  - The Night 1 hint toasts come at 48 and 90 s (not 45) so they do not stack on the supervisor's mail at 45 s.
+  - No new writing: Night 2's early sign is a wordless glimpse from the right edge; the 6:58 event is footsteps, a glitch and static on the
+    feed if it shows.
+  - The idle fast-forward only runs to 7:00: from 7:00, KEEP at 7:05 is 60 s away at the normal rate anyway. Any input hands the clock back.
+  - A steady 150 px/s pull wins Story in 3.2 s (the floor for a perfectly steady pull); human strokes take 5.7 to 6.9 s in the simulation,
+    so the 4 to 9 s test uses a stroke-and-slide ratchet.
+  - Night 3 first-time players still lose most finale tugs early (tug 3 45%), which is the night's spike; every archetype wins a tug in the
+    beat and the finale has KEEP and LOG OFF.
+- **Needs real players.** The archetypes (reaction, stroke speed, slips) set the absolute numbers; watch for: first-time players at the
+  Night 1 confirm race (0% at L0 and L1, 99% at L2: the lever is the L1 race add), how the Story struggle feels, the Night 3 seat-clear
+  rate (15 to 35%), whether the heading-based Night 2 intercept reads as fair, the sideways escape after a grab by the bin, the 60 s idle
+  threshold, Steam Deck trackpad yank speeds (`GameRoot.DeckPullSpeedScale` is still 1), and whether Ellen hovering between the file and
+  the bin (instead of near your cursor) keeps her creepy.
+- **Not yet:** the simulation does not model the corner-trap and mid-snatch fixes (it assumed mid-path grabs); marketing tweaks M1-M15.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -506,6 +634,7 @@ dump | ids [filter] | texts [filter] | log [n] | errors
 waitbeat reveal 60 | waitflag camera_unlocked 90 | waittask t_shred_017 30 | waitlog text 20
 savedir D:\Downloads\Podaci\Project 1\_work\saves\test   # test saves (then resetsave, saveset, settings)
 title records | achievements next | haslog Achievement unlocked | deck on | store on | define SC_DEMO on | builddemo
+dragtug 915 66 1.5 3 | tugplay 600 | tugplay 0 | waitaction Lurk | tugs      # Phase F: real tugs played by the scripted cursor
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

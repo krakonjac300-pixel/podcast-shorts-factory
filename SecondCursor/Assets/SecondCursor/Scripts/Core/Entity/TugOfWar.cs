@@ -25,6 +25,8 @@ namespace SecondCursor.Core.Entity
         public float effortSmoothing = 0.12f;
         /// <summary>If the cursors get this far apart the grip snaps to whoever is ahead.</summary>
         public float maxTension = 280f;
+        /// <summary>Distance at which the strain (band, shake, audio) reads as full; 0 = <see cref="maxTension"/>. Story sets it because its snap is off.</summary>
+        public float strainTension;
         /// <summary>After this many seconds the entity starts getting stronger (no endless stalemates).</summary>
         public float rampDelay = 3f;
         public float rampPerSecond = 0.14f;
@@ -32,6 +34,54 @@ namespace SecondCursor.Core.Entity
         public float releaseGrace = 0.06f;
 
         public TugOfWarSettings Clone() => (TugOfWarSettings)MemberwiseClone();
+    }
+
+    /// <summary>
+    /// Which way the entity drags its end of the file when a tug starts. By default 0.7 away from the player and
+    /// 0.3 away from the Disposal bin. The player wins by pulling the opposite way, so when that pull would run into
+    /// a screen edge within <see cref="MinPlayerRoom"/> px (a grab next to the bin in the bottom-right corner), the
+    /// direction turns by the smallest angle that gives the player's pull room (Phase F: no corner traps).
+    /// </summary>
+    public static class TugGeometry
+    {
+        public const float MinPlayerRoom = 200f;
+        static readonly float[] Turns = { 30f, -30f, 60f, -60f, 90f, -90f, 120f, -120f, 150f, -150f, 180f };
+
+        /// <param name="bottom">Lowest y the cursors can use (the taskbar's top).</param>
+        public static Vec2 EscapeDirection(Vec2 player, Vec2 entity, Vec2 bin, float width, float height, float bottom)
+        {
+            Vec2 away = (entity - player).Normalized;
+            Vec2 fromBin = (entity - bin).Normalized;
+            Vec2 dir = (away * 0.7f + fromBin * 0.3f).Normalized;
+            if (dir.SqrLength < 0.1f) dir = new Vec2(0f, 1f);
+            float room = RoomAlong(player, dir * -1f, width, height, bottom);
+            if (room >= MinPlayerRoom) return dir;
+            Vec2 best = dir;
+            float bestRoom = room;
+            foreach (float deg in Turns)
+            {
+                Vec2 d = Rotate(dir, deg);
+                float r = RoomAlong(player, d * -1f, width, height, bottom);
+                if (r >= MinPlayerRoom) return d;
+                if (r > bestRoom) { bestRoom = r; best = d; }
+            }
+            return best;
+        }
+
+        /// <summary>Distance from <paramref name="p"/> along the unit direction <paramref name="d"/> to the edge of the usable screen.</summary>
+        public static float RoomAlong(Vec2 p, Vec2 d, float width, float height, float bottom)
+        {
+            float rx = d.x > 1e-4f ? (width - p.x) / d.x : d.x < -1e-4f ? p.x / -d.x : float.MaxValue;
+            float ry = d.y > 1e-4f ? (height - p.y) / d.y : d.y < -1e-4f ? (p.y - bottom) / -d.y : float.MaxValue;
+            return Math.Max(0f, Math.Min(rx, ry));
+        }
+
+        static Vec2 Rotate(Vec2 v, float degrees)
+        {
+            double r = degrees * Math.PI / 180.0;
+            float c = (float)Math.Cos(r), s = (float)Math.Sin(r);
+            return new Vec2(v.x * c - v.y * s, v.x * s + v.y * c);
+        }
     }
 
     /// <summary>
@@ -125,7 +175,8 @@ namespace SecondCursor.Core.Entity
             ObjectPosition = Vec2.Lerp(playerPos, entityPos, EntityShare);
 
             float closeness = 1f - Math.Abs(EntityShare - 0.5f) * 2f; // 1 when evenly matched
-            Strain = MathUtil.Clamp01(Tension / _s.maxTension * 0.65f + closeness * 0.2f + Math.Min(1f, (PlayerStrength + EntityStrength) * 0.25f) * 0.25f);
+            float strainAt = _s.strainTension > 0f ? _s.strainTension : _s.maxTension;
+            Strain = MathUtil.Clamp01(Tension / strainAt * 0.65f + closeness * 0.2f + Math.Min(1f, (PlayerStrength + EntityStrength) * 0.25f) * 0.25f);
 
             if (EntityShare <= _s.playerWinShare) return Finish(TugOutcome.PlayerWins, playerPos, entityPos);
             if (EntityShare >= _s.entityWinShare) return Finish(TugOutcome.EntityWins, playerPos, entityPos);

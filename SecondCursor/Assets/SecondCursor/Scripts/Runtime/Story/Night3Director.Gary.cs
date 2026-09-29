@@ -331,7 +331,7 @@ namespace SecondCursor.Story
             GameLog.Info(LogChannel.Entity, "Gary raced to No: " + (result[0] ? "clicked" : "blocked"));
             // A lost race counts like one of her defenses (the assist eases the next try), and he goes back to
             // the edge of the screen, so every try starts the same race again.
-            if (result[0] && box.Result == "No") _g.Assist?.ReportDefense();
+            if (result[0] && box.Result == "No") _g.Assist?.ReportDefense("no");
             yield return Gary.MoveTo(new Vector2(12f, Mathf.Clamp(Gary.Agent.Position.y, 120f, ScreenRig.Height - 40f)), MovementProfiles.Mechanical, 30f);
         }
 

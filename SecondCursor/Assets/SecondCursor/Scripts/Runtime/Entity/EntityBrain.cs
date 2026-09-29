@@ -33,16 +33,29 @@ namespace SecondCursor.Entity
             public float ReadyAt;
         }
 
+        /// <summary>The idle behaviour: the brain keeps thinking while it runs (EntityController ticks it).</summary>
+        public const string LurkName = "Lurk";
+        const string InterceptName = "InterceptDrag";
+        /// <summary>After it loses a tug it does not lunge again for this long (the player gets to the bin).</summary>
+        const float ReGrabCooldown = 2f;
+        /// <summary>A drag counts as heading for the bin when its direction is within about 37 degrees of it.</summary>
+        public const float InterceptHeadingCos = 0.8f;
+        const float HeadingMinSpeed = 80f;
+
         readonly GameServices _g;
         readonly EntityController _c;
         readonly List<Behaviour> _behaviours = new List<Behaviour>();
         float _thinkTimer;
+        /// <summary>The shred progress it fought over Cancel for a whole patience and gave up on (no retry for that shred).</summary>
+        object _cancelGaveUp;
 
         public bool Enabled;
         /// <summary>The file it will not let the player destroy.</summary>
         public string ProtectedFileId = ContentIds.File017;
         /// <summary>How many times it has stopped the player (drives escalation).</summary>
         public int Defenses { get; private set; }
+        /// <summary>Tugs the player has lost to it (only these make its grip grow).</summary>
+        public int TugLosses { get; private set; }
         /// <summary>Allow lurking near the player's cursor when nothing else to do.</summary>
         public bool AllowIdleLurk = true;
         /// <summary>Allow snatching the desktop icon away when the player reaches for it.</summary>
@@ -54,13 +67,18 @@ namespace SecondCursor.Entity
         /// dragged). Night 2: she lets you carry 209 to Archive, never to the bin.
         /// </summary>
         public float InterceptRadius;
+        /// <summary>
+        /// A wider radius used while the drag heads for the bin (0 = none). Night 2 (Phase F): she lunges early for a
+        /// drag aimed at the bin, so the fight happens with room to yank instead of in the bin's corner.
+        /// </summary>
+        public float InterceptRadiusHeading;
         /// <summary>During Custodial rounds: close a Camera Viewer that shows the figure (spec 7.4).</summary>
         public bool AllowCloseCamera;
         /// <summary>Her close click was blocked by another cursor (the story types CLOSE IT, at most every 20 s).</summary>
         public Action CloseCameraBlocked;
 
-        /// <summary>Defenses that count toward the adaptive assist (a lost tug is reported by the conflict itself).</summary>
-        static readonly HashSet<string> AssistDefenses = new HashSet<string> { "no", "dialog", "guard", "cancel", "keepaway" };
+        /// <summary>Defenses that count toward the adaptive assist (a lost tug is reported by the conflict itself; weights in AdaptiveAssist.DefenseWeight).</summary>
+        static readonly HashSet<string> AssistDefenses = new HashSet<string> { "no", "dialog", "guard", "cancel", "keepaway", "close" };
         static DifficultyProfile _fallbackProfile;
 
         DifficultyProfile Profile => _g.Difficulty ?? (_fallbackProfile ?? (_fallbackProfile = DifficultyTable.For(1, DifficultyMode.Normal)));
@@ -72,7 +90,7 @@ namespace SecondCursor.Entity
         {
             _g = g;
             _c = c;
-            Add("InterceptDrag", ScoreIntercept, RunIntercept, 1.0f);
+            Add(InterceptName, ScoreIntercept, RunIntercept, 1.0f);
             Add("CancelShred", ScoreCancelShred, RunCancelShred, 0.5f);
             Add("DragDialogAway", ScoreDragDialog, RunDragDialog, 2.5f);
             Add("GuardYes", ScoreGuardYes, RunGuardYes, 1.5f);
@@ -80,7 +98,7 @@ namespace SecondCursor.Entity
             Add("KeepAway", ScoreKeepAway, RunKeepAway, 5f);
             Add("CloseFilesWindow", ScoreCloseFiles, RunCloseFiles, 9f);
             Add("CloseCamera", ScoreCloseCamera, RunCloseCamera, 0.5f);
-            Add("Lurk", ScoreLurk, RunLurk, 0.5f);
+            Add(LurkName, ScoreLurk, RunLurk, 0.5f);
         }
 
         void Add(string name, Func<float> score, Func<IEnumerator> run, float cooldown)
@@ -91,15 +109,16 @@ namespace SecondCursor.Entity
         public void RegisterDefense(string how)
         {
             Defenses++;
+            if (how == "tug") TugLosses++;
             _c.Urgency = Profile.Urgency(Defenses);
             GameLog.Info(LogChannel.Entity, "Defended " + ProtectedFileId + " via " + how + " (#" + Defenses + ")");
             _g.Flags.Increment(Core.Story.Flags.CounterEntityWins);
-            if (AssistDefenses.Contains(how)) Assist?.ReportDefense();
+            if (AssistDefenses.Contains(how)) Assist?.ReportDefense(how);
             Defended?.Invoke(how);
         }
 
-        /// <summary>Tug-of-war grip strength, rising as the player keeps trying (eased by the assist).</summary>
-        public float Grip => Profile.Grip(Defenses, Assist, TrustGripMult);
+        /// <summary>Tug-of-war grip strength, rising with each tug the player loses (eased by the assist).</summary>
+        public float Grip => Profile.Grip(TugLosses, Assist, TrustGripMult);
 
         public void Tick(float dt)
         {
@@ -107,10 +126,13 @@ namespace SecondCursor.Entity
             if (_thinkTimer > 0f) return;
             _thinkTimer = 0.05f;
 
+            // While lurking it keeps watching: only something that matters more than lurking interrupts it.
+            bool lurking = _c.CurrentAction == LurkName;
             Behaviour best = null;
-            float bestScore = 0.01f;
+            float bestScore = lurking ? 1f : 0.01f;
             foreach (var b in _behaviours)
             {
+                if (lurking && b.Name == LurkName) continue;
                 if (Time.time < b.ReadyAt) continue;
                 float s = b.Score();
                 if (s > bestScore)
@@ -126,6 +148,13 @@ namespace SecondCursor.Entity
 
         /// <summary>Scripted override: re-evaluate immediately (e.g. right after a dialog opens).</summary>
         public void Poke() => _thinkTimer = 0f;
+
+        /// <summary>Keep a behaviour from starting again for at least <paramref name="seconds"/> from now.</summary>
+        void Delay(string name, float seconds)
+        {
+            foreach (var b in _behaviours)
+                if (b.Name == name) b.ReadyAt = Mathf.Max(b.ReadyAt, Time.time + seconds);
+        }
 
         // ------------------------------------------------------------------ helpers
 
@@ -189,8 +218,23 @@ namespace SecondCursor.Entity
         {
             var p = Player.Payload;
             if (p == null || !IsProtected(p.FileId) || p.Contested || p.Holder != Player) return 0f;
-            if (InterceptRadius > 0f && Vector2.Distance(p.GhostPosition + new Vector2(16f, -14f), _g.Desktop.DisposalIcon.Hit.Center) > InterceptRadius) return 0f;
+            if (InterceptRadius > 0f)
+            {
+                Vector2 bin = _g.Desktop.DisposalIcon.Hit.Center;
+                float radius = InterceptRadius;
+                if (InterceptRadiusHeading > radius && HeadsFor(bin)) radius = InterceptRadiusHeading;
+                if (Vector2.Distance(p.GhostPosition + new Vector2(16f, -14f), bin) > radius) return 0f;
+            }
             return 100f;
+        }
+
+        /// <summary>The player's cursor is moving toward <paramref name="point"/> (within the heading cone).</summary>
+        bool HeadsFor(Vector2 point)
+        {
+            Vector2 v = Player.Velocity;
+            Vector2 to = point - Player.Position;
+            if (v.sqrMagnitude < HeadingMinSpeed * HeadingMinSpeed || to.sqrMagnitude < 1f) return false;
+            return Vector2.Dot(v.normalized, to.normalized) > InterceptHeadingCos;
         }
 
         IEnumerator RunIntercept()
@@ -204,7 +248,12 @@ namespace SecondCursor.Entity
             };
             var g0 = ghost();
             if (!g0.HasValue) yield break;
+            float noticed = Time.time;
             yield return EnsurePresent(EntryPointNear(g0.Value));
+            // A human beat before the lunge (fading in counts toward it).
+            float wait = Profile.InterceptDelay - (Time.time - noticed);
+            if (wait > 0f) yield return Waits.Seconds(wait);
+            if (!ghost().HasValue || payload.Holder != Player || payload.Contested) yield break;
             _c.State = Core.Entity.EntityState.Aggressive;
             yield return _c.MoveToDynamic(ghost, MovementProfiles.Aggressive, 30f);
             if (payload.Holder != Player || payload.Dropped || payload.Contested) yield break;
@@ -226,9 +275,11 @@ namespace SecondCursor.Entity
                 RegisterDefense("tug");
                 Vector2 spot = SafeSpot();
                 int guard = 0;
-                while (payload.Holder == _c.Agent && !payload.Dropped && guard++ < 20)
+                while (payload.Holder == _c.Agent && !payload.Dropped)
                 {
+                    // A re-grab fight runs as long as it runs; only carrying attempts count toward the guard.
                     if (_g.Conflict.IsFighting) { yield return null; continue; }
+                    if (++guard > 20) break;
                     spot = SafeSpot();
                     yield return _c.MoveToDynamic(() => _g.Conflict.IsFighting || payload.Holder != _c.Agent ? (Vector2?)null : spot, MovementProfiles.Aggressive, 40f);
                     if (_g.Conflict.IsFighting || payload.Holder != _c.Agent) continue;
@@ -248,11 +299,15 @@ namespace SecondCursor.Entity
                 }
                 else
                 {
+                    // The player took it back on the way: same as losing the tug.
+                    Delay(InterceptName, ReGrabCooldown);
                     yield return _c.Recoil(Player.Position);
                 }
             }
             else
             {
+                // Lost the tug: she needs a moment before she can lunge again (the player gets to the bin).
+                Delay(InterceptName, ReGrabCooldown);
                 _c.Agent.SetButton(false);
                 yield return _c.Recoil(Player.Position);
                 _c.State = Core.Entity.EntityState.Defensive;
@@ -370,6 +425,8 @@ namespace SecondCursor.Entity
         {
             var p = _g.Shred.Progress;
             if (p == null || !p.IsOpen || !IsProtected(_g.Shred.PendingFileId)) return 0f;
+            // Held off Cancel for a whole patience: this shred is the player's (Phase F, no endless retries).
+            if (ReferenceEquals(p, _cancelGaveUp)) return 0f;
             return 100f;
         }
 
@@ -377,14 +434,26 @@ namespace SecondCursor.Entity
         {
             var p = _g.Shred.Progress;
             if (p == null) yield break;
+            float noticed = Time.time;
             yield return EnsurePresent(EntryPointNear(p.CancelButton.Hit.Center));
             _c.State = Core.Entity.EntityState.Panicked;
+            // A beat of reaction: a player who knows the trick gets to Cancel first.
+            float wait = Profile.CancelDelay(UnityEngine.Random.value) - (Time.time - noticed);
+            if (wait > 0f) yield return Waits.Seconds(wait);
+            if (!p.IsOpen) yield break;
             var result = new bool[1];
             // While fighting over Cancel the operation crawls - it is holding the process back.
             _g.Shred.SpeedMultiplier = Profile.CancelCrawl;
+            float fightStart = Time.time;
             yield return _c.ClickElement(p.CancelButton.Hit, MovementProfiles.Panicked, result, Profile.CancelPatience);
             _g.Shred.SpeedMultiplier = 1f;
             if (result[0]) RegisterDefense("cancel");
+            // Only a whole patience held off counts (a click that missed for another reason retries as before).
+            else if (p.IsOpen && Time.time - fightStart >= Profile.CancelPatience)
+            {
+                _cancelGaveUp = p;
+                GameLog.Info(LogChannel.Entity, "Gave up on Cancel");
+            }
             _c.State = Core.Entity.EntityState.Defensive;
         }
 
@@ -412,10 +481,24 @@ namespace SecondCursor.Entity
             icon = _g.Desktop.IconForFile(ProtectedFileId);
             if (icon == null || Player.Payload != null) yield break;
             Vector2 before = icon.TopLeft;
+            int winsBefore = _g.Flags.Get(Core.Story.Flags.CounterPlayerWins);
+            int lossesBefore = _g.Flags.Get(Core.Story.Flags.CounterTugLosses);
             yield return _c.DragTo(icon.Hit, () => spot, MovementProfiles.Aggressive, 0.02f);
             yield return null;
+            // The player grabbed it on the way and a tug decided it (Phase F: she holds still for the fight).
+            if (_g.Flags.Get(Core.Story.Flags.CounterPlayerWins) > winsBefore)
+            {
+                Delay(InterceptName, ReGrabCooldown);
+                yield break;
+            }
+            if (_g.Flags.Get(Core.Story.Flags.CounterTugLosses) > lossesBefore)
+            {
+                RegisterDefense("tug");
+                yield break;
+            }
             icon = _g.Desktop.IconForFile(ProtectedFileId);
-            if (icon != null && Vector2.Distance(icon.TopLeft, before) > 20f) RegisterDefense("keepaway");
+            bool playerHasIt = Player.Payload != null && IsProtected(Player.Payload.FileId);
+            if (icon != null && !playerHasIt && Vector2.Distance(icon.TopLeft, before) > 20f) RegisterDefense("keepaway");
         }
 
         // ------------------------------------------------------------------ CloseFilesWindow
@@ -486,11 +569,35 @@ namespace SecondCursor.Entity
 
         IEnumerator RunLurk()
         {
-            // Hover at a respectful distance from the player's cursor, watching.
-            Vector2 offset = UnityEngine.Random.insideUnitCircle.normalized * UnityEngine.Random.Range(120f, 190f);
-            Vector2 target = ScreenRig.ClampToScreen(Player.Position + offset);
-            yield return _c.MoveTo(target, MovementProfiles.Lurking, 40f);
+            Vector2 target;
+            var guardPoint = PathToBin();
+            if (guardPoint.HasValue)
+            {
+                // Its file can be shredded: it hovers on the way between the file and the Disposal bin, so a grab
+                // happens mid-path with room to yank, not in the bin's corner (Phase F).
+                Vector2 offset = UnityEngine.Random.insideUnitCircle.normalized * UnityEngine.Random.Range(60f, 120f);
+                target = guardPoint.Value + offset;
+                target.y = Mathf.Max(target.y, WindowManager.TaskbarHeight + 12f);
+            }
+            else
+            {
+                // Hover at a respectful distance from the player's cursor, watching.
+                Vector2 offset = UnityEngine.Random.insideUnitCircle.normalized * UnityEngine.Random.Range(120f, 190f);
+                target = Player.Position + offset;
+            }
+            yield return _c.MoveTo(ScreenRig.ClampToScreen(target), MovementProfiles.Lurking, 40f);
             yield return Waits.Seconds(UnityEngine.Random.Range(0.4f, 1.4f));
+        }
+
+        /// <summary>The midpoint between its file's desktop icon and the Disposal bin, while the file can be shredded.</summary>
+        Vector2? PathToBin()
+        {
+            if (string.IsNullOrEmpty(ProtectedFileId)) return null;
+            var shred = _g.Shred;
+            if (shred.IsInUse != null && shred.IsInUse(ProtectedFileId)) return null;
+            var icon = _g.Desktop.IconForFile(ProtectedFileId);
+            if (icon == null) return null;
+            return (icon.Hit.Center + _g.Desktop.DisposalIcon.Hit.Center) * 0.5f;
         }
     }
 }

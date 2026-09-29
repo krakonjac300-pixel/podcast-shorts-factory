@@ -44,7 +44,10 @@ namespace SecondCursor.Core.Story
 
         public int IndexOf(string stage) => Array.IndexOf(Stages, stage);
 
-        /// <summary>Night 2's first round: the near end of the hall, the office door, the doorway. 90 s.</summary>
+        /// <summary>
+        /// Night 2's first round: the near end of the hall, the office door, the doorway. 80 s with forced opens at
+        /// 0, 25 and 55 s (Phase F: no silent stretch over 30 s for a player who closes the viewer).
+        /// </summary>
         public static RoundsConfig Night2(DifficultyMode mode, float trust)
         {
             var c = new RoundsConfig
@@ -56,8 +59,8 @@ namespace SecondCursor.Core.Story
                 WatchSeconds = 5f,
                 ReopenPenalty = 0.5f,
                 AtLastStage = RoundsFinalRule.EndEarly,
-                Duration = 90f,
-                ForcedOpenTimes = new[] { 0f, 45f },
+                Duration = 80f,
+                ForcedOpenTimes = new[] { 0f, 25f, 55f },
             };
             ApplyCloseReaction(c, mode, trust);
             if (mode == DifficultyMode.Story) ApplyStory(c);
@@ -68,6 +71,8 @@ namespace SecondCursor.Core.Story
         /// Night 3's full round, 3:00 to 3:30 (360 s): from Sublevel C up to the seat. Watching the last stage
         /// long enough clears the seat. Starts in the Lobby if the figure was watched to the door on Night 2;
         /// slower if 214's source file was hidden. Security forces the viewer open at once, then every 22-30 s.
+        /// Phase F: 4.5 s per stage (5.5 after hiding 214), so about a quarter of players at neutral trust clear the
+        /// seat with Ellen's Phase D close timing (spec 12.5 asks for 15 to 35%).
         /// </summary>
         public static RoundsConfig Night3(DifficultyMode mode, float trust, bool watchedToDoor, bool hid214)
         {
@@ -77,7 +82,7 @@ namespace SecondCursor.Core.Story
                 Stages = new[] { "SublevelC", "Lobby", "HallFar", "Corridor", "Doorway", "Middle", "BehindChair" },
                 Cameras = new[] { "cam04", "cam01", "cam02", "cam02", "cam03", "cam03", "cam03" },
                 StartStage = watchedToDoor ? 1 : 0,
-                WatchSeconds = hid214 ? 5f : 4f,
+                WatchSeconds = hid214 ? 5.5f : 4.5f,
                 ReopenPenalty = 1f,
                 AtLastStage = RoundsFinalRule.ClearSeat,
                 Duration = 360f,

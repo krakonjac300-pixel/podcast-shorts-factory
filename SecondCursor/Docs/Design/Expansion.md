@@ -1474,70 +1474,83 @@ Night 2's blackout reuses Night 1's sequence (power down, dark room, typed lines
 ### 7.1 Targets
 
 - Hooked, never stuck: no beat waits on a skill check without a timeout or an alternative exit.
-- The first tug of each night is usually lost: in Night 1 by surprise, in Nights 2 and 3 because the required yank steps up.
+- The first tug of each night is usually lost: in Night 1 by surprise, in Nights 2 and 3 because the required yank steps up. (Phase F, measured in the simulation: Night 1's first tug is lost by about a quarter of first-time players and almost no experienced ones, Night 3's by most first-time players. Night 1 is the demo, so it favours a first win within three tries over a sure first loss.)
 - The second or third tug of a night is winnable: two losses lower the requirement to about the previous night's first-grip level.
+- One spike per night, softened after two losses: Night 1 the confirm race, Night 2 the corner fight and the Cancel hold with Gary, Night 3 the finale tug.
 - Story-critical wins are never required: Night 2 has KEEP paths, Night 3 has KEEP and LOG OFF.
 
 All values live in `Core/Entity/Difficulty.cs` (`DifficultyTable.For(night, mode)` returns a `DifficultyProfile`). `ConflictSystem` builds a fresh `TugOfWarSettings` for each contest from the profile and the current assist level. The optional `EntityTuningAsset` still overrides Night 1 values for designers.
 
 ### 7.2 Tug-of-war and entity values (Normal, assist level 0)
 
+Phase F values (tuned in `_work/2026-09-29/balance/BalanceReport.md`, applied in the "Expansion phase F" section of `Docs/HANDOFF.md`).
+
 `TugOfWarSettings` per night:
 
-| Field | Night 1 (today) | Night 2 | Night 3 | Story (all nights) |
+| Field | Night 1 | Night 2 | Night 3 | Story (all nights) |
 |---|---|---|---|---|
-| startShare | 0.50 | 0.52 | 0.55 | 0.40 |
-| playerWinShare | 0.12 | 0.12 | 0.12 | 0.20 |
+| startShare | 0.50 | 0.52 | 0.55 | 0.50 |
+| playerWinShare | 0.12 | 0.12 | 0.12 | 0.15 |
 | entityWinShare | 0.88 | 0.88 | 0.90 | 0.95 |
-| shareRate | 0.85 | 0.85 | 0.85 | 0.70 |
-| playerBaseStrength | 0.20 | 0.20 | 0.20 | 0.35 |
-| pullSpeedForFullStrength (px/s) | 400 | 440 | 480 | 300 |
+| shareRate | 0.85 | 0.85 | 0.85 | 0.30 |
+| playerBaseStrength | 0.20 | 0.20 | 0.20 | 0.30 |
+| pullSpeedForFullStrength (px/s) | 400 | 440 | 460 | 250 |
 | jiggleCredit | 0.0001 | 0.0001 | 0.0001 | 0.0001 |
-| maxPlayerStrength | 2.2 | 2.2 | 2.2 | 2.5 |
+| maxPlayerStrength | 2.2 | 2.2 | 2.2 | 0.65 |
 | effortSmoothing (s) | 0.12 | 0.12 | 0.12 | 0.12 |
-| maxTension (px) | 280 | 300 | 320 | 240 |
+| maxTension (px) | 280 | 300 | 320 | off (99999) |
+| strainTension (px, band and shake only; 0 = maxTension) | 0 | 0 | 0 | 300 |
 | rampDelay (s) | 3.0 | 2.5 | 2.0 | 99 (off) |
 | rampPerSecond | 0.14 | 0.18 | 0.22 | 0.00 |
-| releaseGrace (s) | 0.06 | 0.08 | 0.08 | 0.15 |
+| releaseGrace (s) | 0.06 | 0.08 | 0.08 | 0.45 |
 
-Entity values (`EntityBrain`, `EntityPersonality`):
+Entity values (`DifficultyProfile`, read by `EntityBrain`):
 
-| Field | Night 1 (today) | Night 2 | Night 3 | Story |
+| Field | Night 1 | Night 2 | Night 3 | Story |
 |---|---|---|---|---|
-| grip base (`Personality.grip`) | 0.62 | 0.70 | 0.78 | 0.45 |
-| grip growth per defense | 0.12 | 0.10 | 0.08 | 0.00 |
-| grip cap | 1.35 | 1.40 | 1.50 | 0.45 |
+| grip base | 0.62 | 0.68 | 0.74 | 0.41 |
+| grip growth per lost tug | 0.06 | 0.05 | 0.05 | 0.00 |
+| grip cap | 1.35 | 1.40 | 1.50 | 0.41 |
 | reactionScale | 1.00 | 0.90 | 0.80 | 1.60 |
-| RaceToNo reaction delay (s) | 0.15 to 0.35 | 0.12 to 0.30 | 0.10 to 0.25 | 0.60 to 0.90 |
+| InterceptDelay (s, from noticing a drag to the lunge; fading in counts) | 0.20 | 0.15 | 0.12 | 0.35 |
+| RaceToNo reaction delay (s) | 0.40 to 0.60 | 0.20 to 0.40 | 0.18 to 0.35 | 0.90 to 1.30 |
 | GuardYes enabled after N defenses | 2 | 2 | 1 | never |
 | GuardYes hold (s) | 5 to 8 | 5 to 8 | 6 to 9 | n/a |
 | DragDialogAway trigger radius (px) | 70 | 80 | 90 | off |
+| CancelShred reaction delay (s) | 0.35 to 0.55 | 0.30 to 0.50 | 0.25 to 0.45 | 0.80 to 1.20 |
 | CancelShred crawl multiplier | 0.35 | 0.30 | 0.25 | 0.60 |
-| CancelShred patience (s) | 6 | 6 | 7 | 3 |
+| CancelShred patience (s; held off for all of it, she does not try again on that shred) | 6 | 6 | 7 | 3 |
 | KeepAway enabled after N defenses | 2 | 2 | 1 | never |
 | Urgency per defense (cap) | +0.15 (2.2) | +0.15 (2.2) | +0.18 (2.4) | +0.05 (1.3) |
 
-Grip formula (replaces `EntityBrain.Grip`):
+Grip formula (`DifficultyProfile.Grip`). Only lost tugs make it grow; a dialog she won or an icon she snatched does not:
 
 ```
-Grip = min(cap, base * assist.GripMult * trustMult * (1 + Defenses * growth * assist.GrowthMult))
+Grip = min(cap, base * assist.GripMult * trustMult * (1 + tugLosses * growth * assist.GrowthMult))
 ```
 
 `trustMult` is 1.0 except in the Night 3 finale (0.9 or 1.1, Section 5.3). Mercy (Section 7.3) overrides the result.
+
+Rules around the tug (Phase F):
+- Letting go during a tug is letting go: a release over the bin or the desktop while both cursors grip the file is not a drop, and the contest decides (`PointerRouter`).
+- She keeps thinking while she lurks (anything that scores above lurking interrupts it at once). While her file can be shredded and is on the desktop, she lurks 60 to 120 px around the midpoint between the file and the Disposal bin, so a grab happens mid-path.
+- After she loses a tug she does not lunge again for 2 s. While she carries a file (a won tug, a KeepAway snatch), a grab by the player pauses her carry until the tug is decided.
+- Night 2's 209: she lunges within 420 px of the bin when the drag heads for it (direction within about 37 degrees), otherwise within 150 px (Archive drags pass).
+- Escape direction: 0.7 away from the player plus 0.3 away from the bin, turned by the smallest angle that leaves the player's pull 200 px of screen (`TugGeometry`), so a late grab by the bin is not a corner trap.
 
 ### 7.3 Adaptive assist
 
 `AdaptiveAssist` (engine-free, in `Difficulty.cs`) keeps a level L from -1 to +3 for the current night.
 
 Inputs, reported by `ConflictSystem.TugEnded` and `EntityBrain.Defended`:
-- tug lost: loss +1.0; tug won: win +1.
-- a non-tug defense (RaceToNo, DragDialogAway, GuardYes, CancelShred, KeepAway): loss +0.5.
+- tug lost: loss +1.0; tug won: win +1 (a won tug no longer clears the loss streak, so "tug won, dialog lost" twice still brings help).
+- a lost confirm race or Cancel fight (RaceToNo, DragDialogAway, GuardYes, CancelShred): loss +1.0; KeepAway and a closed File Manager: loss +0.5.
 - "easy win": a tug won in under 0.45 s with peak effort of at least 1.8.
 
 Rules:
 1. Loss streak reaches 2.0: L = min(L + 1, 3), streak resets. The first time per night L goes up, the NEXUS conflict toast (`notify.conflict`) shows again.
 2. Two wins in a row, or one easy win: L = max(L - 1, -1) (Story: never below +2).
-3. Mercy: at L = 3, two more tug losses arm mercy. The next contest uses grip 0.30, no ramp, and the entity lets go by itself after 1.2 s of player effort of at least 0.35. Mercy disarms after that contest. It is logged (`[ENTITY] Mercy contest`).
+3. Mercy: at L = 3, two more tug losses arm mercy (Story: one loss at any level). The next contest uses grip 0.15, no ramp, and the entity lets go by itself after 1.0 s of player effort of at least 0.15, or after 2.5 s of the button simply held (`MercyRelease`). Mercy disarms after that contest. It is logged (`[ENTITY] Mercy contest`).
 4. Night start: Normal starts at `clamp(previous night's final L - 1, 0, 1)`; Night 1 starts at 0. Story starts at +2.
 
 Level multipliers (applied on top of Section 7.2):
@@ -1546,9 +1559,9 @@ Level multipliers (applied on top of Section 7.2):
 |---|---|---|---|---|---|---|---|---|
 | -1 | 1.10 | 1.00 | 1.08 | 1.20 | 0 | -0.05 | on | on |
 | 0 | 1.00 | 1.00 | 1.00 | 1.00 | 0 | 0 | on | on |
-| 1 | 0.88 | 0.75 | 0.90 | 0.60 | +0.03 | +0.12 | on | on |
-| 2 | 0.76 | 0.50 | 0.82 | 0.30 | +0.06 | +0.25 | off | on |
-| 3 | 0.65 | 0.00 | 0.75 | 0.00 | +0.10 | +0.40 | off | off |
+| 1 | 0.82 | 0.50 | 0.88 | 0.50 | +0.04 | +0.40 | on | on |
+| 2 | 0.68 | 0.25 | 0.78 | 0.20 | +0.08 | +0.80 | off | on |
+| 3 | 0.55 | 0.00 | 0.70 | 0.00 | +0.12 | +1.00 | off | off |
 
 ### 7.4 Custodial rounds (watch meter)
 
@@ -1558,22 +1571,22 @@ Engine-free model `Core/Story/CustodialRounds.cs`: a route of stages, each with 
 |---|---|---|---|---|
 | Route (camera) | HallFar (02), Corridor (02), Doorway (03) | SublevelC (04), Lobby (01), HallFar (02), Corridor (02), Doorway (03), Middle (03), BehindChair (03) | Corridor (02), Doorway (03), Middle (03), BehindChair (03) | same routes |
 | Start stage | 0 | 0, or 1 if `m.n2.watched_to_door` | 0 | 0 |
-| Watch seconds per stage | 5.0 | 4.0 (5.0 if `m.n2.hid_214`) | 3.0 | 10.0 |
-| At the last stage | round ends early (no clearing) | meter fills again: seat cleared | seat cleared: KEEP | never clears (clamped at Middle) |
-| Forced opens | at 0 s and 45 s | at 0 s, then every 22 to 30 s | 6:50, 6:55, 7:00, 7:02 | every 45 s |
+| Watch seconds per stage | 5.0 | 4.5 (5.5 if `m.n2.hid_214`) | 3.0 | 10.0 |
+| At the last stage | round ends early (no clearing) | meter fills again: seat cleared | seat cleared: KEEP | never clears (clamped at Middle; the Night 2 route has no Middle) |
+| Forced opens | at 0, 25 and 55 s | at 0 s, then every 22 to 30 s | 6:50, 6:55, 7:00, 7:02 | the first one, then every 45 s |
 | Reopen penalty (s) | 0.5 | 1.0 | 1.0 | 0 |
-| Duration | 90 s | 3:00 to 3:30 (360 s, cap 420 s) | until an exit | same |
-| Ellen close reaction (s) | 1.2 to 2.0; trust at least 0.3: 0.8 to 1.4; trust -0.3 or lower: 2.0 to 3.0 | same, 0.4 s faster from the doorway on | same | 0.6 to 0.9 |
+| Duration | 80 s (beat guard 85 s) | 3:00 to 3:30 (360 s, cap 420 s) | until an exit | same |
+| Ellen close reaction before her move (s) | 1.2 to 2.0; trust at least 0.3: 0.8 to 1.4; trust -0.3 or lower: 2.0 to 3.0 | same minus 0.4 (her hand's travel), minus another 0.4 from the doorway on (minimum 0.2) | same as Night 2 | 0.6 to 0.9 |
 
-Budget check for Night 3 at Normal: clearing the seat takes 7 thresholds x 4 s = 28 s of watching in 6 minutes. There are about 13 forced opens. If the player does nothing and Ellen closes each one after 1.2 to 2.0 s, the total is about 16 to 26 s: the figure ends near the doorway or the middle of the room, frightening but alive. If Ellen is slow (low trust) and the player stares, the seat clears. A player who switches cameras or closes the viewer in under half a second, or reads the shelves only after the figure has left Sublevel C, can keep it in the Lobby (Remain Seated achievement).
+Budget check for Night 3 at Normal (Phase F, `balance/run_rounds_current.py`): clearing the seat takes 7 thresholds x 4.5 s = 31.5 s of watching in 6 minutes. There are about 13 forced opens. If the player does nothing, Ellen closes each one after her reaction (0.8 to 1.6 s at neutral trust) plus about 0.45 s for the move and the click, about 17 to 27 s in total: the figure ends near the doorway or the middle of the room, frightening but alive (bridge check: safe at Middle). A population of players (35% passive, 35% who peek up to three times, 15% who keep looking, 15% who switch away) clears the seat 28 to 30% of the time at neutral trust, 15% at high trust (only those who keep looking) and 59 to 84% at low trust; watching to the door on Night 2 raises it to 50%, hiding 214 lowers it to 15%. Before Phase F (4.0 s per stage with the Phase D close timing) it was 47 to 49% at neutral trust. A player who switches cameras or closes the viewer in under half a second, or reads the shelves only after the figure has left Sublevel C, can keep it in the Lobby (Remain Seated achievement).
 
-Ellen's `CloseCamera` behaviour (new in `EntityBrain`): score 80 when `AllowCloseCamera`, the viewer is open and not minimized, and the rounds model reports the figure on the shown camera. Run: wait the reaction delay, `ClickElement(close box, Panicked, patience 2 s)`. Blocked by the player's cursor: she jostles, gives up after the patience, types `CLOSE IT` (at most once per 20 s). It does not count as a defense and does not raise grip.
+Ellen's `CloseCamera` behaviour (in `EntityBrain`): score 80 when `AllowCloseCamera`, the viewer is open and not minimized, and the rounds model reports the figure on the shown camera. Run: wait the reaction delay, `ClickElement(close box, Panicked, patience 2 s)`. Blocked by the player's cursor: she jostles, gives up after the patience, types `CLOSE IT` (at most once per 20 s). It does not count as a defense and does not raise grip.
 
 ### 7.5 Story difficulty
 
 A toggle on the title screen and in the pause menu (`title.difficulty.*`, `pause.difficulty`). It changes challenge only, never content.
 
-- Tug-of-war and entity: Story column of Section 7.2. Assist floor +2, mercy after one loss at L3.
+- Tug-of-war and entity: Story column of Section 7.2. A real 5 to 8 s struggle that holding on cannot lose: holding still does not win for about a minute, a gentle pulling rhythm wins in 4 to 9 s. Assist floor +2, mercy after one loss at any level.
 - Rounds: Story column of Section 7.4 (Custodial never clears the seat by watching; the Night 3 finale KEEP still happens at 7:05).
 - Hints: Section 7.6 Story column.
 - Code prompt: the format line shows after the first failure; `n3_code_hint2` at 60 s.
@@ -1583,16 +1596,19 @@ A toggle on the title screen and in the pause menu (`title.difficulty.*`, `pause
 
 | Hint | Night 1 | Night 2 | Night 3 | Story |
 |---|---|---|---|---|
-| Company task, first toast | 30 s (briefing 25) | 40 s (briefing 30) | 45 s (briefing 30) | 15 s |
+| Company task, first toast | 30 s (briefing 25; Batch 44 after the anomalies 40) | 40 s (briefing 30) | 45 s (briefing 30) | 15 s |
 | Company task, repeat | 40 s | 45 s | 50 s | 25 s |
-| Force-complete a task | hint + 240 s | hint + 240 s | hint + 240 s | hint + 90 s |
+| Force-complete a task | hint + 150 s | hint + 150 s | hint + 150 s | hint + 90 s |
 | Conflict toast | after the first lost tug | when L first rises | when L first rises | after the first lost tug |
+| Night 1 conflict, player has not tried | supervisor mail at 45 s, task hint toasts at 48 and 90 s, the beat moves on at 100 s | n/a | n/a | same |
 | Entity task nudge | n/a | 35 s (withdraw at 75 s) | n/a | 20 s (withdraw at 75 s) |
 | Code: Ellen `n3_code_hint1` | n/a | n/a | 60 s after the Ruth mail is read, or right after the first wrong code if that is later | 30 s |
 | Code: format line | n/a | n/a | after 3 wrong codes | after 1 |
 | Code: kept Gary `g3_code` | n/a | n/a | 120 s | 60 s |
 | Code: Ellen `n3_code_hint2` | n/a | n/a | 180 s | 60 s |
 | Rounds teaching | n/a | Ellen on the first forced open | Ellen at start and first advance; kept Gary on the first forced open | same |
+
+Pacing events added in Phase F: Night 2, the second cursor looks in from the right edge about 90 s into the work beat (tray mouse blinks); Night 3 finale, footsteps and a feed flicker at 6:58, and after 60 s without any input the clock runs to 7:00 over 15 s (spec 13.5; any input hands it back).
 
 ### 7.7 Verification math
 
@@ -1605,18 +1621,28 @@ T        = maxTension / (v + 55 + 70 * grip)
 
 Holding still loses in `(entityWinShare - startShare) / (shareRate * (grip - base))` seconds.
 
-| Derived (first grip, no defenses yet) | Night 1 | Night 2 | Night 3 |
+Minimum sustained yank (px/s) for a night's first contest (no lost tugs yet), per assist level (`DifficultyCurveTests.YankThresholdsMatchTheTable`):
+
+| Derived (first grip) | Night 1 | Night 2 | Night 3 |
 |---|---|---|---|
-| Holding still loses after | 1.06 s | 0.85 s | 0.71 s |
-| Minimum sustained yank to win, L = -1 | about 195 px/s | about 310 px/s | about 450 px/s |
-| L = 0 | about 170 px/s | about 275 px/s | about 405 px/s |
-| L = 1 | about 140 px/s | about 200 px/s | about 290 px/s |
-| L = 2 | about 100 px/s | about 140 px/s | about 200 px/s |
-| L = 3 | about 70 px/s | about 95 px/s | about 130 px/s |
+| Holding still loses after | 1.07 s | 0.88 s | 0.77 s |
+| L = -1 | 234 | 316 | 415 |
+| L = 0 | 184 | 248 | 323 |
+| L = 1 | 115 | 157 | 202 |
+| L = 2 | 72 | 99 | 130 |
+| L = 3 | 41 | 59 | 79 |
 
-Read across: Night 2 at L1 needs about what Night 1 needed at L0, and Night 3 at L1 about what Night 2 needed at L0. That is the "third tug feels like last night's first" target. For scale: the virtual screen is 960 px wide, so 405 px/s held for about half a second is a firm quarter-screen yank.
+Along the real assist path (contest k is played at the level after k-1 straight tug losses, with k-1 lost tugs of grip growth; `DifficultyCurveTests.GrowthAwarePathMatchesTheReport`):
 
-A unit test (`DifficultyCurveTests`, Section 12.1) simulates `TugOfWar` at 60 Hz with this drift model and asserts each value within 15%. Tune the table, not the test, if playtests disagree.
+| Night | #1 L0 | #2 L0 | #3 L1 | #4 L1 | #5 L2 | #6 L2 | #7 L3 | #8 L3 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 184 | 202 | 127 | 134 | 81 | 83 | 41 | 41 |
+| 2 | 248 | 268 | 170 | 176 | 109 | 111 | 59 | 59 |
+| 3 | 323 | 347 | 218 | 227 | 141 | 144 | 79 | 79 |
+
+Read across: Night 2's third tug (170) needs about what Night 1's first needed (184), and Night 3's third (218) about Night 2's first (248). That is the "third tug feels like last night's first" target (spec 7.1), and the third tug is always at most 70% of the night's first. For scale: the virtual screen is 960 px wide; simulated first-time players' strokes average about 320 px/s, an average streamer's 480 px/s, a skilled player's 750 px/s.
+
+`DifficultyCurveTests` (Section 12.1) simulates `TugOfWar` at 60 Hz with this drift model and asserts each value within 15% (first grip) or 5% (the path). Tune the table, not the test, if playtests disagree.
 
 ---
 
@@ -1917,7 +1943,7 @@ Five or more fresh players per build; read results from the tagged game log (`[S
 2. **Append-only Notepad editing.** The config edits rely on Backspace removing the last character. Signposting: Ruth's mail names session.cfg, the Log Off refusal names the line, the file ends on it, and kept Gary does it in front of you. If playtests show confusion, add caret movement to Notepad later; it is out of scope here.
 3. **Reading the watch rule.** If fewer than 70% of testers understand it, add one NEXUS toast after the second advance in Night 3 ("Custodial position updated: viewer active."), which states the correlation without explaining it.
 4. **Three cursors at once.** Keep Gary visibly weaker (flicker, hand, amber) and quieter (no static loop). Never let both foreign cursors click at the same frame; the director sequences them.
-5. **Idle KEEP.** A player who does nothing in the finale waits up to about 4.5 minutes. Ellen and Gary lines and the 6:50/6:55 camera events fill it. If playtests find it slow, fast-forward the clock after 60 s without player input.
+5. **Idle KEEP.** A player who does nothing in the finale waits up to about 4.5 minutes. Ellen and Gary lines and the 6:50/6:55 camera events fill it. If playtests find it slow, fast-forward the clock after 60 s without player input. (Phase F: done; the clock runs to 7:00 over 15 s after 60 s without input, and a 6:58 feed flicker fills the 6:55 to 7:00 gap.)
 6. **Checkpoint fidelity.** `Prepare` rebuilds the world from flags; any new beat side effect must set a flag or it will not survive Continue. Review each `Prepare` against Sections 4.5 and 5.7.
 7. **Story Bible.** After implementation, update Section 10 (future nights) to this three-night canon, add the Night 2 and 3 text maps, and extend the writers' rule (Section 1, item 8).
 

@@ -25,6 +25,12 @@ namespace SecondCursor.Story
     {
         const float FinishDeadline = 150f;
         const float FinishHardCap = 175f;
+        /// <summary>Ellen grabs a dragged 209 this close to the bin, whatever the drag's direction.</summary>
+        const float Finish209Radius = 150f;
+        /// <summary>...and this close while the drag heads for the bin (Phase F; 230 px any way before).</summary>
+        const float Finish209HeadingRadius = 420f;
+        /// <summary>The round beat's guard (the round itself lasts 80 s).</summary>
+        const float RoundsGuard = 85f;
         const float GaryFaint = 0.3f;
         static readonly Vector2 Gary209Spot = new Vector2(480f, 200f);
 
@@ -247,7 +253,10 @@ namespace SecondCursor.Story
             brain.AllowIdleLurk = false;
             brain.AllowKeepAway = true;
             brain.AllowCloseCamera = false;
-            brain.InterceptRadius = 230f;
+            // She lets 209 go to Archive, never to the bin: she lunges once a drag is near the bin, or early
+            // (Phase F) when it is clearly headed there, so the fight has room.
+            brain.InterceptRadius = Finish209Radius;
+            brain.InterceptRadiusHeading = Finish209HeadingRadius;
             brain.Enabled = true;
             E.State = EntityState.Defensive;
             g.Shred.IsInUse = id => id == ContentIds.File017;
@@ -289,6 +298,7 @@ namespace SecondCursor.Story
             Gary.Interrupt();
             brain.Enabled = false;
             brain.InterceptRadius = 0f;
+            brain.InterceptRadiusHeading = 0f;
             E.Interrupt();
             E.Urgency = 1f;
             yield return Wait(1.2f);
@@ -597,7 +607,7 @@ namespace SecondCursor.Story
 
             float start = Time.time;
             bool emptied = false;
-            while (!reachedDoor && !timeUp && Time.time - start < 95f)
+            while (!reachedDoor && !timeUp && Time.time - start < RoundsGuard)
             {
                 if (finished && !emptied && Time.time - start >= 20f)
                 {

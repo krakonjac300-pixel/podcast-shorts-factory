@@ -33,7 +33,7 @@ namespace SecondCursor.Entity
         float _glitchCooldown;
 
         bool _mercy;
-        float _mercyPull;
+        MercyRelease _mercyRelease;
 
         /// <summary>Development builds only: decide the next contests (None = fight for real). Set by the debug panel and the test bridge.</summary>
         public static TugOutcome ForcedOutcome = TugOutcome.None;
@@ -88,12 +88,12 @@ namespace SecondCursor.Entity
             _payload = p;
             _forcedNow = false;
             _mercy = _g.Assist != null && _g.Assist.BeginContest();
-            _mercyPull = 0f;
+            _mercyRelease = _mercy ? new MercyRelease() : null;
             CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy) : new TugOfWarSettings();
             _model = new TugOfWar(CurrentSettings);
-            Vector2 away = (_g.EntityAgent.Position - _g.Player.Position);
-            Vector2 fromBin = (_g.EntityAgent.Position - _g.Desktop.DisposalIcon.Hit.Center);
-            _escapeDir = (away.normalized * 0.7f + fromBin.normalized * 0.3f).normalized;
+            // Away from the player and the bin, turned if the player's pull would have no room (a grab by the bin).
+            _escapeDir = TugGeometry.EscapeDirection(_g.Player.Position.ToCore(), _g.EntityAgent.Position.ToCore(),
+                _g.Desktop.DisposalIcon.Hit.Center.ToCore(), ScreenRig.Width, ScreenRig.Height, WindowManager.TaskbarHeight).ToUnity();
             if (_escapeDir.sqrMagnitude < 0.1f) _escapeDir = Vector2.up;
 
             _g.Flags.Set(Flags.ConflictStarted);
@@ -163,18 +163,15 @@ namespace SecondCursor.Entity
 
         /// <summary>
         /// Outcomes the model does not decide: in a mercy contest the entity lets go once the player has pulled
-        /// hard enough for long enough; in development builds a forced outcome ends the contest early.
+        /// for a moment, or has simply held on for a while; in development builds a forced outcome ends the
+        /// contest early.
         /// </summary>
         TugOutcome Overrule(float dt, bool playerGrips)
         {
-            if (_mercy && playerGrips)
+            if (_mercy && _mercyRelease != null && _mercyRelease.Step(dt, playerGrips, _model.Effort))
             {
-                if (_model.Effort >= AdaptiveAssist.MercyEffort) _mercyPull += dt;
-                if (_mercyPull >= AdaptiveAssist.MercyHoldSeconds)
-                {
-                    GameLog.Info(LogChannel.Entity, "Entity let go (mercy)");
-                    return TugOutcome.PlayerWins;
-                }
+                GameLog.Info(LogChannel.Entity, "Entity let go (mercy)");
+                return TugOutcome.PlayerWins;
             }
             if (ForcedOutcome != TugOutcome.None && Debug.isDebugBuild && _model.Elapsed >= ForcedOutcomeAfter)
             {

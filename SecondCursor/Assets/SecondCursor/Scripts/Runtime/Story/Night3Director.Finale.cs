@@ -24,6 +24,13 @@ namespace SecondCursor.Story
         /// <summary>Real seconds after which the finale ends in KEEP whatever the clock says (a stalled clock never soft-locks).</summary>
         const float FinaleSafetyCap = 480f;
         const float LogOffSeconds = 6f;
+        /// <summary>Spec 13.5: seconds without input before the finale's clock fast-forwards to 7:00 (Phase F).</summary>
+        const float IdleFastForwardAfter = 60f;
+        const float IdleFastForwardSeconds = 15f;
+        /// <summary>6:58, the finale's one event between the 6:55 feed and 7:00.</summary>
+        const int FeedFlickerTime = 6 * 60 + 58;
+        float _idleSince;
+        Vector2 _idleLastPos;
         static readonly Vector2 File017Spot = new Vector2(600f, 300f);
 
         Night3Exit _exit;
@@ -93,8 +100,10 @@ namespace SecondCursor.Story
             g.Rounds.ForcedBy = null;
             g.Rounds.ForcedOpenHandler = GaryFinished ? GaryForcedOpen : (Action<string>)null;
             g.Rounds.Begin(RoundsConfig.Night3Finale(g.Difficulty.Mode, g.Memory.Trust));
-            bool open650 = false, open655 = false, open700 = false, open702 = false, said652 = false, said700 = false;
+            bool open650 = false, open655 = false, open700 = false, open702 = false, said652 = false, said700 = false, flicker658 = false;
             float keepSince = -1f;
+            _idleSince = Time.time;
+            _idleLastPos = g.Player.Position;
 
             while (_exit == Night3Exit.None)
             {
@@ -106,6 +115,12 @@ namespace SecondCursor.Story
                     open655 = true;
                     g.Rounds.OpenViewer(ContentIds.Cam03);
                     SayLater(_ellen, "n3_finale_feed", 4.5f);
+                }
+                if (!flicker658 && clock >= FeedFlickerTime)
+                {
+                    // Phase F: the 6:55 to 7:00 stretch gets one event (footsteps and a flicker on the feed).
+                    flicker658 = true;
+                    RunSide(FeedFlicker(), "feed-flicker");
                 }
                 if (!open700 && clock >= Night3Rules.LogOffTime) { open700 = true; g.Rounds.OpenViewer(null); }
                 if (!open702 && clock >= Night3Rules.LogOffTime + 2) { open702 = true; g.Rounds.OpenViewer(null); }
@@ -133,6 +148,11 @@ namespace SecondCursor.Story
 
                 // KEEP by confirmation lands at 7:00 (unless a shred is already running).
                 bool running = g.Shred.Busy || LogOffRunning;
+                // Spec 13.5: a player who does nothing for a minute does not wait the clock out at its own pace.
+                if (PlayerActive()) _idleSince = Time.time;
+                else if (!_fastForward && !running && !g.Conflict.IsFighting && clock < Night3Rules.LogOffTime
+                         && Time.time - _idleSince >= IdleFastForwardAfter)
+                    RunSide(IdleFastForward(), "idle-fast-forward");
                 if (_confirmed && clock >= Night3Rules.LogOffTime && !g.Shred.Busy) { _exit = Night3Exit.Keep; _keepCause = "confirm"; break; }
                 if (clock >= Night3Rules.KeepTime && keepSince < 0f) keepSince = Time.time;
                 if (Night3Rules.KeepByTime(clock, running, keepSince < 0f ? 0f : Time.time - keepSince)) { _exit = Night3Exit.Keep; _keepCause = "time"; break; }
@@ -148,6 +168,51 @@ namespace SecondCursor.Story
         }
 
         bool LogOffRunning => (_logOffConfirm != null && _logOffConfirm.IsOpen) || (_logOffProgress != null && _logOffProgress.IsOpen);
+
+        /// <summary>The player moved the cursor, holds the button or typed something this frame.</summary>
+        bool PlayerActive()
+        {
+            var p = _g.Player.Position;
+            bool moved = (p - _idleLastPos).sqrMagnitude > 4f;
+            _idleLastPos = p;
+            return moved || _g.Player.Held || !string.IsNullOrEmpty(_g.Input?.TypedText);
+        }
+
+        /// <summary>
+        /// After a minute without input the clock runs to 7:00 over 15 s (the 6:50 and 6:55 feed opens still happen on
+        /// the way). Any input hands the clock back to its own pace.
+        /// </summary>
+        IEnumerator IdleFastForward()
+        {
+            var clock = _g.Clock;
+            double target = Night3Rules.LogOffTime;
+            double missing = target - clock.ExactMinutes;
+            if (missing <= 0) yield break;
+            _fastForward = true;
+            GameLog.Info(LogChannel.Story, "Finale: idle fast-forward to 7:00");
+            clock.Rate = (float)(missing / IdleFastForwardSeconds);
+            float end = Time.time + IdleFastForwardSeconds + 2f;
+            float since = _idleSince;
+            while (clock.ExactMinutes < target && Time.time < end && _exit == Night3Exit.None && _idleSince <= since) yield return null;
+            if (clock.ExactMinutes < target) clock.Rate = FinaleRate;
+            else
+            {
+                clock.Rate = RoundsRate;
+                GameLog.Info(LogChannel.Story, "Finale: idle fast-forward reached 7:00");
+            }
+            _fastForward = false;
+            _idleSince = Time.time;
+        }
+
+        /// <summary>6:58: distant footsteps, a glitch, and static over the feed if it is showing.</summary>
+        IEnumerator FeedFlicker()
+        {
+            GameLog.Info(LogChannel.Story, "Finale: feed flicker");
+            _g.Audio.Play("footstep_distant", 0.55f, 0.85f, 0.2f);
+            _g.Fx.Glitch(0.18f, 0.55f);
+            var cam = _g.Apps.Find<CameraApp>();
+            if (cam != null && cam.IsOpen && !cam.Window.IsMinimized && _g.CameraRig != null) yield return StaticCut(() => { });
+        }
 
         /// <summary>Debug (F1 panel): end the night now with this exit's ending.</summary>
         public void ForceExit(Night3Exit exit)
@@ -389,6 +454,12 @@ namespace SecondCursor.Story
             var exit = _exit;
             // Nothing from the finale (her exchange, tug or log-off lines, Gary) may type into the dark ending.
             StopSideRoutines();
+            // A stopped fast-forward never restores the clock itself.
+            if (_fastForward)
+            {
+                _fastForward = false;
+                g.Clock.Rate = RoundsRate;
+            }
             UnhookFinale();
             g.Rounds.Stop();
             g.Rounds.ForcedOpenHandler = null;

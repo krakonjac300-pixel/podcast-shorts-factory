@@ -42,6 +42,7 @@ namespace SecondCursor.EditorTools
             "        clicktext TEXT | dclicktext TEXT\n" +
             "Keys:   key NAME (GameKey) | type TEXT (\\n = Enter, \\b = Backspace)\n" +
             ProgressHelp +
+            BalanceHelp +
             "Coordinates are virtual pixels (960x540, origin bottom-left).";
 
         static readonly string Dir = Path.GetFullPath("Library/SecondCursorBridge");

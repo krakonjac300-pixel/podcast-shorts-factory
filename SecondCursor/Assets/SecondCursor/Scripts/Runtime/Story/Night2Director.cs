@@ -32,6 +32,8 @@ namespace SecondCursor.Story
         static readonly int[] BeatClock = { 112, 112, 128, 138, 152, 169, 180, 185 };
         const float Rate = 0.06f;
         const int FreezeMinute = 2 * 60 + 49;
+        /// <summary>Seconds into the work beat before the second cursor looks in from the edge (Phase F).</summary>
+        const float GlimpseAfter = 90f;
 
         static readonly string[] WorkTasks =
         {
@@ -222,6 +224,7 @@ namespace SecondCursor.Story
                 _g.Notifications.Show(_g.Content.Text("app.mail"), _g.Content.Format("notify.newmail", _g.Mail.UnreadCount), "icon_mail_unread",
                     a => _g.Apps.Launch(AppIds.Mail, a));
             RunSide(RenameAnomaly(), "rename");
+            RunSide(EllenGlimpse(), "ellen-glimpse");
             yield return WaitTask(ContentIds.TaskN2Briefing, _g.Difficulty.BriefingHintFirst);
             GiveTask(ContentIds.TaskN2Batch45);
             yield return WaitTask(ContentIds.TaskN2Batch45);
@@ -232,6 +235,32 @@ namespace SecondCursor.Story
             GiveTask(ContentIds.TaskN2Cache);
             yield return WaitTask(ContentIds.TaskN2Cache);
             _g.Flags.Set(Flags.TutorialDone);
+        }
+
+        /// <summary>
+        /// Phase F: about 90 s into the shift the second cursor looks in from the right edge for a second and leaves,
+        /// with its tray mouse blinking. The only sign of her before the help beat, so returning players are not
+        /// left with Night 1's chores alone for six minutes.
+        /// </summary>
+        IEnumerator EllenGlimpse()
+        {
+            yield return Wait(GlimpseAfter);
+            if (CurrentBeat != "work" || E.IsVisible || E.Busy) yield break;
+            E.Run(Glimpse(), "glimpse");
+        }
+
+        IEnumerator Glimpse()
+        {
+            float y = Mathf.Clamp(_g.Player.Position.y + UnityEngine.Random.Range(-70f, 70f), 120f, ScreenRig.Height - 60f);
+            var edge = new Vector2(ScreenRig.Width + 6f, y);
+            E.Teleport(edge);
+            yield return E.Appear(edge, 0.35f, false);
+            _g.Taskbar.BlinkDevice(2);
+            yield return E.MoveTo(edge + new Vector2(-38f, UnityEngine.Random.Range(-6f, 6f)), MovementProfiles.Hesitant, 12f);
+            GameLog.Info(LogChannel.Story, "Anomaly: the second cursor looked in");
+            yield return Wait(0.9f);
+            yield return E.MoveTo(edge + new Vector2(8f, 0f), MovementProfiles.HumanLike, 20f);
+            yield return E.Vanish(0.25f);
         }
 
         /// <summary>Once: 1.5 s after the player first drags a Batch 45 file, batch45_c becomes b7_seat.dat for 6 s.</summary>

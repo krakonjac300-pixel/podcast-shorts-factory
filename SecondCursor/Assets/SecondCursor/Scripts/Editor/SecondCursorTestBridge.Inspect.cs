@@ -286,6 +286,21 @@ namespace SecondCursor.EditorTools
                 });
             }
 
+            /// <summary>
+            /// Each frame <paramref name="step"/> gets the cursor position and dt and returns where the cursor goes
+            /// next, or null to finish (Phase F balance commands steer a tug this way).
+            /// </summary>
+            public void Steer(Func<Vector2, float, Vector2?> step)
+            {
+                _steps.Enqueue(dt =>
+                {
+                    var next = step(_pos, dt);
+                    if (!next.HasValue) return Next;
+                    _pos = next.Value;
+                    return Continue;
+                });
+            }
+
             public void Press() => _steps.Enqueue(dt => { _held = true; _down = true; return NextFrame; });
             public void Release() => _steps.Enqueue(dt => { _held = false; _up = true; return NextFrame; });
 

@@ -170,6 +170,7 @@ namespace SecondCursor.Story
             g.Entity.Brain.Enabled = false;
             g.Entity.Brain.AllowCloseCamera = false;
             g.Entity.Brain.InterceptRadius = 0f;
+            g.Entity.Brain.InterceptRadiusHeading = 0f;
             g.Entity.Urgency = 1f;
             g.Gary?.Interrupt();
             g.Rounds?.Stop();
@@ -310,13 +311,19 @@ namespace SecondCursor.Story
                 if (Time.time > nextHint)
                 {
                     nextHint = Time.time + d.TaskHintRepeat;
-                    var t = _g.Tasks.Get(taskId);
-                    if (t != null && !string.IsNullOrEmpty(t.Data.hint))
-                        _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Data.hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
+                    ShowTaskHint(taskId);
                 }
                 yield return null;
             }
             yield return Wait(0.8f);
+        }
+
+        /// <summary>The Work Queue's hint toast for a task (clicking it opens the Work Queue).</summary>
+        protected void ShowTaskHint(string taskId)
+        {
+            var t = _g.Tasks.Get(taskId);
+            if (t != null && !string.IsNullOrEmpty(t.Data.hint))
+                _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Data.hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
         }
 
         /// <summary>

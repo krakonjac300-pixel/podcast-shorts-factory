@@ -218,7 +218,7 @@ namespace SecondCursor.EditorTools
                     SteamBridge.RaiseOverlayActivated();
                     Say("Steam overlay activated (simulated)");
                     return WaitSeconds(0.2f);
-                default: return null;
+                default: return TryGameBalanceCommand(g, cmd, a, rest);
             }
         }
 

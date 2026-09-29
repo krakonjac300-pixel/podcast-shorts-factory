@@ -307,7 +307,7 @@ namespace SecondCursor.Story
             var notes = _g.Content.Story.anomalyNotes;
             if (notes.Length > 0) _g.Notifications.Show(_g.Content.Text("os.name"), notes[0], "icon_info", null, "ui_select");
 
-            yield return WaitTask(ContentIds.TaskArchiveBatch, 60f);
+            yield return WaitTask(ContentIds.TaskArchiveBatch, 40f);
         }
 
         // ------------------------------------------------------------------ PHASE 2: presence
@@ -347,6 +347,13 @@ namespace SecondCursor.Story
         }
 
         // ------------------------------------------------------------------ PHASE 3: interference (key fun test)
+
+        /// <summary>The conflict ends after this many defenses (Phase F: 6, so a struggling player reaches assist +2).</summary>
+        const int ConflictDefenseCap = 6;
+        /// <summary>Task hint toasts while the player has not tried yet (the supervisor's mail comes at 45 s).</summary>
+        static readonly float[] ConflictHintTimes = { 48f, 90f };
+        /// <summary>A player who never tries moves on after this long instead of 150 s.</summary>
+        const float ConflictUntriedEnd = 100f;
 
         Action<DragPayload, TugOutcome> _conflictHint;
 
@@ -392,19 +399,32 @@ namespace SecondCursor.Story
             };
             _g.Conflict.TugStarted += _conflictNote;
 
+            int hintsShown = 0;
             while (true)
             {
                 // After the first defence it stays on screen, watching.
                 if (brain.Defenses >= 1) brain.AllowIdleLurk = true;
                 bool shredded = _g.Files.GetFile(ContentIds.File017)?.Shredded ?? false;
                 if (shredded) break;
-                if (brain.Defenses >= 4 && !_g.Conflict.IsFighting && !_g.Shred.Busy) break;
+                if (brain.Defenses >= ConflictDefenseCap && !_g.Conflict.IsFighting && !_g.Shred.Busy) break;
                 float elapsed = Time.time - start;
                 int attempts = _g.Memory.Count(MemoryKind.ShredAttempt, ContentIds.File017) - attemptsAtStart;
+                // A player who has not tried yet (no shred request, no tug, no defense) is nudged, then let go.
+                bool untried = attempts == 0 && !sessionNoted && brain.Defenses == 0 && !_g.Conflict.IsFighting && _g.Player.Payload == null;
                 if (!followedUp && elapsed > 45f && attempts == 0)
                 {
                     followedUp = true;
                     _g.Mail.Deliver(ContentIds.MailSupervisorCheck);
+                }
+                if (untried && hintsShown < ConflictHintTimes.Length && elapsed > ConflictHintTimes[hintsShown])
+                {
+                    hintsShown++;
+                    ShowTaskHint(ContentIds.TaskShred017);
+                }
+                if (untried && elapsed > ConflictUntriedEnd)
+                {
+                    GameLog.Info(LogChannel.Story, "Conflict: no attempt, moving on");
+                    break;
                 }
                 if (elapsed > 150f && !_g.Conflict.IsFighting && !_g.Shred.Busy) break;
                 if (elapsed > 175f)
