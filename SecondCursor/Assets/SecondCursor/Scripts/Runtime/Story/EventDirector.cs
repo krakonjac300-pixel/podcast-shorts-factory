@@ -158,6 +158,8 @@ namespace SecondCursor.Story
             {
                 g.Flags.Set(Flags.CameraUnlocked);
                 g.Flags.Set(Flags.MimicShown);
+                g.Mail.Deliver(ContentIds.MailNoSender, false);
+                g.Files.SetFolderLocked(ContentIds.FolderRestricted, false);
             }
         }
 
@@ -561,10 +563,15 @@ namespace SecondCursor.Story
                 yield return Wait(1f);
             }
             yield return TypeLines(_g.Content.Dialogue.recordLines, 4f);
-            yield return Wait(1f);
+            yield return Wait(1.5f);
+            // A message from your own account... dated eleven years ago.
+            _g.Mail.Deliver(ContentIds.MailNoSender);
+            yield return Wait(3f);
             yield return TypeLines(_g.Content.Dialogue.cameraLines, 3.5f);
 
-            // It opens what you were not allowed to open.
+            // It opens what you were not allowed to open: the Restricted folder, then the cameras.
+            _g.Files.SetFolderLocked(ContentIds.FolderRestricted, false);
+            _g.Notifications.Show(_g.Content.Text("os.name"), "Permissions on Restricted changed by a remote session.", "icon_lock", a => _g.Apps.OpenFolder(ContentIds.FolderRestricted, a), "ui_select");
             _g.Flags.Set(Flags.CameraUnlocked);
             _g.Notifications.Show(_g.Content.Text("app.camera"), "Clearance override accepted: remote session.", "icon_lock", null, "sys_warning");
             yield return Wait(0.8f);
