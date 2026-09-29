@@ -350,17 +350,19 @@ Then a second cursor shows up.
 
 SECOND CURSOR is a short horror game played entirely inside NEXUS OS 4.1, a beige 1998 office computer. You click, drag, double-click and type. That is all the control you get. It is also all the control the ghost has.
 
+[b]Photosensitivity:[/b] contains screen glitches and tearing (0.05 to 0.4 s each), screen shake, film grain, CRT flicker, bursts of static, a flickering light in the security camera feeds, and a bright flash when the monitor powers off. Choose Reduce flashing on the first screen, or set Flashing to Reduced in Options (Esc, or the || button on the taskbar). It tones glitches, flashes, shake and flicker spikes down, and the CRT effects can be switched off.
+
 [h2]THREE NIGHTS, ABOUT AN HOUR[/h2]
 A first run takes about an hour. Each night adds a system instead of repeating the last one.
 [list]
 [*][b]Night 1:[/b] the job, the second cursor, and a security camera you were told not to use.
 [*][b]Night 2:[/b] the ghost starts writing tasks into your Work Queue. A third pointer connects, and it wants something from you. Custodial begins its rounds on the security cameras, and watching makes it move.
-[*][b]Night 3:[/b] a longer round that reaches the basement. A Restricted folder that wants a code. Config files you can edit and save. A clock that runs to 7:00.
+[*][b]Night 3:[/b] a full Custodial round, with a new camera on Sublevel C. A Restricted folder that wants a code. Config files you can edit and save. A clock that runs to 7:00.
 [/list]
 
 [h2]THE GHOST USES THE MOUSE THE WAY YOU DO[/h2]
 [list]
-[*]It grabs a file while you are dragging it. Yank away hard to win it back. Hold still and you lose it.
+[*]It grabs a file while you are dragging it. Keep the button held and drag firmly away. Hold still, or let go, and it keeps the file.
 [*]It races you to the No button on a confirm dialog.
 [*]It goes for Cancel while a file is shredding. Park your cursor on Cancel and it has to find another way.
 [*]It follows the same input rules you do, so your cursor can block its cursor. Its cursor can block yours.
@@ -370,13 +372,28 @@ A first run takes about an hour. Each night adds a system instead of repeating t
 It opens the Jotter, the built-in text editor, and types to you a few letters at a time. Type back and press Enter. Swear at it. Refuse. Ask about the last operator. Tell it you are streaming. Every reply is a written line matched to your words, and nothing is generated while you play. Some of what you type comes back on later nights.
 
 [h2]THE CAMERA IS POINTED AT YOUR CHAIR[/h2]
-The Camera Viewer is for Security staff only. The second cursor opens it for you anyway. Camera 03 covers your office from a high corner, and the seated figure's arm moves when your mouse moves. Look away. Look again.
+The Camera Viewer is for Security staff only. The second cursor opens it for you anyway. CAM 03 covers your office from a high corner, and the seated figure's arm moves when your mouse moves. Look away. Look again.
 
 [h2]HOW IT ENDS IS SOMETHING YOU DO[/h2]
 Three endings. None of them is a menu: you drag, you type, or you log off. What you did on earlier nights changes how hard each way out is. Nineteen Steam achievements, twelve of them hidden.
 
 [h2]BUILT TO STAY INSIDE THE GAME[/h2]
 Everything happens inside the fake computer. The game does not read your files, use your webcam or microphone, or move your real mouse. Saving a file in the Jotter writes to the game's own pretend disk. There is no Streamer Mode because there is nothing to hide.
+
+[h2]HOW TO PLAY[/h2]
+[list]
+[*][b]Click[/b] to select. [b]Double-click[/b] an icon or file to open it.
+[*][b]Drag[/b] a window by its title bar to move it. Drag a file onto a folder to move it, or onto the [b]Disposal[/b] bin to shred it.
+[*][b]Right-click[/b] anything to see what you can do with it.
+[*]Your tasks are in the [b]Work Queue[/b] (top right, or the [b]Task[/b] button on the taskbar). Do them in order. The hint under each task says how.
+[*]The job: read the briefing in [b]Mail[/b], move files in [b]File Manager[/b] (the [b]Workstation[/b] icon), and look up each work order's owner in [b]Personnel[/b] before you click [b]Approve[/b] or [b]Reject[/b].
+[*]If the second cursor grabs your file, keep the mouse button held and drag firmly away from it. Hold still, or let go, and it keeps the file.
+[*]It types to you in the [b]Jotter[/b]. Type a reply and press [b]Enter[/b].
+[*]Stuck? Hints come back on their own, and [b]NEXUS Help[/b] on the desktop explains every action.
+[*][b]Esc[/b] or the [b]||[/b] button on the taskbar pauses the shift and opens the options. [b]Ctrl+S[/b] saves a file you changed in the Jotter.
+[*][b]Normal[/b] or [b]Story[/b] difficulty. Story: the second cursor gives in sooner, Custodial is slower, and hints come early. Nothing is cut.
+[*]Each night saves at checkpoints. [b]Continue[/b] on the title picks up from the last one.
+[/list]
 
 [h2]KEY FEATURES[/h2]
 [list]
@@ -391,8 +408,6 @@ Everything happens inside the fake computer. The game does not read your files, 
 [b]Try Night 1 free first.[/b] The demo is the whole first night, about 12 to 15 minutes.
 
 [b]Content notes:[/b] psychological horror. Themes of surveillance, missing and deceased employees, and being replaced. Death is implied and never depicted. No gore. A tall figure appears on security cameras. Sudden low sounds and long silences. No voice acting. The game writes no profanity; if you type your own, it reacts to it. English only.
-
-[b]Photosensitivity:[/b] contains screen glitches and tearing (0.05 to 0.4 s each), screen shake, film grain, CRT flicker, bursts of static, a flickering light in the security camera feeds, and a bright flash when the monitor powers off. A Reduce flashing option tones glitches, flashes, shake and flicker spikes down, and the CRT effects can be switched off.
 ```
 
 ### 2.3 Tags (20, in priority order)
@@ -434,14 +449,14 @@ Changes from `MarketResearch.md` section 5.1: added Supernatural and Conspiracy 
 [h2]Night 1, free.[/h2]
 This is the whole first night of SECOND CURSOR, from the BIOS to the moment the screen goes black. About 12 to 15 minutes. It starts at 1:52 AM.
 
-You are the night operator at Letheworth Data Reclamation. Archive the finished files. Check the work orders against Personnel. Shred the junk. Before the first half hour is out, a second cursor walks onto your screen with a file of its own.
+You are the night operator at Letheworth Data Reclamation. Archive the finished files. Check the work orders against Personnel. Shred the junk. A few minutes into the shift, a second cursor walks onto your screen with a file of its own.
 
 [h2]What is in the demo[/h2]
 [list]
 [*]The whole job, from log-on to the last work order.
 [*]The second cursor: it takes a file out of your hand, races you to the No button, and goes for Cancel while a file shreds.
 [*]The Jotter. It types to you. Type back and press Enter. It answers.
-[*]Camera 03.
+[*]CAM 03.
 [/list]
 
 [h2]Things worth trying[/h2]
@@ -449,7 +464,7 @@ You are the night operator at Letheworth Data Reclamation. Archive the finished 
 [*]Type what you would really type. Swear. Refuse. Tell it you are streaming.
 [*]Park your cursor on Cancel while a file is shredding.
 [*]Try Shut Down.
-[*]Open the System Monitor and end the process that should not be there.
+[*]Open System Monitor from the Nexus menu and end the process that should not be there.
 [*]When the camera opens, move your mouse.
 [/list]
 
@@ -461,7 +476,7 @@ Nights 2 and 3, the third pointer, the Restricted code and all three endings. Th
 [h2]Tell us what you typed[/h2]
 Post the best thing you typed to the ghost in the Steam discussions for this demo. We post the game's real reply to the best ones.
 
-Contains screen glitches, static, sudden low sounds and a bright flash when the monitor powers off. A Reduce flashing option is in the Esc menu. English only.
+Contains screen glitches, static, sudden low sounds and a bright flash when the monitor powers off. Choose Reduce flashing on the first screen, or set Flashing to Reduced in Options (Esc, or the || button on the taskbar). English only.
 
 [b]When the screen goes black, a card says WISHLIST NOW. That is the way to the other two nights.[/b]
 ```
@@ -470,9 +485,9 @@ The last line matches the demo's actual end card (`SC_DEMO` build). The full gam
 
 ### 2.5 Notes on the copy
 
-- **"Reduce flashing" on the first screen** is true only after SteamChecklist item 2.2 is fixed. Until then say "from the Esc menu after log-on".
-- **"Never touches" scope:** the copy names files, webcam, microphone and the real mouse. Add "network" only after the Unity Insights and diagnostics flags in SteamChecklist 2.11 are confirmed off.
-- **Achievements:** 19 total and 12 hidden, per `Expansion.md` section 9. `SteamChecklist.md` still lists 8. Update it.
+- **"Reduce flashing" on the first screen** is true: the first launch asks Full effects or Reduce flashing.
+- **"Never touches" scope:** the copy names files, webcam, microphone and the real mouse. Phase G turned Unity diagnostics, analytics and the crash report API off in the release settings, so "network" may be added once the shipped build is confirmed to be made with Apply Release Settings.
+- **Achievements:** 19 total and 12 hidden, per `Expansion.md` section 9. `SteamChecklist.md` now lists all 19.
 - **Price and launch discount** (15% for 7 days, $5.94) go in the launch announcement only.
 - **Refund defence:** the length line ("about an hour"; timed estimate 48 to 63 minutes, confirm with fresh players) plus the free demo is deliberate.
 
