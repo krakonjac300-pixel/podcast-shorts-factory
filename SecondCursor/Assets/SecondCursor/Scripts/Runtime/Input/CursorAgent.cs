@@ -29,6 +29,9 @@ namespace SecondCursor.Input
         public bool RightPressedThisFrame { get; private set; }
         public bool RightReleasedThisFrame { get; private set; }
 
+        /// <summary>Mouse-wheel notches this frame (positive = away from the user / scroll up).</summary>
+        public float Scroll;
+
         /// <summary>Current cursor sprite (set by the router from what is under it; can be overridden).</summary>
         public CursorShape Shape = CursorShape.Arrow;
         public CursorShape? ShapeOverride;
@@ -79,6 +82,7 @@ namespace SecondCursor.Input
         {
             PressedThisFrame = ReleasedThisFrame = false;
             RightPressedThisFrame = RightReleasedThisFrame = false;
+            Scroll = 0f;
         }
 
         internal void UpdateVelocity(float dt)

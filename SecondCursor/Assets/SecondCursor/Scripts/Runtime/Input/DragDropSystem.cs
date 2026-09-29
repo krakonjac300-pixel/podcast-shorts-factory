@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SecondCursor.Core;
 using SecondCursor.Rendering;
 using SecondCursor.UI;
 using UnityEngine;
@@ -50,13 +51,17 @@ namespace SecondCursor.Input
         }
 
         /// <summary>Starts carrying a file. <paramref name="iconTopLeft"/> is where the source icon's top-left sits (virtual px).</summary>
-        public DragPayload BeginFileDrag(CursorAgent agent, string fileId, string label, string iconSprite, Interactable source, Vector2 iconTopLeft)
+        public DragPayload BeginFileDrag(CursorAgent agent, string fileId, string label, string iconSprite, Interactable source, Vector2 iconTopLeft) =>
+            BeginDrag(agent, PayloadKind.File, fileId, label, iconSprite, source, iconTopLeft);
+
+        /// <summary>Starts carrying anything (a file, or e.g. a desktop shortcut identified by <paramref name="id"/>).</summary>
+        public DragPayload BeginDrag(CursorAgent agent, PayloadKind kind, string id, string label, string iconSprite, Interactable source, Vector2 iconTopLeft)
         {
             if (agent.Payload != null) return agent.Payload;
             var p = new DragPayload
             {
-                Kind = PayloadKind.File,
-                FileId = fileId,
+                Kind = kind,
+                FileId = id,
                 Label = label,
                 IconSprite = iconSprite,
                 Source = source,

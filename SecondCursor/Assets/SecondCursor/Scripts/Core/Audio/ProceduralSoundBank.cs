@@ -7,6 +7,9 @@
 //    1. Public API + registry
 //    2. DSP toolkit  (PRNG, oscillators, filters, reverb, envelopes, helpers)
 //    3. Sound designs (one method per id, grouped by family)
+//
+//  Design rule: the player's own actions sound clean, dry and digital (ui_*);
+//  everything the entity does is physical, in the room, or electrically "wrong".
 // ============================================================================
 
 using System;
@@ -82,7 +85,7 @@ namespace SecondCursor.Core.Audio
             new Entry("sys_error",        false, 0.70f, SysError),
             new Entry("sys_warning",      false, 0.70f, SysWarning),
             new Entry("sys_startup",      false, 0.80f, SysStartup),
-            // --- physical input devices (used for the SECOND cursor: physical, in the room)
+            // --- physical input devices (the second cursor is heard through these: in the room)
             new Entry("mouse_click",      false, 0.85f, MouseClick),
             new Entry("mouse_release",    false, 0.80f, MouseRelease),
             new Entry("key_tap",          false, 0.70f, KeyTap),
@@ -166,6 +169,14 @@ namespace SecondCursor.Core.Audio
         private const float TwoPi = 2f * MathF.PI;
         private const float PeakCeiling = 0.89f;
 
+        /// <summary>
+        /// Tiny offset added to every recursive filter's input. IIR states ringing down into silence would
+        /// otherwise sink into the denormal range, where x86 float math is ~20-100x slower. It is added to the
+        /// input (not the state), so it costs nothing on the loop-carried dependency chain. -360 dBFS of DC.
+        /// </summary>
+        private const float AntiDenormal = 1e-18f;
+        private const int MainsPeriod = SampleRate / 60;   // 735 samples = one 60 Hz cycle (US mains)
+
         // ---------------- PRNG (PCG32) ----------------
 
         private sealed class Rng
@@ -216,18 +227,22 @@ namespace SecondCursor.Core.Audio
             return t;
         }
 
-        /// <summary>sin(2*pi*phase) with the phase in cycles (any value). Table lookup, ~-140 dB error.</summary>
+        /// <summary>Keeps the table index positive for phases down to -4096 cycles (no Math.Floor needed).</summary>
+        private const double SinOffset = 4096.0 * SinSize;
+
+        /// <summary>sin(2*pi*phase), phase in cycles (-4096 .. +4000). Interpolated table, ~-140 dB error.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float Sin01(double phase)
         {
-            double x = (phase - Math.Floor(phase)) * SinSize;
-            int i = (int)x;
-            float f = (float)(x - i);
+            double x = phase * SinSize + SinOffset;
+            int k = (int)x;
+            float f = (float)(x - k);
+            int i = k & (SinSize - 1);
             float a = SinTable[i];
             return a + (SinTable[i + 1] - a) * f;
         }
 
-        /// <summary>Free-running phase accumulator for one-shots (frequency may change per sample).</summary>
+        /// <summary>Free-running phase accumulator for one-shots (frequency may change every sample).</summary>
         private struct Phasor
         {
             public double Phase;
@@ -254,8 +269,8 @@ namespace SecondCursor.Core.Audio
         }
 
         /// <summary>
-        /// Exactly periodic phase for loops: the frequency is rounded to a whole number of cycles per loop,
-        /// and the phase is tracked with an integer accumulator so the loop point is sample-exact.
+        /// Exactly periodic phase for loops: the frequency is rounded to a whole number of cycles per loop
+        /// and tracked with an integer accumulator, so the loop point is sample-exact.
         /// </summary>
         private struct LoopOsc
         {
@@ -283,7 +298,7 @@ namespace SecondCursor.Core.Audio
 
         /// <summary>
         /// Phase offset (cycles) of a sinusoidal vibrato of +/-depthHz running 'cycles' times per loop.
-        /// It integrates to zero over the loop, so FM'd loop tones stay seamless.
+        /// It integrates to zero over the loop, so frequency-modulated loop tones stay seamless.
         /// </summary>
         private static double LoopFm(int i, int n, float depthHz, int cycles, double phase0 = 0.0)
         {
@@ -292,7 +307,24 @@ namespace SecondCursor.Core.Audio
             return depthHz / (TwoPi * rateHz) * (Sin01(phase0 + 0.25) - Sin01(u + 0.25));
         }
 
-        /// <summary>Single-cycle wavetable (built additively, so it is band-limited by construction).</summary>
+        /// <summary>
+        /// <see cref="LoopFm"/> evaluated every 32 samples and linearly interpolated (the vibrato is slow, so this
+        /// is exact to ~1e-7 cycles); the last block ends exactly on the value at sample 0, keeping the seam.
+        /// </summary>
+        private static float[] LoopFmCurve(int n, float depthHz, int cycles, double phase0 = 0.0)
+        {
+            const int block = 32;
+            var c = new float[n];
+            for (int i0 = 0; i0 < n; i0 += block)
+            {
+                int len = Math.Min(block, n - i0);
+                double a = LoopFm(i0, n, depthHz, cycles, phase0), b = LoopFm(i0 + len, n, depthHz, cycles, phase0);
+                for (int j = 0; j < len; j++) c[i0 + j] = (float)(a + (b - a) * j / len);
+            }
+            return c;
+        }
+
+        /// <summary>Single-cycle wavetable (built additively, so band-limited by construction).</summary>
         private sealed class Wavetable
         {
             private const int Size = 2048;
@@ -336,6 +368,18 @@ namespace SecondCursor.Core.Audio
             return p;
         }
 
+        /// <summary>One period of a periodic signal with 'period' samples, built from harmonics of SampleRate/period.</summary>
+        private static float[] HarmonicCycle(int period, int[] harmonics, float[] amps, Rng r)
+        {
+            var cycle = new float[period];
+            for (int k = 0; k < harmonics.Length; k++)
+            {
+                double ph = r.Float();
+                for (int i = 0; i < period; i++) cycle[i] += amps[k] * Sin01((double)harmonics[k] * i / period + ph);
+            }
+            return cycle;
+        }
+
         // ---------------- Filters ----------------
 
         private sealed class OnePole
@@ -347,10 +391,10 @@ namespace SecondCursor.Core.Audio
             public void Set(float hz) { _a = 1f - MathF.Exp(-TwoPi * hz / Sr); }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public float Lp(float x) { _z += _a * (x - _z); return _z; }
+            public float Lp(float x) { _z += _a * (x + AntiDenormal - _z); return _z; }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public float Hp(float x) { _z += _a * (x - _z); return x - _z; }
+            public float Hp(float x) { _z += _a * (x + AntiDenormal - _z); return x - _z; }
         }
 
         /// <summary>Topology-preserving state-variable filter (Zavalishin / Simper). Cheap to modulate.</summary>
@@ -374,7 +418,7 @@ namespace SecondCursor.Core.Audio
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private void Tick(float x, out float band, out float low)
             {
-                float v3 = x - _ic2;
+                float v3 = x + AntiDenormal - _ic2;
                 band = _a1 * _ic1 + _a2 * v3;
                 low = _ic2 + _a2 * _ic1 + _a3 * v3;
                 _ic1 = 2f * band - _ic1;
@@ -385,8 +429,22 @@ namespace SecondCursor.Core.Audio
 
             public float Hp(float x) { Tick(x, out float band, out float low); return x - _k * band - low; }
 
-            /// <summary>Band-pass with unity gain at the centre frequency.</summary>
+            /// <summary>Band-pass with unity gain at the centre (note: only 6 dB/oct skirts).</summary>
             public float Bp(float x) { Tick(x, out float band, out _); return _k * band; }
+        }
+
+        /// <summary>4th-order Butterworth low-pass (24 dB/oct) - the tool for keeping noise out of the top octave.</summary>
+        private sealed class Lp4
+        {
+            private readonly Svf _a, _b;
+
+            public Lp4(float hz)
+            {
+                _a = new Svf(hz, 0.5412f);
+                _b = new Svf(hz, 1.3066f);
+            }
+
+            public float Process(float x) => _b.Lp(_a.Lp(x));
         }
 
         /// <summary>Two-pole resonator: a unit impulse rings as gain * sin(), decaying with time constant tau.</summary>
@@ -407,10 +465,50 @@ namespace SecondCursor.Core.Audio
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public float Process(float x)
             {
-                float y = _b0 * x + _a1 * _y1 + _a2 * _y2;
+                float y = _b0 * (x + AntiDenormal) + _a1 * _y1 + _a2 * _y2;
                 _y2 = _y1;
                 _y1 = y;
                 return y;
+            }
+        }
+
+        /// <summary>
+        /// Several two-pole resonators fed the same (noise) input and stepped together, so their independent
+        /// recursions overlap in the CPU pipeline. Each gain is the output RMS for uniform white noise in [-1, 1]
+        /// (a resonator integrates noise over ~tau, so its raw gain would grow with sqrt(tau * SampleRate)).
+        /// </summary>
+        private sealed class ResonatorBank
+        {
+            private readonly float[] _b0, _a1, _a2, _y1, _y2;
+            public readonly float[] Out;
+
+            public ResonatorBank(float[] hz, float tauSec, float[] rmsGains)
+            {
+                int k = hz.Length;
+                _b0 = new float[k]; _a1 = new float[k]; _a2 = new float[k];
+                _y1 = new float[k]; _y2 = new float[k]; Out = new float[k];
+                double r = Math.Exp(-1.0 / (tauSec * SampleRate));
+                double norm = Math.Sqrt(6.0 * (1.0 - r * r)); // unit-amplitude ringing -> unit RMS for noise of variance 1/3
+                for (int j = 0; j < k; j++)
+                {
+                    double w = 2.0 * Math.PI * hz[j] / SampleRate;
+                    _a1[j] = (float)(2.0 * r * Math.Cos(w));
+                    _a2[j] = (float)(-r * r);
+                    _b0[j] = (float)(rmsGains[j] * norm * Math.Sin(w));
+                }
+            }
+
+            /// <summary>Steps every resonator with input x; results land in <see cref="Out"/>.</summary>
+            public void Process(float x)
+            {
+                x += AntiDenormal;
+                for (int j = 0; j < Out.Length; j++)
+                {
+                    float y = _b0[j] * x + _a1[j] * _y1[j] + _a2[j] * _y2[j];
+                    _y2[j] = _y1[j];
+                    _y1[j] = y;
+                    Out[j] = y;
+                }
             }
         }
 
@@ -428,17 +526,16 @@ namespace SecondCursor.Core.Audio
             }
         }
 
-        /// <summary>Freeverb-style mono reverb (8 damped combs + 4 all-passes), roughly unity power gain.</summary>
+        /// <summary>
+        /// Freeverb-style mono reverb: 8 parallel damped combs into 4 series all-passes, at most unity power
+        /// gain (damping lowers it), so "wet = 1" means a tail about as energetic as the dry sound.
+        /// Unrolled so the eight independent comb recursions overlap in the CPU pipeline.
+        /// </summary>
         private sealed class Reverb
         {
-            private static readonly int[] CombLengths = { 1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617 };
-            private static readonly int[] AllpassLengths = { 556, 441, 341, 225 };
-
-            private readonly float[][] _comb = new float[8][];
-            private readonly int[] _combPos = new int[8];
-            private readonly float[] _combLp = new float[8];
-            private readonly float[][] _ap = new float[4][];
-            private readonly int[] _apPos = new int[4];
+            private readonly float[] _c0, _c1, _c2, _c3, _c4, _c5, _c6, _c7, _a0, _a1, _a2, _a3;
+            private int _i0, _i1, _i2, _i3, _i4, _i5, _i6, _i7, _j0, _j1, _j2, _j3;
+            private float _l0, _l1, _l2, _l3, _l4, _l5, _l6, _l7;
             private readonly float _feedback, _damp, _inGain;
 
             /// <param name="size">Delay-length scale (1 = medium room).</param>
@@ -446,38 +543,50 @@ namespace SecondCursor.Core.Audio
             /// <param name="damp">High-frequency damping 0..1.</param>
             public Reverb(float size, float feedback, float damp)
             {
-                for (int i = 0; i < 8; i++) _comb[i] = new float[Math.Max(16, (int)(CombLengths[i] * size))];
-                for (int i = 0; i < 4; i++) _ap[i] = new float[Math.Max(8, (int)(AllpassLengths[i] * size))];
+                _c0 = Line(1116, size); _c1 = Line(1188, size); _c2 = Line(1277, size); _c3 = Line(1356, size);
+                _c4 = Line(1422, size); _c5 = Line(1491, size); _c6 = Line(1557, size); _c7 = Line(1617, size);
+                _a0 = Line(556, size); _a1 = Line(441, size); _a2 = Line(341, size); _a3 = Line(225, size);
                 _feedback = feedback;
                 _damp = damp;
                 _inGain = MathF.Sqrt((1f - feedback * feedback) / 8f);
             }
 
+            private static float[] Line(int length, float size) => new float[Math.Max(8, (int)(length * size))];
+
             public float Process(float x)
             {
-                float input = x * _inGain + 1e-18f, sum = 0f;
-                for (int i = 0; i < 8; i++)
-                {
-                    float[] buf = _comb[i];
-                    int p = _combPos[i];
-                    float y = buf[p];
-                    _combLp[i] = y + (_combLp[i] - y) * _damp;
-                    buf[p] = input + _combLp[i] * _feedback;
-                    if (++p == buf.Length) p = 0;
-                    _combPos[i] = p;
-                    sum += y;
-                }
-                for (int i = 0; i < 4; i++)
-                {
-                    float[] buf = _ap[i];
-                    int p = _apPos[i];
-                    float y = buf[p];
-                    buf[p] = sum + y * 0.5f;
-                    sum = y - sum;
-                    if (++p == buf.Length) p = 0;
-                    _apPos[i] = p;
-                }
-                return sum;
+                float input = x * _inGain + AntiDenormal;
+                float sum = Comb(_c0, ref _i0, ref _l0, input) + Comb(_c1, ref _i1, ref _l1, input)
+                          + Comb(_c2, ref _i2, ref _l2, input) + Comb(_c3, ref _i3, ref _l3, input)
+                          + Comb(_c4, ref _i4, ref _l4, input) + Comb(_c5, ref _i5, ref _l5, input)
+                          + Comb(_c6, ref _i6, ref _l6, input) + Comb(_c7, ref _i7, ref _l7, input);
+                sum = Allpass(_a0, ref _j0, sum);
+                sum = Allpass(_a1, ref _j1, sum);
+                sum = Allpass(_a2, ref _j2, sum);
+                return Allpass(_a3, ref _j3, sum);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private float Comb(float[] line, ref int pos, ref float lp, float input)
+            {
+                int p = pos;
+                float y = line[p];
+                lp = y + (lp - y) * _damp;
+                line[p] = input + lp * _feedback;
+                pos = ++p == line.Length ? 0 : p;
+                return y;
+            }
+
+            /// <summary>True Schroeder all-pass, g = 0.5 (Freeverb's shortcut form is not all-pass: +3.7 dB per stage).</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static float Allpass(float[] line, ref int pos, float x)
+            {
+                int p = pos;
+                float delayed = line[p];
+                float w = x + 0.5f * delayed;
+                line[p] = w;
+                pos = ++p == line.Length ? 0 : p;
+                return delayed - 0.5f * w;
             }
         }
 
@@ -487,8 +596,6 @@ namespace SecondCursor.Core.Audio
         private static float Sq(float x) => x * x;
 
         private static float Clamp01(float x) => x < 0f ? 0f : (x > 1f ? 1f : x);
-
-        private static float Lerp(float a, float b, float t) => a + (b - a) * t;
 
         private static float DbToGain(float db) => MathF.Pow(10f, db / 20f);
 
@@ -501,11 +608,14 @@ namespace SecondCursor.Core.Audio
         /// <summary>exp(-t/tau) for t &gt;= 0, 0 before (and flushed to 0 far into the tail).</summary>
         private static float Decay(float t, float tau) => t < 0f || t > 40f * tau ? 0f : MathF.Exp(-t / tau);
 
+        /// <summary>Raised-cosine rise over [0, 1].</summary>
+        private static float Rise(float u) => u <= 0f ? 0f : (u >= 1f ? 1f : 0.5f - 0.5f * Sin01(0.25 + 0.5 * u));
+
         /// <summary>Raised-cosine attack followed by exponential decay.</summary>
         private static float AttackDecay(float t, float attack, float tau)
         {
             if (t < 0f) return 0f;
-            if (t < attack) return 0.5f - 0.5f * Sin01(0.25 + 0.5 * t / attack);
+            if (t < attack) return Rise(t / attack);
             return Decay(t - attack, tau);
         }
 
@@ -514,6 +624,13 @@ namespace SecondCursor.Core.Audio
         {
             float d = (t - c) / w;
             return d <= -1f || d >= 1f ? 0f : 0.5f + 0.5f * Sin01(0.25 + 0.5 * d);
+        }
+
+        /// <summary>Circular distance between two positions on a loop, both in [0, 1).</summary>
+        private static float LoopDistance(float a, float b)
+        {
+            float d = MathF.Abs(a - b);
+            return d > 0.5f ? 1f - d : d;
         }
 
         private static float SoftClip(float x)
@@ -576,7 +693,7 @@ namespace SecondCursor.Core.Audio
             for (int i = 0; i < n; i++) b[i] = proc(b[i]);
         }
 
-        /// <summary>Like <see cref="Circular"/>, for processors whose parameters depend on the sample index.</summary>
+        /// <summary>Like <see cref="Circular"/>, for processors that also depend on the sample index.</summary>
         private static void CircularIndexed(float[] b, Func<int, float, float> proc, int warmup)
         {
             int n = b.Length;
@@ -591,16 +708,16 @@ namespace SecondCursor.Core.Audio
             for (int i = 0; i < b.Length; i++) b[i] = f.Lp(b[i]);
         }
 
-        private static void HighPass(float[] b, float hz, float q = 0.7071f)
+        private static void LowPass4(float[] b, float hz)
         {
-            var f = new Svf(hz, q);
-            for (int i = 0; i < b.Length; i++) b[i] = f.Hp(b[i]);
+            var f = new Lp4(hz);
+            for (int i = 0; i < b.Length; i++) b[i] = f.Process(b[i]);
         }
 
-        private static void LowPassLoop(float[] b, float hz, float q = 0.7071f)
+        private static void LowPass4Loop(float[] b, float hz)
         {
-            var f = new Svf(hz, q);
-            Circular(b, f.Lp, Ms(30f));
+            var f = new Lp4(hz);
+            Circular(b, f.Process, Ms(30f));
         }
 
         /// <summary>One-shot reverb send: b = dry*b + wet*reverb(b).</summary>
@@ -620,19 +737,20 @@ namespace SecondCursor.Core.Audio
         }
 
         /// <summary>Loop reverb send, processed circularly so the tail wraps into the loop start.</summary>
-        private static void AddReverbLoop(float[] b, float size, float feedback, float damp, float wet, float dry = 1f)
+        private static void AddReverbLoop(float[] b, float size, float feedback, float damp, float wet,
+                                          float dry, float warmupSec)
         {
             var rev = new Reverb(size, feedback, damp);
             var w = (float[])b.Clone();
-            Circular(w, rev.Process, b.Length);
+            Circular(w, rev.Process, Sec(warmupSec));
             for (int i = 0; i < b.Length; i++) b[i] = dry * b[i] + wet * w[i];
         }
 
-        /// <summary>Small office: a few low-passed early reflections (desk, monitor, walls) + a short diffuse tail.</summary>
+        /// <summary>Small office at night: a few dull early reflections (desk, monitor, walls) + a faint diffuse tail.</summary>
         private static void AddRoom(float[] b, float early, float tail)
         {
-            float[] tapMs = { 1.9f, 4.6f, 7.9f, 12.4f, 17.7f, 24.1f, 31.5f };
-            float[] tapGain = { 0.32f, 0.22f, 0.16f, 0.11f, 0.08f, 0.055f, 0.04f };
+            float[] tapMs = { 2.3f, 5.1f, 11.3f, 23.0f };
+            float[] tapGain = { 0.25f, 0.15f, 0.08f, 0.05f };
             int n = b.Length;
             var er = new float[n];
             for (int k = 0; k < tapMs.Length; k++)
@@ -641,13 +759,9 @@ namespace SecondCursor.Core.Audio
                 float g = early * tapGain[k];
                 for (int i = d; i < n; i++) er[i] += g * b[i - d];
             }
-            var rev = new Reverb(0.33f, 0.7f, 0.45f);
-            var lp = new Svf(4200f, 0.6f);
-            for (int i = 0; i < n; i++)
-            {
-                float wet = er[i] + tail * rev.Process(b[i]);
-                b[i] += lp.Lp(wet);
-            }
+            var rev = new Reverb(0.4f, 0.72f, 0.6f);
+            var lp = new Svf(3500f, 0.6f);
+            for (int i = 0; i < n; i++) b[i] += lp.Lp(er[i] + tail * rev.Process(b[i]));
         }
 
         /// <summary>Flutter echo between parallel corridor walls.</summary>
@@ -728,37 +842,78 @@ namespace SecondCursor.Core.Audio
             }
         }
 
-        /// <summary>Adds an exponentially decaying sine with a short raised-cosine attack.</summary>
+        /// <summary>
+        /// Adds amp * exp(-t/tau) * sin(2*pi*hz*t) with a raised-cosine attack. Uses the exact two-pole
+        /// recursion (a damped rotation) instead of per-sample sin/exp: ~1 ns per sample.
+        /// </summary>
         private static void AddDecaySine(float[] b, int start, float hz, float amp, float tau, float attack)
         {
             if (start < 0 || start >= b.Length || hz >= 0.45f * Sr) return;
-            int end = Math.Min(b.Length, start + (int)(tau * 12f * Sr));
+            int end = Math.Min(b.Length, start + (int)(tau * 11.5f * Sr));
             int atk = Math.Max(1, (int)(attack * Sr));
-            float k = MathF.Exp(-1f / (tau * Sr)), env = amp;
-            Phasor ph = default;
-            for (int i = start, j = 0; i < end; i++, j++, env *= k)
+            double w = 2.0 * Math.PI * hz / SampleRate, r = Math.Exp(-1.0 / (tau * SampleRate));
+            double c = 2.0 * r * Math.Cos(w), r2 = r * r;
+            double prev = 0.0, cur = amp * r * Math.Sin(w); // s[0] = 0, s[1]
+            for (int i = start + 1, j = 1; i < end; i++, j++)
             {
-                float a = j < atk ? env * (0.5f - 0.5f * Sin01(0.25 + 0.5 * j / atk)) : env;
-                b[i] += a * ph.Sin(hz);
+                b[i] += j < atk ? (float)cur * Rise((float)j / atk) : (float)cur;
+                double next = c * cur - r2 * prev;
+                prev = cur;
+                cur = next;
             }
         }
 
-        /// <summary>A struck bell / glass / chime voice made of decaying partials.</summary>
+        /// <summary>
+        /// A struck bell / glass / chime voice: decaying partials, each an exact damped-rotation recursion.
+        /// All partials run in one pass so their independent recursions overlap in the CPU pipeline.
+        /// </summary>
         private static void AddBell(float[] b, float startSec, float hz, float amp, Partial[] partials,
                                     float decayScale = 1f, float attack = 0.0015f)
         {
-            int start = Sec(startSec);
-            foreach (Partial p in partials)
+            int start = Sec(startSec), count = 0;
+            if (start >= b.Length) return;
+            var order = (Partial[])partials.Clone();
+            Array.Sort(order, (x, y) => y.Tau.CompareTo(x.Tau)); // longest first, so dead partials drop off the end
+            var c = new double[order.Length];
+            var r2 = new double[order.Length];
+            var cur = new double[order.Length];
+            var prev = new double[order.Length];
+            var ends = new int[order.Length];
+            foreach (Partial p in order)
             {
-                float f = hz * p.Ratio + p.Detune;
-                if (f > 11000f) continue;
-                AddDecaySine(b, start, f, amp * p.Amp, p.Tau * decayScale, attack);
+                double f = hz * p.Ratio + p.Detune, tau = p.Tau * decayScale;
+                if (f > 11000.0) continue;
+                double w = 2.0 * Math.PI * f / SampleRate, r = Math.Exp(-1.0 / (tau * SampleRate));
+                c[count] = 2.0 * r * Math.Cos(w);
+                r2[count] = r * r;
+                cur[count] = amp * p.Amp * r * Math.Sin(w); // s[1]; s[0] = 0
+                ends[count] = Math.Min(b.Length, start + (int)(tau * 11.5 * SampleRate));
+                count++;
+            }
+            if (count == 0) return;
+            int end = ends[0], atk = Math.Max(1, (int)(attack * Sr));
+            for (int i = start + 1, j = 1; i < end; i++, j++)
+            {
+                while (count > 1 && i >= ends[count - 1]) count--;
+                double sum = 0.0;
+                for (int k = 0; k < count; k++)
+                {
+                    double y = cur[k];
+                    sum += y;
+                    cur[k] = c[k] * y - r2[k] * prev[k];
+                    prev[k] = y;
+                }
+                b[i] += j < atk ? (float)sum * Rise((float)j / atk) : (float)sum;
             }
         }
 
-        /// <summary>Held wavetable tone: attack, optional decay while held, raised-cosine release; two detuned voices.</summary>
+        /// <summary>
+        /// Held wavetable tone with two detuned voices: attack, optional decay while held, raised-cosine
+        /// release, and an optional struck accent (extra level that decays in ~25 ms) at the onset.
+        /// </summary>
         private static void AddTone(float[] b, Wavetable wt, float start, float dur, float hz, float amp,
-                                    float attack, float release, float decayTau = 0f, float detuneCents = 0f)
+                                    float attack, float release, float decayTau = 0f, float detuneCents = 0f,
+                                    float accent = 0f)
         {
             int s0 = Sec(start), n = Sec(dur + release);
             float up = MathF.Pow(2f, detuneCents / 1200f), down = 1f / up;
@@ -767,9 +922,9 @@ namespace SecondCursor.Core.Audio
             for (int j = 0; j < n && s0 + j < b.Length; j++)
             {
                 float t = j * Dt;
-                float env = t < attack ? 0.5f - 0.5f * Sin01(0.25 + 0.5 * t / attack) : 1f;
+                float env = Rise(t / attack) * (1f + accent * Decay(t, 0.025f));
                 if (decayTau > 0f) env *= Decay(t, decayTau);
-                if (t > dur) env *= 0.5f + 0.5f * Sin01(0.25 + 0.5 * Math.Min(1f, (t - dur) / release));
+                if (t > dur) env *= 1f - Rise((t - dur) / release);
                 float v = 0.5f * (wt.At(a.Advance(hz * up)) + wt.At(c.Advance(hz * down)));
                 b[s0 + j] += amp * env * v;
             }
@@ -780,14 +935,14 @@ namespace SecondCursor.Core.Audio
         private static void FadeIn(float[] b, int len)
         {
             len = Math.Min(len, b.Length);
-            for (int i = 0; i < len; i++) b[i] *= 0.5f - 0.5f * Sin01(0.25 + 0.5 * i / len);
+            for (int i = 0; i < len; i++) b[i] *= Rise((float)i / len);
         }
 
         private static void FadeOut(float[] b, int len)
         {
             len = Math.Min(len, b.Length);
             int n = b.Length;
-            for (int i = 0; i < len; i++) b[n - 1 - i] *= 0.5f - 0.5f * Sin01(0.25 + 0.5 * i / len);
+            for (int i = 0; i < len; i++) b[n - 1 - i] *= Rise((float)i / len);
         }
 
         /// <summary>Removes the mean with a Hann-shaped correction, so the (already faded) ends stay at zero.</summary>
@@ -809,47 +964,99 @@ namespace SecondCursor.Core.Audio
             for (int i = 0; i < b.Length; i++) b[i] -= m;
         }
 
-        /// <summary>Scales to the target RMS level, never letting the peak exceed the ceiling.</summary>
-        private static void Normalize(float[] b, float rmsDb)
+        private static float Rms(float[] b)
         {
             double e = 0;
-            float peak = 0f;
+            for (int i = 0; i < b.Length; i++) e += (double)b[i] * b[i];
+            return (float)Math.Sqrt(e / b.Length);
+        }
+
+        private static float Peak(float[] b)
+        {
+            float lo = 0f, hi = 0f;
             for (int i = 0; i < b.Length; i++)
             {
-                e += (double)b[i] * b[i];
-                float a = MathF.Abs(b[i]);
-                if (a > peak) peak = a;
+                float x = b[i];
+                if (x > hi) hi = x;
+                else if (x < lo) lo = x;
             }
-            if (peak <= 0f) return;
-            float rms = (float)Math.Sqrt(e / b.Length);
-            float g = DbToGain(rmsDb) / rms;
+            return Math.Max(hi, -lo);
+        }
+
+        /// <summary>
+        /// Scales to the target RMS without letting the peak pass the ceiling. With softLimit, a transient that
+        /// would overshoot is rounded off by a tanh knee above 0.5 instead of turning the whole sound down.
+        /// </summary>
+        private static void Normalize(float[] b, float rmsDb, bool softLimit)
+        {
+            float rms = Rms(b);
+            if (rms <= 0f) return;
+            float target = DbToGain(rmsDb);
+            float g = target / rms;
+            if (softLimit && Peak(b) * g > PeakCeiling)
+            {
+                const float knee = 0.5f, span = PeakCeiling - knee;
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    for (int i = 0; i < b.Length; i++)
+                    {
+                        float x = b[i] * g, a = MathF.Abs(x);
+                        b[i] = a <= knee ? x : MathF.Sign(x) * (knee + span * SoftClip((a - knee) / span));
+                    }
+                    g = target / Rms(b);
+                }
+            }
+            float peak = Peak(b);
             if (peak * g > PeakCeiling) g = PeakCeiling / peak;
             Scale(b, g);
         }
 
-        /// <summary>DC-block, tame the top octave, de-click the ends, zero the mean, set the level.</summary>
-        private static float[] FinishOneShot(float[] b, float rmsDb, float fadeInMs, float fadeOutMs, float hpHz = 18f)
+        private static void CapPeak(float[] b)
+        {
+            float peak = Peak(b);
+            if (peak > PeakCeiling) Scale(b, PeakCeiling / peak);
+        }
+
+        /// <summary>
+        /// DC-block, optional 4-pole "air" low-pass (keeps the top octave civil), de-click the ends,
+        /// set the level, zero the mean.
+        /// </summary>
+        private static float[] FinishOneShot(float[] b, float rmsDb, float fadeInMs, float fadeOutMs,
+                                             float airHz = 0f, bool softLimit = false, float hpHz = 18f)
         {
             var hp = new OnePole(hpHz);
-            var air1 = new Svf(11500f, 0.5412f);
-            var air2 = new Svf(11500f, 1.3066f);
-            for (int i = 0; i < b.Length; i++) b[i] = air2.Lp(air1.Lp(hp.Hp(b[i])));
+            Lp4 air = airHz > 0f ? new Lp4(airHz) : null;
+            for (int i = 0; i < b.Length; i++)
+            {
+                float x = hp.Hp(b[i]);
+                b[i] = air != null ? air.Process(x) : x;
+            }
             FadeIn(b, Math.Max(2, Ms(fadeInMs)));
             FadeOut(b, Math.Max(2, Ms(fadeOutMs)));
-            RemoveDcWindowed(b);
-            Normalize(b, rmsDb);
+            Normalize(b, rmsDb, softLimit);
+            RemoveDcWindowed(b); // after limiting: the tanh knee is not perfectly symmetric
+            CapPeak(b);
             return b;
         }
 
-        /// <summary>Loop version of <see cref="FinishOneShot"/>: every stage is circular, so the seam stays intact.</summary>
-        private static float[] FinishLoop(float[] b, float rmsDb, float hpHz = 18f)
+        /// <summary>
+        /// Loop version of <see cref="FinishOneShot"/>: optional circular high-pass / "air" low-pass (circular, so
+        /// the seam stays intact), zero mean, level. Loops are built from DC-free parts, so most skip the filters.
+        /// </summary>
+        private static float[] FinishLoop(float[] b, float rmsDb, float airHz = 0f, float hpHz = 0f)
         {
-            var hp = new OnePole(hpHz);
-            var air1 = new Svf(11500f, 0.5412f);
-            var air2 = new Svf(11500f, 1.3066f);
-            Circular(b, x => air2.Lp(air1.Lp(hp.Hp(x))), Math.Min(b.Length, Sec(0.5f)));
+            if (airHz > 0f || hpHz > 0f)
+            {
+                OnePole hp = hpHz > 0f ? new OnePole(hpHz) : null;
+                Lp4 air = airHz > 0f ? new Lp4(airHz) : null;
+                Circular(b, x =>
+                {
+                    if (hp != null) x = hp.Hp(x);
+                    return air != null ? air.Process(x) : x;
+                }, Math.Min(b.Length, Sec(0.5f)));
+            }
             RemoveMean(b);
-            Normalize(b, rmsDb);
+            Normalize(b, rmsDb, false);
             return b;
         }
 
@@ -874,7 +1081,7 @@ namespace SecondCursor.Core.Audio
                      + 0.20f * AttackDecay(t, 0.0010f, 0.0085f) * low.Sin(430f)
                      + 0.28f * AttackDecay(t, 0.0002f, 0.0011f) * edge.Bp(r.Signed());
             }
-            return FinishOneShot(b, -22f, 0.2f, 6f);
+            return FinishOneShot(b, -22f, 0.2f, 6f, 9000f);
         }
 
         /// <summary>Tiny, higher, lighter tick for list items.</summary>
@@ -890,15 +1097,16 @@ namespace SecondCursor.Core.Audio
                      + 0.35f * AttackDecay(t, 0.0004f, 0.0034f) * c.Sin(1525f)
                      + 0.18f * AttackDecay(t, 0.0001f, 0.0006f) * edge.Bp(r.Signed());
             }
-            return FinishOneShot(b, -25f, 0.2f, 4f);
+            return FinishOneShot(b, -25f, 0.2f, 4f, 9000f);
         }
 
-        /// <summary>Rising band-passed air that lands on a soft tick.</summary>
+        /// <summary>Rising band of soft air that lands on a small tick.</summary>
         private static float[] UiWindow(Rng r)
         {
             float[] b = Buf(0.095f);
             var air = new Svf(800f, 1.3f);
             var body = new Svf(380f, 0.8f);
+            var soft = new Lp4(5000f);
             Phasor t1 = default, t2 = default;
             const float swellEnd = 0.052f, tickAt = 0.056f;
             for (int i = 0; i < b.Length; i++)
@@ -907,14 +1115,14 @@ namespace SecondCursor.Core.Audio
                 if ((i & 15) == 0) air.Set(800f * MathF.Pow(3.2f, Clamp01(t / swellEnd)), 1.3f);
                 float env = t < swellEnd ? Sq(Sin01(0.25 * t / swellEnd)) : Decay(t - swellEnd, 0.010f);
                 float w = r.Signed();
-                float s = env * (0.75f * air.Bp(w) + 0.3f * body.Bp(w));
+                float s = soft.Process(env * (0.75f * air.Bp(w) + 0.3f * body.Bp(w)));
                 float tt = t - tickAt;
                 if (tt >= 0f)
                     s += 0.5f * AttackDecay(tt, 0.0003f, 0.0028f) * t1.Sin(2250f)
                        + 0.28f * AttackDecay(tt, 0.0005f, 0.005f) * t2.Sin(1125f);
                 b[i] = s;
             }
-            return FinishOneShot(b, -24f, 0.5f, 10f);
+            return FinishOneShot(b, -24f, 0.5f, 10f, 9000f);
         }
 
         private static readonly Partial[] SoftBell =
@@ -937,15 +1145,15 @@ namespace SecondCursor.Core.Audio
             return FinishOneShot(b, -20f, 0.5f, 120f);
         }
 
-        /// <summary>Two stacked tritones a semitone apart ("da-dum"), soft-square timbre with beating voices.</summary>
+        /// <summary>Two struck tritone dyads a semitone apart ("da-dum"), soft-square timbre, beating voices.</summary>
         private static float[] SysError(Rng r)
         {
             float[] b = Buf(0.42f);
             var wt = new Wavetable(new[] { 1f, 0.10f, 0.30f, 0f, 0.12f, 0f, 0.05f, 0f, 0.02f });
-            AddTone(b, wt, 0.000f, 0.135f, 523.25f, 0.50f, 0.004f, 0.018f, 0f, 7f);
-            AddTone(b, wt, 0.000f, 0.135f, 739.99f, 0.40f, 0.004f, 0.018f, 0f, 7f);
-            AddTone(b, wt, 0.140f, 0.200f, 493.88f, 0.55f, 0.004f, 0.070f, 0.16f, 9f);
-            AddTone(b, wt, 0.140f, 0.200f, 698.46f, 0.45f, 0.004f, 0.070f, 0.16f, 9f);
+            AddTone(b, wt, 0.000f, 0.135f, 523.25f, 0.50f, 0.003f, 0.018f, 0.25f, 7f, 0.8f);
+            AddTone(b, wt, 0.000f, 0.135f, 739.99f, 0.40f, 0.003f, 0.018f, 0.25f, 7f, 0.8f);
+            AddTone(b, wt, 0.140f, 0.200f, 493.88f, 0.55f, 0.003f, 0.070f, 0.16f, 9f, 0.9f);
+            AddTone(b, wt, 0.140f, 0.200f, 698.46f, 0.45f, 0.003f, 0.070f, 0.16f, 9f, 0.9f);
             LowPass(b, 5000f);
             AddReverb(b, 0.45f, 0.75f, 0.5f, 0.25f);
             return FinishOneShot(b, -19f, 0.5f, 25f);
@@ -1003,44 +1211,40 @@ namespace SecondCursor.Core.Audio
                 pad[i] = lp.Lp(pad[i]);
             }
 
-            float[] bells = Buf(len);
-            AddBell(bells, 0.35f, 587.33f, 0.45f, GlassBell);
-            AddBell(bells, 0.52f, 880.00f, 0.42f, GlassBell);
-            AddBell(bells, 0.69f, 987.77f, 0.40f, GlassBell);
-            AddBell(bells, 0.86f, 1479.98f, 0.34f, GlassBell, 1.1f);
-            AddBell(bells, 1.58f, 1318.51f, 0.40f, GlassBell, 1.2f);
-            AddBell(bells, 2.08f, 1174.66f, 0.46f, GlassBell, 1.6f);
-            AddBell(bells, 2.10f, 1760.00f, 0.10f, GlassBell, 1.2f);
-
             float[] b = Buf(len);
             Mix(b, pad, 0.55f);
-            Mix(b, bells, 1.0f);
+            AddBell(b, 0.35f, 587.33f, 0.45f, GlassBell);
+            AddBell(b, 0.52f, 880.00f, 0.42f, GlassBell);
+            AddBell(b, 0.69f, 987.77f, 0.40f, GlassBell);
+            AddBell(b, 0.86f, 1479.98f, 0.34f, GlassBell, 1.1f);
+            AddBell(b, 1.58f, 1318.51f, 0.40f, GlassBell, 1.2f);
+            AddBell(b, 2.08f, 1174.66f, 0.46f, GlassBell, 1.6f);
+            AddBell(b, 2.10f, 1760.00f, 0.10f, GlassBell, 1.2f);
             AddReverb(b, 1.25f, 0.86f, 0.35f, 0.55f);
             return FinishOneShot(b, -20f, 2f, 450f);
         }
 
+        /// <summary>Pad chord: every note is two saw voices +/-6 cents apart, sharing one sin^2 swell / cos^2 release.</summary>
         private static void AddPadChord(float[] b, Wavetable wt, float[] notes, float start, float attack,
                                         float holdEnd, float release, Rng r)
         {
             int s0 = Sec(start), s1 = Math.Min(b.Length, Sec(holdEnd + release));
+            var env = new float[s1 - s0];
+            for (int j = 0; j < env.Length; j++)
+            {
+                float t = j * Dt, tr = t + start - holdEnd;
+                env[j] = Sq(Sin01(0.25 * Math.Min(1f, t / attack)));
+                if (tr > 0f) env[j] *= Sq(Sin01(0.25 + 0.25 * Math.Min(1f, tr / release)));
+            }
             float per = 0.5f / MathF.Sqrt(notes.Length);
             foreach (float f in notes)
             {
-                float gain = per * (f < 150f ? 1.2f : 1f);
-                for (int v = 0; v < 2; v++)
-                {
-                    float hz = f * (v == 0 ? 1.0035f : 0.9965f); // +/- 6 cents: slow chorus
-                    Phasor ph = default;
-                    ph.Phase = r.Float();
-                    for (int i = s0; i < s1; i++)
-                    {
-                        float t = (i - s0) * Dt;
-                        float env = t < attack ? Sq(Sin01(0.25 * t / attack)) : 1f;
-                        float tr = i * Dt - holdEnd;
-                        if (tr > 0f) env *= Sq(Sin01(0.25 + 0.25 * Math.Min(1f, tr / release)));
-                        b[i] += gain * env * wt.At(ph.Advance(hz));
-                    }
-                }
+                float gain = per * (f < 150f ? 1.2f : 1f), hzUp = f * 1.0035f, hzDown = f * 0.9965f;
+                Phasor up = default, down = default;
+                up.Phase = r.Float();
+                down.Phase = r.Float();
+                for (int j = 0; j < env.Length; j++)
+                    b[s0 + j] += gain * env[j] * (wt.At(up.Advance(hzUp)) + wt.At(down.Advance(hzDown)));
             }
         }
 
@@ -1068,35 +1272,33 @@ namespace SecondCursor.Core.Audio
             new Mode(8100f, 1.0f, 0.25f),
         };
 
-        /// <summary>Omron-style micro-switch: leaf snap, contact settle and plunger bottoming, then the desk and walls.</summary>
+        /// <summary>Omron-style micro-switch: leaf snap, contact settle and plunger bottoming, then desk and walls.</summary>
         private static float[] MouseClick(Rng r)
         {
-            float[] b = Buf(0.12f);
+            float[] b = Buf(0.11f);
             float p = r.Jitter(0.02f);
             AddImpact(b, 0, 1.00f, MouseSwitchModes, r, 4, 0.30f, 0.5f, p, 1f, 0.25f);
             AddImpact(b, Ms(0.85f), 0.40f, MouseSwitchModes, r, 5, 0.20f, 0.4f, p * 1.04f, 0.8f);
             AddImpact(b, Ms(2.6f), 0.26f, MouseSwitchModes, r, 8, 0.15f, 0.6f, p * 0.93f, 1.1f);
-            AddRoom(b, 0.55f, 0.10f);
-            LowPass(b, 9500f);
-            return FinishOneShot(b, -19f, 0.1f, 25f);
+            AddRoom(b, 1f, 0.09f);
+            return FinishOneShot(b, -19f, 0.1f, 30f, 9500f, true);
         }
 
-        /// <summary>The spring returning: lighter, higher, crisper.</summary>
+        /// <summary>The spring returning: lighter, higher, crisper, same room.</summary>
         private static float[] MouseRelease(Rng r)
         {
-            float[] b = Buf(0.10f);
+            float[] b = Buf(0.09f);
             float p = r.Jitter(0.02f);
             AddImpact(b, 0, 0.70f, MouseReleaseModes, r, 4, 0.30f, 0.4f, p, 0.8f, 0.2f);
             AddImpact(b, Ms(0.6f), 0.30f, MouseReleaseModes, r, 4, 0.20f, 0.3f, p * 1.05f, 0.6f);
-            AddRoom(b, 0.5f, 0.08f);
-            LowPass(b, 10000f);
-            return FinishOneShot(b, -25f, 0.1f, 25f);
+            AddRoom(b, 1f, 0.07f);
+            return FinishOneShot(b, -24f, 0.1f, 25f, 10000f, true);
         }
 
-        /// <summary>90s office keyboard: keycap bottoming out on the plate, a small rock, then the upstroke.</summary>
+        /// <summary>90s office keyboard: keycap bottoming out on the plate, a small rock, then a faint upstroke.</summary>
         private static float[] KeyTap(Rng r)
         {
-            float[] b = Buf(0.075f);
+            float[] b = Buf(0.07f);
             float pitch = r.Range(0.93f, 1.07f), bright = r.Range(0.8f, 1.2f);
             float body = r.Range(0.75f, 1.3f), decay = r.Range(0.85f, 1.2f);
             Mode[] modes =
@@ -1110,8 +1312,8 @@ namespace SecondCursor.Core.Audio
             };
             AddImpact(b, 0, 1f, modes, r, r.Int(6, 11), r.Range(0.25f, 0.45f), 1.5f, pitch, decay, 0.15f);
             AddImpact(b, Ms(r.Range(1.4f, 3.2f)), r.Range(0.22f, 0.38f), modes, r, 8, 0.2f, 1f, pitch * 1.03f, decay * 0.8f);
-            AddImpact(b, Ms(r.Range(36f, 50f)), r.Range(0.14f, 0.24f), modes, r, 5, 0.3f, 0.8f, pitch * 1.15f, 0.6f);
-            return FinishOneShot(b, -22f + r.Range(-1.2f, 1.2f), 0.1f, 8f);
+            AddImpact(b, Ms(r.Range(36f, 46f)), r.Range(0.07f, 0.12f), modes, r, 6, 0.25f, 0.8f, pitch * 1.15f, 0.6f);
+            return FinishOneShot(b, -22f + r.Range(-1.2f, 1.2f), 0.1f, 8f, 9000f, true);
         }
 
         private static readonly Mode[] StabilizerModes =
@@ -1140,9 +1342,9 @@ namespace SecondCursor.Core.Audio
             AddImpact(b, second, 0.7f, modes, r, 9, 0.3f, 1.5f, pitch * 1.02f);
             AddImpact(b, second, 1f, StabilizerModes, r, 3, 0.2f, 0.4f, pitch);
             int up = Ms(r.Range(64f, 74f));
-            AddImpact(b, up, 0.22f, modes, r, 6, 0.3f, 0.8f, pitch * 1.12f, 0.6f);
-            AddImpact(b, up, 0.5f, StabilizerModes, r, 3, 0.1f, 0.3f, pitch);
-            return FinishOneShot(b, -21f, 0.1f, 10f);
+            AddImpact(b, up, 0.12f, modes, r, 6, 0.3f, 0.8f, pitch * 1.12f, 0.6f);
+            AddImpact(b, up, 0.4f, StabilizerModes, r, 3, 0.1f, 0.3f, pitch);
+            return FinishOneShot(b, -21f, 0.1f, 10f, 9000f, true);
         }
 
         /// <summary>Big key, heavier strike: wider pulse, stronger low body, a hint of stabiliser.</summary>
@@ -1161,8 +1363,8 @@ namespace SecondCursor.Core.Audio
             AddImpact(b, 0, 1.25f, modes, r, 11, 0.4f, 1.8f, pitch, 1f, 0.12f);
             AddImpact(b, Ms(r.Range(1.8f, 2.8f)), 0.45f, modes, r, 9, 0.25f, 1.2f, pitch * 1.02f, 0.8f);
             AddImpact(b, Ms(1.5f), 0.5f, StabilizerModes, r, 3, 0.15f, 0.4f, pitch * 1.1f);
-            AddImpact(b, Ms(r.Range(56f, 64f)), 0.22f, modes, r, 6, 0.3f, 0.8f, pitch * 1.12f, 0.6f);
-            return FinishOneShot(b, -20f, 0.1f, 10f);
+            AddImpact(b, Ms(r.Range(56f, 64f)), 0.12f, modes, r, 6, 0.3f, 0.8f, pitch * 1.12f, 0.6f);
+            return FinishOneShot(b, -20f, 0.1f, 10f, 9000f, true);
         }
 
         // ---------------- Hardware ----------------
@@ -1186,11 +1388,7 @@ namespace SecondCursor.Core.Audio
             Phasor p = default;
             int on = Sec(0.150f), atk = Ms(2.5f), rel = Ms(6f);
             for (int i = 0; i < on; i++)
-            {
-                float env = i < atk ? 0.5f - 0.5f * Sin01(0.25 + 0.5 * i / atk)
-                          : i > on - rel ? 0.5f - 0.5f * Sin01(0.25 + 0.5 * (on - i) / rel) : 1f;
-                b[i] = env * wt.At(p.Advance(f0));
-            }
+                b[i] = Rise((float)i / atk) * Rise((float)(on - i) / rel) * wt.At(p.Advance(f0));
             return FinishOneShot(b, -21f, 0.1f, 1f);
         }
 
@@ -1220,7 +1418,7 @@ namespace SecondCursor.Core.Audio
                 foreach (float t0 in c)
                 {
                     float t = Math.Max(0f, t0 + r.Range(-0.0025f, 0.0025f));
-                    AddImpact(b, Sec(t), r.Range(0.5f, 1f), HddClickModes, r, 3, 0.4f, 0.3f, r.Jitter(0.05f));
+                    AddImpact(b, Sec(t), r.Range(0.5f, 1f), HddClickModes, r, 4, 0.35f, 0.3f, r.Jitter(0.05f));
                 }
                 float a = Math.Max(0f, c[0] - 0.004f), z = c[c.Length - 1] + 0.016f;
                 for (int i = Sec(a); i < Math.Min(b.Length, Sec(z)); i++)
@@ -1234,9 +1432,9 @@ namespace SecondCursor.Core.Audio
                 float g = Sq(0.5f + 0.5f * gate.Sin(140f));
                 float spindle = SmoothStep(0f, 0.04f, t) * (1f - SmoothStep(len - 0.06f, len, t));
                 b[i] += 0.12f * whirrEnv[i] * g * buzz.Bp(r.Signed())
-                      + spindle * (0.018f * s1.Sin(90f) + 0.010f * s2.Sin(180f) + 0.004f * whine.Sin(2710f));
+                      + spindle * (0.018f * s1.Sin(90f) + 0.010f * s2.Sin(180f) + 0.003f * whine.Sin(2710f));
             }
-            return FinishOneShot(b, -26f, 0.1f, 20f);
+            return FinishOneShot(b, -26f, 0.1f, 20f, 8000f, true);
         }
 
         /// <summary>Motor kick, spindle whine rising exponentially to 5400 rpm, head-load clicks as it settles.</summary>
@@ -1251,20 +1449,18 @@ namespace SecondCursor.Core.Audio
                 float t = i * Dt;
                 float spin = (1f - MathF.Exp(-t / 0.5f)) * SmoothStep(0f, 0.12f, t);
                 float f = 12f + 78f * spin;
-                float speed = f / 90f;
+                float speed = f / 90f, s2 = speed * speed;
                 float hum = 0.35f * p1.Sin(f) + 0.20f * p2.Sin(2f * f) + 0.10f * p3.Sin(3f * f);
-                float whine = 0.10f * speed * speed * w1.Sin(8f * f)
-                            + 0.05f * speed * speed * w2.Sin(24f * f)
-                            + 0.02f * speed * speed * speed * w3.Sin(41f * f);
+                float whine = 0.10f * s2 * w1.Sin(8f * f) + 0.05f * s2 * w2.Sin(24f * f) + 0.02f * s2 * speed * w3.Sin(41f * f);
                 float fade = SmoothStep(0f, 0.02f, t) * (1f - SmoothStep(1.8f, len, t));
                 b[i] = fade * (speed * hum + whine + 0.06f * speed * air.Lp(r.Signed()));
             }
             Mode[] kick = { new Mode(120f, 25f, 0.8f), new Mode(380f, 12f, 0.4f), new Mode(1300f, 4f, 0.2f) };
             AddImpact(b, Ms(15f), 0.8f, kick, r, 24, 0.2f, 2f);
-            AddImpact(b, Sec(1.42f), 0.45f, HddClickModes, r, 3, 0.4f, 0.3f);
-            AddImpact(b, Sec(1.55f), 0.35f, HddClickModes, r, 3, 0.4f, 0.3f, 1.05f);
-            AddImpact(b, Sec(1.61f), 0.40f, HddClickModes, r, 3, 0.4f, 0.3f, 0.97f);
-            return FinishOneShot(b, -27f, 1f, 250f);
+            AddImpact(b, Sec(1.42f), 0.45f, HddClickModes, r, 4, 0.35f, 0.3f);
+            AddImpact(b, Sec(1.55f), 0.35f, HddClickModes, r, 4, 0.35f, 0.3f, 1.05f);
+            AddImpact(b, Sec(1.61f), 0.40f, HddClickModes, r, 4, 0.35f, 0.3f, 0.97f);
+            return FinishOneShot(b, -27f, 1f, 250f, 8000f);
         }
 
         private static readonly Mode[] RelayModes =
@@ -1284,7 +1480,7 @@ namespace SecondCursor.Core.Audio
             return new Wavetable(amps, RandomPhases(amps.Length, r));
         }
 
-        /// <summary>Relay click, a low thump, the degauss "thoom" decaying, static crackles, the flyback settling in.</summary>
+        /// <summary>Relay click, low thump, the degauss "thoom" swelling and dying, static crackles, the flyback settling.</summary>
         private static float[] CrtOn(Rng r)
         {
             const float len = 1.25f;
@@ -1293,25 +1489,29 @@ namespace SecondCursor.Core.Audio
             AddImpact(b, Ms(1.8f), 0.45f, RelayModes, r, 5, 0.2f, 0.3f, 1.05f);
 
             Wavetable hum = MainsHum(r, 1f);
-            var hiss = new Svf(6000f, 0.7f);
+            var hiss = new Lp4(6000f);
             var hissHp = new OnePole(1500f);
-            Phasor thump = default, dg = default, whine = default;
+            Phasor thump = default, dg = default, wob = default, whine = default;
             for (int i = 0; i < b.Length; i++)
             {
                 float t = i * Dt;
                 float tt = t - 0.012f;
                 if (tt >= 0f) b[i] += 0.8f * AttackDecay(tt, 0.004f, 0.09f) * thump.Sin(42f + 48f * Decay(tt, 0.05f));
                 float td = t - 0.02f;
-                if (td >= 0f) b[i] += 0.55f * AttackDecay(td, 0.03f, 0.28f) * SoftClip(1.6f * hum.At(dg.Advance(60f)));
-                b[i] += 0.035f * AttackDecay(t - 0.08f, 0.1f, 0.25f) * hissHp.Hp(hiss.Lp(r.Signed()));
+                if (td >= 0f)
+                {
+                    float rattle = 1f + 0.12f * wob.Sin(7.5f);
+                    b[i] += 0.55f * AttackDecay(td, 0.08f, 0.26f) * SoftClip(1.6f * rattle * hum.At(dg.Advance(60f)));
+                }
+                b[i] += 0.035f * AttackDecay(t - 0.08f, 0.1f, 0.25f) * hissHp.Hp(hiss.Process(r.Signed()));
                 float tw = t - 0.12f;
                 if (tw >= 0f)
                     b[i] += 0.012f * SmoothStep(0f, 0.25f, tw) * whine.Sin(7860f - 900f * Decay(tw, 0.12f));
             }
             Mode[] crackle = { new Mode(2900f, 0.8f, 0.5f), new Mode(5200f, 0.5f, 0.4f), new Mode(1700f, 1.2f, 0.3f) };
             for (int k = 0; k < 6; k++)
-                AddImpact(b, Sec(r.Range(0.08f, 0.7f)), r.Range(0.1f, 0.3f), crackle, r, 2, 0.8f, 0.3f, r.Jitter(0.2f));
-            return FinishOneShot(b, -22f, 0.1f, 180f);
+                AddImpact(b, Sec(r.Range(0.08f, 0.7f)), r.Range(0.1f, 0.3f), crackle, r, 3, 0.8f, 0.3f, r.Jitter(0.2f));
+            return FinishOneShot(b, -22f, 0.1f, 180f, 10000f, true);
         }
 
         private static readonly Mode[] PowerButtonModes =
@@ -1350,13 +1550,14 @@ namespace SecondCursor.Core.Audio
             }
             Mode[] tick = { new Mode(2600f, 0.7f, 0.5f), new Mode(4700f, 0.5f, 0.3f) };
             for (int k = 0; k < 4; k++)
-                AddImpact(b, Sec(r.Range(0.25f, 0.9f)), r.Range(0.05f, 0.15f), tick, r, 2, 0.6f, 0.3f, r.Jitter(0.2f));
-            return FinishOneShot(b, -24f, 3f, 150f);
+                AddImpact(b, Sec(r.Range(0.25f, 0.9f)), r.Range(0.05f, 0.15f), tick, r, 3, 0.6f, 0.3f, r.Jitter(0.2f));
+            return FinishOneShot(b, -24f, 3f, 150f, 9000f, true);
         }
 
         /// <summary>
         /// 1 s loop, eight grind strokes (swung, accented, two with stutter re-triggers): bit-crushed band-passed
         /// crunch, a comb-filtered grinding bed and a 55 Hz motor riding the stroke envelope.
+        /// The loop point sits in the gap just before a stroke.
         /// </summary>
         private static float[] ShredLoop(Rng r)
         {
@@ -1367,7 +1568,7 @@ namespace SecondCursor.Core.Audio
             float[] env = new float[n];
             for (int k = 0; k < strokes; k++)
             {
-                int at = k * n / strokes + (k % 2 == 1 ? Ms(9f) : 0);
+                int at = Ms(8f) + k * n / strokes + (k % 2 == 1 ? Ms(9f) : 0);
                 bool stutter = k == 3 || k == 7;
                 int len = Ms(115f);
                 var ev = new float[len];
@@ -1406,7 +1607,7 @@ namespace SecondCursor.Core.Audio
             }, Ms(200f));
 
             var wt = new Wavetable(SawAmps(18, 1f));
-            var motorOsc = new LoopOsc(55f, n);
+            var motorOsc = new LoopOsc(55f, n, r.Float());
             float[] motor = new float[n];
             for (int i = 0; i < n; i++) motor[i] = wt.At(motorOsc.Next());
             var mlp = new Svf(700f, 0.9f);
@@ -1417,80 +1618,85 @@ namespace SecondCursor.Core.Audio
                 float e = Math.Min(1f, env[i]);
                 b[i] += 0.25f * e * grind[i] + 0.22f * (0.35f + 0.65f * e) * motor[i];
             }
-            LowPassLoop(b, 9000f);
-            return FinishLoop(b, -22f);
+            return FinishLoop(b, -22f, 7500f);
         }
 
         // ---------------- Ambience ----------------
 
-        /// <summary>Night office: PC fan (pinkish air, 280 Hz blade tone, 40 Hz motor) over distant HVAC rumble.</summary>
+        /// <summary>
+        /// Night office, 8 s: PC fan (pinkish air, 280 Hz blade-pass tone with a slow wobble, 40 Hz motor),
+        /// a trace of 120 Hz mains, and distant HVAC rumble breathing once per loop. All tones are harmonics
+        /// of 20 Hz, so they come from one tiled 2205-sample cycle.
+        /// </summary>
         private static float[] AmbRoom(Rng r)
         {
             int n = Sec(8f);
+            const int period = SampleRate / 20;
+            float[] blade = HarmonicCycle(period, new[] { 14, 28 }, new[] { 0.06f, 0.025f }, r);
+            float[] steady = HarmonicCycle(period, new[] { 2, 6 }, new[] { 0.03f, 0.012f }, r);
             float[] fan = WhiteNoise(n, r);
-            var pink = new PinkFilter();
-            var lp = new Svf(1600f, 0.6f);
-            var hp = new Svf(70f, 0.6f);
-            Circular(fan, x => hp.Hp(lp.Lp(pink.Process(x))), Sec(0.5f));
-
             float[] hvac = WhiteNoise(n, r);
-            float brown = 0f;
-            var hlp = new Svf(170f, 0.6f);
-            Circular(hvac, x => { brown = 0.997f * brown + 0.03f * x; return hlp.Lp(brown); }, Sec(0.5f));
-
-            var blade = new LoopOsc(280f, n);
-            var blade2 = new LoopOsc(560f, n);
-            var motor = new LoopOsc(40f, n);
-            var mains = new LoopOsc(120f, n);
-            var wob1 = new LoopOsc(0.375f, n);
-            var wob2 = new LoopOsc(1.125f, n);
-            var swell = new LoopOsc(0.125f, n);
-            float[] b = new float[n];
-            for (int i = 0; i < n; i++)
+            var pink = new PinkFilter();
+            var fanBand = new Svf(340f, 0.22f); // very wide band: ~70 Hz .. ~1.6 kHz
+            var hlp = new OnePole(170f);
+            float brown = 0f, wobble = 1f, swell = 1f;
+            float invN = 1f / n;
+            CircularIndexed(fan, (i, x) =>
             {
-                float w = 1f + 0.18f * Sin01(wob1.Next()) + 0.08f * Sin01(wob2.Next() + 0.3);
-                float tones = w * (0.06f * Sin01(blade.Next()) + 0.025f * Sin01(blade2.Next()))
-                            + 0.03f * Sin01(motor.Next()) + 0.012f * Sin01(mains.Next());
-                float s = 1f + 0.12f * Sin01(swell.Next());
-                b[i] = 0.5f * fan[i] + tones + 1.1f * s * hvac[i];
-            }
-            return FinishLoop(b, -36f);
+                if ((i & 63) == 0)
+                {
+                    double u = i * (double)invN;
+                    wobble = 1f + 0.18f * Sin01(3 * u) + 0.08f * Sin01(9 * u + 0.3);
+                    swell = 1f + 0.12f * Sin01(u);
+                }
+                brown = 0.997f * brown + 0.03f * hvac[i];
+                int c = i % period;
+                return 0.5f * fanBand.Bp(pink.Process(x)) + 1.1f * swell * hlp.Lp(brown)
+                     + wobble * blade[c] + steady[c];
+            }, Sec(0.5f));
+            return FinishLoop(fan, -36f, 0f, 18f);
         }
 
         /// <summary>
-        /// Ballast buzz: one 60 Hz period (735 samples) of a 120 Hz-dominant harmonic series with a ~2.3 kHz
-        /// "buzz" formant, tiled; slow flutter, two flicker dips and discharge hiss pulsing at 120 Hz.
+        /// Ballast buzz: one 60 Hz period of a 120 Hz-dominant harmonic series with a ~2.3 kHz "buzz" formant,
+        /// tiled; slow flutter, two flicker dips and discharge hiss pulsing at 120 Hz.
         /// </summary>
         private static float[] AmbFluorescent(Rng r)
         {
             int n = Sec(4f);
-            const int period = SampleRate / 60;
-            var cycle = new float[period];
+            const int period = MainsPeriod;
+            var harmonics = new int[100];
+            var amps = new float[100];
             for (int h = 1; h <= 100; h++)
             {
                 float f = 60f * h;
                 float a = h % 2 == 0 ? MathF.Pow(h / 2f, -0.85f) : 0.18f * MathF.Pow(h, -0.7f);
                 a *= 1f + 1.8f * MathF.Exp(-Sq((f - 2300f) / 1400f));
                 if (f > 4000f) a *= MathF.Exp(-(f - 4000f) / 1200f);
-                double ph = r.Float();
-                for (int i = 0; i < period; i++) cycle[i] += a * Sin01((double)h * i / period + ph);
+                harmonics[h - 1] = h;
+                amps[h - 1] = a;
             }
+            float[] cycle = HarmonicCycle(period, harmonics, amps, r);
 
             float[] hiss = WhiteNoise(n, r);
             var hbp = new Svf(3200f, 0.8f);
-            Circular(hiss, hbp.Bp, Ms(20f));
+            var hlp = new Lp4(6500f);
+            Circular(hiss, x => hlp.Process(hbp.Bp(x)), Ms(20f));
 
-            var f1 = new LoopOsc(7.25f, n);
-            var f2 = new LoopOsc(11.5f, n);
-            var f3 = new LoopOsc(0.5f, n);
+            var gate = new float[period]; // the arc re-ignites twice per mains cycle: hiss pulses at 120 Hz
+            for (int i = 0; i < period; i++) gate[i] = 0.35f * Sq(Sq(Sin01((double)i / period)));
             float[] b = new float[n];
+            float flutter = 1f;
             for (int i = 0, c = 0; i < n; i++)
             {
-                float t = i * Dt;
-                float flutter = 1f + 0.025f * Sin01(f1.Next()) + 0.018f * Sin01(f2.Next()) + 0.04f * Sin01(f3.Next())
-                              - 0.30f * Bump(t, 2.70f, 0.035f) - 0.12f * Bump(t, 0.90f, 0.015f);
-                float g = Sq(Sq(Sin01((double)c / period)));
-                b[i] = flutter * (cycle[c] + 0.35f * g * hiss[i]);
+                if ((i & 15) == 0)
+                {
+                    float t = i * Dt;
+                    double u = t / 4.0;
+                    flutter = 1f + 0.025f * Sin01(29 * u) + 0.018f * Sin01(46 * u) + 0.04f * Sin01(2 * u)
+                            - 0.30f * Bump(t, 2.70f, 0.035f) - 0.12f * Bump(t, 0.90f, 0.015f);
+                }
+                b[i] = flutter * (cycle[c] + gate[c] * hiss[i]);
                 if (++c == period) c = 0;
             }
             return FinishLoop(b, -40f);
@@ -1500,106 +1706,105 @@ namespace SecondCursor.Core.Audio
         private static float[] AmbCrtHum(Rng r)
         {
             int n = Sec(3f);
-            const int period = SampleRate / 60;
-            float[] amps = { 1f, 0.55f, 0.35f, 0.22f, 0.14f, 0.10f, 0.06f, 0.05f, 0.03f, 0.03f, 0.02f, 0.02f };
-            var cycle = new float[period];
-            for (int h = 0; h < amps.Length; h++)
-            {
-                double ph = r.Float();
-                for (int i = 0; i < period; i++) cycle[i] += amps[h] * Sin01((double)(h + 1) * i / period + ph);
-            }
+            const int period = MainsPeriod;
+            float[] cycle = HarmonicCycle(period, new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 },
+                new[] { 1f, 0.55f, 0.35f, 0.22f, 0.14f, 0.10f, 0.06f, 0.05f, 0.03f, 0.03f, 0.02f, 0.02f }, r);
             float[] sizzle = WhiteNoise(n, r);
             var sbp = new Svf(4500f, 0.7f);
-            Circular(sizzle, sbp.Bp, Ms(20f));
+            var slp = new Lp4(7000f);
+            Circular(sizzle, x => slp.Process(sbp.Bp(x)), Ms(20f));
 
-            var whine = new LoopOsc(7867f, n);
+            var whine = new LoopOsc(7867f, n, r.Float());
+            float[] fm1 = LoopFmCurve(n, 2.5f, 1), fm2 = LoopFmCurve(n, 1f, 5, 0.3);
             float[] b = new float[n];
             for (int i = 0, c = 0; i < n; i++)
             {
-                double wp = whine.Next() + LoopFm(i, n, 2.5f, 1) + LoopFm(i, n, 1f, 5, 0.3);
-                b[i] = cycle[c] + 0.018f * Sin01(wp) + 0.02f * sizzle[i];
+                b[i] = cycle[c] + 0.018f * Sin01(whine.Next() + fm1[i] + fm2[i]) + 0.02f * sizzle[i];
                 if (++c == period) c = 0;
             }
             return FinishLoop(b, -38f);
         }
 
         /// <summary>
-        /// 8 s tension bed: a sub pair beating 3x per loop, an E2/F2/Bb2 cluster breathing through a slowly
-        /// opening filter, and distant inharmonic metal partials swelling in and out through a long reverb.
+        /// 8 s tension bed: a sub pair beating 3x per loop; an E2/F2/Bb2 cluster, each note breathing on its own
+        /// period, through a slowly opening low-pass; distant "bowed metal" (noise-excited, very narrow resonators
+        /// at struck-plate ratios) swelling in and out through a long reverb; a breath of air.
         /// </summary>
         private static float[] DroneTension(Rng r)
         {
             int n = Sec(8f);
             float invN = 1f / n;
 
-            // sub pair (41.25 / 41.625 Hz)
-            var s1 = new LoopOsc(41.25f, n);
-            var s2 = new LoopOsc(41.625f, n);
-
-            // low cluster with independent periodic swells, then a slowly moving low-pass
             var wt = new Wavetable(SawAmps(14, 1.5f));
-            var c1 = new LoopOsc(82.5f, n);
-            var c2 = new LoopOsc(87.375f, n);
-            var c3 = new LoopOsc(116.5f, n);
-            float[] cluster = new float[n];
+            var c1 = new LoopOsc(82.5f, n, r.Float());
+            var c2 = new LoopOsc(87.375f, n, r.Float());
+            var c3 = new LoopOsc(116.5f, n, r.Float());
+            var s1 = new LoopOsc(41.25f, n, r.Float());
+            var s2 = new LoopOsc(41.625f, n, r.Float());
+            float[] b = new float[n];
+            float a1 = 0f, a2 = 0f, a3 = 0f;
             for (int i = 0; i < n; i++)
             {
-                double u = i * (double)invN;
-                float a1 = 0.55f + 0.45f * Sin01(u);
-                float a2 = 0.50f + 0.50f * Sin01(2 * u + 0.3);
-                float a3 = 0.35f + 0.35f * Sin01(u + 0.55);
-                cluster[i] = a1 * wt.At(c1.Next()) + a2 * wt.At(c2.Next()) + a3 * wt.At(c3.Next());
-            }
-            var clp = new Svf(400f, 1.1f);
-            CircularIndexed(cluster, (i, x) =>
-            {
-                if ((i & 31) == 0) clp.Set(280f + 380f * (0.5f + 0.5f * Sin01(i * (double)invN + 0.6)), 1.1f);
-                return clp.Lp(x);
-            }, Sec(0.5f));
-
-            // distant metal: struck-plate ratios on 311 Hz, each partial doubled 0.25 Hz apart (slow beats)
-            float[] ratios = { 1f, 1.593f, 2.136f, 2.296f, 2.653f, 2.918f, 3.6f };
-            float[] metal = new float[n];
-            for (int k = 0; k < ratios.Length; k++)
-            {
-                float f = 311.1f * ratios[k];
-                var oa = new LoopOsc(f, n, r.Float());
-                var ob = new LoopOsc(f + 0.25f, n, r.Float());
-                float centre = r.Float(), width = r.Range(0.25f, 0.45f);
-                float amp = 0.06f / (1f + 0.4f * k);
-                float vib = r.Range(0.4f, 1.2f);
-                int vibCycles = r.Int(1, 4);
-                float swell = 0f;
-                for (int i = 0; i < n; i++)
+                if ((i & 63) == 0)
                 {
-                    if ((i & 31) == 0)
-                    {
-                        float d = i * invN - centre;
-                        d -= MathF.Round(d); // circular distance on the loop
-                        swell = Bump(d, 0f, width);
-                    }
-                    double fm = LoopFm(i, n, vib, vibCycles);
-                    metal[i] += amp * swell * (Sin01(oa.Next() + fm) + Sin01(ob.Next() + fm));
+                    double u = i * (double)invN;
+                    a1 = 0.55f + 0.45f * Sin01(u);
+                    a2 = 0.50f + 0.50f * Sin01(2 * u + 0.3);
+                    a3 = 0.35f + 0.35f * Sin01(u + 0.55);
                 }
+                b[i] = a1 * wt.At(c1.Next()) + a2 * wt.At(c2.Next()) + a3 * wt.At(c3.Next());
             }
-            AddReverbLoop(metal, 1.4f, 0.88f, 0.5f, 1.2f, 0.25f);
-
-            // air
-            float[] air = WhiteNoise(n, r);
+            // cluster through a slowly opening low-pass; in the same pass, pink "air" noise band-passed at 380 Hz
+            float[] airNoise = WhiteNoise(n, r), air = new float[n];
+            var clp = new Svf(400f, 1.1f);
             var pink = new PinkFilter();
             var abp = new Svf(380f, 0.7f);
-            Circular(air, x => abp.Bp(pink.Process(x)), Sec(0.5f));
+            CircularIndexed(b, (i, x) =>
+            {
+                if ((i & 31) == 0) clp.Set(280f + 380f * (0.5f + 0.5f * Sin01(i * (double)invN + 0.6)), 1.1f);
+                air[i] = abp.Bp(pink.Process(airNoise[i])); // warm-up writes are overwritten by the main pass
+                return clp.Lp(x);
+            }, Sec(0.3f));
 
-            float[] b = new float[n];
-            var airSwell = new LoopOsc(0.125f, n, 0.4f);
+            // distant bowed metal: very narrow resonators at struck-plate ratios, excited by noise, each
+            // swelling in and out at its own place in the loop
+            float[] ratios = { 1f, 1.593f, 2.136f, 2.296f, 2.653f, 3.6f };
+            int partials = ratios.Length;
+            var hz = new float[partials];
+            var gains = new float[partials];
+            var centre = new float[partials];
+            var width = new float[partials];
+            for (int k = 0; k < partials; k++)
+            {
+                hz[k] = 311.1f * ratios[k] * r.Jitter(0.003f);
+                gains[k] = 0.055f / (1f + 0.35f * k);
+                centre[k] = r.Float();
+                width[k] = r.Range(0.18f, 0.35f);
+            }
+            var bank = new ResonatorBank(hz, 0.35f, gains);
+            float[] excite = WhiteNoise(n, r);
+            float[] metal = new float[n];
+            var swell = new float[partials];
+            for (int i = n - Sec(1.8f); i < n; i++) bank.Process(excite[i]); // warm-up: 5 time constants
             for (int i = 0; i < n; i++)
             {
-                float sub = 0.5f * (Sin01(s1.Next()) + Sin01(s2.Next()));
-                float s = 0.55f * sub + 0.35f * cluster[i] + 0.6f * metal[i]
-                        + 0.12f * (0.6f + 0.4f * Sin01(airSwell.Next())) * air[i];
-                b[i] = SoftClip(1.2f * s);
+                if ((i & 63) == 0)
+                    for (int k = 0; k < partials; k++) swell[k] = Bump(LoopDistance(i * invN, centre[k]), 0f, width[k]);
+                bank.Process(excite[i]);
+                float m = 0f;
+                for (int k = 0; k < partials; k++) m += swell[k] * bank.Out[k];
+                metal[i] = m;
             }
-            return FinishLoop(b, -27f, 22f);
+            AddReverbLoop(metal, 1.2f, 0.86f, 0.5f, 1.2f, 0.3f, 1.8f);
+
+            float breath = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                if ((i & 63) == 0) breath = 0.6f + 0.4f * Sin01(i * (double)invN + 0.4);
+                float sub = 0.275f * (Sin01(s1.Next()) + Sin01(s2.Next()));
+                b[i] = SoftClip(1.2f * (0.35f * b[i] + sub + 0.6f * metal[i] + 0.12f * breath * air[i]));
+            }
+            return FinishLoop(b, -27f);
         }
 
         // ---------------- The entity ----------------
@@ -1608,66 +1813,70 @@ namespace SecondCursor.Core.Audio
         private static float Breath(float u) => 0.5f - 0.5f * Sin01(u + 0.25);
 
         /// <summary>
-        /// 2 s loop of electrical life: clustered spark crackles with individual resonant colours (denser in one
-        /// half of the loop, so it breathes), a few 120 Hz arcing "fzzt"s, and a faint sizzle bed.
+        /// 2 s loop of electrical life: many small spark clusters, each with its own resonant colour, denser in one
+        /// half of the loop (it breathes); a few 120 Hz arcing "fzzt"s; a faint sizzle; a ghost of 120 Hz hum.
         /// </summary>
         private static float[] EntityStatic(Rng r)
         {
             int n = Sec(2f);
             float[] b = new float[n];
 
-            for (int c = 0; c < 16; c++)
+            for (int c = 0; c < 30; c++)
             {
                 float pos;
-                do pos = r.Float(); while (r.Float() > 0.3f + 0.7f * Breath(pos));
-                int tail = Ms(10f);
-                int evLen = Ms(r.Range(25f, 90f)) + tail;
+                do pos = r.Float(); while (r.Float() > 0.35f + 0.65f * Breath(pos));
+                int tail = Ms(8f);
+                int evLen = Ms(r.Range(12f, 45f)) + tail;
                 var ev = new float[evLen];
-                int grains = r.Int(4, 22);
-                float meanGap = r.Range(1.5f, 5f) * 0.001f * Sr;
-                float amp = r.Range(0.25f, 1f);
+                int grains = r.Int(3, 14);
+                float meanGap = r.Range(1.5f, 4f) * 0.001f * Sr;
+                float amp = r.Range(0.5f, 1f) * (0.6f + 0.4f * Breath(pos));
                 int t = 0;
                 for (int g = 0; g < grains; g++)
                 {
-                    int w = r.Int(2, 14);
+                    int w = r.Int(2, 10);
                     if (t + w >= evLen - tail) break;
-                    float a = amp * (0.15f + 0.85f * MathF.Pow(r.Float(), 3f)) * (r.Chance(0.5f) ? 1f : -1f);
+                    float a = amp * (0.3f + 0.7f * MathF.Pow(r.Float(), 1.5f)) * (r.Chance(0.5f) ? 1f : -1f);
                     for (int j = 0; j < w; j++) ev[t + j] += a * r.Signed() * (1f - (float)j / w);
                     t += 1 + (int)(-MathF.Log(1f - 0.999f * r.Float()) * meanGap);
                 }
-                var bp = new Svf(r.Range(1300f, 5200f), r.Range(1.5f, 5f));
-                var hp = new OnePole(2000f);
+                var bp = new Svf(r.Range(900f, 4200f), r.Range(2f, 6f));
+                var hp = new OnePole(1500f);
                 for (int j = 0; j < evLen; j++)
                 {
                     float x = ev[j];
-                    ev[j] = 0.75f * bp.Bp(x) + 0.35f * hp.Hp(x);
+                    ev[j] = 0.8f * bp.Bp(x) + 0.15f * hp.Hp(x);
                 }
                 AddWrapped(b, ev, (int)(pos * n));
             }
 
             for (int a = 0; a < 3; a++)
             {
-                int len = Ms(r.Range(30f, 90f));
+                int len = Ms(r.Range(30f, 80f));
                 var ev = new float[len];
-                var bp = new Svf(r.Range(2000f, 3500f), 2.2f);
+                var bp = new Svf(r.Range(1800f, 3000f), 2.2f);
                 Phasor gate = default, flicker = default;
                 float fl = r.Range(25f, 45f);
                 for (int j = 0; j < len; j++)
                 {
                     float env = Sq(Sin01(0.5 * j / len)) * (0.7f + 0.3f * flicker.Sin(fl));
                     float g = MathF.Max(0f, gate.Sin(120f));
-                    ev[j] = 0.8f * env * g * g * g * bp.Bp(r.Signed());
+                    ev[j] = 0.45f * env * g * g * g * bp.Bp(r.Signed());
                 }
                 AddWrapped(b, ev, r.Int(0, n));
             }
 
             float[] bed = WhiteNoise(n, r);
-            var bhp = new Svf(3000f, 0.7f);
-            var blp = new Svf(8000f, 0.7f);
-            Circular(bed, x => blp.Lp(bhp.Hp(x)), Ms(50f));
-            for (int i = 0; i < n; i++) b[i] += 0.03f * (0.3f + 0.7f * Breath(i / (float)n)) * bed[i];
-
-            LowPassLoop(b, 9000f);
+            var bbp = new Svf(3500f, 0.9f);
+            Circular(bed, bbp.Bp, Ms(20f));
+            float[] hum = HarmonicCycle(MainsPeriod, new[] { 2, 4, 6, 10 }, new[] { 1f, 0.5f, 0.35f, 0.2f }, r);
+            for (int i = 0, c = 0; i < n; i++)
+            {
+                float br = Breath(i / (float)n);
+                b[i] += (0.3f + 0.7f * br) * (0.025f * bed[i] + 0.012f * hum[c]);
+                if (++c == MainsPeriod) c = 0;
+            }
+            LowPass4Loop(b, 7000f);
             return FinishLoop(b, -30f);
         }
 
@@ -1696,89 +1905,99 @@ namespace SecondCursor.Core.Audio
             {
                 float t = i * Dt;
                 float tone = 0.35f * a.Sin(233.08f) + 0.25f * c.Sin(329.63f) + 0.18f * d.Sin(466.16f);
-                fwd[i] = AttackDecay(t, 0.002f, 0.18f) * tone + 0.6f * AttackDecay(t, 0.0005f, 0.03f) * bp.Bp(r.Signed());
+                fwd[i] = AttackDecay(t, 0.002f, 0.16f) * tone + 0.6f * AttackDecay(t, 0.0005f, 0.03f) * bp.Bp(r.Signed());
             }
-            AddReverb(fwd, 1.2f, 0.87f, 0.45f, 1.4f, 0.5f);
+            AddReverb(fwd, 0.8f, 0.86f, 0.45f, 0.9f, 0.8f);
+            LowPass4(fwd, 6000f);
 
             float[] b = Buf(1.0f);
             int m = fwd.Length;
             for (int i = 0; i < m; i++)
             {
                 float u = (float)i / m;
-                b[i] = fwd[m - 1 - i] * u * u;
+                b[i] = fwd[m - 1 - i] * u * u * u;
             }
-            AddGlitchTick(b, m, 1f, r);
-            AddGlitchTick(b, m + Ms(21f), 0.45f, r);
-            AddGlitchTick(b, m + Ms(37f), 0.22f, r);
+            var ticks = new float[b.Length];
+            AddGlitchTick(ticks, m, 1f, r);
+            AddGlitchTick(ticks, m + Ms(21f), 0.45f, r);
+            AddGlitchTick(ticks, m + Ms(37f), 0.22f, r);
+            LowPass4(ticks, 7000f);
+            Mix(b, ticks, 0.8f);
             Phasor low = default;
             for (int i = m; i < b.Length; i++)
                 b[i] += 0.4f * AttackDecay((i - m) * Dt, 0.0005f, 0.008f) * low.Sin(180f);
-            LowPass(b, 9500f);
-            return FinishOneShot(b, -24f, 5f, 60f);
+            return FinishOneShot(b, -24f, 5f, 60f, 0f, true);
         }
 
-        /// <summary>Segments of crushed noise, crushed square tones, zips, gaps and stutter repeats.</summary>
+        /// <summary>
+        /// Digital failure: crushed noise, crushed square tones and pitch zips, cut up by dropouts and by stutters
+        /// that repeat slices of the previous segment ("b-b-b-bzzt").
+        /// </summary>
         private static float[] GlitchBurst(Rng r)
         {
             float[] b = Buf(0.32f);
-            int pos = 0, end = Sec(0.29f), lastStart = 0, lastLen = 0;
+            int pos = 0, end = Sec(0.28f), prevStart = -1, prevLen = 0;
             while (pos < end)
             {
-                int len = Math.Min(end - pos, Ms(r.Range(8f, 34f)));
-                int kind = r.Int(0, 10);
-                float level = r.Range(0.5f, 1f);
-                if (kind >= 5 && kind < 7 && lastLen > 0)
+                float pick = r.Float();
+                if (prevLen > 0 && pick < 0.32f)
                 {
-                    int chunk = Math.Min(lastLen, Ms(r.Range(5f, 14f)));
-                    int reps = r.Int(2, 5);
-                    len = 0;
-                    for (int k = 0; k < reps && pos + len + chunk <= b.Length; k++, len += chunk)
-                        for (int j = 0; j < chunk; j++) b[pos + len + j] = b[lastStart + j] * (1f - 0.12f * k);
-                }
-                else if (kind == 7)
-                {
-                    len = Ms(r.Range(4f, 12f));
-                }
-                else
-                {
-                    int hold = r.Int(2, 9);
-                    float levels = r.Range(3f, 12f), held = 0f;
-                    float f0 = r.Range(180f, 2400f), f1 = kind >= 8 ? r.Range(150f, 400f) : f0;
-                    Phasor p = default;
-                    for (int j = 0; j < len; j++)
+                    int slice = Math.Min(prevLen, Ms(r.Range(4f, 11f)));
+                    int reps = r.Int(2, 6);
+                    for (int k = 0; k < reps && pos + slice < b.Length; k++)
                     {
-                        float u = (float)j / len;
-                        float f = f0 * MathF.Pow(f1 / f0, u);
-                        float tone = p.Sin(f) >= 0f ? 0.6f : -0.6f;
-                        float v = kind < 3 ? r.Signed() : (kind >= 8 ? 1.4f * Sin01(p.Phase) : tone + 0.25f * r.Signed());
-                        if (j % hold == 0) held = Crush(v, levels);
-                        b[pos + j] = level * held;
+                        float g = 1f - 0.12f * k;
+                        for (int j = 0; j < slice; j++) b[pos + j] = g * b[prevStart + j];
+                        pos += slice + (r.Chance(0.3f) ? Ms(r.Range(1f, 4f)) : 0);
                     }
-                    lastStart = pos;
-                    lastLen = len;
+                    prevLen = 0;
+                    continue;
                 }
-                pos += Math.Max(len, 1);
+                if (pick < 0.45f)
+                {
+                    pos += Ms(r.Range(3f, 10f));
+                    continue;
+                }
+                int len = Math.Min(b.Length - pos, Ms(r.Range(8f, 26f)));
+                int hold = r.Int(2, 9);
+                float levels = r.Range(3f, 12f), level = r.Range(0.55f, 1f), held = 0f;
+                float f0 = r.Range(180f, 2400f), f1 = pick > 0.85f ? r.Range(120f, 400f) : f0;
+                Phasor p = default;
+                for (int j = 0; j < len; j++)
+                {
+                    float f = f0 * MathF.Pow(f1 / f0, (float)j / len);
+                    float s = p.Sin(f);
+                    float v = pick < 0.62f ? r.Signed()
+                            : pick < 0.85f ? (s >= 0f ? 0.6f : -0.6f) + 0.25f * r.Signed()
+                            : 1.2f * s;
+                    if (j % hold == 0) held = Crush(v, levels);
+                    b[pos + j] = level * held;
+                }
+                prevStart = pos;
+                prevLen = len;
+                pos += len;
             }
-            LowPass(b, 9000f);
-            return FinishOneShot(b, -20f, 0.5f, 25f);
+            LowPass4(b, 8000f);
+            return FinishOneShot(b, -20f, 0.5f, 25f, 0f, true);
         }
 
         /// <summary>
         /// 1.5 s loop: a beating 98 / 103.3 / 146.7 Hz buzz through a resonant band-pass that sweeps twice per
         /// loop, a vibrato whine, a 4 Hz throb and crackling grit. Every rate stays musical from 0.8x to 1.8x,
-        /// and the spectrum is kept under 6 kHz so even 1.8x never gets shrill.
+        /// and the spectrum is kept under ~6 kHz so even 1.8x never gets shrill.
         /// </summary>
         private static float[] TugStrain(Rng r)
         {
             int n = Sec(1.5f);
             var wt = new Wavetable(SawAmps(20, 1.25f));
-            var o1 = new LoopOsc(98f, n);
-            var o2 = new LoopOsc(103.333f, n);
-            var o3 = new LoopOsc(146.667f, n);
+            var o1 = new LoopOsc(98f, n, r.Float());
+            var o2 = new LoopOsc(103.333f, n, r.Float());
+            var o3 = new LoopOsc(146.667f, n, r.Float());
+            float[] fm3 = LoopFmCurve(n, 1.5f, 3), fmWhine = LoopFmCurve(n, 6f, 9);
             float[] buzz = new float[n];
             for (int i = 0; i < n; i++)
                 buzz[i] = 0.5f * wt.At(o1.Next()) + 0.45f * wt.At(o2.Next())
-                        + 0.25f * wt.At(PositiveFrac(o3.Next() + LoopFm(i, n, 1.5f, 3)));
+                        + 0.25f * wt.At(PositiveFrac(o3.Next() + fm3[i]));
             var bp = new Svf(900f, 3.5f);
             CircularIndexed(buzz, (i, x) =>
             {
@@ -1797,22 +2016,25 @@ namespace SecondCursor.Core.Audio
                 AddWrapped(gate, ev, r.Int(0, n), r.Range(0.4f, 1f));
             }
 
-            var whine = new LoopOsc(1306.667f, n);
+            var whine = new LoopOsc(1306.667f, n, r.Float());
             var throb = new LoopOsc(4f, n);
             float[] b = new float[n];
             for (int i = 0; i < n; i++)
             {
                 float th = 0.78f + 0.22f * Sin01(throb.Next());
-                b[i] = th * buzz[i]
-                     + 0.06f * Sin01(whine.Next() + LoopFm(i, n, 6f, 9))
-                     + 0.05f * Math.Min(1f, gate[i]) * grit[i];
-                b[i] = SoftClip(1.3f * b[i]);
+                float s = th * buzz[i]
+                        + 0.06f * Sin01(whine.Next() + fmWhine[i])
+                        + 0.05f * Math.Min(1f, gate[i]) * grit[i];
+                b[i] = SoftClip(1.3f * s);
             }
-            LowPassLoop(b, 6000f);
-            return FinishLoop(b, -25f);
+            return FinishLoop(b, -25f, 6000f);
         }
 
-        private static double PositiveFrac(double x) => x - Math.Floor(x);
+        private static double PositiveFrac(double x)
+        {
+            double f = x - (int)x;
+            return f < 0.0 ? f + 1.0 : f;
+        }
 
         private static readonly Mode[] SnapModes =
         {
@@ -1837,8 +2059,7 @@ namespace SecondCursor.Core.Audio
                       + 0.35f * AttackDecay(t, 0.002f, 0.04f) * low.Sin(88f)
                       + 0.28f * AttackDecay(t - 0.004f, 0.002f, 0.045f) * gate * bp.Bp(r.Signed());
             }
-            LowPass(b, 9500f);
-            return FinishOneShot(b, -19f, 0.1f, 30f);
+            return FinishOneShot(b, -19f, 0.1f, 30f, 9000f, true);
         }
 
         // ---------------- CCTV ----------------
@@ -1852,7 +2073,7 @@ namespace SecondCursor.Core.Audio
             AddImpact(b, Ms(6.9f), 0.25f, RelayModes, r, 4, 0.15f, 0.3f, 1.12f, 0.7f);
 
             var hp = new Svf(300f, 0.7f);
-            var lp = new Svf(6500f, 0.7f);
+            var lp = new Lp4(6000f);
             Phasor v = default;
             float target = 1f, level = 1f;
             int s0 = Ms(9f), next = 0;
@@ -1863,10 +2084,10 @@ namespace SecondCursor.Core.Audio
                 level += (target - level) * 0.05f;
                 float env = AttackDecay(t, 0.003f, 10f) * (1f - SmoothStep(0.2f, 0.285f, t));
                 float field = 0.7f + 0.3f * MathF.Max(0f, v.Sin(60f));
-                b[i] += 0.5f * env * level * field * lp.Lp(hp.Hp(r.Signed()));
+                b[i] += 0.5f * env * level * field * lp.Process(hp.Hp(r.Signed()));
             }
             AddImpact(b, Sec(0.296f), 0.2f, RelayModes, r, 3, 0.1f, 0.2f, 1.4f, 0.4f);
-            return FinishOneShot(b, -22f, 0.1f, 30f);
+            return FinishOneShot(b, -22f, 0.1f, 30f, 9000f, true);
         }
 
         /// <summary>Soft CCTV snow: filtered noise with a 60 Hz field buzz, gentle drift and a trace of hum.</summary>
@@ -1874,21 +2095,22 @@ namespace SecondCursor.Core.Audio
         {
             int n = Sec(2f);
             float[] b = WhiteNoise(n, r);
-            var lp = new Svf(6500f, 0.6f);
-            var lp2 = new OnePole(9000f);
+            var lp = new Lp4(5500f);
             var hp = new Svf(180f, 0.7f);
-            Circular(b, x => hp.Hp(lp.Lp(lp2.Lp(x))), Ms(50f));
-            var field = new LoopOsc(60f, n);
-            var m1 = new LoopOsc(0.5f, n);
-            var m2 = new LoopOsc(1.5f, n, 0.3f);
-            var m3 = new LoopOsc(3.5f, n, 0.7f);
-            var h1 = new LoopOsc(60f, n, 0.1f);
-            var h2 = new LoopOsc(120f, n, 0.6f);
-            for (int i = 0; i < n; i++)
+            Circular(b, x => hp.Hp(lp.Process(x)), Ms(50f));
+            var field = new float[MainsPeriod]; // vertical-sync buzz on the noise, plus a trace of mains hum
+            for (int i = 0; i < MainsPeriod; i++) field[i] = 0.88f + 0.12f * Sin01((double)i / MainsPeriod);
+            float[] hum = HarmonicCycle(MainsPeriod, new[] { 1, 2 }, new[] { 0.018f, 0.012f }, r);
+            float drift = 1f;
+            for (int i = 0, c = 0; i < n; i++)
             {
-                float buzz = 0.88f + 0.12f * Sin01(field.Next());
-                float drift = 1f + 0.06f * Sin01(m1.Next()) + 0.04f * Sin01(m2.Next()) + 0.03f * Sin01(m3.Next());
-                b[i] = b[i] * buzz * drift + 0.03f * (0.6f * Sin01(h1.Next()) + 0.4f * Sin01(h2.Next()));
+                if ((i & 63) == 0)
+                {
+                    double u = i / (double)n;
+                    drift = 1f + 0.06f * Sin01(u) + 0.04f * Sin01(3 * u + 0.3) + 0.03f * Sin01(7 * u + 0.7);
+                }
+                b[i] = b[i] * field[c] * drift + hum[c];
+                if (++c == MainsPeriod) c = 0;
             }
             return FinishLoop(b, -32f);
         }
@@ -1910,7 +2132,7 @@ namespace SecondCursor.Core.Audio
                 b[i] = SoftClip(1.3f * body) + 0.35f * knock;
             }
             AddReverb(b, 1.3f, 0.85f, 0.75f, 0.25f, 1f, 0f, 400f);
-            return FinishOneShot(b, -18f, 0.3f, 200f, 22f);
+            return FinishOneShot(b, -18f, 0.3f, 200f, 0f, false, 22f);
         }
 
         private static readonly Mode[] DoorModes =
@@ -1942,7 +2164,7 @@ namespace SecondCursor.Core.Audio
             AddImpact(b, Ms(121f), 0.18f, LatchModes, r, 5, 0.2f, 1f, 1.03f);
             LowPass(b, 900f);
             LowPass(b, 1400f);
-            AddReverb(b, 1.6f, 0.9f, 0.6f, 2.2f, 0.35f, 28f, 1800f);
+            AddReverb(b, 1.6f, 0.9f, 0.6f, 1.3f, 0.6f, 18f, 1800f);
             return FinishOneShot(b, -30f, 2f, 400f);
         }
 
@@ -1967,8 +2189,8 @@ namespace SecondCursor.Core.Audio
                 if (t >= 0f && t < 0.08f) b[i] += 0.3f * AttackDecay(t, 0.006f, 0.014f) * bp.Bp(r.Signed());
             }
             LowPass(b, 1500f);
-            AddFlutter(b, 9.5f, 6, 0.45f, 0.72f, 1800f);
-            AddReverb(b, 1.15f, 0.85f, 0.55f, 1.6f, 0.4f, 12f, 2200f);
+            AddFlutter(b, 9.5f, 6, 0.4f, 0.7f, 1800f);
+            AddReverb(b, 1.15f, 0.85f, 0.55f, 1.0f, 0.85f, 12f, 2200f);
             return FinishOneShot(b, -32f, 2f, 150f);
         }
 
@@ -1996,24 +2218,33 @@ namespace SecondCursor.Core.Audio
             var buzz = new Wavetable(buzzAmps, RandomPhases(buzzAmps.Length, r));
             var fanBp = new Svf(700f, 0.7f);
             Phasor hp = default, bz = default, wh = default, blade = default, whump = default;
+            float mains = 1f, sag = 1f, flick = 1f, spin = 1f, whumpEnv = 0f, whumpHz = 70f;
             for (int i = 0; i < b.Length; i++)
             {
                 float t = i * Dt, tc = t - cut;
                 bool on = tc < 0f;
-                float mains = on ? 1f : Decay(tc, 0.05f);
-                float sag = on ? 1f : 1f - 0.3f * (1f - Decay(tc, 0.08f));
-                float flick = on ? 1f : 0.6f * Bump(tc, 0.06f, 0.025f) + 0.35f * Bump(tc, 0.15f, 0.02f);
-                float spin = on ? 1f : Decay(tc, 0.55f);
-                if ((i & 31) == 0) fanBp.Set(250f + 450f * spin, 0.7f);
+                if ((i & 15) == 0 && !on)
+                {
+                    mains = Decay(tc, 0.12f);
+                    sag = 1f - 0.45f * (1f - Decay(tc, 0.2f));
+                    flick = 0.6f * Bump(tc, 0.07f, 0.025f) + 0.35f * Bump(tc, 0.17f, 0.02f);
+                    spin = Decay(tc, 0.55f);
+                    fanBp.Set(250f + 450f * spin, 0.7f);
+                    whumpHz = 34f + 36f * Decay(tc, 0.06f);
+                }
                 float s = 0.30f * mains * hum.At(hp.Advance(60f * sag))
                         + 0.12f * flick * buzz.At(bz.Advance(120f * sag))
                         + 0.020f * spin * wh.Sin(6500f * (0.25f + 0.75f * spin))
                         + 0.10f * spin * fanBp.Bp(r.Signed())
                         + 0.05f * spin * blade.Sin(280f * spin);
-                if (!on) s += 0.9f * AttackDecay(tc, 0.004f, 0.25f) * whump.Sin(34f + 36f * Decay(tc, 0.06f));
+                if (!on)
+                {
+                    if ((i & 3) == 0) whumpEnv = 0.7f * AttackDecay(tc, 0.004f, 0.25f);
+                    s += whumpEnv * whump.Sin(whumpHz);
+                }
                 b[i] = s;
             }
-            AddImpact(b, Sec(cut), 1f, BreakerModes, r, 12, 0.5f, 2f);
+            AddImpact(b, Sec(cut), 0.8f, BreakerModes, r, 12, 0.5f, 2f);
 
             float[] relays = Buf(len);
             AddImpact(relays, Sec(cut + 0.19f), 0.5f, RelayModes, r, 5, 0.3f, 0.4f, 0.8f);
@@ -2022,27 +2253,36 @@ namespace SecondCursor.Core.Audio
             LowPass(relays, 3500f);
             Mix(b, relays, 1f);
             AddReverb(b, 1.3f, 0.86f, 0.5f, 0.6f);
-            return FinishOneShot(b, -22f, 30f, 300f);
+            return FinishOneShot(b, -22f, 30f, 300f, 9000f, true);
         }
 
-        /// <summary>A3 pair beating slowly, a sub-octave, a tritone shadow and a glassy A6 that arrives late;
-        /// everything sags ~20 cents as it fades.</summary>
+        /// <summary>
+        /// A3 pair beating slowly, a sub-octave, a tritone shadow, a trembling high pair and a glassy A6 that
+        /// arrives late; everything sags ~20 cents as it fades.
+        /// </summary>
         private static float[] EndTone(Rng r)
         {
             const float len = 6f;
             float[] b = Buf(len);
-            Phasor a = default, a2 = default, sub = default, tri = default, h3 = default, glass = default, vib = default;
+            var root = new Wavetable(new[] { 0.22f, 0.42f, 0f, 0f, 0f, 0.05f }); // A2, A3, E5 (h1, h2, h6 of 110 Hz)
+            Phasor a = default, a2 = default, tri = default, glass = default, vib = default, t1 = default, t2 = default;
             a2.Phase = r.Float();
+            t2.Phase = r.Float();
+            float env = 0f, glassEnv = 0f, trembleEnv = 0f, sag = 1f;
             for (int i = 0; i < b.Length; i++)
             {
-                float t = i * Dt;
-                float sag = 1f - 0.012f * SmoothStep(3f, 6f, t);
-                float env = SmoothStep(0f, 1.3f, t) * (1f - SmoothStep(3.4f, 5.95f, t));
-                float glassEnv = SmoothStep(1.2f, 2.8f, t) * (1f - SmoothStep(3.6f, 5.8f, t));
+                if ((i & 63) == 0)
+                {
+                    float t = i * Dt;
+                    sag = 1f - 0.012f * SmoothStep(3f, 6f, t);
+                    env = SmoothStep(0f, 1.3f, t) * (1f - SmoothStep(3.4f, 5.95f, t));
+                    glassEnv = SmoothStep(1.2f, 2.8f, t) * (1f - SmoothStep(3.6f, 5.8f, t));
+                    trembleEnv = SmoothStep(2.0f, 3.5f, t) * (1f - SmoothStep(3.8f, 5.6f, t));
+                }
                 float v = 1f + 0.0018f * vib.Sin(4.7f);
-                b[i] = env * (0.42f * a.Sin(220f * sag) + 0.42f * a2.Sin(220.45f * sag)
-                            + 0.22f * sub.Sin(110f * sag) + 0.12f * tri.Sin(311.13f * sag)
-                            + 0.05f * h3.Sin(660f * sag) + 0.05f * glassEnv * glass.Sin(1760f * sag * v));
+                b[i] = env * (root.At(a.Advance(110f * sag)) + 0.42f * a2.Sin(220.45f * sag)
+                            + 0.12f * tri.Sin(311.13f * sag) + 0.05f * glassEnv * glass.Sin(1760f * sag * v)
+                            + 0.025f * trembleEnv * (t1.Sin(1244.5f * sag) + t2.Sin(1247.5f * sag)));
             }
             AddReverb(b, 1.5f, 0.88f, 0.45f, 0.5f);
             return FinishOneShot(b, -24f, 10f, 400f);

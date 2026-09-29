@@ -15,8 +15,21 @@ namespace SecondCursor.Rendering
     {
         static readonly Dictionary<string, Sprite> Cache = new Dictionary<string, Sprite>(StringComparer.Ordinal);
         static readonly HashSet<string> Warned = new HashSet<string>(StringComparer.Ordinal);
+        static readonly Dictionary<string, PixelSprite> Local = new Dictionary<string, PixelSprite>(StringComparer.Ordinal);
 
-        public static bool Has(string name) => PixelArtData.Has(name);
+        /// <summary>Registers a small code-defined sprite (same palette chars as PixelArtData).</summary>
+        public static void Define(string name, int hotspotX, int hotspotY, params string[] rows)
+        {
+            Local[name] = new PixelSprite(name, hotspotX, hotspotY, rows);
+        }
+
+        public static bool Has(string name) => Local.ContainsKey(name) || PixelArtData.Has(name);
+
+        static PixelSprite Find(string name)
+        {
+            if (Local.TryGetValue(name, out var s)) return s;
+            return PixelArtData.Has(name) ? PixelArtData.Get(name) : null;
+        }
 
         public static Sprite Get(string name) => GetVariant(name, null, null);
 
@@ -30,14 +43,15 @@ namespace SecondCursor.Rendering
             if (Cache.TryGetValue(key, out var cached) && cached != null) return cached;
 
             Texture2D tex;
-            if (!PixelArtData.Has(name))
+            var src = Find(name);
+            if (src == null)
             {
                 if (Warned.Add(name)) GameLog.Warn(LogChannel.System, "Missing sprite '" + name + "'");
                 tex = Checker();
             }
             else
             {
-                tex = Build(PixelArtData.Get(name), remap);
+                tex = Build(src, remap);
             }
             var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0f, 1f), 1f, 0, SpriteMeshType.FullRect);
             sprite.name = key;
@@ -47,17 +61,18 @@ namespace SecondCursor.Rendering
 
         public static Vector2Int Size(string name)
         {
-            if (!PixelArtData.Has(name)) return new Vector2Int(8, 8);
-            var s = PixelArtData.Get(name);
-            return new Vector2Int(s.Width, s.Height);
+            var s = Find(name);
+            return s == null ? new Vector2Int(8, 8) : new Vector2Int(s.Width, s.Height);
         }
 
         public static Vector2Int Hotspot(string name)
         {
-            if (!PixelArtData.Has(name)) return Vector2Int.zero;
-            var s = PixelArtData.Get(name);
-            return new Vector2Int(s.HotspotX, s.HotspotY);
+            var s = Find(name);
+            return s == null ? Vector2Int.zero : new Vector2Int(s.HotspotX, s.HotspotY);
         }
+
+        /// <summary>Texture of a sprite (shared). Callers may change wrap mode for tiling.</summary>
+        public static Texture2D TextureOf(string name) => Get(name).texture;
 
         public static Color32 PaletteColor(char c)
         {

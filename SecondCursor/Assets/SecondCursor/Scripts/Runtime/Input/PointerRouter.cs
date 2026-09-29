@@ -161,6 +161,13 @@ namespace SecondCursor.Input
                 a.IsDragging = false;
             }
 
+            // Mouse wheel goes to the nearest scrollable container under the pointer.
+            if (Mathf.Abs(a.Scroll) > 0.001f && hit != null)
+            {
+                var scroll = hit.GetComponentInParent<UI.ScrollArea>();
+                if (scroll != null) scroll.ScrollBy(-a.Scroll * scroll.WheelStep);
+            }
+
             // Right button: menus open on release, like the old desktops.
             if (a.RightPressedThisFrame) AnyPointerDown?.Invoke(a, hit);
             if (a.RightReleasedThisFrame && hit != null && hit.interactable) hit.RaiseRightClick(a);

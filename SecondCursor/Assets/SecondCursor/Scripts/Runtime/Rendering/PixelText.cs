@@ -25,6 +25,7 @@ namespace SecondCursor.Rendering
         [SerializeField] int _firstLine;
         [SerializeField] bool _shadow;
         [SerializeField] Color32 _shadowColor = new Color32(0, 0, 0, 255);
+        [SerializeField] int _monoAdvance;
 
         bool _caretEnabled;
         bool _caretVisible;
@@ -56,6 +57,17 @@ namespace SecondCursor.Rendering
         /// <summary>1px drop shadow (desktop icon labels).</summary>
         public bool Shadow { get => _shadow; set { if (_shadow != value) { _shadow = value; SetVerticesDirty(); } } }
         public Color32 ShadowColor { get => _shadowColor; set { _shadowColor = value; SetVerticesDirty(); } }
+
+        /// <summary>Fixed advance per character in px (0 = proportional). Used for hex dumps and tables.</summary>
+        public int MonospaceAdvance { get => _monoAdvance; set { if (_monoAdvance != value) { _monoAdvance = value; SetVerticesDirty(); } } }
+
+        int Advance(char c) => _monoAdvance > 0 ? _monoAdvance : PixelFont.Advance(c, _bold);
+
+        int MeasureLine(string line)
+        {
+            if (_monoAdvance <= 0) return PixelFont.MeasureLine(line, _bold, _scale);
+            return string.IsNullOrEmpty(line) ? 0 : (line.Length * _monoAdvance - 1) * _scale;
+        }
 
         public int LineHeightPx => (PixelFont.LineHeight + _extraLineSpacing) * _scale;
 
@@ -119,7 +131,7 @@ namespace SecondCursor.Rendering
                 string line = _lines[li];
                 float y = top - (li - first) * lineH;
                 if (y < rect.yMin - lineH) break; // fully below the visible rect
-                int w = PixelFont.MeasureLine(line, _bold, s);
+                int w = MeasureLine(line);
                 float x;
                 switch (_align)
                 {
@@ -137,11 +149,12 @@ namespace SecondCursor.Rendering
                     if (c != ' ' && c != '\t' && c != '\r')
                     {
                         var g = PixelFont.Get(c, _bold);
-                        float gx0 = cx, gx1 = cx + g.Width * s;
+                        float gx0 = _monoAdvance > 0 ? cx + Mathf.Floor((_monoAdvance - 1 - g.Width) * 0.5f) * s : cx;
+                        float gx1 = gx0 + g.Width * s;
                         if (_shadow) AddQuad(vh, gx0 + s, y - glyphH - s, gx1 + s, y - s, g.Uv, _shadowColor);
                         AddQuad(vh, gx0, y - glyphH, gx1, y, g.Uv, col);
                     }
-                    cx += PixelFont.Advance(c, _bold) * s;
+                    cx += Advance(c) * s;
                 }
                 if (li == caretLine && caretCol >= line.Length)
                 {

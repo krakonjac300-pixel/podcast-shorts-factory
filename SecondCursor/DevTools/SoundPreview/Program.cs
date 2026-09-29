@@ -69,7 +69,7 @@ internal static class Program
         // ---- per-sound report
         var sb = new StringBuilder();
         sb.AppendLine($"{"id",-17} {"loop",4} {"dur s",6} {"peak",6} {"peakdB",7} {"rmsdB",7} {"stRms",7} {"mixdB",7} {"dc",9} " +
-                      $"{"edge/seam",10} {"stepRatio",9} {"seamRmsdB",9} {"cold ms",8} {"warm ms",8}");
+                      $"{"edge/seam",10} {"stepRatio",9} {"seamRmsdB",9} {"seam pct d1/d2/rms",19} {"cold ms",8} {"warm ms",8}");
         double totalSeconds = 0;
         foreach (string id in ids)
         {
@@ -94,22 +94,39 @@ internal static class Program
             double stRmsDb = 20 * Math.Log10(Math.Max(MaxShortTermRms(x, Ms(50)), 1e-12));
             double mixDb = rmsDb + 20 * Math.Log10(vol);
 
-            string edge, stepRatio = "", seamRms = "";
+            string edge, stepRatio = "", seamRms = "", seamPct = "";
             if (loop)
             {
+                // Sample level: the seam's first and second differences, ranked among every boundary of the
+                // (circular) loop. A seamless loop's seam is an ordinary boundary, not an outlier.
                 double jump = Math.Abs(x[0] - x[n - 1]);
+                double curv = Math.Abs(x[1] - 2 * x[0] + x[n - 1]);
+                var d1 = new double[n];
+                var d2 = new double[n];
                 double meanStep = 0;
-                for (int i = 1; i < n; i++) meanStep += Math.Abs(x[i] - x[i - 1]);
-                meanStep /= n - 1;
+                for (int i = 0; i < n; i++)
+                {
+                    float prev = x[(i + n - 1) % n], next = x[(i + 1) % n];
+                    d1[i] = Math.Abs(x[i] - prev);
+                    d2[i] = Math.Abs(next - 2 * x[i] + prev);
+                    meanStep += d1[i];
+                }
+                meanStep /= n;
+                double p1 = Percentile(d1, jump), p2 = Percentile(d2, curv);
                 double ratio = jump / Math.Max(meanStep, 1e-12);
-                int w = Ms(50);
-                double rHead = Rms(x, 0, w), rTail = Rms(x, n - w, w);
-                double seamDb = 20 * Math.Log10(Math.Max(rHead, 1e-12) / Math.Max(rTail, 1e-12));
+                // Envelope level: 25 ms RMS either side of the seam vs. every adjacent 25 ms window pair
+                // (25 ms spans 1.5 cycles of 60 Hz hum, so mains ripple does not masquerade as a level jump).
+                int w = Ms(25);
+                double seamDb = Db(Rms(x, 0, w)) - Db(Rms(x, n - w, w));
+                var pairs = new List<double>();
+                for (int s = w; s + w <= n; s += w) pairs.Add(Math.Abs(Db(Rms(x, s, w)) - Db(Rms(x, s - w, w))));
+                double pRms = Percentile(pairs.ToArray(), Math.Abs(seamDb));
                 edge = jump.ToString("0.00000");
                 stepRatio = ratio.ToString("0.00");
                 seamRms = seamDb.ToString("+0.00;-0.00");
-                if (ratio > 4.0) failures.Add($"{id}: seam jump {jump:0.00000} is {ratio:0.0}x the mean step");
-                if (Math.Abs(seamDb) > 3.0) failures.Add($"{id}: seam RMS mismatch {seamDb:0.0} dB");
+                seamPct = $"{p1,5:0.0}/{p2,5:0.0}/{pRms,5:0.0}";
+                if (p2 >= 99.9 && curv > 3 * Median(d2)) failures.Add($"{id}: seam curvature is an outlier ({p2:0.00} pct)");
+                if (pRms >= 99.5 && Math.Abs(seamDb) > 3) failures.Add($"{id}: seam level jump {seamDb:0.0} dB is an outlier");
                 if (dur < 0.99 || dur > 8.01) failures.Add($"{id}: loop length {dur:0.00}s outside 1-8 s");
             }
             else
@@ -123,7 +140,7 @@ internal static class Program
             if (Math.Abs(dc) > 1e-3) failures.Add($"{id}: DC offset {dc:0.00000}");
 
             sb.AppendLine($"{id,-17} {(loop ? "yes" : ""),4} {dur,6:0.000} {peak,6:0.000} {20 * Math.Log10(peak),7:0.0} {rmsDb,7:0.0} {stRmsDb,7:0.0} " +
-                          $"{mixDb,7:0.0} {dc,9:0.0e0} {edge,10} {stepRatio,9} {seamRms,9} {coldMs[id],8:0.0} {warmMs[id],8:0.00}");
+                          $"{mixDb,7:0.0} {dc,9:0.0e0} {edge,10} {stepRatio,9} {seamRms,9} {seamPct,19} {coldMs[id],8:0.0} {warmMs[id],8:0.00}");
 
             WriteWav(Path.Combine(outDir, id + ".wav"), x);
         }
@@ -155,6 +172,18 @@ internal static class Program
         double s = 0;
         for (int i = start; i < start + len; i++) s += (double)x[i] * x[i];
         return Math.Sqrt(s / len);
+    }
+
+    private static double Db(double v) => 20 * Math.Log10(Math.Max(v, 1e-9));
+
+    /// <summary>Percentage of values strictly below v.</summary>
+    private static double Percentile(double[] values, double v) => 100.0 * values.Count(a => a < v) / values.Length;
+
+    private static double Median(double[] values)
+    {
+        var s = (double[])values.Clone();
+        Array.Sort(s);
+        return s[s.Length / 2];
     }
 
     private static double MaxShortTermRms(float[] x, int window)
