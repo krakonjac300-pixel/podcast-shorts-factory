@@ -133,7 +133,10 @@ namespace SecondCursor.Apps
 
         public void OnKey(GameKey key, CursorAgent by)
         {
-            if (key == GameKey.Escape) Window.Close(by);
+            if (key != GameKey.Escape) return;
+            // Esc closes the prompt, and only the prompt: the pause menu must not open on the same key.
+            AppManager.MarkEscapeHandled();
+            Window.Close(by);
         }
 
         public override void Tick(float dt)

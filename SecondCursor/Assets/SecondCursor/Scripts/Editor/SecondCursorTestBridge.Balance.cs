@@ -43,7 +43,7 @@ namespace SecondCursor.EditorTools
                         + " defenses=" + g.Entity.Brain.Defenses + " tugLosses=" + g.Entity.Brain.TugLosses + " " + AssistLine(g));
                     return Done();
             }
-            return null;
+            return TryGamePhaseGCommand(g, cmd, a, rest);
         }
 
         /// <summary>

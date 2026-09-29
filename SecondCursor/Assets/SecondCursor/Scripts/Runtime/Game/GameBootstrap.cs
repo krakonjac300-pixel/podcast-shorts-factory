@@ -34,9 +34,16 @@ namespace SecondCursor.Game
             ResetLaunchState();
             string beat = CommandLineArg("-scbeat");
             bool hasNight = int.TryParse(CommandLineArg("-scnight"), out int night);
+            string saveDirArg = CommandLineArg("-scsavedir");
+            if (!string.IsNullOrEmpty(saveDirArg))
+                Debug.LogWarning("[SYSTEM] QA launch argument -scsavedir: saves are read and written in " + SaveSystem.Folder);
             if (!string.IsNullOrEmpty(beat) || hasNight)
             {
-                // QA launch: straight into a night (and beat), no title, records held.
+                // QA launch: straight into a night (and beat), no title, records held, and nothing is written to
+                // progress.json for the rest of this launch (a Steam launch option must never touch a player's progress).
+                SaveSystem.ProgressReadOnly = true;
+                Debug.LogWarning("[SYSTEM] QA launch (" + (hasNight ? "-scnight " + night : "") + (hasNight && !string.IsNullOrEmpty(beat) ? " " : "")
+                                 + (string.IsNullOrEmpty(beat) ? "" : "-scbeat " + beat) + "): progress.json is read-only for this launch");
                 SetNext(hasNight ? night : 1, beat, false, false, false, false, hasNight ? "launched with -scnight" : "launched with -scbeat");
             }
             else
@@ -65,12 +72,17 @@ namespace SecondCursor.Game
             GameRoot.FromNightSelect = false;
             GameRoot.ForceArmNext = false;
             BootSequence.DisclaimerShownThisLaunch = false;
+            NightDirector.NightsThisLaunch = 0;
+            AudioListener.volume = 1f;
             TitleMenu.StartScreen = TitleScreenId.Main;
             Entity.ConflictSystem.ForcedOutcome = Core.Entity.TugOutcome.None;
             SaveSystem.ResetLaunchState();
         }
 
-        /// <summary>QA: "SecondCursor.exe -scnight 2 -scbeat conflict" starts a fresh shift at that night and story beat.</summary>
+        /// <summary>
+        /// QA: "SecondCursor.exe -scnight 2 -scbeat conflict" starts a fresh shift at that night and story beat (release
+        /// builds too, for smoke tests). Such a launch never writes progress.json.
+        /// </summary>
         static string CommandLineArg(string name)
         {
             var args = System.Environment.GetCommandLineArgs();
@@ -156,6 +168,7 @@ namespace SecondCursor.Game
             SetNext(night, beat, fromCheckpoint, armed, showTitle, fromNightSelect, why);
             Time.timeScale = 1f;
             AudioListener.pause = false;
+            AudioListener.volume = 1f;
             var old = GameRoot.Instance;
             GameRoot.ReleaseInstance();
             if (old != null) Object.Destroy(old.gameObject);

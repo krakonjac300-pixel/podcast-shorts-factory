@@ -103,6 +103,14 @@ namespace SecondCursor.Audio
         /// <summary>Stereo pan for a virtual-screen x position.</summary>
         public static float PanFor(float x) => Mathf.Clamp((x / ScreenRig.Width * 2f - 1f) * 0.75f, -0.75f, 0.75f);
 
+        /// <summary>Everything at once (M14's dead air): a global dip through the listener, undone by <c>Duck(false)</c> and every rebuild.</summary>
+        public static void Duck(bool on) => AudioListener.volume = on ? DuckVolume : 1f;
+
+        const float DuckVolume = 0.12f;
+
+        /// <summary>The third pointer's agent name (Gary, Night 2 on).</summary>
+        public const string ThirdPointerName = "Gary";
+
         /// <summary>Sfx hook: UI sounds attributed to a cursor.</summary>
         void PlayFor(string id, CursorAgent agent)
         {
@@ -111,8 +119,10 @@ namespace SecondCursor.Audio
                 float pan = PanFor(agent.Position.x);
                 if (id == "ui_click" || id == "ui_select")
                 {
-                    // The entity's clicks are heard as a real mouse button.
-                    Play("mouse_click", 0.9f, Random.Range(0.95f, 1.05f), pan);
+                    // The entity's clicks are heard as a real mouse button. M11: each pointer has its own timbre: yours
+                    // is the crisp UI click, the second cursor's is hollow (lower), the third's soft and 15% quieter.
+                    if (agent.Name == ThirdPointerName) Play("mouse_click", 0.9f * 0.85f, Random.Range(1.12f, 1.2f), pan);
+                    else Play("mouse_click", 0.9f, Random.Range(0.8f, 0.86f), pan);
                     return;
                 }
                 Play(id, 1f, Random.Range(0.92f, 1.0f), pan);
@@ -168,6 +178,9 @@ namespace SecondCursor.Audio
         {
             if (_loops.TryGetValue(id, out var loop)) loop.Source.pitch = pitch;
         }
+
+        /// <summary>The loop's current pitch (1 when it is not playing).</summary>
+        public float LoopPitch(string id) => _loops.TryGetValue(id, out var loop) ? loop.Source.pitch : 1f;
 
         public void SetLoopPan(string id, float pan)
         {

@@ -41,7 +41,8 @@ namespace SecondCursor.Tests
 
         static ContentDatabase Night(int night)
         {
-            var pack = Pack("");
+            // As ContentLoader.Load(night) builds it in the full game: base, the full-game strings, then the nights.
+            var pack = Pack("").Overlay(Pack("full"));
             for (int n = 2; n <= night; n++) pack = pack.Overlay(Pack("night" + n));
             return pack.Build();
         }

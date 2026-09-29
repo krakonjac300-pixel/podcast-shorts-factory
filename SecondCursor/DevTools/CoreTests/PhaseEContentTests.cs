@@ -9,8 +9,8 @@ using Xunit;
 namespace SecondCursor.Tests
 {
     /// <summary>
-    /// Phase E content: every achievement, title, Records and pause key the code uses is in the base strings (the
-    /// title root only loads Night 1 content), and the Steam Deck wording variant.
+    /// Phase E content: every achievement, title, Records and pause key the code uses is in the strings the title root
+    /// loads (base, plus the full-game strings since Phase G), and the Steam Deck wording variant.
     /// </summary>
     public class PhaseEContentTests
     {
@@ -21,10 +21,14 @@ namespace SecondCursor.Tests
 
         static T Load<T>(string name) where T : new() => JsonSerializer.Deserialize<T>(File.ReadAllText(Path.Combine(Dir, name + ".json")), Options);
 
+        /// <summary>The strings a full-game title root has: base, then Content/full (Phase G moved Night 2/3 keys there).</summary>
         static Dictionary<string, string> BaseStrings()
         {
             var d = new Dictionary<string, string>();
             foreach (var e in Load<StringTableData>("strings").entries) d[e.key] = e.value;
+            string full = Path.Combine(Dir, "full", "strings.json");
+            if (File.Exists(full))
+                foreach (var e in JsonSerializer.Deserialize<StringTableData>(File.ReadAllText(full), Options).entries) d[e.key] = e.value;
             return d;
         }
 
@@ -103,8 +107,9 @@ namespace SecondCursor.Tests
             db.Variant = "deck";
             Assert.DoesNotContain("click", db.Task("t_read_briefing").hint, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("right-click", db.Task("t_shred_cache").hint, StringComparison.OrdinalIgnoreCase);
-            // Tasks without a Deck hint keep theirs.
-            Assert.Contains("drag", db.Task("t_archive_ledger").hint, StringComparison.OrdinalIgnoreCase);
+            // Tasks without a Deck hint keep theirs (Phase G gave every drag hint a Deck version).
+            Assert.Contains("click Approve", db.Task("t_verify_3317").hint);
+            Assert.DoesNotContain("drag", db.Task("t_archive_ledger").hint, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

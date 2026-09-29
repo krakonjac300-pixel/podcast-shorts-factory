@@ -30,6 +30,9 @@ namespace SecondCursor.Game
         GUIStyle _label;
         GUIStyle _hint;
         float _fps;
+
+        /// <summary>Test bridge (store screenshots): no developer hint on screen.</summary>
+        internal static bool HideHint;
         // Button actions run in the next Update, never in the middle of an OnGUI pass: changing game state
         // (which also writes log lines) between IMGUI's Layout and input events breaks GUILayout.
         readonly System.Collections.Generic.List<System.Action> _pending = new System.Collections.Generic.List<System.Action>();
@@ -124,7 +127,7 @@ namespace SecondCursor.Game
             {
                 // Developer hint only (Editor and development builds), faint and top-centre so it never
                 // covers the taskbar or the Nexus button.
-                if (!Debug.isDebugBuild) return;
+                if (!Debug.isDebugBuild || HideHint) return;
                 if (_hint == null) _hint = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter, fontSize = 11 };
                 GUI.color = new Color(1f, 1f, 1f, 0.35f);
                 GUI.Label(new Rect(Screen.width * 0.5f - 150f, 2f, 300f, 18f), "F1 debug  |  " + _fps.ToString("0") + " fps", _hint);
@@ -195,6 +198,7 @@ namespace SecondCursor.Game
             foreach (float trust in new[] { -0.5f, 0f, 0.5f })
                 if (GUILayout.Button("Trust " + trust.ToString("+0.0;-0.0;0"))) Defer(() => _g.Memory.Seed(trust));
             GUILayout.EndHorizontal();
+#if !SC_DEMO
             if (_g.Director is Story.Night3Director n3)
             {
                 // Night 3's exits, straight to their ending (the finale must be running).
@@ -203,6 +207,7 @@ namespace SecondCursor.Game
                     if (GUILayout.Button("Force " + exit.ToString().ToUpperInvariant())) Defer(() => n3.ForceExit(exit));
                 GUILayout.EndHorizontal();
             }
+#endif
 
             GUILayout.Label("Entity:", _label);
             GUILayout.BeginHorizontal();

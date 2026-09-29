@@ -124,6 +124,7 @@ namespace SecondCursor.Story
             float a = 0f;
             while (a < 1f) { a += Time.deltaTime; t.color = new Color(0.72f, 0.72f, 0.69f, a); yield return null; }
             var settings = Game.SaveSystem.LoadSettings();
+            PixelText prompt = null;
             if (!settings.flashingChosen)
             {
                 bool chosen = false;
@@ -132,6 +133,8 @@ namespace SecondCursor.Story
                 var reduced = UiButton.Create(p, "Reduce flashing", a => { _g.Fx.ReduceFlashing = true; chosen = true; }, "button:ReduceFlashing");
                 ((RectTransform)reduced.transform).At(ScreenRig.Width / 2 + 10, 400, 140, 24);
                 while (!chosen) yield return null;
+                // Options may have saved other settings while the choice was open (Esc): write back a fresh copy.
+                settings = Game.SaveSystem.LoadSettings();
                 settings.reduceFlashing = _g.Fx.ReduceFlashing;
                 settings.flashingChosen = true;
                 Game.SaveSystem.SaveSettings(settings);
@@ -139,8 +142,22 @@ namespace SecondCursor.Story
                 reduced.gameObject.SetActive(false);
                 _clicked = false;
             }
-            else yield return WaitOrSkip(6.5f); // long enough to read the photosensitivity warning
-            while (a > 0f) { a -= Time.deltaTime * 2f; t.color = new Color(0.72f, 0.72f, 0.69f, Mathf.Max(0f, a)); yield return null; }
+            else
+            {
+                // Later launches: the screen moves on by itself after 6.5 s, and says how to skip it.
+                prompt = UIBuilder.Text(p, _g.Content.Text("disclaimer.continue", "Click to continue"), Palette.BiosText);
+                prompt.rectTransform.At(0, 440, ScreenRig.Width, 12);
+                prompt.Align = TextAlign.Center;
+                prompt.color = new Color(0.72f, 0.72f, 0.69f, 0.55f);
+                yield return WaitOrSkip(6.5f); // long enough to read the photosensitivity warning
+            }
+            while (a > 0f)
+            {
+                a -= Time.deltaTime * 2f;
+                t.color = new Color(0.72f, 0.72f, 0.69f, Mathf.Max(0f, a));
+                if (prompt != null) prompt.color = new Color(0.72f, 0.72f, 0.69f, Mathf.Max(0f, a) * 0.55f);
+                yield return null;
+            }
         }
 
         IEnumerator Bios(bool quick)

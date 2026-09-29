@@ -1,3 +1,5 @@
+// Nights 2 and 3 are not in the free demo (SC_DEMO): their code stays out of its build, like their content.
+#if !SC_DEMO
 using System;
 using System.Collections;
 using SecondCursor.Apps;
@@ -29,6 +31,10 @@ namespace SecondCursor.Story
         const float IdleFastForwardSeconds = 15f;
         /// <summary>6:58, the finale's one event between the 6:55 feed and 7:00.</summary>
         const int FeedFlickerTime = 6 * 60 + 58;
+        /// <summary>M8: game minutes before 7:00 during which the tray clock is amber.</summary>
+        const int AmberMinutes = 5;
+        /// <summary>Squared virtual pixels the cursor must travel from its last anchor to count as activity (4 px).</summary>
+        const float IdleMoveSqr = 16f;
         float _idleSince;
         Vector2 _idleLastPos;
         static readonly Vector2 File017Spot = new Vector2(600f, 300f);
@@ -140,11 +146,14 @@ namespace SecondCursor.Story
                 if (!said700 && clock >= Night3Rules.LogOffTime)
                 {
                     said700 = true;
-                    g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("logoff.available"), "icon_info", null, "ui_select");
+                    // Where to log off: a click on the notice opens the Nexus menu.
+                    g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("logoff.available"), "icon_info", a => g.Taskbar.StartMenu.OpenFromElsewhere(a), "ui_select");
                     GameLog.Info(LogChannel.Story, "7:00: log off available");
                     if (!GaryFinished) RunSide(GarySays("g3_finale"), "gary-finale");
                 }
                 if (clock >= Night3Rules.LogOffTime && !_fastForward) g.Clock.Rate = RoundsRate;
+                // M8: the last five minutes before seven read amber on the tray clock.
+                g.Taskbar.ClockAmber = clock >= Night3Rules.LogOffTime - AmberMinutes && clock < Night3Rules.LogOffTime;
 
                 // KEEP by confirmation lands at 7:00 (unless a shred is already running).
                 bool running = g.Shred.Busy || LogOffRunning;
@@ -164,6 +173,7 @@ namespace SecondCursor.Story
                 }
                 yield return null;
             }
+            g.Taskbar.ClockAmber = false;
             GameLog.Info(LogChannel.Story, "Finale exit: " + _exit + (_exit == Night3Exit.Keep ? " (" + _keepCause + ")" : ""));
         }
 
@@ -172,10 +182,14 @@ namespace SecondCursor.Story
         /// <summary>The player moved the cursor, holds the button or typed something this frame.</summary>
         bool PlayerActive()
         {
+            // Measured from where the cursor last really moved (not from last frame), so slow motion counts at any
+            // frame rate; the wheel, the right button and typing count too (reading and scrolling is not idle).
             var p = _g.Player.Position;
-            bool moved = (p - _idleLastPos).sqrMagnitude > 4f;
-            _idleLastPos = p;
-            return moved || _g.Player.Held || !string.IsNullOrEmpty(_g.Input?.TypedText);
+            bool moved = (p - _idleLastPos).sqrMagnitude > IdleMoveSqr;
+            if (moved) _idleLastPos = p;
+            var input = _g.Input;
+            bool other = input != null && (input.RightDown || input.RightUp || Mathf.Abs(input.Scroll) > 0.001f || !string.IsNullOrEmpty(input.TypedText));
+            return moved || _g.Player.Held || other;
         }
 
         /// <summary>
@@ -236,7 +250,9 @@ namespace SecondCursor.Story
         {
             yield return Wait(1.5f);
             var last = new DialogueReply[1];
-            yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Final, OnFinalReply, last, 2.4f, 4f, 25f, "DONT");
+            // M8: two misses get another turn each; the third miss is steered to the two words that work.
+            yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Final, OnFinalReply, last, 2.4f, 4f, 25f, "DONT",
+                fallbackRetries: 2, lastFallbackSet: "n3_final_third");
             if (last[0] == null || last[0].Tag != "stay" || _exit != Night3Exit.None) yield break;
             var confirm = new DialogueReply[1];
             yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Confirm, OnFinalReply, confirm, 3f, 4f, 25f, "DONT");
@@ -392,7 +408,9 @@ namespace SecondCursor.Story
             GameLog.Info(LogChannel.Player, "Log off requested: " + check);
             if (check == LogOffCheck.Early)
             {
-                Dialogs.Message(g, title, c.Text("logoff.early"), "icon_info", new[] { "OK" }, null);
+                // Before 7:00 the policy is named too, while there is still time to change it.
+                bool enabled = g.Flags.Has(MemoryFlags.N3LogoffEnabled);
+                Dialogs.Message(g, title, c.Text(enabled ? "logoff.early" : "logoff.early.disabled"), enabled ? "icon_info" : "icon_lock", new[] { "OK" }, null);
                 return;
             }
             if (check == LogOffCheck.Disabled)
@@ -562,3 +580,4 @@ namespace SecondCursor.Story
         }
     }
 }
+#endif

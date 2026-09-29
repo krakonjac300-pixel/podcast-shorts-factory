@@ -20,6 +20,7 @@ namespace SecondCursor.Apps
         const int FeedH = 240;
 
         RawImage _feed;
+        PixelText _nameTag;
         RawImage _noise;
         Texture2D _noiseTex;
         PixelText _label;
@@ -77,6 +78,11 @@ namespace SecondCursor.Apps
             _caption = UIBuilder.Text(screen.rectTransform, "", Palette.BiosBright, true);
             _caption.Shadow = true;
             _caption.rectTransform.BottomStrip(22, 12, 10, 10);
+            // M1: the workstation's own tag over the seated operator on CAM 03 (it is you).
+            _nameTag = UIBuilder.Text(_feed.rectTransform, G.Content.Text("camera.operatortag", "CROURKE / WS-04"), new Color32(0xD8, 0xDC, 0xD2, 0xFF));
+            _nameTag.Shadow = true;
+            _nameTag.Align = TextAlign.Center;
+            _nameTag.enabled = false;
             var recHolder = UIBuilder.Rect("REC", screen.rectTransform).TopRight(10, 8, 40, 12);
             _rec = UIBuilder.Icon(recHolder, "rec_dot", 1);
             _rec.rectTransform.anchoredPosition = new Vector2(0f, -3f);
@@ -150,12 +156,31 @@ namespace SecondCursor.Apps
             CameraSelected?.Invoke(camId, by);
         }
 
+        void UpdateNameTag(bool signal)
+        {
+            var rig = G.CameraRig;
+            Vector2 vp = default;
+            bool show = signal && rig != null && _switchNoise <= 0f && rig.OperatorTagViewport(out vp);
+            if (show)
+            {
+                var r = _feed.rectTransform.rect;
+                const int w = 120;
+                _nameTag.rectTransform.At(Mathf.Round(vp.x * r.width - w * 0.5f), Mathf.Round((1f - vp.y) * r.height - 14f), w, 12);
+            }
+            if (_nameTag.enabled != show) _nameTag.enabled = show;
+        }
+
         public override void Tick(float dt)
         {
             _t += dt;
             if (_hiddenShown != G.Flags.Has(Core.Story.MemoryFlags.N3Cam00)) BuildButtons();
             string caption = G.CameraRig != null ? G.CameraRig.CaptionFor(_current) : "";
-            if (_caption.text != caption) _caption.text = caption;
+            if (_caption.text != caption)
+            {
+                // M10: a shelf label swap is a one-frame static flicker.
+                if (caption.Length > 0 && _caption.text.Length > 0) _captionFlickerFrame = Time.frameCount;
+                _caption.text = caption;
+            }
             _switchNoise = Mathf.Max(0f, _switchNoise - dt);
             bool signal = G.CameraRig != null && G.CameraRig.HasSignal(_current);
             _feed.enabled = signal;
@@ -180,10 +205,12 @@ namespace SecondCursor.Apps
                 if (G.CameraRig != null) G.CameraRig.SetViewing(visible);
             }
             if (!visible) return;
+            UpdateNameTag(signal);
 
             // Animated grain: stronger on dead channels and right after switching.
             // Fine 2x2 speckle: a light constant hiss that never hides the picture, heavier on static cuts.
             float amount = !signal ? 0.9f : Mathf.Max(0.05f, _switchNoise * 3f) + (G.CameraRig != null ? G.CameraRig.ExtraNoise : 0f);
+            if (Time.frameCount == _captionFlickerFrame) amount = Mathf.Max(amount, 0.6f);
             if (G.CameraRig != null && _feed.texture != G.CameraRig.Feed) _feed.texture = G.CameraRig.Feed;
             if (_noisePixels == null) _noisePixels = new Color32[_noiseTex.width * _noiseTex.height];
             var px = _noisePixels;
@@ -202,6 +229,7 @@ namespace SecondCursor.Apps
         }
 
         bool _visible = true;
+        int _captionFlickerFrame = -1;
         float _echoAt = -1f;
 
         /// <summary>On CAM 03 your clicks come back a moment later, quiet and dull, as if the room heard them.</summary>

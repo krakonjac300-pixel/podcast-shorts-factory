@@ -1,3 +1,5 @@
+// Nights 2 and 3 are not in the free demo (SC_DEMO): their code stays out of its build, like their content.
+#if !SC_DEMO
 using System;
 using System.Collections;
 using SecondCursor.Apps;
@@ -229,13 +231,26 @@ namespace SecondCursor.Story
             g.Audio.Play("glitch_burst", 0.7f);
             g.Audio.SetAmbience(false, 0.2f);
             yield return Wait(1.5f);
-            g.Clock.Set(6, 41);
+            // The taskbar clock rolls through the missing hours instead of jumping (an instant set reads as a bug).
+            yield return RollClock(Night3Rules.FinaleStart, ClockRollSeconds);
             // Whatever was open at 3:31 did not survive the pause: the desktop comes back bare.
             g.Windows.CloseAll();
             g.Audio.SetAmbience(true, 2f);
             g.Flags.Set(Flags.N3Lost);
             GameLog.Info(LogChannel.Story, "Lost time: the clock reads 6:41");
-            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("lost.recover"), "icon_warning", null, "sys_warning");
+            // The notice stays until clicked, and its duration line lands on its own beat.
+            string recover = g.Content.Text("lost.recover");
+            int split = recover.IndexOf('\n');
+            var notice = g.Notifications.Show(g.Content.Text("os.name"), split > 0 ? recover.Substring(0, split) : recover, "icon_warning", null, "sys_warning", true);
+            if (split > 0)
+            {
+                yield return Wait(DurationLineDelay);
+                if (notice.IsShowing)
+                {
+                    notice.SetBody(recover);
+                    g.Audio.Play("ui_select", 0.5f, 0.8f);
+                }
+            }
             yield return Wait(2f);
             yield return EnsureEllenPresentStill();
             yield return Say(_ellen, Lines("n3_lost"), 3.5f);
@@ -245,7 +260,42 @@ namespace SecondCursor.Story
                 yield return Say(_gary, Lines("g3_lost"), GaryCps);
             }
             g.Flags.Set(Flags.LogoffItem);
+            // Say where it is: a click on the notice opens the Nexus menu.
+            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("logoff.added", "Log Off CROURKE... added to the Nexus menu."), "icon_shutdown",
+                a => g.Taskbar.StartMenu.OpenFromElsewhere(a), "ui_select");
+            GameLog.Info(LogChannel.Story, "Log Off added to the Nexus menu");
             yield return Wait(6f);
+        }
+
+        /// <summary>M15: seconds for the 3:31 to 6:41 roll, and the pause before the notice's duration line.</summary>
+        const float ClockRollSeconds = 1.2f, DurationLineDelay = 0.6f;
+
+        /// <summary>Runs the frozen clock forward to <paramref name="target"/> minutes over <paramref name="seconds"/>, with soft ticks.</summary>
+        IEnumerator RollClock(int target, float seconds)
+        {
+            var clock = _g.Clock;
+            int from = clock.TotalMinutes;
+            if (target <= from)
+            {
+                clock.Set(target / 60, target % 60);
+                yield break;
+            }
+            float t = 0f, nextTick = 0f;
+            while (t < seconds)
+            {
+                t += Time.deltaTime;
+                float k = Mathf.Clamp01(t / seconds);
+                k = k * k * (3f - 2f * k);
+                int m = from + Mathf.RoundToInt((target - from) * k);
+                clock.Set(m / 60, m % 60);
+                if (t >= nextTick)
+                {
+                    _g.Audio.Play("key_tap", 0.22f, 1.5f);
+                    nextTick = t + 0.07f;
+                }
+                yield return null;
+            }
+            clock.Set(target / 60, target % 60);
         }
 
         /// <summary>Ellen on screen and still (brain off), e.g. between the round and the finale.</summary>
@@ -258,3 +308,4 @@ namespace SecondCursor.Story
         }
     }
 }
+#endif

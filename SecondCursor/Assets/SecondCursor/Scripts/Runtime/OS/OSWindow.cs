@@ -261,6 +261,12 @@ namespace SecondCursor.OS
 
         public void Focus(CursorAgent by = null) => Manager.Focus(this, by);
 
+        /// <summary>
+        /// Asked before the player's close (the X, File > Exit): return false to keep the window open, for example while
+        /// Jotter asks whether to save an edited file. Story code closes windows with <see cref="Close"/> directly.
+        /// </summary>
+        public Func<CursorAgent, bool> CloseGuard;
+
         public void RequestClose(CursorAgent by)
         {
             if (Locked && by != null && by.IsPlayer)
@@ -269,6 +275,7 @@ namespace SecondCursor.OS
                 Sfx.Play("sys_error", by);
                 return;
             }
+            if (CloseGuard != null && by != null && by.IsPlayer && !CloseGuard(by)) return;
             Close(by);
         }
 

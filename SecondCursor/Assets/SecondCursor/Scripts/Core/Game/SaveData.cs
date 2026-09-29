@@ -44,6 +44,8 @@ namespace SecondCursor.Core.Game
         public bool Records = true;
         /// <summary>What the player typed to the second cursor, in order (Night 1 keeps the first three).</summary>
         public IList<string> PlayerLines;
+        /// <summary>The game clock (minutes since midnight) when each line was typed; same order, may be shorter.</summary>
+        public IList<int> PlayerLineMinutes;
     }
 
     /// <summary>
@@ -82,6 +84,8 @@ namespace SecondCursor.Core.Game
         public FlagSnapshot memory = new FlagSnapshot();
         /// <summary>Night 1 Notepad replies, sanitized.</summary>
         public string[] playerLines = Array.Empty<string>();
+        /// <summary>The Night 1 clock (minutes since midnight) when each saved line was typed (-1: unknown).</summary>
+        public int[] playerLineMinutes = Array.Empty<int>();
         /// <summary>Entity trust at the end of the last completed night.</summary>
         public float entityTrust;
         /// <summary>Final adaptive assist level of the last completed night.</summary>
@@ -167,6 +171,7 @@ namespace SecondCursor.Core.Game
             if (bestNightSeconds == null || bestNightSeconds.Length != Nights) { bestNightSeconds = Resize(bestNightSeconds); changed = true; }
             if (nightStartTrust == null || nightStartTrust.Length != Nights) { nightStartTrust = Resize(nightStartTrust); changed = true; }
             playerLines = playerLines ?? Array.Empty<string>();
+            playerLineMinutes = playerLineMinutes ?? Array.Empty<int>();
             endingsSeen = endingsSeen ?? Array.Empty<string>();
             achievements = achievements ?? Array.Empty<string>();
             secrets = secrets ?? Array.Empty<string>();
@@ -258,13 +263,17 @@ namespace SecondCursor.Core.Game
             if (r.Night == 1 && r.PlayerLines != null)
             {
                 var lines = new List<string>();
-                foreach (var l in r.PlayerLines)
+                var minutes = new List<int>();
+                for (int k = 0; k < r.PlayerLines.Count; k++)
                 {
                     if (lines.Count >= MaxPlayerLines) break;
-                    string clean = SanitizePlayerLine(l);
-                    if (clean.Length > 0) lines.Add(clean);
+                    string clean = SanitizePlayerLine(r.PlayerLines[k]);
+                    if (clean.Length == 0) continue;
+                    lines.Add(clean);
+                    minutes.Add(r.PlayerLineMinutes != null && k < r.PlayerLineMinutes.Count ? r.PlayerLineMinutes[k] : -1);
                 }
                 playerLines = lines.ToArray();
+                playerLineMinutes = minutes.ToArray();
             }
         }
 
@@ -283,6 +292,7 @@ namespace SecondCursor.Core.Game
             nightStartTrust = new float[Nights];
             memory = new FlagSnapshot();
             playerLines = Array.Empty<string>();
+            playerLineMinutes = Array.Empty<int>();
             entityTrust = 0f;
             assistCarry = 0;
         }

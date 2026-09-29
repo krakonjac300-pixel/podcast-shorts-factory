@@ -187,7 +187,7 @@ namespace SecondCursor.Core.Entity
             p.TaskHintFirst = 40f;
             p.BriefingHintFirst = 30f;
             p.TaskHintRepeat = 45f;
-            p.ConflictToastOnFirstLoss = false;
+            p.ConflictToastOnFirstLoss = true; // Phase G: a player resuming Night 2 in a new session is reminded too (text only)
         }
 
         static void Night3(DifficultyProfile p)
@@ -221,7 +221,7 @@ namespace SecondCursor.Core.Entity
             p.TaskHintFirst = 45f;
             p.BriefingHintFirst = 30f;
             p.TaskHintRepeat = 50f;
-            p.ConflictToastOnFirstLoss = false;
+            p.ConflictToastOnFirstLoss = true; // Phase G: same for Night 3
         }
 
         /// <summary>
@@ -473,14 +473,14 @@ namespace SecondCursor.Core.Entity
             }
         }
 
-        /// <summary>Debug / checkpoint restore: force a level (streaks and mercy reset).</summary>
+        /// <summary>Debug / checkpoint restore: force a level (streaks and mercy reset), never below the mode's floor.</summary>
         public void SetLevel(int level)
         {
             LossStreak = 0f;
             WinStreak = 0;
             _lossesAtMax = 0;
             MercyArmed = false;
-            SetLevelInternal(Clamp(level));
+            SetLevelInternal(Math.Max(Floor, Clamp(level)));
         }
 
         void AddLoss(float amount)

@@ -40,9 +40,10 @@ namespace SecondCursor.EditorTools
             "Mouse:  move X Y [DUR] | down | up | click X Y | dclick X Y | rclick X Y | drag X1 Y1 X2 Y2 [DUR] | scroll N\n" +
             "        clickid ID | dclickid ID | rclickid ID | moveid ID | dragid ID X Y [DUR] | dragto ID TARGETID [DUR]\n" +
             "        clicktext TEXT | dclicktext TEXT\n" +
-            "Keys:   key NAME (GameKey) | type TEXT (\\n = Enter, \\b = Backspace)\n" +
+            "Keys:   key NAME (GameKey) | type TEXT (\\n = Enter, \\b = Backspace, \\s = Ctrl+S)\n" +
             ProgressHelp +
             BalanceHelp +
+            PhaseGHelp +
             "Coordinates are virtual pixels (960x540, origin bottom-left).";
 
         static readonly string Dir = Path.GetFullPath("Library/SecondCursorBridge");
@@ -267,7 +268,7 @@ namespace SecondCursor.EditorTools
                 case "wait": return WaitSeconds(F(a, 1, 1f));
                 case "build": return Build();
             }
-            var progress = TryEditorProgressCommand(cmd, a, rest);
+            var progress = TryEditorProgressCommand(cmd, a, rest) ?? TryEditorPhaseGCommand(cmd, a, rest);
             return progress ?? GameCommand(cmd, a, rest);
         }
 
@@ -416,7 +417,7 @@ namespace SecondCursor.EditorTools
                 case "drag": _input.MoveTo(V(a, 1), 0.2f); _input.Drag(V(a, 3), F(a, 5, 0.5f)); inner = Drain(); break;
                 case "scroll": _input.ScrollBy(F(a, 1, 1f)); inner = Drain(); break;
                 case "key": _input.Key((GameKey)Enum.Parse(typeof(GameKey), a[1], true)); inner = Drain(); break;
-                case "type": _input.TypeText(rest.Replace("\\n", "\n").Replace("\\b", "\b")); inner = Drain(); break;
+                case "type": _input.TypeText(rest.Replace("\\n", "\n").Replace("\\b", "\b").Replace("\\s", ControlChars.Save.ToString())); inner = Drain(); break;
                 case "clickid":
                 case "dclickid":
                 case "rclickid":
@@ -548,8 +549,15 @@ namespace SecondCursor.EditorTools
         static IEnumerator Build()
         {
             if (EditorApplication.isPlaying) { Say("ERROR: stop Play mode before building"); yield break; }
-            var report = SecondCursorBuild.BuildWindows();
-            Say(SecondCursorBuild.Summary(report).Replace('\n', ' '));
+            try
+            {
+                var report = SecondCursorBuild.BuildWindows();
+                Say(SecondCursorBuild.Summary(report).Replace('\n', ' '));
+            }
+            catch (UnityEditor.Build.BuildFailedException e)
+            {
+                Say("ERROR: build refused: " + e.Message);
+            }
         }
 
         static IEnumerator Play(bool play)

@@ -49,11 +49,17 @@ namespace Steamworks
         public static bool SetStat(string pchName, int nData) => true;
         public static bool StoreStats() => true;
         public static bool IndicateAchievementProgress(string pchName, uint nCurProgress, uint nMaxProgress) => true;
+        public static bool GetAchievement(string pchName, out bool pbAchieved)
+        {
+            pbAchieved = false;
+            return true;
+        }
     }
 
     public static class SteamUtils
     {
         public static bool IsSteamRunningOnSteamDeck() => false;
+        public static AppId_t GetAppID() => new AppId_t(480);
         public static bool ShowFloatingGamepadTextInput(EFloatingGamepadTextInputMode eKeyboardMode, int nTextFieldXPosition, int nTextFieldYPosition,
             int nTextFieldWidth, int nTextFieldHeight) => true;
         public static bool DismissFloatingGamepadTextInput() => true;
@@ -72,6 +78,25 @@ namespace Steamworks
     }
 
     public struct FloatingGamepadTextInputDismissed_t { }
+
+    public enum EResult
+    {
+        k_EResultNone = 0,
+        k_EResultOK = 1,
+        k_EResultFail = 2,
+    }
+
+    public struct CSteamID
+    {
+        public ulong m_SteamID;
+    }
+
+    public struct UserStatsReceived_t
+    {
+        public ulong m_nGameID;
+        public EResult m_eResult;
+        public CSteamID m_steamIDUser;
+    }
 
     public sealed class Callback<T>
     {

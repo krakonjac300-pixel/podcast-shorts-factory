@@ -1,3 +1,5 @@
+// Nights 2 and 3 are not in the free demo (SC_DEMO): their code stays out of its build, like their content.
+#if !SC_DEMO
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -82,7 +84,7 @@ namespace SecondCursor.Story
             g.Rounds.PatchPersonnel = true;
             if (g.CameraRig != null)
             {
-                var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null);
+                var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
                 var shelves = new List<string>();
                 foreach (var l in Lines(ContentIds.LineSetShelves)) shelves.Add(NightTemplates.Fill(l, tokens));
                 g.CameraRig.ShelfLabels = shelves.ToArray();
@@ -348,6 +350,7 @@ namespace SecondCursor.Story
             E.State = EntityState.Observing;
             g.Apps.Launch(AppIds.WorkQueue, null);
             yield return Wait(1.2f);
+            yield return WelcomeBack();
             GiveTask(ContentIds.TaskN3Briefing);
             yield return Wait(1.5f);
             if (g.Mail.UnreadCount > 0)
@@ -419,3 +422,4 @@ namespace SecondCursor.Story
         }
     }
 }
+#endif

@@ -1,3 +1,5 @@
+// Nights 2 and 3 are not in the free demo (SC_DEMO): their code stays out of its build, like their content.
+#if !SC_DEMO
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -518,6 +520,8 @@ namespace SecondCursor.Story
             if (sayYes) yield return TypeLines(_gary, Lines("g2_help_yes"), 3f);
         }
 
+        const float ThanksSilence = 1.2f, ThanksCaretHold = 2f;
+
         /// <summary>Finished: Gary thanks you mid-word, turns into a clean arrow and leaves in a straight line.</summary>
         IEnumerator GaryFinished()
         {
@@ -527,6 +531,13 @@ namespace SecondCursor.Story
             if (g.Tasks.IsActive(ContentIds.TaskE2Archive209)) g.Tasks.Withdraw(ContentIds.TaskE2Archive209);
             Gary.FadeTo(Gary.MaxAlpha, 0.3f);
             yield return TypeLines(_gary, Lines("g2_thanks"), 3f);
+            // M7: the room goes silent for 1.2 s where the word stops, and his caret keeps blinking for 2 s before he goes.
+            g.Audio.SetAmbience(false, 0.05f);
+            if (_gary.Pad != null) _gary.Pad.ThinkingCaret = true;
+            yield return Wait(ThanksSilence);
+            g.Audio.SetAmbience(true, 0.6f);
+            yield return Wait(ThanksCaretHold - ThanksSilence);
+            if (_gary.Pad != null) _gary.Pad.ThinkingCaret = false;
             GaryFinishedLook();
             Gary.SetPresent(true, 0.2f);
             yield return Wait(0.9f);
@@ -584,11 +595,21 @@ namespace SecondCursor.Story
 
             bool reachedDoor = false, timeUp = false, saidRounds = false, saidAgain = false;
             UnhookRounds();
+            int forcedOpens = 0;
             _onForcedOpen = i =>
             {
-                if (saidRounds) return;
-                saidRounds = true;
-                RunSide(SayDirect(_ellen, Lines("n2_rounds"), 4.5f), "rounds-line");
+                forcedOpens++;
+                if (!saidRounds)
+                {
+                    saidRounds = true;
+                    RunSide(SayDirect(_ellen, Lines("n2_rounds"), 4.5f), "rounds-line");
+                    return;
+                }
+                if (forcedOpens != 2 || saidAgain) return;
+                // Nobody reopened the viewer: the one lever that matters on Night 3 (look elsewhere) is said anyway.
+                saidAgain = true;
+                var again = Lines("n2_rounds_again");
+                if (again != null && again.Length > 1) RunSide(SayDirect(_ellen, new[] { again[again.Length - 1] }, 4.5f), "rounds-look-away");
             };
             _onPlayerReopen = () =>
             {
@@ -687,3 +708,4 @@ namespace SecondCursor.Story
         }
     }
 }
+#endif

@@ -107,7 +107,11 @@ namespace SecondCursor.OS
             }
 
             PendingFileId = fileId;
-            Confirm = Dialogs.Message(_g, c.Text("shred.confirm.title"), c.Format("shred.confirm.body", file.Name), "icon_question",
+            // Some files carry one more line (M7: employee_209.dat names its owner, which makes the file a person).
+            string body = c.Format("shred.confirm.body", file.Name);
+            string note = c.Text("shred.confirm.note." + fileId, "");
+            if (note.Length > 0) body += "\n" + note;
+            Confirm = Dialogs.Message(_g, c.Text("shred.confirm.title"), body, "icon_question",
                 new[] { "Yes", "No" }, OnConfirm, 0);
             ConfirmShown?.Invoke(fileId, Confirm);
         }

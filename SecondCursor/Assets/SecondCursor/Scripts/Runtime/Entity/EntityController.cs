@@ -132,6 +132,8 @@ namespace SecondCursor.Entity
                 // The player's click bounces off the second cursor: a dull thunk and the button rattles.
                 g.Audio?.Play("mouse_click", 0.75f, 0.55f, Audio.AudioManager.PanFor(c._agent.Position.x));
                 g.Audio?.Play("low_thump", 0.25f, 1.6f, Audio.AudioManager.PanFor(c._agent.Position.x));
+                // M11: a refused press from a ghost (the third pointer sitting on the button) lands as a soft pat.
+                if (a != null && a.IsEntity) g.Audio?.Play("mouse_release", 0.35f, 0.7f, Audio.AudioManager.PanFor(a.Position.x));
                 if (hit != null) c.StartCoroutine(Rattle(hit.Rect));
                 c._view.Flinch(new Vector2(UnityEngine.Random.Range(-3f, 3f), UnityEngine.Random.Range(-3f, 3f)), 0.25f);
                 g.PlayerView?.Flinch((a.Position - c._agent.Position).normalized * 4f, 0.3f);
@@ -404,11 +406,18 @@ namespace SecondCursor.Entity
             if (result != null && result.Length > 0) result[0] = false;
             if (element == null) yield break;
             yield return MoveToElement(element, profile);
-            float giveUp = Time.time + patience;
+            float giveUp = Time.time + patience, nextPat = 0f;
             CursorAgent blocker;
             while (element != null && element.isActiveAndEnabled && (blocker = BlockerOn(element)) != null)
             {
                 if (Time.time > giveUp) yield break;
+                if (Time.time >= nextPat && blocker != _g.Player)
+                {
+                    // M11: another ghost sits on the button: its press is refused with a soft pat, and the button rattles.
+                    nextPat = Time.time + 0.45f;
+                    _g.Audio?.Play("mouse_release", 0.35f, 0.7f, Audio.AudioManager.PanFor(_agent.Position.x));
+                    if (element.Rect != null) StartCoroutine(Rattle(element.Rect));
+                }
                 // Nudge against the covering cursor, looking for an uncovered spot.
                 var r = element.WorldRect;
                 Vector2 away = (_agent.Position - blocker.Position);
@@ -449,8 +458,25 @@ namespace SecondCursor.Entity
                 if (_agent.Held && _agent.Payload != null) yield return MoveToDynamic(ContestAware(destination), profile, 24f);
             }
             yield return Waits.Seconds(0.08f);
+            // A grab in that last beat is a new tug: wait it out before letting go (a release mid-tug forfeits the file).
+            while (InContest()) yield return null;
             _agent.SetButton(false);
             yield return null;
+        }
+
+        /// <summary>
+        /// Moves to <paramref name="spot"/> while carrying a file: during a tug over it the cursor holds still (the
+        /// conflict moves it), and afterwards it carries on only if it still holds the file.
+        /// </summary>
+        public IEnumerator CarryTo(Vector2 spot, MovementProfileData profile, float targetSize = 12f)
+        {
+            for (int guard = 0; guard < 20; guard++)
+            {
+                yield return MoveToDynamic(ContestAware(() => spot), profile, targetSize);
+                if (!InContest()) yield break;
+                while (InContest()) yield return null;
+                if (!_agent.Held || _agent.Payload == null) yield break;
+            }
         }
 
         /// <summary>A tug-of-war over something this cursor holds is running.</summary>
@@ -510,7 +536,7 @@ namespace SecondCursor.Entity
         /// Replay the player's own recorded cursor movement (the "it's copying me" moment). The recording
         /// is offset so it starts where the entity is, optionally mirrored/stretched by the caller.
         /// </summary>
-        public IEnumerator Replay(CursorRecording rec, bool pressButtons = false)
+        public IEnumerator Replay(CursorRecording rec, bool pressButtons = false, bool trail = false)
         {
             if (rec == null || rec.IsEmpty) yield break;
             var start = rec.Sample(0f);
@@ -519,10 +545,17 @@ namespace SecondCursor.Entity
             yield return MoveTo(ScreenRig.ClampToScreen(new Vector2(start.x, start.y) + offset), MovementProfiles.ImitatingPlayer, 30f);
             float t = 0f;
             bool down = false;
+            Vector2 lastDot = _agent.Position;
             while (t <= rec.Duration)
             {
                 var s = rec.Sample(t);
                 _agent.Position = ScreenRig.ClampToScreen(new Vector2(s.x, s.y) + offset);
+                // M13: a pale dotted line of the original path fades out behind it, so the wobble reads on a phone.
+                if (trail && (_agent.Position - lastDot).sqrMagnitude >= TrailSpacing * TrailSpacing)
+                {
+                    lastDot = _agent.Position;
+                    StartCoroutine(TrailDot(_agent.Position));
+                }
                 if (pressButtons && s.down != down)
                 {
                     down = s.down;
@@ -532,6 +565,24 @@ namespace SecondCursor.Entity
                 yield return null;
             }
             if (down) _agent.SetButton(false);
+        }
+
+        const float TrailSpacing = 3f, TrailFade = 1.5f;
+        static readonly Color32 TrailColor = new Color32(0xE6, 0xEC, 0xEA, 0xC0);
+
+        IEnumerator TrailDot(Vector2 at)
+        {
+            var dot = UIBuilder.Solid(_g.Layers.Effects, TrailColor, "Replay Trail");
+            dot.raycastTarget = false;
+            dot.rectTransform.At(Mathf.Round(at.x), Mathf.Round(ScreenRig.Height - at.y), 1, 1);
+            float t = 0f;
+            while (t < TrailFade && dot != null)
+            {
+                t += Time.deltaTime;
+                dot.color = new Color32(TrailColor.r, TrailColor.g, TrailColor.b, (byte)(TrailColor.a * (1f - t / TrailFade)));
+                yield return null;
+            }
+            if (dot != null) Destroy(dot.gameObject);
         }
 
         // ------------------------------------------------------------------ desktop spots

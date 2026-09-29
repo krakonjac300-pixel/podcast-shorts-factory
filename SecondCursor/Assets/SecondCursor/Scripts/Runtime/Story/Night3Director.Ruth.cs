@@ -1,3 +1,5 @@
+// Nights 2 and 3 are not in the free demo (SC_DEMO): their code stays out of its build, like their content.
+#if !SC_DEMO
 using System.Collections;
 using System.Collections.Generic;
 using SecondCursor.Apps;
@@ -185,3 +187,4 @@ namespace SecondCursor.Story
         }
     }
 }
+#endif

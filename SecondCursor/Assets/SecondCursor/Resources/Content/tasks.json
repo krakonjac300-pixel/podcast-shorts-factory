@@ -14,7 +14,8 @@
       "id": "t_archive_ledger",
       "title": "Archive ledger_1994.dat",
       "description": "The 1994 ledger has cleared review. Move it from Intake to the Archive folder.",
-      "hint": "Open File Manager, open Intake, then drag ledger_1994.dat onto the Archive folder.",
+      "hint": "Double-click Workstation (File Manager), click Intake on the left, then drag ledger_1994.dat onto the Archive folder.",
+      "hintDeck": "Press A twice on Workstation (File Manager), choose Intake on the left, then hold R2 on ledger_1994.dat and drop it on the Archive folder.",
       "type": "MoveFile",
       "targets": ["ledger_1994"],
       "param": "archive"
@@ -52,6 +53,7 @@
       "title": "Archive Batch 44 (3 files)",
       "description": "Batch 44 has been verified. Move batch44_a, batch44_b and batch44_c from Intake to Archive.",
       "hint": "Drag each batch44 file from Intake onto the Archive folder, one at a time.",
+      "hintDeck": "Hold R2 on each batch44 file in Intake and drop it on the Archive folder, one at a time.",
       "type": "MoveFile",
       "targets": ["batch_a", "batch_b", "batch_c"],
       "param": "archive"
@@ -61,6 +63,7 @@
       "title": "PRIORITY: Shred employee_017.dat",
       "description": "Order from the Office of Retention. Shred employee_017.dat immediately. Do not open it.",
       "hint": "Drag employee_017.dat from the Desktop onto the Disposal bin and confirm.",
+      "hintDeck": "Hold R2 on employee_017.dat on the Desktop, drop it on the Disposal bin and confirm.",
       "type": "DeleteFile",
       "targets": ["employee_017"],
       "param": ""

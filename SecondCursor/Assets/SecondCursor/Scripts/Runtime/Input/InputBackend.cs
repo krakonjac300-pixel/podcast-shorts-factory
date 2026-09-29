@@ -13,6 +13,13 @@ namespace SecondCursor.Input
         F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, BackQuote, Shift, Ctrl,
     }
 
+    /// <summary>Control characters that travel in <see cref="IInputBackend.TypedText"/>.</summary>
+    public static class ControlChars
+    {
+        /// <summary>Ctrl+S (the save shortcut in Jotter). Never inserted as text.</summary>
+        public const char Save = (char)19;
+    }
+
     /// <summary>
     /// Reads the REAL mouse/keyboard only while the game window is focused. It never moves the OS cursor
     /// or reads anything outside the game (brief section 3).
@@ -81,6 +88,8 @@ namespace SecondCursor.Input
         public void Poll()
         {
             string raw = UnityEngine.Input.inputString;
+            bool ctrl = UnityEngine.Input.GetKey(KeyCode.LeftControl) || UnityEngine.Input.GetKey(KeyCode.RightControl);
+            if (ctrl && UnityEngine.Input.GetKeyDown(KeyCode.S) && (raw == null || raw.IndexOf(ControlChars.Save) < 0)) raw += ControlChars.Save;
             if (string.IsNullOrEmpty(raw))
             {
                 _typed = "";
@@ -91,6 +100,7 @@ namespace SecondCursor.Input
             {
                 if (c == '\r' || c == '\n') sb.Append('\n');
                 else if (c == '\b' || c == (char)127) sb.Append('\b');
+                else if (c == ControlChars.Save) sb.Append(c);
                 else if (c >= 32 && c <= 126) sb.Append(c);
             }
             _typed = sb.ToString();
@@ -176,6 +186,9 @@ namespace SecondCursor.Input
                 _subscribed = kb;
                 if (kb != null) kb.onTextInput += OnText;
             }
+            // Ctrl+S arrives as a control character on Windows; the key state covers platforms that drop it.
+            if (kb != null && (kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed) && kb.sKey.wasPressedThisFrame
+                && _pending.ToString().IndexOf(ControlChars.Save) < 0) _pending.Append(ControlChars.Save);
             _typed = _pending.ToString();
             _pending.Clear();
         }
@@ -184,6 +197,7 @@ namespace SecondCursor.Input
         {
             if (c == '\r' || c == '\n') _pending.Append('\n');
             else if (c == '\b' || c == (char)127) _pending.Append('\b'); // macOS sends DEL for backspace
+            else if (c == ControlChars.Save) _pending.Append(c);
             else if (c >= 32 && c <= 126) _pending.Append(c);
         }
 

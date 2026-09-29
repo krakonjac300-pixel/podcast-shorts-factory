@@ -443,7 +443,11 @@ namespace SecondCursor.Story
                 brain.Enabled = false;
                 E.Interrupt();
                 _g.Audio.SetAmbience(false, 0.1f);
-                yield return Wait(1.8f);
+                // M14: 2.4 s of dead air with every sound ducked, the Disposal bin rattles, then the file is back.
+                Audio.AudioManager.Duck(true);
+                yield return Wait(ShredDeadAir - BinRattleSeconds);
+                Audio.AudioManager.Duck(false);
+                yield return RattleDisposal(BinRattleSeconds);
                 _g.Fx.Glitch(0.35f, 1f);
                 _g.Audio.Play("glitch_burst", 0.8f);
                 // Re-arm "in use" first: the returned file must not be shreddable during the pause below.
@@ -484,7 +488,7 @@ namespace SecondCursor.Story
             yield return OpenNotepadAs(_ellen);
             _g.Flags.Set(Flags.EntitySpoke);
             RunSide(Note(5, 2.5f), "note-logged-on");
-            yield return RunExchangeChain(_ellen, ContentIds.ExchangeStop, OnEllenReply);
+            yield return RunExchangeChain(_ellen, ContentIds.ExchangeStop, OnEllenReply, turnHintKey: "notify.jotter.reply");
         }
 
         /// <summary>What the player's reply tells the story (flags) and the entity (memory).</summary>
@@ -514,7 +518,7 @@ namespace SecondCursor.Story
             if (rec != null && !rec.IsEmpty)
             {
                 E.State = EntityState.Observing;
-                yield return E.Replay(rec, false);
+                yield return E.Replay(rec, false, true);
                 _g.Flags.Set(Flags.MimicShown);
                 GameLog.Info(LogChannel.Entity, "Replayed the player's recorded movement (" + rec.Duration.ToString("0.0") + "s)");
                 ShowNote(9);
@@ -585,7 +589,7 @@ namespace SecondCursor.Story
             yield return StaticCut(() => { rig.DoorOpen = 0.85f; rig.Figure = FigureStage.Doorway; });
             _g.Flags.Set(Flags.FigureSeen);
             _g.Audio.SetAmbience(false, 4f);
-            _g.Audio.PlayLoop("drone_tension", 0.25f, 6f);
+            _g.Audio.PlayLoop("drone_tension", DroneVolume, 6f);
             _g.Audio.Play("door_distant", 0.5f, 1f, -0.3f);
             yield return WaitWatching(4f, 12f);
 
@@ -595,16 +599,28 @@ namespace SecondCursor.Story
             int panicLine = 0;
             float lastOpen = Time.time;
             int seenReopens = _cameraReopens;
+            bool ducked = false;
             while (Time.time - revealStart < 150f)
             {
+                // M6: while the feed is shut (its timestamp frozen) the drone sinks 6 dB and a semitone; it snaps back on.
+                var shown = _g.Apps.Find<CameraApp>();
+                bool feedShut = shown == null || !shown.IsOpen || shown.Window.IsMinimized;
+                if (feedShut != ducked)
+                {
+                    ducked = feedShut;
+                    _g.Audio.SetLoopVolume("drone_tension", ducked ? DroneVolume * 0.5f : DroneVolume, ducked ? 0.25f : 0f);
+                    _g.Audio.SetLoopPitch("drone_tension", ducked ? OneSemitoneDown : 1f);
+                }
                 // Reopened (or restored) since we last looked - even mid-typing: it advances.
                 if (_cameraReopens > seenReopens)
                 {
                     seenReopens = _cameraReopens;
-                    rig.Figure = rig.Figure == FigureStage.Doorway ? FigureStage.Middle : FigureStage.BehindChair;
-                    _g.Audio.Play("footstep_distant", 0.4f, 0.9f, 0.2f);
                     var reopened = _g.Apps.Find<CameraApp>();
                     if (reopened != null) reopened.Select(ContentIds.Cam03, null);
+                    // M6: the new position resolves out of half a second of static instead of a hard cut.
+                    var next = rig.Figure == FigureStage.Doorway ? FigureStage.Middle : FigureStage.BehindChair;
+                    yield return StaticResolve(() => rig.Figure = next, 0.5f);
+                    _g.Audio.Play("footstep_distant", 0.4f, 0.9f, 0.2f);
                     yield return WaitWatching(3f, 6f);
                     continue;
                 }
@@ -657,6 +673,12 @@ namespace SecondCursor.Story
                 yield return null;
             }
 
+            if (ducked)
+            {
+                _g.Audio.SetLoopVolume("drone_tension", DroneVolume, 0f);
+                _g.Audio.SetLoopPitch("drone_tension", 1f);
+            }
+
             // Final image: it's right behind you, and "you" turn to look at the camera.
             cam = _g.Apps.Find<CameraApp>();
             if (cam == null || !cam.IsOpen)
@@ -678,6 +700,34 @@ namespace SecondCursor.Story
             }
             yield return Wait(1.2f);
         }
+
+        const float DroneVolume = 0.25f;
+        const float ShredDeadAir = 2.4f, BinRattleSeconds = 0.4f;
+
+        /// <summary>The Disposal icon shakes on the spot (the shredded file is on its way back).</summary>
+        IEnumerator RattleDisposal(float seconds)
+        {
+            var icon = _g.Desktop.DisposalIcon;
+            var rt = icon != null ? (RectTransform)icon.transform : null;
+            if (rt == null) yield break;
+            Vector2 home = rt.anchoredPosition;
+            float t = 0f, nextTick = 0f;
+            int n = 0;
+            while (t < seconds && rt != null)
+            {
+                if (t >= nextTick)
+                {
+                    nextTick = t + 0.12f;
+                    _g.Audio.Play("mouse_release", 0.35f, 0.6f, Audio.AudioManager.PanFor(rt.position.x));
+                }
+                rt.anchoredPosition = home + new Vector2((n++ % 2 == 0) ? 2f : -2f, 0f);
+                t += Time.deltaTime;
+                yield return null;
+            }
+            if (rt != null) rt.anchoredPosition = home;
+        }
+        /// <summary>2^(-1/12).</summary>
+        const float OneSemitoneDown = 0.9439f;
 
         IEnumerator ShowEmployee017()
         {

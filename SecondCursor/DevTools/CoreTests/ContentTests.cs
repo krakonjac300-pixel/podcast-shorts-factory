@@ -56,10 +56,10 @@ namespace SecondCursor.Tests
             Tasks = LoadOptional<TasksData>(folder, "tasks"), Dialogue = LoadOptional<DialogueData>(folder, "dialogue"),
         };
 
-        /// <summary>The content of a night the way ContentLoader.Load(night) builds it.</summary>
+        /// <summary>The content of a night the way ContentLoader.Load(night) builds it (full game: base, full, nights).</summary>
         static ContentDatabase LoadNight(int night)
         {
-            var pack = Pack("");
+            var pack = Pack("").Overlay(Pack("full"));
             for (int n = 2; n <= night; n++) pack = pack.Overlay(Pack("night" + n));
             return pack.Build();
         }

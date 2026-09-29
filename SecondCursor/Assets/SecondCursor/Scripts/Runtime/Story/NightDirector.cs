@@ -37,6 +37,8 @@ namespace SecondCursor.Story
 
         /// <summary>Every line the player sent in an exchange this night, in order (saved at the end of Night 1).</summary>
         protected readonly List<string> PlayerLines = new List<string>();
+        /// <summary>The game clock (minutes) when each of <see cref="PlayerLines"/> was typed.</summary>
+        protected readonly List<int> PlayerLineMinutes = new List<int>();
         /// <summary>When this night's director was built (play time per night).</summary>
         protected float NightStartedAt { get; private set; }
 
@@ -258,7 +260,7 @@ namespace SecondCursor.Story
                 return;
             }
             RecordNightMemory();
-            SaveSystem.RecordNightComplete(_g, endingId, PlayerLines, NightElapsed);
+            SaveSystem.RecordNightComplete(_g, endingId, PlayerLines, NightElapsed, PlayerLineMinutes);
             _g.AchievementWatch?.OnNightComplete(Night, endingId);
         }
 
@@ -470,16 +472,22 @@ namespace SecondCursor.Story
             s.Typing = false;
         }
 
+        /// <summary>M2: a keyword hit waits this long (caret blinking) before its reply; a fallback or silence much less.</summary>
+        const float ThinkPauseHit = 2.0f, ThinkPauseFallback = 0.4f;
+
         /// <summary>
         /// A chain of dialogue exchanges starting at <paramref name="firstExchangeId"/>: the speaker types its
         /// lines, the player may answer (Enter sends), silence counts after <paramref name="silenceSeconds"/>,
         /// and it answers by keyword. Closing the Notepad reopens it (twice, then it counts as silence).
         /// <paramref name="onReply"/> sees each reply to something the player said (flags, memory); the last
-        /// reply (with its Tag) is written to <paramref name="last"/>[0].
+        /// reply (with its Tag) is written to <paramref name="last"/>[0]. <paramref name="turnHintKey"/>: a NEXUS
+        /// notice at the first turn saying how to answer. <paramref name="fallbackRetries"/>: typed replies that match
+        /// nothing get that many more turns; the miss after them is answered with <paramref name="lastFallbackSet"/>.
         /// </summary>
         protected IEnumerator RunExchangeChain(Speaker s, string firstExchangeId, Action<DialogueReply, string> onReply = null,
             DialogueReply[] last = null, float firstCps = 2.2f, float cps = 4f, float silenceSeconds = 25f, string reopenLine = "DONT",
-            Func<ExchangeData, IEnumerable<string>> extraLines = null)
+            Func<ExchangeData, IEnumerable<string>> extraLines = null, string turnHintKey = null, int fallbackRetries = 0,
+            string lastFallbackSet = null)
         {
             var exchange = _g.Dialogue.Get(firstExchangeId);
             bool first = true;
@@ -490,56 +498,96 @@ namespace SecondCursor.Story
                 // Lines some exchanges add before the player's turn (a memory of an earlier night).
                 var extra = extraLines?.Invoke(exchange);
                 if (extra != null) yield return TypeLines(s, extra, cps);
+                if (first && !string.IsNullOrEmpty(turnHintKey))
+                {
+                    // Typing back is the game's hook: say so once, in the OS's own voice.
+                    var pad = s;
+                    _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text(turnHintKey), "icon_notepad",
+                        a => { if (pad.Pad != null && pad.Pad.IsOpen) pad.Pad.Window.Focus(a); }, "ui_select");
+                    GameLog.Info(LogChannel.Story, "Jotter reply hint shown");
+                }
                 first = false;
-                if (EnsurePad(s) == null) yield return OpenNotepadAs(s);
-                s.Pad.PlayerCanType = true;
-                s.Pad.Window.Focus(null);
-
-                string said = null;
-                Action<string, CursorAgent> handler = (line, a) => said = line;
-                s.Pad.LineSubmitted += handler;
-                float waitStart = Time.time;
-                int reopened = 0;
-                while (said == null)
-                {
-                    // Silence: counted from the last keystroke (or since it finished typing).
-                    float lastActivity = Mathf.Max(waitStart, s.Pad != null ? s.Pad.LastPlayerKeyTime : 0f);
-                    if (Time.time - lastActivity > silenceSeconds) break;
-                    if (EnsurePad(s) == null && reopened >= 2) break; // keeps closing it: treat as silence
-                    if (EnsurePad(s) == null)
-                    {
-                        reopened++;
-                        // Closing it doesn't make it go away.
-                        yield return OpenNotepadAs(s);
-                        yield return TypeLines(s, new[] { reopenLine }, 3f);
-                        s.Pad.PlayerCanType = true;
-                        s.Pad.LineSubmitted += handler;
-                        waitStart = Time.time;
-                    }
-                    yield return null;
-                }
-                if (s.Pad != null) s.Pad.LineSubmitted -= handler;
-                if (s.Pad != null) s.Pad.PlayerCanType = false;
-
+                int misses = 0;
                 DialogueReply reply;
-                if (said == null)
+                while (true)
                 {
-                    reply = new DialogueReply { Lines = exchange.silence, Category = "silence", IsFallback = true };
+                    string said = null;
+                    yield return PlayerTurn(s, silenceSeconds, reopenLine, line => said = line);
+                    if (said == null)
+                    {
+                        reply = new DialogueReply { Lines = exchange.silence, Category = "silence", IsFallback = true };
+                    }
+                    else
+                    {
+                        reply = _g.Dialogue.Respond(exchange, said);
+                        _g.AchievementWatch?.OnReply(exchange.voice, reply.Tag);
+                        _g.Memory.Record(MemoryKind.TypedMessage, reply.Category, Time.time);
+                        PlayerLines.Add(said);
+                        PlayerLineMinutes.Add(_g.Clock.TotalMinutes);
+                        onReply?.Invoke(reply, said);
+                        GameLog.Info(LogChannel.Player, "Typed \"" + said + "\" (" + reply.Category + ")");
+                    }
+                    bool missed = said != null && reply.IsFallback;
+                    if (missed) misses++;
+                    // M8: after the allowed misses a chat that keeps typing junk is steered to the two words that work,
+                    // and gets one more turn to type them.
+                    bool steer = missed && fallbackRetries > 0 && misses == fallbackRetries + 1 && !string.IsNullOrEmpty(lastFallbackSet);
+                    bool again = missed && (misses <= fallbackRetries || steer);
+                    if (steer)
+                    {
+                        var lines = _g.Content.Lines(lastFallbackSet);
+                        if (lines != null && lines.Length > 0) reply.Lines = lines;
+                    }
+                    if (last != null && last.Length > 0) last[0] = reply;
+                    yield return ThinkThenType(s, reply, cps);
+                    if (!again) break;
                 }
-                else
-                {
-                    reply = _g.Dialogue.Respond(exchange, said);
-                    _g.AchievementWatch?.OnReply(exchange.voice, reply.Tag);
-                    _g.Memory.Record(MemoryKind.TypedMessage, reply.Category, Time.time);
-                    PlayerLines.Add(said);
-                    onReply?.Invoke(reply, said);
-                    GameLog.Info(LogChannel.Player, "Typed \"" + said + "\" (" + reply.Category + ")");
-                }
-                if (last != null && last.Length > 0) last[0] = reply;
-                yield return Wait(1.1f);
-                yield return TypeLines(s, reply.Lines, cps);
                 exchange = string.IsNullOrEmpty(exchange.next) ? null : _g.Dialogue.Get(exchange.next);
             }
+        }
+
+        /// <summary>The player's turn: waits for a sent line (passed to <paramref name="onSaid"/>) or for silence.</summary>
+        IEnumerator PlayerTurn(Speaker s, float silenceSeconds, string reopenLine, Action<string> onSaid)
+        {
+            if (EnsurePad(s) == null) yield return OpenNotepadAs(s);
+            s.Pad.PlayerCanType = true;
+            s.Pad.Window.Focus(null);
+            string said = null;
+            Action<string, CursorAgent> handler = (line, a) => said = line;
+            s.Pad.LineSubmitted += handler;
+            float waitStart = Time.time;
+            int reopened = 0;
+            while (said == null)
+            {
+                // Silence: counted from the last keystroke (or since it finished typing).
+                float lastActivity = Mathf.Max(waitStart, s.Pad != null ? s.Pad.LastPlayerKeyTime : 0f);
+                if (Time.time - lastActivity > silenceSeconds) break;
+                if (EnsurePad(s) == null && reopened >= 2) break; // keeps closing it: treat as silence
+                if (EnsurePad(s) == null)
+                {
+                    reopened++;
+                    // Closing it doesn't make it go away.
+                    yield return OpenNotepadAs(s);
+                    yield return TypeLines(s, new[] { reopenLine }, 3f);
+                    s.Pad.PlayerCanType = true;
+                    s.Pad.LineSubmitted += handler;
+                    waitStart = Time.time;
+                }
+                yield return null;
+            }
+            if (s.Pad != null) s.Pad.LineSubmitted -= handler;
+            if (s.Pad != null) s.Pad.PlayerCanType = false;
+            if (said != null) onSaid(said);
+        }
+
+        /// <summary>M2: a keyword hit gets a visible think (the caret blinks, no key taps); a miss answers quickly.</summary>
+        IEnumerator ThinkThenType(Speaker s, DialogueReply reply, float cps)
+        {
+            bool hit = !reply.IsFallback;
+            if (s.Pad != null) s.Pad.ThinkingCaret = hit;
+            yield return Wait(hit ? ThinkPauseHit : ThinkPauseFallback);
+            if (s.Pad != null) s.Pad.ThinkingCaret = false;
+            yield return TypeLines(s, reply.Lines, cps);
         }
 
         // ------------------------------------------------------------------ cursors doing things
@@ -559,17 +607,22 @@ namespace SecondCursor.Story
                 _g.DragDrop.BeginFileDrag(c.Agent, file.Id, file.Name, FileIcons.SpriteFor(file), null, c.Agent.Position + new Vector2(-16f, 16f));
                 carried = true;
             }
-            yield return c.MoveTo(spot, profile, targetSize);
+            // A grab on the way is a tug (the conflict moves the cursor); she carries on only if she kept the file.
+            yield return carried ? c.CarryTo(spot, profile, targetSize) : c.MoveTo(spot, profile, targetSize);
             if (!carried) yield break;
             yield return Wait(0.3f);
+            // Letting go during a tug would hand the file over: wait the fight out first.
+            while (_g.Conflict.IsFighting) yield return null;
+            bool hers = c.Agent.Held && c.Agent.Payload != null && c.Agent.Payload.FileId == fileId;
             c.Agent.SetButton(false);
             yield return null;
             yield return null;
-            if (_g.Files.Exists(fileId))
+            bool playerHasIt = _g.Player.Payload != null && _g.Player.Payload.FileId == fileId;
+            if (_g.Files.Exists(fileId) && !playerHasIt && !_g.Shred.Busy)
             {
-                if (_g.Files.FolderOf(fileId) != ContentIds.FolderDesktop)
-                    _g.Files.Move(fileId, ContentIds.FolderDesktop, Actor.Entity);
-                _g.Desktop.SetFilePosition(fileId, OSLayers.WorldToDesktop(spot) - new Vector2(37f, 16f));
+                bool moved = _g.Files.FolderOf(fileId) != ContentIds.FolderDesktop;
+                if (moved) _g.Files.Move(fileId, ContentIds.FolderDesktop, Actor.Entity);
+                if (hers || moved) _g.Desktop.SetFilePosition(fileId, OSLayers.WorldToDesktop(spot) - new Vector2(37f, 16f));
             }
         }
 
@@ -685,6 +738,23 @@ namespace SecondCursor.Story
                 if (cam != null && !cam.Window.IsMinimized && cam.CurrentCamera == cameraId) watched += Time.deltaTime;
                 yield return null;
             }
+        }
+
+        /// <summary>The change happens at once under heavy static, which then clears over <paramref name="seconds"/>.</summary>
+        protected IEnumerator StaticResolve(Action change, float seconds)
+        {
+            var rig = _g.CameraRig;
+            _g.Audio.Play("camera_static", 0.6f);
+            rig.ExtraNoise = 0.95f;
+            change();
+            float t = 0f;
+            while (t < seconds)
+            {
+                t += Time.deltaTime;
+                rig.ExtraNoise = Mathf.Lerp(0.95f, 0f, t / seconds);
+                yield return null;
+            }
+            rig.ExtraNoise = 0f;
         }
 
         /// <summary>A burst of feed static that hides a change in the scene (things only move when you blink).</summary>

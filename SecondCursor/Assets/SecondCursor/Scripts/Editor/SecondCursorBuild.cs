@@ -20,10 +20,28 @@ namespace SecondCursor.EditorTools
         public static string DemoOutputDir => Path.GetFullPath("Builds/WindowsDemo");
         public static string DemoExePath => Path.Combine(DemoOutputDir, "SecondCursorDemo.exe");
 
-        const string ContentFolder = "Assets/SecondCursor/Resources/Content";
-        const string DemoExcludedFolder = "Assets/SecondCursor/_DemoExcluded";
-        /// <summary>Content the demo must not ship: anything under Resources is built in even if no code loads it.</summary>
-        static readonly string[] DemoExcludedContent = { "night2", "night3" };
+        internal const string ContentFolder = "Assets/SecondCursor/Resources/Content";
+        internal const string DemoExcludedFolder = "Assets/SecondCursor/_DemoExcluded";
+        /// <summary>
+        /// Content the demo must not ship: anything under Resources is built in even if no code loads it. "full" holds the
+        /// base strings only Nights 2 and 3 use (hidden achievement text, rounds, log off, the Restricted code).
+        /// </summary>
+        internal static readonly string[] DemoExcludedContent = { "night2", "night3", "full" };
+        /// <summary>Symbols and burst debug folders are moved here after each build (never ship them).</summary>
+        public static string SymbolsDir => Path.GetFullPath("Builds/Symbols");
+
+        /// <summary>SessionState: a demo build is moving content around (the editor-load restore must not touch it).</summary>
+        const string DemoBuildRunningKey = "SecondCursor.DemoBuildRunning";
+        internal static bool DemoBuildRunning
+        {
+            get => SessionState.GetBool(DemoBuildRunningKey, false);
+            private set => SessionState.SetBool(DemoBuildRunningKey, value);
+        }
+
+        /// <summary>Valve's public test app: never ship a Steam build with it.</summary>
+        const uint TestAppId = 480;
+        const string RuntimeAsmdef = "Assets/SecondCursor/Scripts/Runtime/SecondCursor.Runtime.asmdef";
+        const string SteamworksAssembly = "com.rlabrecque.steamworks.net";
 
         [MenuItem("SECOND CURSOR/Apply Release Settings", priority = 21)]
         public static void ApplyReleaseSettings()
@@ -56,8 +74,54 @@ namespace SecondCursor.EditorTools
             PlayerSettings.SplashScreen.show = false;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
             PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, ManagedStrippingLevel.Low);
+            DisableTelemetry();
             GenerateIcon();
             Debug.Log("[SYSTEM] SECOND CURSOR release settings applied.");
+        }
+
+        /// <summary>
+        /// The store page says the game has no network code: switch off Unity's engine diagnostics, crash reporting,
+        /// analytics and hardware statistics for the player (the settings have no public API, so SerializedObject).
+        /// </summary>
+        static void DisableTelemetry()
+        {
+            PlayerSettings.enableCrashReportAPI = false;
+            const string connect = "ProjectSettings/UnityConnectSettings.asset";
+            SetSettingsFlag(connect, "InsightsSettings.m_EngineDiagnosticsEnabled", false);
+            SetSettingsFlag(connect, "InsightsSettings.m_Enabled", false);
+            SetSettingsFlag(connect, "CrashReportingSettings.m_EnableCloudDiagnosticsReporting", false);
+            SetSettingsFlag(connect, "UnityAnalyticsSettings.m_Enabled", false);
+            SetSettingsFlag(connect, "UnityAnalyticsSettings.m_InitializeOnStartup", false);
+            SetSettingsFlag(connect, "PerformanceReportingSettings.m_Enabled", false);
+            SetSettingsFlag(connect, "UnityAdsSettings.m_Enabled", false);
+            SetSettingsFlag(connect, "UnityPurchasingSettings.m_Enabled", false);
+            // "submitAnalytics" is the player's hardware statistics (Disable HW Statistics).
+            SetSettingsFlag("ProjectSettings/ProjectSettings.asset", "submitAnalytics", false);
+            AssetDatabase.SaveAssets();
+        }
+
+        static void SetSettingsFlag(string path, string property, bool value)
+        {
+            var objects = AssetDatabase.LoadAllAssetsAtPath(path);
+            if (objects == null || objects.Length == 0 || objects[0] == null)
+            {
+                Debug.LogWarning("[SYSTEM] Release settings: could not open " + path);
+                return;
+            }
+            var so = new SerializedObject(objects[0]);
+            var p = so.FindProperty(property);
+            if (p == null)
+            {
+                Debug.LogWarning("[SYSTEM] Release settings: " + path + " has no " + property);
+                return;
+            }
+            bool current = p.propertyType == SerializedPropertyType.Boolean ? p.boolValue : p.intValue != 0;
+            if (current == value) return;
+            if (p.propertyType == SerializedPropertyType.Boolean) p.boolValue = value;
+            else p.intValue = value ? 1 : 0;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(objects[0]);
+            Debug.Log("[SYSTEM] Release settings: " + property + " = " + value);
         }
 
         [MenuItem("SECOND CURSOR/Build Windows (Steam)", priority = 22)]
@@ -69,13 +133,15 @@ namespace SecondCursor.EditorTools
 
         public static BuildReport BuildWindows()
         {
+            // A left-over "define SC_DEMO on" would turn the full game into a demo with Nights 2 and 3 inside.
+            if (HasStandaloneDefine("SC_DEMO"))
+                throw new BuildFailedException("SC_DEMO is in the Standalone scripting defines: remove it (bridge: define SC_DEMO off) before building the full game");
             // A demo build that crashed half way may have left Nights 2 and 3 outside Resources.
             RestoreDemoExcluded();
-            foreach (var name in DemoExcludedContent)
-                if (!AssetDatabase.IsValidFolder(ContentFolder + "/" + name))
-                    throw new BuildFailedException("The full game needs " + ContentFolder + "/" + name + " (see SECOND CURSOR > Restore Demo-Excluded Content)");
+            RequireFullContent();
+            CheckSteamRelease(false);
             ApplyReleaseSettings();
-            Directory.CreateDirectory(OutputDir);
+            CleanOutput(OutputDir);
             var options = new BuildPlayerOptions
             {
                 scenes = new[] { SecondCursorProjectSetup.ScenePath },
@@ -84,7 +150,89 @@ namespace SecondCursor.EditorTools
                 targetGroup = BuildTargetGroup.Standalone,
                 options = BuildOptions.None,
             };
-            return BuildPipeline.BuildPlayer(options);
+            var report = BuildPipeline.BuildPlayer(options);
+            MoveSymbolsOut(OutputDir, "Windows");
+            return report;
+        }
+
+        /// <summary>The full game ships every content folder the demo leaves out.</summary>
+        internal static void RequireFullContent()
+        {
+            foreach (var name in DemoExcludedContent)
+                if (!AssetDatabase.IsValidFolder(ContentFolder + "/" + name))
+                    throw new BuildFailedException("The full game needs " + ContentFolder + "/" + name + " (see SECOND CURSOR > Restore Demo-Excluded Content)");
+        }
+
+        internal static bool HasStandaloneDefine(string name)
+        {
+            foreach (var d in PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.Standalone).Split(';'))
+                if (d.Trim() == name) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Steamworks.NET compiled in (STEAMWORKS_NET in the defines, or the runtime asmdef's version define with the
+        /// package present).
+        /// </summary>
+        static bool SteamworksEnabled()
+        {
+            if (HasStandaloneDefine("STEAMWORKS_NET")) return true;
+            bool asmdefDefines = File.Exists(RuntimeAsmdef) && File.ReadAllText(RuntimeAsmdef).Contains("STEAMWORKS_NET");
+            if (!asmdefDefines) return false;
+            foreach (var asm in UnityEditor.Compilation.CompilationPipeline.GetAssemblies(UnityEditor.Compilation.AssembliesType.Player))
+                if (asm.name == SteamworksAssembly) return true;
+            return false;
+        }
+
+        /// <summary>A Steam build must carry the real App IDs and the Steamworks.NET license text in Credits.</summary>
+        static void CheckSteamRelease(bool demo)
+        {
+            string problem = SteamReleaseProblem(demo, SteamworksEnabled());
+            if (problem != null) throw new BuildFailedException(problem);
+        }
+
+        /// <summary>Why a build with Steamworks compiled in must not ship (null: nothing). Test bridge "steamcheck".</summary>
+        internal static string SteamReleaseProblem(bool demo, bool steamworks)
+        {
+            if (!steamworks) return null;
+            uint full = Game.SteamBridge.FullGameAppId, demoId = Game.SteamBridge.DemoAppId;
+            if (full == TestAppId || (demo && demoId == TestAppId))
+                return "STEAMWORKS_NET is on but SteamBridge still uses the test App ID " + TestAppId + ": set FullGameAppId and DemoAppId";
+            if (!ContentHasKey("credits.steamworks"))
+                return "STEAMWORKS_NET is on but strings.json has no credits.steamworks (the Steamworks.NET MIT license text)";
+            return null;
+        }
+
+        static bool ContentHasKey(string key)
+        {
+            foreach (var file in new[] { ContentFolder + "/strings.json", ContentFolder + "/full/strings.json" })
+                if (File.Exists(file) && File.ReadAllText(file).Contains("\"" + key + "\"")) return true;
+            return false;
+        }
+
+        /// <summary>A fresh output folder: files of an older build (a removed DLL, an old data file) must not ship.</summary>
+        static void CleanOutput(string dir)
+        {
+            if (Directory.Exists(dir))
+            {
+                foreach (var f in Directory.GetFiles(dir)) File.Delete(f);
+                foreach (var d in Directory.GetDirectories(dir)) Directory.Delete(d, true);
+            }
+            Directory.CreateDirectory(dir);
+        }
+
+        /// <summary>The *_BackUpThisFolder_ButDontShipItWithYourGame folders go to Builds/Symbols/&lt;build&gt;.</summary>
+        static void MoveSymbolsOut(string outputDir, string build)
+        {
+            if (!Directory.Exists(outputDir)) return;
+            foreach (var d in Directory.GetDirectories(outputDir, "*_BackUpThisFolder_ButDontShipItWithYourGame"))
+            {
+                string dest = Path.Combine(SymbolsDir, build, Path.GetFileName(d));
+                if (Directory.Exists(dest)) Directory.Delete(dest, true);
+                Directory.CreateDirectory(Path.GetDirectoryName(dest) ?? SymbolsDir);
+                Directory.Move(d, dest);
+                Debug.Log("[SYSTEM] Build: moved " + Path.GetFileName(d) + " to " + dest);
+            }
         }
 
         public static string Summary(BuildReport report) => Summary(report, ExePath);
@@ -113,11 +261,14 @@ namespace SecondCursor.EditorTools
         public static BuildReport BuildWindowsDemo()
         {
             RestoreDemoExcluded(); // leftovers of a build that crashed half way
+            CheckSteamRelease(true);
             ApplyReleaseSettings();
             string product = PlayerSettings.productName;
-            Directory.CreateDirectory(DemoOutputDir);
+            CleanOutput(DemoOutputDir);
+            BuildReport report;
             try
             {
+                DemoBuildRunning = true;
                 MoveDemoExcludedOut();
                 PlayerSettings.productName = "SECOND CURSOR Demo";
                 var options = new BuildPlayerOptions
@@ -129,16 +280,51 @@ namespace SecondCursor.EditorTools
                     options = BuildOptions.None,
                     extraScriptingDefines = new[] { "SC_DEMO" },
                 };
-                return BuildPipeline.BuildPlayer(options);
+                report = BuildPipeline.BuildPlayer(options);
             }
             finally
             {
                 PlayerSettings.productName = product;
+                DemoBuildRunning = false;
                 RestoreDemoExcluded();
                 // The build wrote the demo's product name to ProjectSettings.asset: write the real one back.
                 AssetDatabase.SaveAssets();
             }
+            MoveSymbolsOut(DemoOutputDir, "WindowsDemo");
+            return report;
         }
+
+        /// <summary>
+        /// Editor load: content left in _DemoExcluded by a demo build that never finished (Unity closed or crashed
+        /// mid-build) goes back into Resources, so Play mode and other builds see Nights 2 and 3 again. Skipped while
+        /// a demo build runs in this editor session.
+        /// </summary>
+        [InitializeOnLoadMethod]
+        static void RestoreAfterInterruptedDemoBuild()
+        {
+            if (DemoBuildRunning)
+            {
+                Debug.Log("[SYSTEM] Editor load during a demo build: demo-excluded content left where it is");
+                return;
+            }
+            EditorApplication.update -= RestoreWhenIdle;
+            EditorApplication.update += RestoreWhenIdle;
+        }
+
+        /// <summary>Runs once the editor has settled after loading (no import or compile in progress).</summary>
+        static void RestoreWhenIdle()
+        {
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+            EditorApplication.update -= RestoreWhenIdle;
+            // The folder test reads the disk: right after a reload the asset database may not list it yet.
+            bool leftOver = AssetDatabase.IsValidFolder(DemoExcludedFolder) || Directory.Exists(DemoExcludedFolder);
+            if (DemoBuildRunning || BuildPipeline.isBuildingPlayer || !leftOver) return;
+            Debug.LogWarning("[SYSTEM] Content from an interrupted demo build is still in " + DemoExcludedFolder + ": restoring it");
+            RestoreDemoExcluded();
+        }
+
+        /// <summary>Test bridge "democrash": the content a demo build moves out, left there as if Unity had died mid-build.</summary>
+        internal static void SimulateInterruptedDemoBuild() => MoveDemoExcludedOut();
 
         static void MoveDemoExcludedOut()
         {
@@ -279,6 +465,25 @@ namespace SecondCursor.EditorTools
                             if (x >= 0 && x < size && y >= 0 && y < size) px[y * size + x] = c;
                         }
                 }
+        }
+    }
+
+    /// <summary>
+    /// Guards every player build (the menu items, File > Build Settings, a script): outside a demo build, Nights 2 and 3
+    /// must be in Resources and SC_DEMO must not be defined, otherwise the "full" game ships as a broken demo.
+    /// </summary>
+    sealed class SecondCursorBuildGuard : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => 0;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            if (SecondCursorBuild.DemoBuildRunning) return;
+            if (AssetDatabase.IsValidFolder(SecondCursorBuild.DemoExcludedFolder))
+                throw new BuildFailedException(SecondCursorBuild.DemoExcludedFolder + " exists (an interrupted demo build): run SECOND CURSOR > Restore Demo-Excluded Content first");
+            if (SecondCursorBuild.HasStandaloneDefine("SC_DEMO"))
+                throw new BuildFailedException("SC_DEMO is in the Standalone scripting defines: build the demo with SECOND CURSOR > Build Windows Demo, or remove the define");
+            SecondCursorBuild.RequireFullContent();
         }
     }
 }

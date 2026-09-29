@@ -96,7 +96,7 @@ namespace SecondCursor.Story
 
             // 4. Template tokens (the BIOS line for device 3 too).
             FillTemplates(g);
-            var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null);
+            var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
             var bios = g.Content.Story.biosLines;
             for (int i = 0; i < bios.Length; i++) bios[i] = NightTemplates.Fill(bios[i], tokens);
             GameLog.Info(LogChannel.Story, "Night 3 set up (Gary " + (finished ? "finished" : "kept") + ")");
@@ -131,7 +131,7 @@ namespace SecondCursor.Story
         /// <summary>Fill the {tokens} of every file tagged "template" (spec 2.4).</summary>
         public static void FillTemplates(GameServices g)
         {
-            var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null);
+            var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
             foreach (var f in g.Files.AllFiles)
             {
                 if (!f.HasTag("template")) continue;

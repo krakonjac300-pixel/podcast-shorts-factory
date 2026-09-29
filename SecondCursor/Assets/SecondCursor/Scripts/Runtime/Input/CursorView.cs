@@ -31,6 +31,9 @@ namespace SecondCursor.Input
         public float Jitter;
         /// <summary>0..1 chance per frame of skipping a frame (glitchy flicker).</summary>
         public float Flicker;
+        /// <summary>Draw this cursor in the second cursor's palette (M4: the player's arrow for one frame in the SHRED ending).</summary>
+        public bool ShowEntityPalette;
+        bool _shownPalette;
         /// <summary>Visual-only displacement (e.g. the pull of a tug-of-war, a "flinch"). Hit-testing ignores it.</summary>
         public Vector2 VisualOffset;
         Vector2 _flinch;
@@ -116,7 +119,7 @@ namespace SecondCursor.Input
                     return null;
                 });
             }
-            if (!_entityStyle) return SpriteLibrary.Get(spriteName);
+            if (!_entityStyle && !ShowEntityPalette) return SpriteLibrary.Get(spriteName);
             return SpriteLibrary.GetVariant(spriteName, "entity", c =>
             {
                 if (c == 'K') return Palette.EntityOutline;
@@ -128,7 +131,8 @@ namespace SecondCursor.Input
         void Apply(CursorShape shape)
         {
             string spriteName = SpriteFor(shape, Time.unscaledTime);
-            if (shape == _shownShape && spriteName == _shownSprite) return;
+            if (shape == _shownShape && spriteName == _shownSprite && ShowEntityPalette == _shownPalette) return;
+            _shownPalette = ShowEntityPalette;
             _shownShape = shape;
             _shownSprite = spriteName;
             var sprite = Resolve(spriteName);

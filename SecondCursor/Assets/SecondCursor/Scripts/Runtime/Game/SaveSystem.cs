@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using SecondCursor.Core;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.Game;
@@ -68,8 +69,21 @@ namespace SecondCursor.Game
         /// <summary>True if the progress file was set aside as unreadable during this app launch.</summary>
         public static bool CorruptThisLaunch { get; private set; }
 
+        /// <summary>
+        /// A QA launch (-scnight / -scbeat): progress.json is read but never written for the rest of the launch (no night
+        /// start, checkpoint, completion, tug total or achievement). Settings are still saved.
+        /// </summary>
+        internal static bool ProgressReadOnly;
+        static bool _readOnlyLogged;
+
         /// <summary>A new launch (every Play press in the Editor, where statics survive): forget the last launch's notice.</summary>
-        internal static void ResetLaunchState() => CorruptThisLaunch = false;
+        internal static void ResetLaunchState()
+        {
+            CorruptThisLaunch = false;
+            LockedFiles.Clear();
+            ProgressReadOnly = false;
+            _readOnlyLogged = false;
+        }
         static string PathOf(string name) => Path.Combine(Dir, name);
 
         /// <summary>Test runs only (the bridge's resetsave): delete progress.json and settings.json in the override folder.</summary>
@@ -90,6 +104,7 @@ namespace SecondCursor.Game
                     }
                 }
             CorruptThisLaunch = false;
+            LockedFiles.Clear();
             return true;
         }
 
@@ -115,7 +130,16 @@ namespace SecondCursor.Game
             return data;
         }
 
-        public static void Save(SaveData data) => Write(ProgressFile, data);
+        public static void Save(SaveData data)
+        {
+            if (ProgressReadOnly)
+            {
+                if (!_readOnlyLogged) GameLog.Info(LogChannel.System, "QA launch: progress.json is not written");
+                _readOnlyLogged = true;
+                return;
+            }
+            Write(ProgressFile, data);
+        }
 
         /// <summary>A night starts fresh (not from a checkpoint): remember its starting memory and trust.</summary>
         public static void RecordNightStart(GameServices g)
@@ -170,11 +194,12 @@ namespace SecondCursor.Game
                 armed = g.RecordsArmed,
             });
             Save(data);
-            GameLog.Info(LogChannel.System, "Checkpoint saved: night " + g.Night + ", " + beat + (g.RecordsArmed ? "" : " (debug run)"));
+            GameLog.Info(LogChannel.System, (ProgressReadOnly ? "Checkpoint not saved (QA launch): night " : "Checkpoint saved: night ") + g.Night + ", " + beat
+                                            + (g.RecordsArmed ? "" : " (debug run)"));
         }
 
         /// <summary>A night ends: memory, trust, assist carry, the ending, unlocks and totals; the checkpoint is cleared.</summary>
-        public static void RecordNightComplete(GameServices g, string endingId, IList<string> playerLines, float seconds)
+        public static void RecordNightComplete(GameServices g, string endingId, IList<string> playerLines, float seconds, IList<int> lineMinutes = null)
         {
             var data = Load();
             data.RecordNightComplete(new NightResult
@@ -186,11 +211,13 @@ namespace SecondCursor.Game
                 AssistLevel = g.Assist != null ? g.Assist.Level : 0,
                 Seconds = seconds,
                 PlayerLines = playerLines,
+                PlayerLineMinutes = lineMinutes,
                 Records = g.RecordsArmed,
             });
             Save(data);
             SaveSettings(g);
-            GameLog.Info(LogChannel.System, "Night " + g.Night + " complete, ending '" + endingId + "' (unlocked: night " + data.nightUnlocked + ")");
+            GameLog.Info(LogChannel.System, "Night " + g.Night + " complete, ending '" + endingId + "'"
+                                            + (ProgressReadOnly ? " (QA launch: not saved)" : " (unlocked: night " + data.nightUnlocked + ")"));
         }
 
         public static void SetDifficulty(DifficultyMode mode)
@@ -226,16 +253,33 @@ namespace SecondCursor.Game
 
         // ------------------------------------------------------------------ plumbing
 
+        /// <summary>
+        /// The file, else its .bak. Only a file that was read but does not parse is set aside as .corrupt; a file that is
+        /// briefly locked (antivirus, cloud sync) is read again a few times and never quarantined.
+        /// </summary>
         static T Read<T>(string name) where T : class
         {
             string path = PathOf(name);
+            // A main file that exists but stays locked is never overwritten (not even with its older .bak) until it can
+            // be read again: the next write would otherwise replace the newest progress.
+            bool mainLocked = false;
             foreach (var candidate in new[] { path, path + ".bak" })
             {
+                if (!File.Exists(candidate)) continue;
+                string text = ReadWithRetry(candidate);
+                if (text == null)
+                {
+                    if (candidate == path) mainLocked = true;
+                    continue;
+                }
                 try
                 {
-                    if (!File.Exists(candidate)) continue;
-                    var data = JsonUtility.FromJson<T>(File.ReadAllText(candidate));
-                    if (data != null) return data;
+                    var data = JsonUtility.FromJson<T>(text);
+                    if (data != null)
+                    {
+                        MarkLocked(name, mainLocked);
+                        return data;
+                    }
                 }
                 catch (Exception e)
                 {
@@ -243,11 +287,55 @@ namespace SecondCursor.Game
                     if (candidate == path) Quarantine(path);
                 }
             }
+            MarkLocked(name, mainLocked);
             return null;
+        }
+
+        /// <summary>Files on disk that could not be read this time: writes to them are skipped until a read works.</summary>
+        static readonly HashSet<string> LockedFiles = new HashSet<string>();
+
+        static void MarkLocked(string name, bool locked)
+        {
+            if (!locked)
+            {
+                LockedFiles.Remove(name);
+                return;
+            }
+            if (LockedFiles.Add(name))
+                GameLog.Warn(LogChannel.System, name + " could not be read: it is left untouched until it can be read again");
+        }
+
+        const int ReadAttempts = 4;
+        const int ReadRetryMilliseconds = 40;
+
+        /// <summary>The file's text, retrying IO and access errors with a short, growing sleep; null if it stays unreadable.</summary>
+        static string ReadWithRetry(string file)
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return File.ReadAllText(file);
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+                {
+                    if (attempt >= ReadAttempts)
+                    {
+                        GameLog.Warn(LogChannel.System, "Could not read " + Path.GetFileName(file) + " (" + attempt + " attempts): " + e.Message);
+                        return null;
+                    }
+                    Thread.Sleep(ReadRetryMilliseconds * attempt);
+                }
+            }
         }
 
         static void Write(string name, object data)
         {
+            if (LockedFiles.Contains(name))
+            {
+                GameLog.Warn(LogChannel.System, "Not writing " + name + ": the file on disk could not be read");
+                return;
+            }
             string path = PathOf(name), tmp = path + ".tmp";
             try
             {
@@ -282,7 +370,7 @@ namespace SecondCursor.Game
         static void MigrateLegacy()
         {
             string legacy = PathOf(LegacyFile);
-            if (!File.Exists(legacy)) return;
+            if (ProgressReadOnly || !File.Exists(legacy)) return;
             try
             {
                 var old = JsonUtility.FromJson<SaveData>(File.ReadAllText(legacy));

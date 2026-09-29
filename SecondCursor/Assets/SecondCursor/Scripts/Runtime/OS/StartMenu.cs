@@ -24,6 +24,8 @@ namespace SecondCursor.OS
             _button = button;
             g.Router.AnyPointerDown += (a, hit) =>
             {
+                // Only your own presses close your menu (the other pointers keep working while it is open).
+                if (a == null || !a.IsPlayer) return;
                 if (_menu == null || hit == null) { if (_menu != null && hit == null) Close(); return; }
                 if (hit.transform.IsChildOf(_menu.transform) || hit.transform.IsChildOf(_button.transform)) return;
                 Close();
@@ -86,6 +88,22 @@ namespace SecondCursor.OS
             _menu.Closed += () => { _menu = null; _button.Toggled = false; };
             _button.Toggled = true;
             Sfx.Play("ui_click", a);
+        }
+
+        /// <summary>
+        /// Opens on the next frame: from a click somewhere else (a notice), whose own press would otherwise close the
+        /// menu again at once.
+        /// </summary>
+        public void OpenFromElsewhere(CursorAgent a)
+        {
+            if (_g.CoroutineHost != null) _g.CoroutineHost.StartCoroutine(OpenNextFrame(a));
+        }
+
+        System.Collections.IEnumerator OpenNextFrame(CursorAgent a)
+        {
+            yield return null;
+            Open(a);
+            Core.GameLog.Info(Core.LogChannel.OS, "Nexus menu opened from a notice");
         }
 
         public void Close()

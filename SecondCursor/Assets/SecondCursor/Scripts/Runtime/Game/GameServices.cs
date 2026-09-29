@@ -98,6 +98,12 @@ namespace SecondCursor.Game
         /// <summary>This root shows the title menu inside its boot beat (consumed when the boot shows it).</summary>
         public bool ShowTitle;
 
+        /// <summary>
+        /// M9: when each remote (entity-authored) Work Queue item was given and after how many seconds it is withdrawn
+        /// (x = Time.time given, y = lifetime). The Work Queue fades and blinks the row as the time runs out.
+        /// </summary>
+        public readonly System.Collections.Generic.Dictionary<string, Vector2> RemoteTaskLife = new System.Collections.Generic.Dictionary<string, Vector2>();
+
         bool _armed;
         bool _forced;
         string _disarmReason;

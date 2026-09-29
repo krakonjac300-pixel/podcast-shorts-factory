@@ -1,3 +1,5 @@
+// Nights 2 and 3 are not in the free demo (SC_DEMO): their code stays out of its build, like their content.
+#if !SC_DEMO
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -218,6 +220,7 @@ namespace SecondCursor.Story
             E.State = EntityState.Observing;
             _g.Apps.Launch(AppIds.WorkQueue, null);
             yield return Wait(1.2f);
+            yield return WelcomeBack();
             GiveTask(ContentIds.TaskN2Briefing);
             yield return Wait(1.5f);
             if (_g.Mail.UnreadCount > 0)
@@ -233,8 +236,36 @@ namespace SecondCursor.Story
             GiveTask(ContentIds.TaskN2Verify3321);
             yield return WaitTask(ContentIds.TaskN2Verify3321);
             GiveTask(ContentIds.TaskN2Cache);
+            RunSide(ReadItFirst(), "read-it-first");
             yield return WaitTask(ContentIds.TaskN2Cache);
             _g.Flags.Set(Flags.TutorialDone);
+        }
+
+        /// <summary>Seconds the cursor rests on ~nxs0149.tmp before she asks you to read it (M3).</summary>
+        const float ReadItFirstHover = 2f;
+
+        /// <summary>
+        /// M3: the player's cursor rests on ~nxs0149.tmp (the file with their own Night 1 words in it) for 2 s: she types
+        /// READ IT FIRST, once, so nobody shreds it unread.
+        /// </summary>
+        IEnumerator ReadItFirst()
+        {
+            string id = "file:" + ContentIds.FileCacheN2;
+            float since = -1f;
+            while (CurrentBeat == "work" && _g.Files.Exists(ContentIds.FileCacheN2) && !_g.Tasks.IsCompleted(ContentIds.TaskN2Cache))
+            {
+                var hovered = _g.Player.Hovered;
+                bool on = hovered != null && hovered.elementId == id && !_g.Player.Held;
+                if (!on) since = -1f;
+                else if (since < 0f) since = Time.time;
+                else if (Time.time - since >= ReadItFirstHover)
+                {
+                    GameLog.Info(LogChannel.Story, "READ IT FIRST (cursor rested on ~nxs0149.tmp)");
+                    yield return SayDirect(_ellen, Lines("n2_read_it_first"), 4.5f);
+                    yield break;
+                }
+                yield return null;
+            }
         }
 
         /// <summary>
@@ -509,6 +540,7 @@ namespace SecondCursor.Story
 
             var d = _g.Difficulty;
             float withdrawAt = task.Data.timeout > 0f ? task.Data.timeout : d.EntityTaskWithdraw;
+            _g.RemoteTaskLife[taskId] = new Vector2(t0, withdrawAt);
             bool nudged = false;
             while (!Done(taskId))
             {
@@ -637,3 +669,4 @@ namespace SecondCursor.Story
         }
     }
 }
+#endif

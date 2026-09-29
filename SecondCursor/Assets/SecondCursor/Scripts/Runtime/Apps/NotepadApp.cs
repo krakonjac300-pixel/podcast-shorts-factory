@@ -30,6 +30,8 @@ namespace SecondCursor.Apps
         /// <summary>In conversation mode, Enter submits the player's line instead of just inserting a newline.</summary>
         public bool ConversationMode;
         public bool EntityTyping { get; private set; }
+        /// <summary>The speaker is "thinking" before a reply: the caret blinks although nobody types.</summary>
+        public bool ThinkingCaret;
         public event Action<string, CursorAgent> LineSubmitted;
         public float LastPlayerKeyTime { get; private set; } = -100f;
 
@@ -76,8 +78,17 @@ namespace SecondCursor.Apps
                 mx += w;
             }
 
+            // An editable file (Night 3's config files) gets a status line: how typing works and that Save applies it.
+            bool editable = CanSave;
             var frame = UIBuilder.Bevel(client, BevelStyle.Sunken, "Text Frame");
-            frame.rectTransform.Stretch(0, 20, 0, 0);
+            frame.rectTransform.Stretch(0, 20, 0, editable ? 15 : 0);
+            if (editable)
+            {
+                _status = UIBuilder.Text(client, G.Content.Text("notepad.editable.hint", "Text is added at the end. File > Save to apply."), Palette.Shadow);
+                _status.rectTransform.BottomStrip(1, 12, 4, 4);
+                Window.CloseGuard = ConfirmClose;
+            }
+            _baseTitle = title;
             _scroll = ScrollArea.Create(frame.rectTransform, "Text Scroll");
             ((RectTransform)_scroll.transform).Stretch(2, 2, 2, 2);
             _view = UIBuilder.Text(_scroll.Content, "", Palette.Text);
@@ -87,6 +98,58 @@ namespace SecondCursor.Apps
 
             if (file != null) SetText(file.Content);
             _inputStart = _text.Length;
+        }
+
+        PixelText _status;
+        string _baseTitle;
+        bool _dirty;
+        MessageBox _savePrompt;
+
+        /// <summary>The player changed an editable file and has not saved it (the title shows a *).</summary>
+        public bool HasUnsavedChanges => _dirty;
+
+        void SetDirty(bool dirty)
+        {
+            if (_dirty == dirty || Window == null) return;
+            _dirty = dirty;
+            var file = _fileId != null ? G.Files.GetFile(_fileId) : null;
+            string name = file != null ? file.Name : G.Content.Text("notepad.untitled", "Untitled");
+            Window.SetTitle(dirty ? name + "* - " + G.Content.Text("app.notepad") : _baseTitle);
+        }
+
+        /// <summary>
+        /// The player closes an edited file: ask first (Yes saves and closes, No closes without saving, Cancel keeps it
+        /// open), so a fixed config file is never thrown away silently.
+        /// </summary>
+        bool ConfirmClose(CursorAgent by)
+        {
+            if (!_dirty || !CanSave) return true;
+            if (_savePrompt != null && _savePrompt.IsOpen)
+            {
+                _savePrompt.Window.Focus(by);
+                return false;
+            }
+            var file = G.Files.GetFile(_fileId);
+            string name = file != null ? file.Name : "Untitled";
+            _savePrompt = Dialogs.Message(G, G.Content.Text("app.notepad"), G.Content.Format("notepad.save.prompt", name),
+                "icon_question", new[] { "Yes", "No", "Cancel" }, (result, a) =>
+                {
+                    _savePrompt = null;
+                    if (!IsOpen) return;
+                    if (result == "Yes")
+                    {
+                        if (Save(a ?? by)) Window.Close(a ?? by);
+                    }
+                    else if (result == "No") Window.Close(a ?? by);
+                });
+            GameLog.Info(LogChannel.Player, "Jotter asks to save " + name + " before closing");
+            return false;
+        }
+
+        protected override void OnClosed(CursorAgent by)
+        {
+            if (_savePrompt != null && _savePrompt.IsOpen) _savePrompt.Window.Close(by);
+            _savePrompt = null;
         }
 
         void MenuFor(string label, CursorAgent a)
@@ -133,6 +196,7 @@ namespace SecondCursor.Apps
             var file = G.Files.GetFile(_fileId);
             string text = _text.ToString();
             G.Files.SetContent(_fileId, text);
+            SetDirty(false);
             bool remote = by != null && by.IsEntity;
             G.Notifications.Show(G.Content.Text("os.name"), G.Content.Format(remote ? "file.saved.remote" : "file.saved", file.Name), "icon_notepad", null, "ui_select");
             G.Apps.RaiseFileSaved(_fileId, text, by);
@@ -251,10 +315,18 @@ namespace SecondCursor.Apps
                 if (ConversationMode) HoldKeys(text, by);
                 return;
             }
+            bool edited = false;
             for (int i = 0; i < text.Length; i++)
             {
                 char c = text[i];
                 LastPlayerKeyTime = Time.time;
+                if (c == ControlChars.Save)
+                {
+                    // Ctrl+S: File > Save for an editable file; never typed as text.
+                    if (!ConversationMode && CanSave) Save(by);
+                    continue;
+                }
+                if (!ConversationMode) edited = true;
                 if (c == '\b')
                 {
                     if (_text.Length > (ConversationMode ? _inputStart : 0)) _text.Length -= 1;
@@ -287,6 +359,7 @@ namespace SecondCursor.Apps
                 }
                 Sfx.Play(c == ' ' ? "key_space" : (c == '\n' ? "key_enter" : "key_tap"), by);
             }
+            if (edited && CanSave && by != null && by.IsPlayer) SetDirty(true);
             Changed(true);
         }
 
@@ -299,6 +372,7 @@ namespace SecondCursor.Apps
             foreach (char c in text)
             {
                 LastPlayerKeyTime = Time.time;
+                if (c == ControlChars.Save) continue;
                 if (c == '\b') { if (_held.Length > 0 && _held[_held.Length - 1] != '\n') _held.Length -= 1; }
                 else if (_held.Length < 120) _held.Append(c);
             }
@@ -335,7 +409,8 @@ namespace SecondCursor.Apps
             ReleaseHeldKeys();
             bool focused = Window.IsActive && PlayerCanType && !EntityTyping;
             bool typingCaret = EntityTyping;
-            _view.SetCaret(focused || typingCaret, _text.Length, typingCaret || (_caretBlink % 1.06f) < 0.53f);
+            // Thinking (before a keyword reply): the caret blinks where it will type, with no key sounds.
+            _view.SetCaret(focused || typingCaret || ThinkingCaret, _text.Length, typingCaret || (_caretBlink % 1.06f) < 0.53f);
         }
     }
 }

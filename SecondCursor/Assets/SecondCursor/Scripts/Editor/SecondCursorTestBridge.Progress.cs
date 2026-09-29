@@ -168,8 +168,15 @@ namespace SecondCursor.EditorTools
         static IEnumerator BuildDemo()
         {
             if (EditorApplication.isPlaying) { Say("ERROR: stop Play mode before building"); yield break; }
-            var report = SecondCursorBuild.BuildWindowsDemo();
-            Say(report != null ? SecondCursorBuild.Summary(report, SecondCursorBuild.DemoExePath).Replace('\n', ' ') : "ERROR: demo build did not run");
+            try
+            {
+                var report = SecondCursorBuild.BuildWindowsDemo();
+                Say(report != null ? SecondCursorBuild.Summary(report, SecondCursorBuild.DemoExePath).Replace('\n', ' ') : "ERROR: demo build did not run");
+            }
+            catch (UnityEditor.Build.BuildFailedException e)
+            {
+                Say("ERROR: demo build refused: " + e.Message);
+            }
         }
 
         // ------------------------------------------------------------------ game level
@@ -198,6 +205,7 @@ namespace SecondCursor.EditorTools
                     Say("records " + (g.RecordsArmed ? "armed" : "held (" + g.RecordsHeldReason + ")") + (GameRoot.ForceArmNext ? ", next root armed" : ""));
                     return Done();
                 }
+#if !SC_DEMO
                 case "forceexit":
                 {
                     // Night 3's debug exits (like the F1 panel's Force buttons, but without holding records: arm first).
@@ -207,6 +215,7 @@ namespace SecondCursor.EditorTools
                     n3.ForceExit(exit);
                     return WaitFor(() => G.Director != null && G.Director.CurrentBeat == "ending", 30f, "Night 3 ending (" + which + ")");
                 }
+#endif
                 case "haslog":
                 {
                     // Like waitlog, but over the whole recent log (a line written before this command also counts).

@@ -66,6 +66,17 @@ namespace SecondCursor.Story
                 line.rectTransform.At(0, 250, ScreenRig.Width, 12);
                 line.Align = TextAlign.Center;
             }
+            if (spec.FinalCard)
+            {
+                // The endings seen so far, under the thanks line: an invitation to Night Select.
+                var d = SaveSystem.Load();
+                int seen = 0;
+                foreach (var id in Core.Game.AchievementIds.Night3Endings)
+                    if (Array.IndexOf(d.endingsSeen, id) >= 0) seen++;
+                var endings = UIBuilder.Text(parent, c.Format("select.endings", seen), new Color32(0x8A, 0x8A, 0x84, 0xFF));
+                endings.rectTransform.At(0, 268, ScreenRig.Width, 12);
+                endings.Align = TextAlign.Center;
+            }
 
             g.Player.Enabled = true;
             g.Player.Visible = true;
@@ -73,12 +84,21 @@ namespace SecondCursor.Story
             var buttons = Buttons(g, spec, parent, nav);
             nav.Focus(buttons.Count > 0 ? buttons[0] : null);
             GameLog.Info(LogChannel.Story, "End card: " + spec.Id + " [" + ButtonsFor(spec) + "]");
+            // M12: on the demo's card the second cursor waits beside WISHLIST and politely steps aside for yours.
+            CourteousGhost ghost = null;
+            if (spec.DemoCard && cta != null)
+            {
+                var wishlist = buttons.Find(b => b.Hit != null && b.Hit.elementId == "button:Wishlist");
+                var anchor = wishlist != null ? ((RectTransform)wishlist.transform).WorldRect() : WishlistTextRect(cta);
+                ghost = new CourteousGhost(g, new Vector2(anchor.xMax + 10f, anchor.center.y + 8f));
+            }
 
             float t = 0f;
             while (true)
             {
                 t += Time.deltaTime;
                 nav.Tick();
+                ghost?.Tick(Time.deltaTime);
                 if (cta != null)
                 {
                     cta.enabled = (t % 1.6f) < 1.1f;
@@ -87,6 +107,54 @@ namespace SecondCursor.Story
                 }
                 else if (UnityEngine.Random.value < 0.006f) g.Fx.Glitch(0.05f, 0.4f);
                 yield return null;
+            }
+        }
+
+        /// <summary>The blinking WISHLIST NOW line's own extent (the text is centred in a full-width rect).</summary>
+        static Rect WishlistTextRect(PixelText cta)
+        {
+            var r = cta.rectTransform.WorldRect();
+            float w = PixelFont.MeasureLine(cta.text, true, cta.Scale);
+            return new Rect(r.center.x - w * 0.5f, r.y, w, r.height);
+        }
+
+        /// <summary>
+        /// The second cursor resting beside the call to action. When your cursor comes within 60 px it steps 30 px
+        /// aside (away from yours) and drifts back once you leave. It never presses anything.
+        /// </summary>
+        sealed class CourteousGhost
+        {
+            const float Near = 60f, Step = 30f, Speed = 160f;
+            readonly GameServices _g;
+            readonly Vector2 _rest;
+            bool _logged;
+
+            public CourteousGhost(GameServices g, Vector2 rest)
+            {
+                _g = g;
+                _rest = rest;
+                g.Entity.Interrupt();
+                g.Entity.Brain.Enabled = false;
+                g.Entity.Teleport(rest);
+                g.CoroutineHost.StartCoroutine(g.Entity.Appear(null, 1.2f, false));
+            }
+
+            public void Tick(float dt)
+            {
+                var me = _g.EntityAgent.Position;
+                var you = _g.Player.Position;
+                Vector2 target = _rest;
+                if (Vector2.Distance(you, _rest) < Near || Vector2.Distance(you, me) < Near)
+                {
+                    float side = you.x <= _rest.x ? 1f : -1f;
+                    target = _rest + new Vector2(side * Step, 0f);
+                    if (!_logged)
+                    {
+                        _logged = true;
+                        GameLog.Info(LogChannel.Entity, "End card: the second cursor steps aside from WISHLIST");
+                    }
+                }
+                _g.Entity.Teleport(Vector2.MoveTowards(me, target, Speed * dt));
             }
         }
 

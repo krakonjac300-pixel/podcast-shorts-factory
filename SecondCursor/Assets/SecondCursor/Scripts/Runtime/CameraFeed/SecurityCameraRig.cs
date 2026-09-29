@@ -102,6 +102,9 @@ namespace SecondCursor.CameraFeed
         // Story state as displayed
         float _doorTarget, _door, _doorVelocity, _headTurn, _monitorPulse = 1f;
         Vector2 _handPos;
+        float _officeSince = -100f;
+        /// <summary>M1: seconds the arm ignores the mouse after the office feed opens, its lag, and how long the lag lasts.</summary>
+        const float ArmDeadSeconds = 1.2f, ArmLagSeconds = 0.3f, ArmLagWindow = 2f;
         FigureStage _figureStage;
         float _lightLevel = 1f, _dipTime, _dipDepth;
 
@@ -119,6 +122,20 @@ namespace SecondCursor.CameraFeed
         {
             ActiveCamera = camId;
             RefreshCameras();
+        }
+
+        /// <summary>
+        /// M1: where the seated operator's name tag goes on the office feed (viewport 0..1, y up), just above the head.
+        /// False when the office feed is not the one rendering or the head is behind the camera.
+        /// </summary>
+        public bool OperatorTagViewport(out Vector2 viewport)
+        {
+            viewport = default;
+            if (_active == null || _active != _office || _head == null || !_head.gameObject.activeInHierarchy) return false;
+            var p = _office.Cam.WorldToViewportPoint(_head.position + Vector3.up * 0.32f);
+            if (p.z <= 0f) return false;
+            viewport = new Vector2(p.x, p.y);
+            return viewport.x > 0.02f && viewport.x < 0.98f && viewport.y > 0.02f && viewport.y < 0.98f;
         }
 
         public bool HasSignal(string camId) => !SignalLost && AreaFor(camId) != null;   // cam04 only while it is online (Night 3)
@@ -475,6 +492,9 @@ namespace SecondCursor.CameraFeed
             var want = _viewing && HasSignal(ActiveCamera) ? AreaFor(ActiveCamera) : null;
             if (want == _active) return;
             if (_active != null) EnableArea(_active, false);
+            // M1: the office feed just came up: the seated arm plays dead for a moment before it answers the mouse.
+            if (want == _office && _office != null) _officeSince = Time.time;
+            if (want != null && want == _sublevel) _cam04Since = Time.time;
             _active = want;
             if (_active == null) return;
             EnableArea(_active, true);
@@ -551,10 +571,15 @@ namespace SecondCursor.CameraFeed
             _head.rotation = Quaternion.Slerp(atMonitor, atCamera, turn);
 
             // The mouse hand follows the player's real mouse (how they recognise themselves), else idles on the mouse.
-            var target = SeatedMimicsPlayer
+            // M1: for the first 1.2 s after the feed opens it ignores the mouse (the streamer wiggles, nothing), then it
+            // answers with a 0.3 s lag for a while before it tracks normally.
+            float watched = Time.time - _officeSince;
+            bool mimic = SeatedMimicsPlayer && watched >= ArmDeadSeconds;
+            var target = mimic
                 ? new Vector2(Mathf.Clamp(PlayerHand.x, -1f, 1f), Mathf.Clamp(PlayerHand.y, -1f, 1f))
                 : new Vector2((Mathf.PerlinNoise(t * 0.35f, 3.3f) - 0.5f) * 0.6f, (Mathf.PerlinNoise(t * 0.29f, 8.8f) - 0.5f) * 0.5f);
-            _handPos = cut ? target : Vector2.Lerp(_handPos, target, 1f - Mathf.Exp(-dt * 14f));
+            float follow = mimic && watched < ArmDeadSeconds + ArmLagWindow ? 1f / ArmLagSeconds : 14f;
+            _handPos = cut ? target : Vector2.Lerp(_handPos, target, 1f - Mathf.Exp(-dt * follow));
             UpdateArm();
 
             _monitorPulse = 1f + 0.04f * Mathf.Sin(t * 1.7f) + 0.05f * (Mathf.PerlinNoise(t * 2.3f, 0.5f) - 0.5f);

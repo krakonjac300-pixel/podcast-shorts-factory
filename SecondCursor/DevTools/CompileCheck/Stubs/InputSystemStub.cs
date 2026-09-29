@@ -51,6 +51,7 @@ namespace UnityEngine.InputSystem
         public KeyControl rightShiftKey => null;
         public KeyControl leftCtrlKey => null;
         public KeyControl rightCtrlKey => null;
+        public KeyControl sKey => null;
         public KeyControl upArrowKey => null;
         public KeyControl downArrowKey => null;
         public KeyControl leftArrowKey => null;

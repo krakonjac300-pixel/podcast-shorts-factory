@@ -39,7 +39,7 @@
     },
     {
       "id": "cache_tmp_n2", "name": "~nxs0149.tmp", "type": "tmp", "folder": "intake", "size": "2 KB", "modified": "1998-11-19 01:48",
-      "content": "NEXUS TEMPORARY FILE: SAFE TO DELETE\nOwner: WS-04   Created: 11/19/98 01:48\n\n[autosave buffer: Untitled]\nSTOP\nNOT THAT FILE\nPLEASE\n{line1}\nWHO TOLD YOU\nTO SHRED IT\n{line2}\nDO YOU WANT TO SEE\nWHAT THEY SEE\n{line3}\n\n[clipboard]\nremain seated\n\n[recent files]\n/intake/employee_017.dat\n/intake/employee_214.dat\n/intake/employee_214.dat",
+      "content": "NEXUS TEMPORARY FILE: SAFE TO DELETE\nOwner: WS-04   Created: 11/19/98 01:48\n\n[autosave buffer: Untitled]\nSTOP\nNOT THAT FILE\nPLEASE\n{log1}\nWHO TOLD YOU\nTO SHRED IT\n{log2}\nDO YOU WANT TO SEE\nWHAT THEY SEE\n{log3}\n\n[clipboard]\nremain seated\n\n[recent files]\n/intake/employee_017.dat\n/intake/employee_214.dat\n/intake/employee_214.dat",
       "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "junk", "template"]
     },
     {

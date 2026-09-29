@@ -616,6 +616,129 @@ everyone still wins. Spec tables updated in `Docs/Design/Expansion.md` 7.1 to 7.
   the bin (instead of near your cursor) keeps her creepy.
 - **Not yet:** the simulation does not model the corner-trap and mid-snatch fixes (it assumed mid-path grabs); marketing tweaks M1-M15.
 
+### Expansion phase G (release safety, clarity, stream moments, store art, final builds)
+
+The Phase G brief (`_work/2026-09-29/launch/PhaseG_Brief.md`, sections A to F) with its inputs: `ReviewPhaseE.md`, `LaunchAudit.md`
+section 4 (now in `Docs/Launch/`), `MarketingPackFull.md` 1.4 (now in `Docs/Launch/`), and `ReviewPhaseF.md`, added mid-phase. Phase F's
+tuning is unchanged: no difficulty value moved, and its finale idle fast-forward is kept (only its idle detection was fixed).
+
+- **Release safety (ReviewPhaseE).**
+  1. `SteamBridge` (STEAMWORKS_NET only): nothing is pushed until Steam has delivered the user's stats (`UserStatsReceived_t` for this app
+     with `k_EResultOK`, or a `GetAchievement` poll every 2 s as a fallback). Saved achievements and `TUG_WINS` are queued at init; unlocks
+     and the stat go through the queue; an id Steam refuses stays pending, and a failed `StoreStats` puts back everything that call sent.
+     The rules live in the engine-free `Core/Game/AchievementPushQueue.cs` (unit-tested); the CompileCheck stub gained the stats types.
+  2. `SecondCursorBuild.BuildWindows` refuses SC_DEMO in the Standalone defines. `SecondCursorBuildGuard` (an `IPreprocessBuildWithReport`,
+     so it also covers File > Build Settings) refuses a non-demo build while `Assets/SecondCursor/_DemoExcluded` exists or SC_DEMO is
+     defined. The demo build sets a SessionState flag while it moves content; on every editor load (and domain reload) content left in
+     `_DemoExcluded` by an interrupted demo build is moved back once the editor is idle.
+  3. Both builds refuse to ship when Steamworks.NET is compiled in (STEAMWORKS_NET in the defines, or the runtime asmdef's version define
+     with the package present) and the App ID is still 480 or `credits.steamworks` is missing (`SteamReleaseProblem`).
+  4. QA launch arguments: `-scnight` / `-scbeat` make progress.json read-only for the whole launch (`SaveSystem.ProgressReadOnly`: no
+     night start, checkpoint, completion, tug total or achievement is written; settings still are). They stay available in release
+     builds for smoke tests. `-scsavedir` logs a warning with the folder at launch.
+  5. The first-launch flashing choice re-reads settings.json before saving it (Options changed behind it are kept).
+  6. `SaveSystem.Read`: only a file that was read and does not parse is set aside as `.corrupt`. IO and access errors are retried
+     (4 attempts, 40/80/120 ms). Review fix: a main file that stays unreadable is never written over (not even from its older `.bak`)
+     until a later read succeeds.
+- **Review fixes (ReviewPhaseF).** 1: the finale's idle check measures movement from the last real move (4 px) instead of per frame,
+  and counts the right button, the wheel and typing. 2: pausing inside a tug win's hit-stop saves the scale the hit-stop returns to
+  (`ConflictSystem.ScaleBeforeHitStop`), so Resume never leaves the game at 3%. 3: the second cursor never lets go during a tug: the
+  intercept carry, `DragTo` and the story's `CarryFileIn` (now `EntityController.CarryTo`, contest-aware) wait a fight out before the
+  release; `CarryFileIn` leaves a file the player took where the player put it. 4: `RunCancelShred` resets the Panicked state when the
+  dialog goes during the reaction delay. 5: every tug she wins during one intercept counts (the `CounterTugLosses` delta, like
+  KeepAway). 6: `AdaptiveAssist.SetLevel` respects the mode's floor.
+- **Clarity (LaunchAudit section 4, all 20 items; 7 was done in Phase F).**
+  1. Jotter, editable files: `*` in the title while unsaved, a status line ("Text is added at the end. File > Save (Ctrl+S) to apply."),
+     Ctrl+S saves (`ControlChars.Save` through both input backends, bridge `type \s`), and closing asks "Save changes to session.cfg?"
+     Yes / No / Cancel (`OSWindow.CloseGuard`, player closes only).
+  2. Log Off: before 7:00 without the policy the dialog names `Restricted\session.cfg`; `logoff.disabled` names the folder too; the
+     7:00 notice says "Log off from the Nexus menu."; a notice announces "Log Off CROURKE... added to the Nexus menu." at the lost hours.
+     Both notices open the Nexus menu when clicked (`StartMenu.OpenFromElsewhere`, next frame), and only the player's own presses close
+     that menu now (the ghosts' clicks used to close it).
+  3. The Batch 44/45 hints name "Workstation (File Manager)"; the Quick Start says "Workstation opens File Manager".
+  4. After her first three Jotter lines a notice says "Jotter: a remote session is typing. Type a reply and press Enter." (Deck
+     variant); `ex_stop` silence starts with TYPE SOMETHING.
+  5. Night 2's remote tasks say "Not assigned by Night Operations." and their target (folder and file, or Personnel number).
+  6. `n2_rounds_again` adds OR LOOK AT ANOTHER CAMERA; if the player never reopens the viewer, that line is typed at the second forced
+     open.
+  8. The last card shows "Endings seen: n of 3". 9: the "drag firmly away" notice on the first lost tug on every night.
+  10. "last operator", "previous operator", "old operator", "before me", "last guy" join every Ellen exchange's Gary group.
+  11, and the user's priority note: Help explains every mechanic of the three nights in the UI's words (Work Queue and remote-session
+     tasks, moving files, shredding, work orders, tug-of-war and how to win it, typing in Jotter, cameras and switching, locked folders
+     and codes, saving files, the Nexus menu and Log Off, pausing); the Help window is larger, scrolls and follows Reading text. The
+     Quick Start points to NEXUS Help for everything else.
+  12. The disclaimer says "in Options (Esc, or the || button on the taskbar)".
+  13. The pause menu's Quit asks first. 14: Esc on the code prompt closes only the prompt (`AppManager.EscapeHandledFrame`).
+  15. Demo spoilers: 76 base strings only Nights 2 and 3 or Records use (hidden achievement text, rounds, log off, the code prompt,
+     third pointer, remote queue, Night 2 cards) moved to `Resources/Content/full/strings.json`, loaded in the full game after the base
+     and before the night overlays; the demo build leaves `full` out with night2 and night3. Night 2/3 directors, `EndingSequence.Night3`,
+     the CAM 04 and CAM 00 sets, Night 3 template tokens and personnel patches and the shelf names are compiled out of SC_DEMO.
+  16. Notices and the Work Queue detail pane follow Reading text (Large doubles them; the queue opens wider); notices grow to fit their
+     text (a third wrapped line used to spill out).
+  17. Every hint that says "drag" has a `hintDeck` (Nights 1 to 3).
+  18. Welcome back: a short Quick Start ("Welcome back, Operator.") when Night 2 or 3 is the first night of a launch in a counted run.
+  19. The 3:31 to 6:41 clock rolls over 1.2 s with soft ticks. 20: later launches show "Click to continue" under the disclaimer.
+  Also: "hello" no longer counts as swearing (`=hell` in the categories).
+- **Stream moments (MarketingPackFull 1.4).** M1: a CCTV tag "CROURKE / WS-04" above the seated operator on CAM 03; the arm ignores
+  the mouse for 1.2 s after the feed comes up, then follows with a 0.3 s lag for 2 s. M2: keyword hits wait 2.0 s with a blinking caret
+  (the old 1.1 s plus the 0.9 s think), fallbacks and silence 0.4 s; the slang group (skibidi, rizz, sigma, gyatt, ohio: THAT WORD IS
+  NEW / I STOPPED KEEPING UP) above "who/what" in every Ellen exchange. M3: `~nxs0149.tmp` quotes the Night 1 lines as a session log
+  (`02:04 CROURKE> make me`, new `{log1..3}` tokens and `SaveData.playerLineMinutes`); READ IT FIRST when the cursor rests on the file
+  for 2 s; "Contains operator input." on the task. The demo and full game have different product names, so their saves are separate:
+  no carry-over is claimed. M4: in the SHRED dark a quiet heater tick about once a second until the card, and the player's arrow wears
+  her palette for the one frame it types the C. M5: on a lost tug she nods (4 px) and the strain sags two semitones over 0.3 s. M6: the
+  Night 1 reveal's drone drops 6 dB and a semitone while the feed is shut and snaps back; a reopened feed resolves the figure out of 0.5 s
+  of static. M7: 1.2 s of silence and a 2 s blinking caret after "thank y"; the 209 shred confirm adds "Record owner: 209 (held)."
+  M8: two missed replies to AT SEVEN get another turn each, the third miss gets STAY / OR LET ME GO and one more turn; the tray clock is
+  amber from 6:55 to 7:00. M9: a remote Work Queue row loses 10% every 15 s of its life and blinks for its last 3 s. M10: CAM 04's loop
+  starts at shelf 17 each time the feed switches to it and holds shelf 18 for 5 s, with a one-frame flicker on each swap
+  (`Core/Story/ShelfCaptions.cs`). M11: hollow clicks for the second cursor, soft and 15% quieter for the third, a soft pat and a
+  rattle when a ghost's press is refused by another ghost. M12: on the demo card the second cursor rests beside WISHLIST (the button,
+  or the WISHLIST NOW line) and steps 30 px aside when yours comes within 60 px. M13: a pale dotted trail of the replayed drag fades
+  over 1.5 s. M14: 2.4 s of dead air with everything ducked (`AudioManager.Duck`), then the Disposal bin rattles for 0.4 s before the
+  file is back. M15: the clock roll above, the notice's Duration line 0.6 s later, and the notice stays until clicked.
+- **Store art** (`Editor/SecondCursorStoreArt.cs`, `SecondCursorStoreArtCanvas.cs`; menu *SECOND CURSOR > Render Store Art*, bridge
+  `storeart`): capsules (header, small, main, vertical), library capsule, header, hero (no text) and logo (transparent), page background,
+  community icon, client icon (.ico and PNG) and 19 achievement icons with locked versions, drawn from the game's sprites and bitmap font
+  into `Builds/StoreArt/`. Screenshots: bridge `storeshot NAME` / `storeshotafter SECONDS NAME` capture the Game view supersampled,
+  crop to 16:9 and resample to 1920x1080 into `Builds/StoreArt/screenshots/` (10 taken, S0 and S1 only).
+- **Builds.** Apply Release Settings also turns off engine diagnostics, cloud diagnostics, analytics, performance reporting, hardware
+  statistics and the crash report API (checked in `ProjectSettings/UnityConnectSettings.asset` and `ProjectSettings.asset`). Each build
+  empties its output folder first and moves `*_BackUpThisFolder_ButDontShipItWithYourGame` to `Builds/Symbols/<Windows|WindowsDemo>/`.
+- **Bridge** (`SecondCursorTestBridge.PhaseG.cs`): `savecheck`, `qaread on|off`, `settingsset FIELD VALUE`, `storeart`, `storeshot`,
+  `storeshotafter`, `buildguard`, `democrash`, `contentfolders`, `reload`, `steamcheck`; `type` understands `\s` (Ctrl+S); `build` and
+  `builddemo` report a refused build instead of throwing.
+- **Tests.** CoreTests 278 (25 new: `AchievementPushQueueTests`, `PhaseGTests`: demo strings, help coverage, hints and Deck hints,
+  remote task text, dialogue keywords, session log tokens and saved minutes, the shelf loop, the assist floor). Updated for the full
+  strings folder: `ContentTests`, `NightContentTests`, `PhaseEContentTests`. CompileCheck: 8 configurations OK (stubs: stats types,
+  `Keyboard.sKey`).
+- **Checked through the bridge** (saves under `_work/2026-09-29/saves/phaseG`): save lock and damaged file (`savecheck`: short lock
+  retried, long lock not overwritten, damaged file set aside); read-only QA progress; the disclaimer keeping a frame rate set behind it;
+  `define SC_DEMO on` refused by `build` and the guard (and the editor compiles with SC_DEMO); an interrupted demo build refused, then
+  restored by a domain reload; the Steam release check. Fresh save from the title: New Game, Normal, Night 1 with the new Quick Start
+  line, the Workstation hint, the Jotter notice, slang and last-operator replies, a real tug won and 017 shredded (back 2.4 s later),
+  the CAM 03 tag, the card; relaunch, Continue to Night 2 (Welcome back, READ IT FIRST, the session log in the cache file, remote task
+  text, finished Gary with the 209 note, the look-away line), card; relaunch, Continue to Night 3 (Welcome back, Esc on the code prompt,
+  the code, session.cfg edited: title `*`, the save prompt, Cancel, Ctrl+S, close without prompt; shelf 17 then 18 on CAM 04; rounds at
+  3x; the clock roll, the Duration line, the Log Off notice; three missed finale replies steered; LOG OFF from the Nexus menu), card.
+  Separately: notices stack and fit, the Nexus menu opens from the Log Off notice, the amber clock, the SHRED ending, "stay" after the
+  steer. 0 game errors, 0 compiler warnings.
+- **Judgement calls.**
+  - M8's line is typed in Ellen's voice as two lines, STAY / OR LET ME GO (her lines never carry punctuation; the content test enforces
+    it), and the steer gets one more turn (otherwise it names two words nobody can type any more).
+  - M2's think-pause is added to the existing 1.1 s beat for hits (2.0 s total) and replaces it for misses (0.4 s).
+  - M6's "feed room tone" does not exist (the feed has no audio of its own); the duck is applied to the reveal's drone, which is what
+    plays while the feed is shut.
+  - M4's heater tick reuses a low, quiet key tap (no new procedural sound).
+  - The tagline appears only on the page background: Valve's capsule rules and the capsule brief keep capsules to the title.
+  - Help follows Reading text and scrolls, so it can list every mechanic without a second screen.
+  - The Welcome back refresher shows only in counted runs (not after a debug jump), once per launch.
+  - Only the player's presses close the Nexus menu (the ghosts clicked it shut in the finale).
+  - A QA launch keeps settings writable (window size and volume are harmless).
+- **Not yet.** Steamworks.NET and the real App IDs (the build checks will insist on them); Steam Deck hardware tests; D3D12 and
+  DirectStorage files still ship (4.5 MB and 1.7 MB) although D3D11 is the only API; bundleVersion is 0.9.0 (set 1.0.0 by hand before
+  release); the store art is a generated first pass (a hand-made key art can replace it); a trailer.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -635,6 +758,7 @@ waitbeat reveal 60 | waitflag camera_unlocked 90 | waittask t_shred_017 30 | wai
 savedir D:\Downloads\Podaci\Project 1\_work\saves\test   # test saves (then resetsave, saveset, settings)
 title records | achievements next | haslog Achievement unlocked | deck on | store on | define SC_DEMO on | builddemo
 dragtug 915 66 1.5 3 | tugplay 600 | tugplay 0 | waitaction Lurk | tugs      # Phase F: real tugs played by the scripted cursor
+savecheck | qaread on | settingsset frameRate 60 | buildguard | democrash | reload | steamcheck | storeart | storeshot 04_tug | storeshotafter 0.45 04_tug   # Phase G
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

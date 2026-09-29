@@ -94,16 +94,20 @@ namespace SecondCursor.Story
         {
             if (_room != null) Object.Destroy(_room.gameObject);
             _room = null;
+#if !SC_DEMO
             ClearNight3();
+#endif
         }
 
         public IEnumerator Run()
         {
+#if !SC_DEMO
             if (_spec.Kind != EndingKind.Blackout)
             {
                 yield return RunNight3();
                 yield break;
             }
+#endif
             var g = _g;
             // Progress was saved by the night's director just before this (NightDirector.CompleteNight).
             g.Flags.Set(Flags.Ending);

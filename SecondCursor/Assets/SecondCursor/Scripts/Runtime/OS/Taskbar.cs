@@ -26,6 +26,11 @@ namespace SecondCursor.OS
         RectTransform _buttonArea;
         RectTransform _tray;
         PixelText _clock;
+
+        /// <summary>The tray clock in amber (Night 3: the last five minutes before 7:00).</summary>
+        public bool ClockAmber;
+        /// <summary>A deep amber that still reads on the grey tray.</summary>
+        static readonly Color32 AmberClock = new Color32(0xA8, 0x62, 0x00, 0xFF);
         readonly List<Image> _mice = new List<Image>();
         readonly Dictionary<OSWindow, UiButton> _buttons = new Dictionary<OSWindow, UiButton>();
         readonly List<OSWindow> _order = new List<OSWindow>();
@@ -165,6 +170,8 @@ namespace SecondCursor.OS
         {
             if (_g == null) return;
             _clock.text = _g.Clock.Format12();
+            Color32 clockColor = ClockAmber ? AmberClock : Palette.Text;
+            if (!_clock.color.Equals((Color)clockColor)) _clock.color = clockColor;
             if (_dirty) Rebuild();
             UpdateTask();
             if (_deviceFlash > 0f)

@@ -31,7 +31,7 @@ namespace SecondCursor.Core.Story
 
         static readonly string[][] Categories =
         {
-            new[] { "swear", "fuck", "shit", "wtf", "damn", "hell", "bitch", "crap" },
+            new[] { "swear", "fuck", "shit", "wtf", "damn", "=hell", "bitch", "crap" },
             new[] { "who", "who", "what are you", "whats that", "what is this", "name", "whos" },
             new[] { "why", "why", "reason" },
             new[] { "refuse", "no", "wont", "never", "leave me", "go away", "fuck off", "stop" },

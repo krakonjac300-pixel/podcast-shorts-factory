@@ -1,3 +1,5 @@
+// Nights 2 and 3 are not in the free demo (SC_DEMO): their code stays out of its build, like their content.
+#if !SC_DEMO
 using System.Collections;
 using System.Collections.Generic;
 using SecondCursor.Core;
@@ -30,6 +32,8 @@ namespace SecondCursor.Story
 
         void ClearNight3()
         {
+            _heaterOn = false;
+            if (_g.PlayerView != null) _g.PlayerView.ShowEntityPalette = false;
             foreach (var go in _temp) if (go != null) Object.Destroy(go);
             _temp.Clear();
             if (_caseyView != null) Object.Destroy(_caseyView.gameObject);
@@ -58,12 +62,31 @@ namespace SecondCursor.Story
 
             if (_spec.Kind == EndingKind.LogOff) yield return LogOffOpening();
             else yield return PowerDown();
+            // M4: in the SHRED dark the heater clicks about once a second until the card ("the heater is clicking").
+            if (_spec.Kind == EndingKind.Shred)
+            {
+                _heaterOn = true;
+                g.CoroutineHost.StartCoroutine(HeaterTicks());
+            }
 
             var room = Room();
             if (_spec.SystemLines != null && _spec.SystemLines.Length > 0) yield return TypeSystemLines(room, _spec.SystemLines);
             yield return TypeSpoken(room, _spec.Lines ?? System.Array.Empty<string>(), _spec.Speakers);
             if (_spec.Stinger) yield return Cam00Stinger(room);
+            _heaterOn = false;
             yield return ShowCard(room);
+        }
+
+        bool _heaterOn;
+
+        IEnumerator HeaterTicks()
+        {
+            while (_heaterOn)
+            {
+                _g.Audio.Play("key_tap", 0.16f, Random.Range(0.5f, 0.56f), 0.35f);
+                float next = Time.time + Random.Range(0.9f, 1.1f);
+                while (_heaterOn && Time.time < next) yield return null;
+            }
         }
 
         /// <summary>Night 1's power down: the hum stops, the tube dies, black.</summary>
@@ -277,6 +300,13 @@ namespace SecondCursor.Story
                     }
                     float pan = Audio.AudioManager.PanFor(ellenTypes ? g.EntityAgent.Position.x : caret.x);
                     g.Audio.Play(ch == ' ' ? "key_space" : "key_tap", 0.9f, Random.Range(0.9f, 1.05f), pan);
+                    // M4: on the one frame your own arrow types the C of your name, it wears her colours.
+                    if (_spec.Kind == EndingKind.Shred && !ellenTypes && letter == line.Length - 1 && line.EndsWith(" C") && g.PlayerView != null)
+                    {
+                        g.PlayerView.ShowEntityPalette = true;
+                        yield return null;
+                        g.PlayerView.ShowEntityPalette = false;
+                    }
                     letter++;
                     yield return Waits.Seconds(ch == ' ' ? 0.16f : Random.Range(0.07f, 0.16f));
                 }
@@ -357,3 +387,4 @@ namespace SecondCursor.Story
         }
     }
 }
+#endif

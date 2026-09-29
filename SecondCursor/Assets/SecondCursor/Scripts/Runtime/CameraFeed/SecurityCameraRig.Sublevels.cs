@@ -31,11 +31,19 @@ namespace SecondCursor.CameraFeed
         /// <summary>The bright point crossing the Admin 1 CRT: 0..1 along the screen, below 0 hidden.</summary>
         public float AdminPointer { get; set; } = -1f;
 
-        /// <summary>The bottom-left caption for a camera (CAM 04's current shelf label), or "".</summary>
+        /// <summary>When the feed last switched to CAM 04 (the caption loop starts there, M10).</summary>
+        float _cam04Since;
+
+        /// <summary>
+        /// The bottom-left caption for a camera (CAM 04's current shelf label), or "". M10: the loop starts at shelf 17
+        /// each time CAM 04 comes up and holds the player's own shelf 18 for 5 s (<see cref="Core.Story.ShelfCaptions"/>).
+        /// </summary>
         public string CaptionFor(string camId)
         {
             if (camId != ContentIds.Cam04 || !Cam04Online || SignalLost || ShelfLabels == null || ShelfLabels.Length == 0) return "";
-            return ShelfLabels[ShelfIndex(Time.time, ShelfLabels.Length)];
+            int start = Core.Story.ShelfCaptions.Find(ShelfLabels, Core.Story.ShelfCaptions.StartShelf);
+            int hold = Core.Story.ShelfCaptions.Find(ShelfLabels, Core.Story.ShelfCaptions.HoldShelf);
+            return ShelfLabels[Core.Story.ShelfCaptions.Index(Time.time - _cam04Since, ShelfLabels.Length, start, hold)];
         }
 
         /// <summary>Which of <paramref name="count"/> labels shows at time <paramref name="t"/> (one full cycle per pan).</summary>
@@ -48,8 +56,11 @@ namespace SecondCursor.CameraFeed
 
         void BuildExtraAreas()
         {
+#if !SC_DEMO
+            // Night 3 only: the demo build leaves both sets (and their camera names) out.
             _sublevel = BuildSublevel();
             _admin = BuildAdmin();
+#endif
         }
 
         Area ExtraAreaFor(string camId)
@@ -103,6 +114,7 @@ namespace SecondCursor.CameraFeed
             }
         }
 
+#if !SC_DEMO
         // CAM 04: Sublevel C, a 3 x 14 m aisle between storage shelves, seen from above the entrance.
         Area BuildSublevel()
         {
@@ -192,5 +204,6 @@ namespace SecondCursor.CameraFeed
             AddCamera(a, "CAM 00", new Vector3(RoomHalfW - 0.15f, 2.34f, RoomHalfD - 0.15f), new Vector3(-0.5f, 0.92f, -0.45f), 70f, 20f);
             return a;
         }
+#endif
     }
 }

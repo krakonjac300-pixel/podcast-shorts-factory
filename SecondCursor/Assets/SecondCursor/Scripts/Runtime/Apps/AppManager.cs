@@ -206,6 +206,11 @@ namespace SecondCursor.Apps
             }
         }
 
+        /// <summary>The frame a focused window used Esc itself (the pause menu ignores that press).</summary>
+        public static int EscapeHandledFrame { get; private set; } = -1;
+
+        public static void MarkEscapeHandled() => EscapeHandledFrame = Time.frameCount;
+
         /// <summary>Route keyboard input to the focused window's app.</summary>
         public void RouteKeyboard(IInputBackend input, CursorAgent player)
         {

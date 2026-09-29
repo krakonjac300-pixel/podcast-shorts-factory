@@ -14,6 +14,53 @@ Legend: **P0** = blocks upload or review, or ships something wrong. **P1** = blo
 
 ---
 
+## Status after Phase G (2026-09-29)
+
+Everything below this section is the original 11:15 audit; this block says where each item stands now. Details are in
+`Docs/HANDOFF.md` (phases E, F and G) and `Docs/Launch/LaunchAudit.md` (the 17:45 re-audit).
+
+### Done in the project (engineering)
+
+| # | Item | Status |
+|---|---|---|
+| 1 | AI/editor packages and their defines | Done (Phase E prep): manifest trimmed, defines stripped by Apply Release Settings |
+| 2 | Esc menu, Quit and flashing choice from the first screen | Done: title Options and Quit, first-launch Full effects / Reduce flashing, pause menu everywhere, Quit asks first (Phase G) |
+| 3 | Display, frame rate, cursor confinement | Done (Phase E) |
+| 4 | Crash-safe saves, Steam Cloud layout | Done: progress.json and settings.json split, atomic writes with .bak; Phase G: a locked file is retried and never overwritten, only an unparseable file is set aside as .corrupt |
+| 5 | Steamworks code | Done in code, package not installed: `SteamBridge` waits for the user's stats before pushing, queues and retries refused pushes (Phase G); builds refuse to ship with App ID 480 or without `credits.steamworks` once STEAMWORKS_NET is on |
+| 6 | Prototype copy | Done: per-night end cards, Credits screen; the WISHLIST card is demo-only |
+| 7 | Version | Shown in the pause caption and on the title. Still `0.9.0`: set `1.0.0` by hand before the release build (Apply Release Settings leaves 1.0.0 alone) |
+| 8 | Icons | App icon generated at every size; Phase G adds the community icon, the client icon (.ico and .png) and all store art (below) |
+| 9 | Build hygiene | Done: D3D11 only, only the game scene, output folder cleaned before each build, `*_BackUpThisFolder_ButDontShipItWithYourGame` moved to `Builds/Symbols/<build>` after each build, a build with SC_DEMO in the defines or with demo content still moved out is refused |
+| 10 | Steam Deck | Done in code (floating keyboard calls, Deck wording and hints, Large reading text for Jotter, Mail, Help, toasts and the Work Queue detail). Hardware tests still open |
+| | Unity telemetry | Done (Phase G): Apply Release Settings turns off engine diagnostics, cloud diagnostics, analytics, performance reporting and hardware statistics, and the crash report API |
+| | QA launch arguments | `-scnight` / `-scbeat` never write progress.json; `-scsavedir` logs where saves go |
+| | Demo spoilers | Night 2/3 strings and hidden achievement text live in `Content/full` (left out of the demo), Night 2/3 code is compiled out of the demo |
+
+### Generated store art (Phase G, `SECOND CURSOR > Render Store Art`, output `Builds/StoreArt/`)
+
+- Capsules: header 920x430, small 462x174, main 1232x706, vertical 748x896.
+- Library: capsule 600x900, header 920x430, hero 3840x1240 (no text), logo 1280x720 (transparent).
+- Page background 1438x810, community icon 184x184 (JPG and PNG), client icon 32x32 and 256x256 PNG plus `client_icon.ico` (16, 32, 48, 256).
+- `achievements/`: the 19 icons at 256x256 (`ACH_*.png`) and their locked versions (`ACH_*_locked.png`).
+- `screenshots/`: 10 shots at 1920x1080 (S0 and S1 only, per MarketingPackFull): title, Night 1 desk, the second cursor arriving, a tug-of-war, the Jotter conversation (two), CAM 03 (two), the remote Work Queue task, the lost three hours.
+- These are placeholders good enough for a Coming Soon page; a hand-made key art pass can replace any of them later.
+
+### Owner: you (Steamworks partner site and business)
+
+1. Pay the Steam Direct fee (US$100 per app), sign the distribution agreement, finish bank, tax and identity forms. The 30-day wait before release starts at payment.
+2. Create the App IDs: the full game and a separate demo app. Put them in `Game/SteamBridge.cs` (`FullGameAppId`, `DemoAppId`) and set `StoreUrl`.
+3. Install Steamworks.NET as described in section 4 and HANDOFF phase E ("How to add Steamworks.NET later"), copy its LICENSE text into `credits.steamworks` (the build refuses to ship without it), rebuild both builds.
+4. Store page: short and long description (MarketingPackFull section 2 with the LaunchAudit 2.2 corrections), 20 tags, system requirements (Windows 10 64-bit, DX11), English only, "Coming soon" or "Spring 2027"; upload the capsules, library assets and at least 5 of the screenshots from `Builds/StoreArt`. Coming Soon at least 2 weeks before release; review takes 3 to 5 business days.
+5. Content survey: General, Mature Content (text in 5.2) and the Generative AI disclosure. Answer it honestly for code, text and art made with AI tools; the game itself generates nothing at run time.
+6. Achievements: enter the 19 from section 4 (names and descriptions are in `Content/strings.json` and `Content/full/strings.json`), upload `Builds/StoreArt/achievements/ACH_*.png` as achieved and `ACH_*_locked.png` as unachieved, add the `TUG_WINS` stat as the progress stat of `ACH_WHITE_KNUCKLES`, then Publish.
+7. Depots: one Windows 64-bit depot per app; launch options `SecondCursor.exe` (full) and `SecondCursorDemo.exe` (demo). Upload `Builds/Windows` and `Builds/WindowsDemo`; the Symbols folders already live in `Builds/Symbols` and must never be uploaded (keep the robocopy exclusions and the `FileExclusion` rows anyway).
+8. Steam Cloud: Auto-Cloud, root WinAppDataLocalLow, subdirectory `SecondCursorGame/SECOND CURSOR`, pattern `progress.json` only (never settings.json). Test with `testappcloudpaths`.
+9. Steam Deck: publish a default Steam Input layout (section 3, D1), run the hardware tests (floating keyboard Enter/Backspace/numeric code, overlay pause, suspend during a tug, trackpad yank speed for `GameRoot.DeckPullSpeedScale`, cloud round trip), then request the Deck compatibility review.
+10. Pricing ($6.99 with the regional matrix and a launch discount), a build account with Steam Guard, a trailer (run a flash check on its glitch bursts), and three timed fresh playtests before locking the length line on the store page.
+
+---
+
 ## 0. Top 10 blocking items (priority order)
 
 | # | Item | Where | Section |
@@ -355,8 +402,9 @@ Notes:
 
 Done in code (Phase E): the 19 achievements of the expansion spec, Section 9 (`Core/Game/AchievementIds.cs`), unlocked
 through one gate (`Achievements.Unlock(g, id)`: only in runs that count, never from a checkpoint restore, a debug jump or a
-forced tug). Enter them in Steamworks > Stats & Achievements exactly like this (names and descriptions are also in the base
-`strings.json` as `ach.<ID>.name` / `.desc`):
+forced tug). Enter them in Steamworks > Stats & Achievements exactly like this (names and descriptions are also in
+`Content/full/strings.json` as `ach.<ID>.name` / `.desc`; Phase G moved them out of the base strings so the demo does not carry them).
+Icons: `Builds/StoreArt/achievements/ACH_*.png` (achieved) and `ACH_*_locked.png` (unachieved), 256x256:
 
 | API name | Name | Description | Hidden |
 |---|---|---|---|

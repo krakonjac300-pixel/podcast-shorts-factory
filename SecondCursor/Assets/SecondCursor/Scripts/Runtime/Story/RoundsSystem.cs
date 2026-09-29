@@ -195,6 +195,8 @@ namespace SecondCursor.Story
         /// </summary>
         public void PatchPersonnelFor(string stage)
         {
+            // Night 3 only: the demo build carries none of its text.
+#if !SC_DEMO
             var c = _g.Content;
             var custodial = c.Employee(ContentIds.Employee000);
             if (custodial == null) return;
@@ -215,6 +217,7 @@ namespace SecondCursor.Story
                 }
             }
             _g.Apps.Find<StaffApp>()?.Refresh();
+#endif
         }
 
         /// <summary>Custodial's office as Personnel lists it at each stage.</summary>

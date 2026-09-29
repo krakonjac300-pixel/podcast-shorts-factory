@@ -104,6 +104,16 @@ namespace SecondCursor.Game
 #endif
         static Steamworks.Callback<Steamworks.GameOverlayActivated_t> _overlayCallback;
         static Steamworks.Callback<Steamworks.FloatingGamepadTextInputDismissed_t> _dismissCallback;
+        static Steamworks.Callback<Steamworks.UserStatsReceived_t> _statsCallback;
+
+        /// <summary>
+        /// Pushes wait here until Steam has delivered this user's stats (SetAchievement and SetStat are refused before
+        /// that); refused or unstored pushes stay pending for the next unlock or stats callback.
+        /// </summary>
+        static readonly AchievementPushQueue Pushes = new AchievementPushQueue();
+        /// <summary>Fallback when the callback never comes: GetAchievement answers once the stats are loaded.</summary>
+        static float _nextStatsPoll;
+        const float StatsPollSeconds = 2f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Init()
@@ -133,14 +143,20 @@ namespace SecondCursor.Game
             DeckHardware = Steamworks.SteamUtils.IsSteamRunningOnSteamDeck();
             _overlayCallback = Steamworks.Callback<Steamworks.GameOverlayActivated_t>.Create(e => OnOverlay(e.m_bActive != 0));
             _dismissCallback = Steamworks.Callback<Steamworks.FloatingGamepadTextInputDismissed_t>.Create(e => TextEntryDismissedBySteam = true);
-            PushAll();
+            _statsCallback = Steamworks.Callback<Steamworks.UserStatsReceived_t>.Create(OnStatsReceived);
+            // Every saved achievement and the tug stat wait for the stats (the boot resync covers offline unlocks).
+            QueueSaved();
         }
 
         sealed class Pump : MonoBehaviour
         {
             void Update()
             {
-                if (Ready) Steamworks.SteamAPI.RunCallbacks();
+                if (!Ready) return;
+                Steamworks.SteamAPI.RunCallbacks();
+                if (Pushes.StatsReady || Time.unscaledTime < _nextStatsPoll) return;
+                _nextStatsPoll = Time.unscaledTime + StatsPollSeconds;
+                if (Steamworks.SteamUserStats.GetAchievement(AchievementIds.All[0].Id, out _)) StatsLoaded("loaded (poll)");
             }
 
             void OnApplicationQuit()
@@ -151,36 +167,65 @@ namespace SecondCursor.Game
             }
         }
 
-        /// <summary>Every achievement already in the save, and the tug stat, pushed again (covers offline unlocks).</summary>
-        static void PushAll()
+        static void OnStatsReceived(Steamworks.UserStatsReceived_t e)
+        {
+            // Only this game's stats (the low 24 bits of a game id are the app id).
+            if ((uint)(e.m_nGameID & 0xFFFFFFUL) != Steamworks.SteamUtils.GetAppID().m_AppId) return;
+            if (e.m_eResult != Steamworks.EResult.k_EResultOK)
+            {
+                GameLog.Warn(LogChannel.System, "Steam stats not received (" + e.m_eResult + "): achievements stay queued");
+                return;
+            }
+            StatsLoaded("received");
+        }
+
+        /// <summary>The stats are loaded (first time or again): push everything still pending.</summary>
+        static void StatsLoaded(string how)
+        {
+            if (!Pushes.StatsReady) GameLog.Info(LogChannel.System, "Steam stats " + how + ": pushing " + Pushes.PendingCount + " achievement(s)");
+            Pushes.MarkStatsReady();
+            Flush();
+        }
+
+        /// <summary>Every achievement already in the save, and the tug stat, queued for a push (covers offline unlocks).</summary>
+        static void QueueSaved()
         {
             if (!PushRecords) return;
             var data = SaveSystem.Load();
             foreach (var id in data.achievements)
-                if (AchievementIds.IsKnown(id)) Steamworks.SteamUserStats.SetAchievement(id);
-            Steamworks.SteamUserStats.SetStat(AchievementIds.TugWinsStat, Math.Min(data.tugWinsTotal, AchievementIds.TugWinsGoal));
-            Steamworks.SteamUserStats.StoreStats();
+                if (AchievementIds.IsKnown(id)) Pushes.Queue(id);
+            Pushes.QueueTugWins(data.tugWinsTotal);
+        }
+
+        static void Flush()
+        {
+            if (!Ready || !PushRecords) return;
+            var r = Pushes.Flush(id => Steamworks.SteamUserStats.SetAchievement(id),
+                tug => Steamworks.SteamUserStats.SetStat(AchievementIds.TugWinsStat, Math.Min(tug, AchievementIds.TugWinsGoal)),
+                () => Steamworks.SteamUserStats.StoreStats());
+            if (r.Refused > 0) GameLog.Warn(LogChannel.System, "Steam refused " + r.Refused + " achievement(s): kept pending");
+            if (r.StoreFailed) GameLog.Warn(LogChannel.System, "Steam StoreStats failed: " + r.Sent + " achievement(s) kept pending");
         }
 
         public static void Unlock(string id)
         {
             if (!Ready || !PushRecords) return;
-            Steamworks.SteamUserStats.SetAchievement(id);
-            Steamworks.SteamUserStats.StoreStats();
+            Pushes.Queue(id);
+            Flush();
         }
 
         /// <summary>The TUG_WINS stat (increment only, capped at the White Knuckles goal).</summary>
         public static void SetTugWins(int total)
         {
             if (!Ready || !PushRecords) return;
-            Steamworks.SteamUserStats.SetStat(AchievementIds.TugWinsStat, Math.Min(total, AchievementIds.TugWinsGoal));
-            Steamworks.SteamUserStats.StoreStats();
+            Pushes.QueueTugWins(total);
+            Flush();
         }
 
-        /// <summary>Steam's "5 of 10" progress popup for an achievement with a stat.</summary>
+        /// <summary>Steam's "5 of 10" progress popup for an achievement with a stat (skipped until the stats are loaded).</summary>
         public static void IndicateProgress(string id, int current, int max)
         {
-            if (!Ready || !PushRecords) return;
+            if (!Ready || !PushRecords || !Pushes.StatsReady) return;
             Steamworks.SteamUserStats.IndicateAchievementProgress(id, (uint)Math.Max(0, current), (uint)Math.Max(1, max));
         }
 

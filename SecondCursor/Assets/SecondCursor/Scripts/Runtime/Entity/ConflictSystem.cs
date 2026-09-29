@@ -218,13 +218,53 @@ namespace SecondCursor.Entity
             GameLog.Info(LogChannel.Entity, "Tug-of-war interrupted: no winner");
         }
 
+        /// <summary>
+        /// The time scale a running hit-stop will restore (below 0: no hit-stop). The pause menu saves this instead of
+        /// the 0.03 slow-down, so a pause inside the 90 ms freeze never resumes the game at 3% speed.
+        /// </summary>
+        public float ScaleBeforeHitStop { get; private set; } = -1f;
+
         System.Collections.IEnumerator HitStop()
         {
             if (Game.PauseMenu.IsPaused || Time.timeScale <= 0.05f) yield break;
             float previous = Time.timeScale;
+            ScaleBeforeHitStop = previous;
             Time.timeScale = 0.03f;
             yield return new WaitForSecondsRealtime(0.09f);
             if (!Game.PauseMenu.IsPaused && Mathf.Approximately(Time.timeScale, 0.03f)) Time.timeScale = previous;
+            ScaleBeforeHitStop = -1f;
+        }
+
+        const float SagSeconds = 0.3f, NodSeconds = 0.22f, NodDepth = 4f;
+        /// <summary>Two semitones down (2^(-2/12)).</summary>
+        const float TwoSemitonesDown = 0.8909f;
+
+        System.Collections.IEnumerator StrainSag()
+        {
+            var audio = _g.Audio;
+            float from = audio.LoopPitch("tug_strain");
+            audio.StopLoop("tug_strain", SagSeconds);
+            float t = 0f;
+            while (t < SagSeconds)
+            {
+                // A new fight takes the strain over again.
+                if (IsFighting) yield break;
+                t += Time.unscaledDeltaTime;
+                audio.SetLoopPitch("tug_strain", Mathf.Lerp(from, from * TwoSemitonesDown, t / SagSeconds));
+                yield return null;
+            }
+        }
+
+        static System.Collections.IEnumerator Nod(CursorView view)
+        {
+            float t = 0f;
+            while (t < NodSeconds && view != null)
+            {
+                t += Time.deltaTime;
+                view.VisualOffset = new Vector2(0f, -NodDepth * Mathf.Sin(Mathf.PI * Mathf.Clamp01(t / NodSeconds)));
+                yield return null;
+            }
+            if (view != null) view.VisualOffset = Vector2.zero;
         }
 
         void End(TugOutcome outcome, bool transfer)
@@ -234,8 +274,15 @@ namespace SecondCursor.Entity
             foreach (var d in _band) d.enabled = false;
             if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
             if (_g.EntityView != null) _g.EntityView.Jitter = 0f;
-            _g.Audio?.StopLoop("tug_strain", 0.08f);
+            if (outcome == TugOutcome.EntityWins && _g.Audio != null)
+            {
+                // M5: a loss sounds like a punchline: the strain sags two semitones as it dies away.
+                StartCoroutine(StrainSag());
+            }
+            else _g.Audio?.StopLoop("tug_strain", 0.08f);
             _g.Audio?.Play("grab_snap", 1f, outcome == TugOutcome.PlayerWins ? 1.3f : 0.9f);
+            // M5: the second cursor wins politely: one small nod before it leaves with the file.
+            if (outcome == TugOutcome.EntityWins && transfer && _g.EntityView != null) StartCoroutine(Nod(_g.EntityView));
             if (outcome == TugOutcome.PlayerWins && transfer)
             {
                 // A win lands as a punch: a sliver of hit-stop and the second cursor thrown back, shuddering.

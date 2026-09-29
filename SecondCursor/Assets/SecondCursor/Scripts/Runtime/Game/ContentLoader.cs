@@ -15,6 +15,8 @@ namespace SecondCursor.Game
     public static class ContentLoader
     {
         public const string Folder = "Content/";
+        /// <summary>The full-game strings folder under <see cref="Folder"/> (left out of the demo build).</summary>
+        public const string FullFolder = "full";
 
         public static ContentDatabase Load() => Load(1);
 
@@ -22,8 +24,14 @@ namespace SecondCursor.Game
         {
             var pack = ReadPack(Folder, true);
 #if SC_DEMO
-            // The demo is Night 1 only: its build does not even contain the night2 and night3 folders.
+            // The demo is Night 1 only: its build does not even contain the night2, night3 and full folders.
             night = 1;
+#else
+            // Base strings only the full game uses (Nights 2 and 3, hidden achievement text): every night, before the
+            // night overlays. The demo build leaves this folder out so its data carries no Night 2 or 3 spoilers.
+            var full = ReadPack(Folder + FullFolder + "/", false);
+            if (!full.IsEmpty) pack = pack.Overlay(full);
+            else GameLog.Warn(LogChannel.System, "Content: Resources/" + Folder + FullFolder + " is missing (full-game strings)");
 #endif
             for (int n = 2; n <= Mathf.Clamp(night, 1, 3); n++)
             {

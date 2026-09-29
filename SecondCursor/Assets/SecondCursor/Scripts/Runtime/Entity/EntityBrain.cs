@@ -258,6 +258,7 @@ namespace SecondCursor.Entity
             yield return _c.MoveToDynamic(ghost, MovementProfiles.Aggressive, 30f);
             if (payload.Holder != Player || payload.Dropped || payload.Contested) yield break;
             // Seize it: pressing on the ghost starts the contest (ConflictSystem takes over movement).
+            int lossesBefore = _g.Flags.Get(Core.Story.Flags.CounterTugLosses);
             _c.Agent.SetButton(true);
             yield return null;
             yield return null;
@@ -284,6 +285,8 @@ namespace SecondCursor.Entity
                     yield return _c.MoveToDynamic(() => _g.Conflict.IsFighting || payload.Holder != _c.Agent ? (Vector2?)null : spot, MovementProfiles.Aggressive, 40f);
                     if (_g.Conflict.IsFighting || payload.Holder != _c.Agent) continue;
                     yield return Waits.Seconds(0.1f);
+                    // A re-grab in that last beat is a fight, not a drop: letting go now would hand the file over.
+                    if (_g.Conflict.IsFighting || payload.Holder != _c.Agent) continue;
                     _c.Agent.SetButton(false);
                     yield return null;
                     yield return null;
@@ -291,6 +294,9 @@ namespace SecondCursor.Entity
                     break;
                 }
                 if (_c.Agent.Held) _c.Agent.SetButton(false);
+                // Every tug she won on the way counts (a re-grab she fought off is a lost tug too), like KeepAway.
+                int extraLosses = _g.Flags.Get(Core.Story.Flags.CounterTugLosses) - lossesBefore - 1;
+                for (int i = 0; i < extraLosses; i++) RegisterDefense("tug");
                 if (payload.Holder == _c.Agent || payload.Dropped)
                 {
                     yield return Waits.Seconds(0.4f);
@@ -440,7 +446,12 @@ namespace SecondCursor.Entity
             // A beat of reaction: a player who knows the trick gets to Cancel first.
             float wait = Profile.CancelDelay(UnityEngine.Random.value) - (Time.time - noticed);
             if (wait > 0f) yield return Waits.Seconds(wait);
-            if (!p.IsOpen) yield break;
+            if (!p.IsOpen)
+            {
+                // The dialog went while she reacted: no panic left over for the next behaviour.
+                _c.State = Core.Entity.EntityState.Defensive;
+                yield break;
+            }
             var result = new bool[1];
             // While fighting over Cancel the operation crawls - it is holding the process back.
             _g.Shred.SpeedMultiplier = Profile.CancelCrawl;

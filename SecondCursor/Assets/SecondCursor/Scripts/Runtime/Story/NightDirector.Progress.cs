@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using SecondCursor.Core;
 using SecondCursor.Core.Entity;
 using SecondCursor.Game;
+using SecondCursor.OS;
 using UnityEngine;
 
 namespace SecondCursor.Story
@@ -14,6 +16,26 @@ namespace SecondCursor.Story
     public abstract partial class NightDirector
     {
         bool _startMarked;
+
+        /// <summary>Nights started or resumed in this app launch (the Welcome back refresher is for the first one).</summary>
+        internal static int NightsThisLaunch;
+
+        /// <summary>
+        /// LaunchAudit 18: a player who opens Night 2 or 3 as the first night of a fresh session (Continue, Night Select)
+        /// gets a short refresher before the first task, in the OS's own voice.
+        /// </summary>
+        protected IEnumerator WelcomeBack()
+        {
+            if (Night <= 1 || NightsThisLaunch > 1 || !_g.RecordsArmed) yield break;
+            var box = Dialogs.Message(_g, _g.Content.Text("welcome.title"), _g.Content.Text("welcome.body"), "icon_info", new[] { "Begin" }, null);
+            GameLog.Info(LogChannel.Story, "Welcome back refresher shown");
+            float until = Time.time + WelcomeBackSeconds;
+            while (box.IsOpen && Time.time < until) yield return null;
+            if (box.IsOpen) box.Window.Close(null);
+            yield return Wait(0.6f);
+        }
+
+        const float WelcomeBackSeconds = 90f;
 
         /// <summary>True while Prepare sets the world up for a jump (nothing it does may unlock an achievement).</summary>
         public bool IsPreparing { get; private set; }
@@ -29,6 +51,7 @@ namespace SecondCursor.Story
         {
             if (_startMarked) return;
             _startMarked = true;
+            NightsThisLaunch++;
             NightStartedAt = Time.time;
             if (IsStandIn) return;
             SaveSystem.RecordNightStart(_g);
@@ -38,6 +61,7 @@ namespace SecondCursor.Story
         /// <summary>Continue from a checkpoint: the play time before it counts too.</summary>
         public void ResumeElapsed(float seconds)
         {
+            if (!_startMarked) NightsThisLaunch++;
             _startMarked = true;
             NightStartedAt = Time.time - Mathf.Max(0f, seconds);
         }

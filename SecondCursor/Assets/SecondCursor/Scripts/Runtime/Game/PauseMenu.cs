@@ -25,7 +25,9 @@ namespace SecondCursor.Game
         RectTransform _panel;
         MenuNav _nav;
         bool _settingsOnly;
-        bool _confirmTitle;
+        /// <summary>A Yes/No question replaces the menu: Quit to Title, or Quit.</summary>
+        enum Confirm { None, Title, Quit }
+        Confirm _confirm;
         bool _fullscreen = true;
         PixelText _volume;
         float _savedScale = 1f;
@@ -64,7 +66,7 @@ namespace SecondCursor.Game
             if (!IsPaused)
             {
                 // Esc works from the very first screen: settings and Quit must never need a log-on.
-                if (!input.KeyDown(GameKey.Escape)) return;
+                if (!input.KeyDown(GameKey.Escape) || Apps.AppManager.EscapeHandledFrame == Time.frameCount) return;
                 var title = TitleMenu.Current;
                 // Before the title menu is built (the disclaimer of a title root) only the settings make sense.
                 if (title == null) Pause(_g.ShowTitle);
@@ -73,9 +75,9 @@ namespace SecondCursor.Game
             }
             if (input.KeyDown(GameKey.Escape))
             {
-                if (_confirmTitle)
+                if (_confirm != Confirm.None)
                 {
-                    _confirmTitle = false;
+                    _confirm = Confirm.None;
                     Rebuild();
                 }
                 else Resume();
@@ -108,10 +110,12 @@ namespace SecondCursor.Game
             IsPaused = true;
             StateChangeFrame = Time.frameCount;
             _settingsOnly = settingsOnly;
-            _confirmTitle = false;
+            _confirm = Confirm.None;
             // Letting go of the mouse to use the menu must not decide a tug-of-war: call it off instead.
             if (_g.Conflict != null) _g.Conflict.Interrupt();
-            _savedScale = Time.timeScale;
+            // Inside a tug win's hit-stop the scale is a 0.03 freeze: keep the speed it will return to.
+            float beforeHitStop = _g.Conflict != null ? _g.Conflict.ScaleBeforeHitStop : -1f;
+            _savedScale = beforeHitStop > 0f ? beforeHitStop : Time.timeScale;
             Time.timeScale = 0f;
             AudioListener.pause = true;
             Rebuild();
@@ -139,7 +143,7 @@ namespace SecondCursor.Game
             dim.color = new Color(0f, 0f, 0f, 0.6f);
             dim.raycastTarget = false;
             UIBuilder.Hit(_panel.gameObject, "pause");
-            if (_confirmTitle) BuildConfirm();
+            if (_confirm != Confirm.None) BuildConfirm();
             else BuildMenu();
         }
 
@@ -210,31 +214,42 @@ namespace SecondCursor.Game
                 }, ref y);
                 Button(box, c.Text("pause.totitle"), "pause:totitle", a =>
                 {
-                    _confirmTitle = true;
+                    _confirm = Confirm.Title;
                     Rebuild();
                 }, ref y);
             }
-            if (!_settingsOnly) Button(box, c.Text("pause.quit"), "pause:quit", a => QuitGame(), ref y);
+            // Quit asks first too: one stray click must not end the session.
+            if (!_settingsOnly) Button(box, c.Text("pause.quit"), "pause:quit", a =>
+            {
+                _confirm = Confirm.Quit;
+                Rebuild();
+            }, ref y);
             _nav.Focus(first);
         }
 
         void BuildConfirm()
         {
             var c = _g.Content;
-            var box = Box(2, 10, c.Text("pause.totitle"));
-            var text = UIBuilder.Text(box, c.Text("pause.totitle.confirm"), Palette.Text);
+            bool quit = _confirm == Confirm.Quit;
+            var box = Box(2, 10, c.Text(quit ? "pause.quit" : "pause.totitle"));
+            var text = UIBuilder.Text(box, c.Text(quit ? "pause.quit.confirm" : "pause.totitle.confirm"), Palette.Text);
             text.rectTransform.At(12, 30, BoxWidth - 24, 30);
             text.Align = TextAlign.Center;
             text.Wrap = true;
             var yes = UiButton.Create(box, c.Text("pause.yes"), a =>
             {
+                if (quit)
+                {
+                    QuitGame();
+                    return;
+                }
                 Resume();
                 GameBootstrap.ToTitle();
             }, "pause:yes");
             ((RectTransform)yes.transform).At(BoxWidth / 2 - 90, 72, 80, ButtonHeight);
             var no = UiButton.Create(box, c.Text("pause.no"), a =>
             {
-                _confirmTitle = false;
+                _confirm = Confirm.None;
                 Rebuild();
             }, "pause:no");
             ((RectTransform)no.transform).At(BoxWidth / 2 + 10, 72, 80, ButtonHeight);
