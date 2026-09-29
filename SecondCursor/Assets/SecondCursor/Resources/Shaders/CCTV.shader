@@ -21,11 +21,16 @@ Shader "SecondCursor/CCTV"
 
     SubShader
     {
-        Tags { "RenderType"="Opaque" "Queue"="Geometry" }
+        // Drawn in the transparent queue (with depth writes, so still fully opaque): URP's depth priming only
+        // re-tests opaque-queue objects against its depth pre-pass, and this one-pass shader has no DepthOnly
+        // pass, so in the opaque queue the whole set would vanish in projects that enable depth priming/SSAO.
+        Tags { "RenderType"="Opaque" "Queue"="Transparent" "IgnoreProjector"="True" }
 
         Pass
         {
             ZWrite On
+            ZTest LEqual
+            Blend Off
             Cull Back
 
             CGPROGRAM

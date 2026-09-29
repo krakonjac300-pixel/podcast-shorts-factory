@@ -49,7 +49,9 @@ Every game log line is tagged, e.g. `[PLAYER]`, `[ENTITY]`, `[STORY]`, `[TASK]`,
 - **Fonts/sprites** are generated textures (`PixelFont.Atlas`, `SpriteLibrary`) with point filtering. If
   anything looks blurry, check for fractional positions (UIBuilder rounds positions; `PixelText` snaps).
 - **Camera set shader**: `SecondCursor/CCTV`. If it is magenta or missing, the rig falls back to default
-  materials (see `SecurityCameraRig`).
+  materials (see `SecurityCameraRig`). It deliberately renders in the transparent queue (depth writes on),
+  because URP's depth priming would otherwise hide it. If SecureView shows only the dark background in a
+  URP project, check the renderer's *Transparent Layer Mask* includes layer 8.
 
 ## 4. Tuning after the first play
 
