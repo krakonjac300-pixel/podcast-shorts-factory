@@ -113,6 +113,24 @@ namespace SecondCursor.Tests
         }
 
         [Fact]
+        public void AnOlderSaveOfATaughtPlayerIsSeededWithEveryTip()
+        {
+            // Phase L review: version 3 files predate the tip memory; a player who finished a night or fought a tug is not re-taught.
+            var veteran = new SaveData { version = 3, lastCompletedNight = 1, nightUnlocked = 2 };
+            veteran.Migrate();
+            Assert.Equal(SaveData.TipIds.OrderBy(x => x), veteran.tipsShown.OrderBy(x => x));
+            var fighter = new SaveData { version = 3, tugLossesTotal = 2 };
+            fighter.Migrate();
+            Assert.Equal(SaveData.TipIds.Length, fighter.tipsShown.Length);
+            // A night start alone is not enough: it is recorded at the first start, even for a player who quit early.
+            var beginner = new SaveData { version = 3 };
+            beginner.nightStarts[0] = 1;
+            beginner.Migrate();
+            Assert.Empty(beginner.tipsShown);
+            Assert.Equal(SaveData.CurrentVersion, beginner.version);
+        }
+
+        [Fact]
         public void ResistingHerCostsTrustAndAMilderRefusalCostsLess()
         {
             var m = new EntityMemory();

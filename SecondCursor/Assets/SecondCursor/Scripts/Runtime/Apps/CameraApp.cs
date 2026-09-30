@@ -192,9 +192,10 @@ namespace SecondCursor.Apps
             bool signal = G.CameraRig != null && G.CameraRig.HasSignal(_current);
             _feed.enabled = signal;
             _noSignal.enabled = !signal;
-            // CCTV time only runs while someone watches: close the feed and the clock waits for you.
+            // CCTV time only runs while someone watches: close the feed and the clock waits for you (and it stops on a frozen frame).
             var rig = G.CameraRig;
-            if (rig != null && !Window.IsMinimized)
+            UpdateHum(signal);
+            if (rig != null && !Window.IsMinimized && !rig.FreezeFeed)
             {
                 if (rig.FeedMinutes < 0) rig.FeedMinutes = G.Clock.ExactMinutes;
                 else rig.FeedMinutes += dt * G.Clock.Rate;
@@ -217,6 +218,7 @@ namespace SecondCursor.Apps
             // Animated grain: stronger on dead channels and right after switching.
             // Fine 2x2 speckle: a light constant hiss that never hides the picture, heavier on static cuts.
             float amount = !signal ? 0.9f : Mathf.Max(0.05f, _switchNoise * 3f) + (G.CameraRig != null ? G.CameraRig.ExtraNoise : 0f);
+            if (rig != null && rig.FreezeFeed && signal) amount = 0f;
             if (Time.frameCount == _captionFlickerFrame) amount = Mathf.Max(amount, 0.6f);
             if (G.CameraRig != null && _feed.texture != G.CameraRig.Feed) _feed.texture = G.CameraRig.Feed;
             if (_noisePixels == null) _noisePixels = new Color32[_noiseTex.width * _noiseTex.height];
@@ -235,6 +237,20 @@ namespace SecondCursor.Apps
             _noiseTex.Apply(false, false);
         }
 
+        /// <summary>Phase M: the viewer's own sound, a faint CCTV hiss while a feed shows (louder on a dead channel); none on a quiet or frozen feed.</summary>
+        void UpdateHum(bool signal)
+        {
+            var rig = G.CameraRig;
+            bool silent = rig != null && (rig.Quiet || rig.FreezeFeed);
+            float want = Window.IsMinimized || silent ? 0f : signal ? FeedHum : DeadChannelHum;
+            if (want == _hum) return;
+            _hum = want;
+            if (want > 0f) G.Audio?.PlayLoop("camera_static", want, 0.4f);
+            else G.Audio?.StopLoop("camera_static", silent ? 0.03f : 0.3f);
+        }
+
+        const float FeedHum = 0.12f, DeadChannelHum = 0.4f;
+        float _hum;
         bool _visible = true;
         int _captionFlickerFrame = -1;
         float _echoAt = -1f;
@@ -255,6 +271,7 @@ namespace SecondCursor.Apps
         protected override void OnClosed(CursorAgent by)
         {
             if (G.CameraRig != null) G.CameraRig.SetViewing(false);
+            G.Audio?.StopLoop("camera_static", 0.2f);
         }
     }
 }

@@ -55,6 +55,9 @@ namespace SecondCursor.Story
         bool _freezeClock = true;
         bool _stopHelping;
         float _firstEntityTaskAt = -1f;
+        /// <summary>Phase M: a request ignored this long is whispered about (once a night).</summary>
+        const float WhisperAfter = 40f;
+        bool _whisperAsked;
         float _lastCloseIt = -100f;
         /// <summary>Lines Ellen types as soon as she is free (a mail read mid-task, for example).</summary>
         readonly List<string> _ellenQueue = new List<string>();
@@ -331,6 +334,8 @@ namespace SecondCursor.Story
             _g.Taskbar.BlinkDevice(2);
             yield return E.MoveTo(edge + new Vector2(-38f, UnityEngine.Random.Range(-6f, 6f)), MovementProfiles.Hesitant, 12f);
             GameLog.Info(LogChannel.Story, "Anomaly: the second cursor looked in");
+            // Phase M (N2-1): 20 s later your own click is answered once from the room (M1's echo has left the camera).
+            Scare("click_wrong", 1f, 0f, 20f, 300f);
             yield return Wait(0.9f);
             yield return E.MoveTo(edge + new Vector2(8f, 0f), MovementProfiles.HumanLike, 20f);
             yield return E.Vanish(0.25f);
@@ -590,6 +595,14 @@ namespace SecondCursor.Story
             {
                 float elapsed = Time.time - t0;
                 if (elapsed >= withdrawAt) break;
+                if (!_whisperAsked && elapsed >= WhisperAfter)
+                {
+                    // Phase M (N2-2, M9): ignoring her request is heard, once, from where the queue is.
+                    _whisperAsked = true;
+                    var wq = _g.Apps.FindById(AppIds.WorkQueue);
+                    float pan = wq != null && wq.IsOpen ? Audio.AudioManager.PanFor(wq.Window.WorldRect.center.x) : 0f;
+                    Scare("whisper_burst", 0.5f, pan, 0f, withdrawAt - elapsed);
+                }
                 if (!nudged && elapsed >= d.EntityTaskNudge)
                 {
                     nudged = true;

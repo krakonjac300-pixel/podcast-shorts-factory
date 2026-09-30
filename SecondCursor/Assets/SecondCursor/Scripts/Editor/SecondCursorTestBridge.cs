@@ -44,6 +44,7 @@ namespace SecondCursor.EditorTools
             ProgressHelp +
             BalanceHelp +
             PhaseGHelp +
+            AudioHelp +
             "Coordinates are virtual pixels (960x540, origin bottom-left).";
 
         static readonly string Dir = Path.GetFullPath("Library/SecondCursorBridge");

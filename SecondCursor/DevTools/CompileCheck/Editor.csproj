@@ -6,7 +6,7 @@
   <ItemGroup>
     <Compile Include="$(Scripts)/Editor/**/*.cs" />
     <ProjectReference Include="Core.csproj" />
-    <ProjectReference Include="Runtime.csproj" />
+    <ProjectReference Include="RuntimeEditor.csproj" /><!-- Unity compiles the editor against the in-editor runtime (UNITY_EDITOR) -->
     <Reference Include="$(Deps)/engine/*.dll" Private="false" />
     <Reference Include="$(Deps)/ugui/UnityEngine.UI.dll" Private="false" />
     <Reference Include="$(Deps)/editor/*.dll" Private="false" />

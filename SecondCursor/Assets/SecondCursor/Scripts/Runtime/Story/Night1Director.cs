@@ -35,6 +35,8 @@ namespace SecondCursor.Story
         CursorRecording _ledgerClip;
         Speaker _ellen;
         int _cameraReopens;
+        /// <summary>Phase M: the reveal ended on its hit (the ending skips its own power down).</summary>
+        bool _afterHit;
 
         public override string[] Beats => BeatList;
         public override int Night => 1;
@@ -116,6 +118,7 @@ namespace SecondCursor.Story
                     CompleteNight(ContentIds.EndingN1Blackout);
                     // Phase H: the card says how the night ended (WS-04 went dark; the file came back or never went).
                     var spec = EndingSpec.Night1();
+                    spec.AfterHit = _afterHit;
                     spec.Outcome = _g.Content.Format(_g.Flags.Has(Flags.File017ShreddedOnce) ? "end.n1.outcome.shredded" : "end.n1.outcome.kept", _g.Clock.Format12());
                     _ending = new EndingSequence(_g, spec);
                     return _ending.Run();
@@ -290,6 +293,8 @@ namespace SecondCursor.Story
             yield return Wait(6f);
             _g.PlayerView.Flinch(new Vector2(UnityEngine.Random.Range(3f, 5f), UnityEngine.Random.Range(-4f, -2f)));
             GameLog.Info(LogChannel.Story, "Anomaly: player cursor flinched");
+            // Phase M (N1-1): then your chair creaks, before the file selects itself. Nothing says anyone is there.
+            Scare("chair_creak", 0.35f, 0f, UnityEngine.Random.Range(3.5f, 5f), 20f);
             // Let the twitch sink in before the next oddity (they must never land together).
             yield return Wait(UnityEngine.Random.Range(7f, 10f));
 
@@ -569,6 +574,8 @@ namespace SecondCursor.Story
             yield return Wait(1.5f);
             // A message from your own account... dated eleven years ago.
             _g.Mail.Deliver(ContentIds.MailNoSender);
+            // Phase M (N1-2): a knock on the office door, before she shows you the camera that sees it (M1, M6).
+            Scare("knock_door", 0.45f, -0.1f, 2f, 15f);
             yield return Wait(3f);
             yield return TypeLines(_ellen, _g.Content.Dialogue.cameraLines, 3.5f);
 
@@ -658,10 +665,9 @@ namespace SecondCursor.Story
                     seenReopens = _cameraReopens;
                     var reopened = _g.Apps.Find<CameraApp>();
                     if (reopened != null) reopened.Select(ContentIds.Cam03, null);
-                    // M6: the new position resolves out of half a second of static instead of a hard cut.
+                    // M6: the new position resolves out of half a second of static instead of a hard cut (the rig's step: closer every time).
                     var next = rig.Figure == FigureStage.Doorway ? FigureStage.Middle : FigureStage.BehindChair;
                     yield return StaticResolve(() => rig.Figure = next, 0.5f);
-                    _g.Audio.Play("footstep_distant", 0.4f, 0.9f, 0.2f);
                     yield return WaitWatching(3f, 6f);
                     continue;
                 }
@@ -705,7 +711,6 @@ namespace SecondCursor.Story
                         rig.DoorOpen = 1f;
                         var self = (CameraApp)_g.Apps.Launch(AppIds.Camera, null);
                         self?.Select(ContentIds.Cam03, null);
-                        _g.Audio.Play("low_thump", 0.8f);
                         if (panicLine < panic.Length) yield return TypeLines(_ellen, new[] { panic[panicLine++] }, 7f);
                         yield return WaitWatching(4f, 8f);
                         break;
@@ -720,26 +725,15 @@ namespace SecondCursor.Story
                 _g.Audio.SetLoopPitch("drone_tension", 1f);
             }
 
-            // Final image: it's right behind you, and "you" turn to look at the camera.
+            // Final image: it's right behind you, and "you" turn to look at the camera (Phase M: the demo's last scare, 5.3).
             cam = _g.Apps.Find<CameraApp>();
             if (cam == null || !cam.IsOpen)
             {
                 cam = (CameraApp)_g.Apps.Launch(AppIds.Camera, null);
                 cam?.Select(ContentIds.Cam03, null);
             }
-            rig.Figure = FigureStage.BehindChair;
-            rig.SeatedMimicsPlayer = false;
-            rig.LightFlicker = 1f;
-            float t = 0f;
-            while (t < 3.2f)
-            {
-                t += Time.deltaTime;
-                rig.SeatedHeadTurn = Mathf.SmoothStep(0f, 1f, t / 3.2f);
-                rig.ExtraNoise = t / 3.2f * 0.5f;
-                if (UnityEngine.Random.value < 0.05f) _g.Fx.Glitch(0.05f, 0.6f);
-                yield return null;
-            }
-            yield return Wait(1.2f);
+            yield return RevealClimax(DroneVolume);
+            _afterHit = true;
         }
 
         const float DroneVolume = 0.25f;

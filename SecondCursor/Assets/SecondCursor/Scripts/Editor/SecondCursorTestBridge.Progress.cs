@@ -28,7 +28,7 @@ namespace SecondCursor.EditorTools
         /// <summary>Game commands that stop the run counting for records (a forced tug disarms when it decides a fight).</summary>
         static readonly HashSet<string> Disarming = new HashSet<string>
         {
-            "beat", "jump", "night", "restart", "setflag", "clearflag", "trust", "assist", "setclock", "difficulty", "checkpoint", "stage", "speed",
+            "beat", "jump", "night", "restart", "setflag", "clearflag", "trust", "assist", "setclock", "difficulty", "checkpoint", "stage", "speed", "scareforce",
         };
 
         const string TestStoreUrl = "https://store.steampowered.com/app/480/ (bridge dry run)";

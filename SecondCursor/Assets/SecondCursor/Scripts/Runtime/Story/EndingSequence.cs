@@ -55,6 +55,8 @@ namespace SecondCursor.Story
         public int ContinueNight;
         /// <summary>Phase H: one line under the subtitle saying how the night ended for you ("" = none).</summary>
         public string Outcome = "";
+        /// <summary>Phase M: a climax's hit already killed the tube: no power down, no second collapse, only the dark.</summary>
+        public bool AfterHit;
 
         /// <summary>
         /// Night 1: the slice's blackout. The demo keeps the WISHLIST card; the full game shows the night's own card
@@ -123,14 +125,7 @@ namespace SecondCursor.Story
             g.Player.Enabled = false;
             g.Player.Visible = false;
 
-            g.Audio.StopAllLoops(0.2f);
-            g.Audio.Play("power_down");
-            if (g.CameraRig != null) g.CameraRig.LightsOn = false;
-            yield return Waits.Seconds(0.5f);
-            g.Audio.Play("crt_off");
-            yield return g.Fx.PowerOff(0.9f);
-            g.Fx.SetBlack(true);
-            yield return Waits.Seconds(2.6f);
+            yield return PowerDown();
 
             // In the dark: a black OS screen with only the second cursor.
             var black = UIBuilder.Rect("Black Room", g.Layers.Fullscreen).Stretch();
@@ -197,6 +192,27 @@ namespace SecondCursor.Story
             }
             yield return Waits.Seconds(1f);
             yield return ShowCard(black);
+        }
+
+        /// <summary>
+        /// The hum stops, the tube dies, black (Phase M: after a climax's hit only the dark; toast chimes come back once it is dark).
+        /// </summary>
+        IEnumerator PowerDown()
+        {
+            var g = _g;
+            g.Player.Visible = false;
+            g.Audio.StopAllLoops(0.2f);
+            if (g.CameraRig != null) g.CameraRig.LightsOn = false;
+            if (!_spec.AfterHit)
+            {
+                g.Audio.Play("power_down");
+                yield return Waits.Seconds(0.5f);
+                g.Audio.Play("crt_off");
+                yield return g.Fx.PowerOff(0.9f);
+            }
+            g.Fx.SetBlack(true);
+            yield return Waits.Seconds(2.6f);
+            g.Audio.UiMuted = false;
         }
 
         /// <summary>The card and its buttons (<see cref="Story.EndCard"/>); never returns (a button starts something new).</summary>

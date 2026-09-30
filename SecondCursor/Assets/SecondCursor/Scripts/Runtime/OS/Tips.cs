@@ -43,7 +43,8 @@ namespace SecondCursor.OS
 
         public static Tips Create(GameServices g)
         {
-            var root = UIBuilder.Rect("Tips", g.Layers.Effects);
+            // Phase L review: under the popup menus, the Nexus menu and the notices (tips already keep clear of the taskbar).
+            var root = UIBuilder.Rect("Tips", g.Layers.Taskbar);
             root.anchorMin = root.anchorMax = Vector2.zero;
             root.pivot = Vector2.zero;
             var tips = root.gameObject.AddComponent<Tips>();
@@ -85,6 +86,9 @@ namespace SecondCursor.OS
 
         /// <summary>A tip is showing or waiting for its turn (a low-value tip holds back rather than take the place of a task's).</summary>
         public bool Busy => _active != null || _pending.Count > 0;
+
+        /// <summary>The tip is waiting for a place to show (not yet shown, not given up).</summary>
+        public bool IsQueued(string id) => _pending.Exists(t => t.Id == id);
 
         /// <summary>The caller shows this tip itself (in its own panel): true once per save, and it is remembered as shown.</summary>
         public bool Claim(string id)

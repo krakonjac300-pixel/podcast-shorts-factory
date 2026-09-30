@@ -242,12 +242,15 @@ namespace SecondCursor.Entity
             _alphaSpeed = fadeSeconds <= 0f ? 1000f : Mathf.Max(0.01f, Mathf.Abs(_view.Alpha - _targetAlpha)) / fadeSeconds;
         }
 
+        const float AppearTick = 0.78f;
+
         /// <summary>Fade in at a position (default: just off the right edge) - the cursor "arrives".</summary>
         public IEnumerator Appear(Vector2? at = null, float fadeSeconds = 0.6f, bool sound = true)
         {
             if (at.HasValue) _agent.Position = at.Value;
             SetPresent(true, fadeSeconds);
-            if (sound) _g.Audio?.Play("entity_appear", 0.8f, 1f, Audio.AudioManager.PanFor(_agent.Position.x));
+            // Phase M: the swell's glitch tick (0.78 s into the clip) lands as the fade-in completes, not after she is already there.
+            if (sound) _g.Audio?.Play("entity_appear", 0.8f, 1f, Audio.AudioManager.PanFor(_agent.Position.x), Mathf.Max(0f, AppearTick - fadeSeconds));
             if (_g.Taskbar != null) _g.Taskbar.PointingDevices = Mathf.Max(_g.Taskbar.PointingDevices, DeviceIndex);
             yield return Waits.Seconds(fadeSeconds);
         }

@@ -25,7 +25,7 @@ namespace SecondCursor.Core.Audio
     /// peak &lt;= 0.9, DC-free; one-shots are de-clicked and loops are seamless.
     /// Generation is deterministic for a given (id, seed) pair and thread-safe.
     /// </summary>
-    public static class ProceduralSoundBank
+    public static partial class ProceduralSoundBank
     {
         /// <summary>Sample rate of every generated buffer, in Hz.</summary>
         public const int SampleRate = 44100;
@@ -82,6 +82,7 @@ namespace SecondCursor.Core.Audio
             new Entry("ui_select",        false, 0.60f, UiSelect),
             new Entry("ui_window",        false, 0.60f, UiWindow),
             new Entry("notify_mail",      false, 0.70f, NotifyMail),
+            new Entry("notify_task",      false, 0.70f, NotifyTask),
             new Entry("sys_error",        false, 0.70f, SysError),
             new Entry("sys_warning",      false, 0.70f, SysWarning),
             new Entry("sys_startup",      false, 0.80f, SysStartup),
@@ -120,6 +121,21 @@ namespace SecondCursor.Core.Audio
             new Entry("end_tone",         false, 0.80f, EndTone),
             // --- the desk phone (Night 3: Ruth calls)
             new Entry("phone_ring",       false, 0.70f, PhoneRing),
+            // --- Phase M: scares (ProceduralSoundBank.Scares.cs), rare and gated; only the hits may reach volume 1.0
+            new Entry("knock_door",       false, 0.80f, KnockDoor),
+            new Entry("chair_creak",      false, 0.80f, ChairCreak),
+            new Entry("breath_near",      false, 0.80f, BreathNear),
+            new Entry("whisper_burst",    false, 0.75f, WhisperBurst),
+            new Entry("key_tap_rev",      false, 0.70f, KeyTapRev),
+            new Entry("click_wrong",      false, 0.70f, ClickWrong),
+            new Entry("metal_scrape",     false, 0.80f, MetalScrape),
+            new Entry("step_near",        false, 0.85f, StepNear),
+            new Entry("sub_swell",        false, 0.90f, SubSwell),
+            new Entry("crt_whine_rise",   false, 0.60f, CrtWhineRise),
+            new Entry("scare_hit",        false, 1.00f, ScareHit),
+            new Entry("scare_hit_soft",   false, 1.00f, ScareHitSoft),
+            new Entry("ear_ring",         false, 0.60f, EarRing),
+            new Entry("static_burst",     false, 0.60f, StaticBurst),
         };
 
         private static readonly Dictionary<string, Entry> Index = BuildIndex();
@@ -1130,21 +1146,24 @@ namespace SecondCursor.Core.Audio
         // ---------------- OS / UI: the player's own actions. Clean, dry, digital. ----------------
 
         /// <summary>Soft rounded "tk": a gliding sine tick over a warm body, no room at all.</summary>
-        private static float[] UiClick(Rng r)
+        private static float[] UiClick(Rng r) => FinishOneShot(UiClickRaw(r, 1f), -21f, 0.2f, 6f, 9000f);
+
+        /// <summary>The click before finishing; <paramref name="speed"/> &lt; 1 plays it slower and lower (click_wrong's answer).</summary>
+        private static float[] UiClickRaw(Rng r, float speed)
         {
-            float[] b = Buf(0.034f);
-            var edge = new Svf(3600f, 1.1f);
+            float[] b = Buf(0.034f / speed);
+            var edge = new Svf(3600f * speed, 1.1f);
             Phasor tick = default, body = default, low = default;
             for (int i = 0; i < b.Length; i++)
             {
-                float t = i * Dt;
+                float t = i * Dt * speed;
                 float f = 1900f + 500f * Decay(t, 0.003f);
-                b[i] = 0.90f * AttackDecay(t, 0.0004f, 0.0032f) * tick.Sin(f)
-                     + 0.45f * AttackDecay(t, 0.0006f, 0.0060f) * body.Sin(1040f)
-                     + 0.20f * AttackDecay(t, 0.0010f, 0.0085f) * low.Sin(430f)
+                b[i] = 0.90f * AttackDecay(t, 0.0004f, 0.0032f) * tick.Sin(f * speed)
+                     + 0.45f * AttackDecay(t, 0.0006f, 0.0060f) * body.Sin(1040f * speed)
+                     + 0.20f * AttackDecay(t, 0.0010f, 0.0085f) * low.Sin(430f * speed)
                      + 0.28f * AttackDecay(t, 0.0002f, 0.0011f) * edge.Bp(r.Signed());
             }
-            return FinishOneShot(b, -21f, 0.2f, 6f, 9000f);
+            return b;
         }
 
         /// <summary>Tiny, higher, lighter tick for list items.</summary>
@@ -2340,10 +2359,6 @@ namespace SecondCursor.Core.Audio
         }
 
         /// <summary>
-        /// A3 pair beating slowly, a sub-octave, a tritone shadow, a trembling high pair and a glassy A6 that
-        /// arrives late; everything sags ~20 cents as it fades.
-        /// </summary>
-        /// <summary>
         /// A desk phone ring: 440 + 480 Hz with a 20 Hz amplitude warble (the bell striking), 2.0 s, a little
         /// room, levelled like notify_mail.
         /// </summary>
@@ -2362,6 +2377,10 @@ namespace SecondCursor.Core.Audio
             return FinishOneShot(b, -20f, 8f, 60f);
         }
 
+        /// <summary>
+        /// A3 pair beating slowly, a sub-octave, a tritone shadow, a trembling high pair and a glassy A6 that
+        /// arrives late; everything sags ~20 cents as it fades.
+        /// </summary>
         private static float[] EndTone(Rng r)
         {
             const float len = 6f;

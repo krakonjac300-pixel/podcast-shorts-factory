@@ -7,6 +7,7 @@ using SecondCursor.Core.FileSystem;
 using SecondCursor.Game;
 using SecondCursor.Input;
 using SecondCursor.OS;
+using SecondCursor.UI;
 using UnityEngine;
 
 namespace SecondCursor.Apps
@@ -121,6 +122,8 @@ namespace SecondCursor.Apps
             app.Attach(_g);
             app.Open(zoomFrom, by);
             _open.Add(app);
+            // Phase M: ui_window is an opening swell (it used to be heard only on close).
+            if (app.Window != null) Sfx.Play("ui_window", by);
             if (app.Window != null) app.Window.Closed += (w, a) => _open.Remove(app);
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.Player, (by?.Name ?? "System") + " opened " + label);
             if (by != null && by.IsPlayer) _g.Memory.Record(MemoryKind.OpenedApp, label, _g.Now);

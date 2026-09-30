@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using SecondCursor.Apps;
 using SecondCursor.Core;
+using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
@@ -88,7 +89,7 @@ namespace SecondCursor.Story
                 // Phase L: Gary answers what happens to his box; Ruth answers what happens to her drive.
                 if (by == null || !by.IsPlayer || IsPreparing) return;
                 if (id == ContentIds.Order3332) RunSide(GarySays(GaryBoxSet(decision == "approve" ? "gone" : "kept")), "gary-box-reply");
-                else if (id == ContentIds.Order3333) SayLater(_ellen, decision == "approve" ? "n3_ruth_wiped" : "n3_ruth_kept");
+                else if (id == ContentIds.Order3333) SayLater(_ellen, decision == "approve" ? "n3_ruth_wiped" : "n3_ruth_kept", afterTurn: true);
             };
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
             g.Rounds.PatchPersonnel = true;
@@ -308,12 +309,17 @@ namespace SecondCursor.Story
             yield return TypeLines(s, lines, cps);
         }
 
-        void SayLater(Speaker s, string lineSet, float cps = 4f, string name = "say") => RunSide(SayWhenFree(s, Lines(lineSet), cps), name + ":" + lineSet);
+        void SayLater(Speaker s, string lineSet, float cps = 4f, string name = "say", bool afterTurn = false) =>
+            RunSide(SayWhenFree(s, Lines(lineSet), cps, afterTurn), name + ":" + lineSet);
 
-        /// <summary>Phase L: a reaction waits for what the speaker is typing (Ruth's exchange can go on for a minute; TypeLines gives up after 20 s), so two sets never interleave.</summary>
-        IEnumerator SayWhenFree(Speaker s, string[] lines, float cps)
+        /// <summary>
+        /// Phase L: a reaction waits for what the speaker is typing (Ruth's exchange can go on for a minute; TypeLines gives up after 20 s),
+        /// so two sets never interleave. <paramref name="afterTurn"/> (Phase L review, D5's answer): it also waits out the player's turn in
+        /// that Jotter, so it never lands between Ruth's question and the reply.
+        /// </summary>
+        IEnumerator SayWhenFree(Speaker s, string[] lines, float cps, bool afterTurn)
         {
-            yield return WaitUntil(() => !s.Typing, 90f);
+            yield return WaitUntil(() => !s.Typing && !(afterTurn && s.Pad != null && s.Pad.IsOpen && s.Pad.ConversationMode && s.Pad.PlayerCanType), 90f);
             yield return Say(s, lines, cps);
         }
 
@@ -517,6 +523,8 @@ namespace SecondCursor.Story
             _g.Files.SetContent(ContentIds.FileBatch47B, string.Join("\n", Lines("n3_corrupt_content")));
             _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.damaged"), "icon_info", null, "sys_warning");
             _g.Fx.Glitch(0.12f, 0.5f);
+            // Phase M (N3-1): the file was typed over by someone, backwards (heard where you hold it).
+            Scare("key_tap_rev", 0.6f, Audio.AudioManager.PanFor(_g.Player.Position.x), 0.4f, 2f, ScareRules.IgnoreAllButStory);
             GameLog.Info(LogChannel.Story, "Anomaly: batch47_b damaged");
             if (_saidCorrupt) yield break;
             _saidCorrupt = true;

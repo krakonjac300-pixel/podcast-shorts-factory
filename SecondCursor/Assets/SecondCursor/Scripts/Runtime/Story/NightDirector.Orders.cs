@@ -64,8 +64,13 @@ namespace SecondCursor.Story
             if (mailId != null) _g.Mail.Deliver(mailId);
         }
 
-        /// <summary>Waits for a decision (hints like any task); after the task's usual patience the order lapses.</summary>
-        protected IEnumerator WaitOrder(string taskId, string orderId) => WaitTask(taskId, -1f, () => LapseOrder(taskId, orderId));
+        /// <summary>
+        /// Waits for a decision (hints like any task); after the task's usual patience, and never before <see cref="ChoicePatience"/>
+        /// (reading a mail and a Personnel record takes a slow reader longer than Story's 105 s), the order lapses.
+        /// </summary>
+        protected IEnumerator WaitOrder(string taskId, string orderId) => WaitTask(taskId, -1f, () => LapseOrder(taskId, orderId), ChoicePatience);
+
+        const float ChoicePatience = 180f;
 
         /// <summary>Nobody decided: the task is taken back first (cancelling the order would complete it), then the order is cancelled.</summary>
         protected void LapseOrder(string taskId, string orderId)

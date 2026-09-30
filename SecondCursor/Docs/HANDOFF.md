@@ -1329,6 +1329,159 @@ Difficulty, the tug and every Phase F/J/K number are unchanged.
   estimates plus the scripted floors, not a measured human run; real hands (and the Steam Deck) should confirm the tips' placement on a
   crowded screen (a tip that finds no place gives up rather than cover a window) and how the new mails feel at a normal reading pace.
 
+### Phase M (sound audit, scares, ending climax)
+
+Input: `_work/2026-09-29/launch/SoundDesign.md` (inventory, test plan, 12 new scary sounds plus `scare_hit`, `scare_hit_soft` and
+`static_burst`, the scare schedule, the climaxes, mixing), written before Phases K and L and re-checked against the current code; the owner's
+request: every sound works, rare scary sounds, and a real scare when the player loses (KEEP); the Phase L review (`ReviewPhaseL.md`).
+
+- **New sounds** (`Core/Audio/ProceduralSoundBank.Scares.cs`, procedural like the rest; the bank is now a partial class): `knock_door`,
+  `chair_creak`, `breath_near`, `whisper_burst`, `key_tap_rev`, `click_wrong`, `metal_scrape`, `step_near`, `sub_swell`, `crt_whine_rise`,
+  `scare_hit`, `scare_hit_soft`, `ear_ring`, `static_burst`, and `notify_task` (a new task's own chime, D6 falling to A5; new mail keeps
+  `notify_mail`). UiClick's loop became `UiClickRaw(r, speed)` (click_wrong's slow answer); every old clip renders bit-identical (SoundPreview
+  WAVs compared). 50 clips, cold generation about 0.43 s (was 0.30 s), spread over frames as before. Levels (SoundPreview, seed 0; design in
+  brackets): knock -13.6 (-14.9), creak -21.8 (-20.2), breath -23.8 (-24.4), whisper -27.2 (-27.2), key_tap_rev -18.2 (-18.3), click_wrong
+  -18.6 (-18.6), metal_scrape -25.5 (-25.8), step_near -13.2 (-13.2), sub_swell -18.4 (-16.8), crt_whine_rise -24.2 (-24.4), scare_hit -7.0
+  (-6.5), scare_hit_soft -14.4 (-14.5), ear_ring -28.4 (-28.2), static_burst -25.9 (-25.8) dBFS over the loudest 50 ms; every peak <= 0.89.
+- **Bugs fixed.** `camera_static` (a 2 s loop) no longer plays as a one-shot: every static cut and resolve plays `static_burst` at 0.9 (3 dB
+  over the room instead of under it), and `camera_static` is the Camera Viewer's own hiss (0.12 while a feed shows, 0.4 on a dead channel, off
+  when minimized, closed, Quiet or frozen). Night 1's doubled thump (rig plus a second `low_thump` in the obeyed branch) is one step. An in-place
+  jump out of a dip left the room silent: `CleanUpForJump` brings the room back (and cancels scares, a climax's mute and freeze). Every
+  ending's sweep of the windows (`WindowManager.CloseAll`) stacked one `ui_window` per window in the dark (measured -3.3 dBFS, louder than
+  anything but the hit): it is silent now.
+- **WEAK rows done.** The figure's in-room moves are `step_near` at 0.6 / 0.8 / 1.0 for Doorway / Middle / BehindChair (the rig,
+  `SecurityCameraRig.SetFigure`); far stages keep the thump and the rounds' far footsteps (`RoundsSystem` plays footsteps only outside the
+  office). `entity_appear` starts `0.78 - fade` s into the clip so its tick lands as she arrives. Tension beds: Night 2's round (drone 0.12
+  from Security's first open, off over 2 s), Night 3's round by stage (Corridor 0.12, Doorway 0.2, Middle 0.28 a semitone down), Night 3's
+  finale (0.1 at 6:50, 0.18 at 6:55, 0.25 at 7:00, gone when a Log Off confirm opens). `sys_warning` is for warnings and refusals: question and
+  information boxes open with the window swell (`ui_window`), and Security's repeat opens of a round chime softly (`ui_select`; the first
+  keeps the alarm). `ui_window` plays on open and restore. Key taps and mouse clicks have 4 seeds each, picked at random. Gary types at 0.7.
+  The pause menu is audible (a source that ignores the listener pause), and Volume + / - previews the new level with `ui_select`.
+- **Mixing.** `MasterLimiter` on the game's listener (`Core/Audio/PeakLimiter.cs`: ceiling 0.89, instant attack, 120 ms release,
+  stereo-linked; release first, then clamp, so no frame passes the ceiling; the design's sketch clamped before the release step). When it
+  engages the log names what had just played (`[AUDIO] Limiter engaged (max input ...), just played: ...`). In every climax and in the
+  sweep it never engaged; in the full-night runs it caught only the bridge's burst typing (`type who are you\n` lands several keystrokes in
+  one frame: 4 frames at 0.98 on Night 1, 2 at 1.03 on Night 3), which a person at a keyboard does not do. Voices: 16 (was 12), a
+  free one first, else the oldest that is not protected (scare_hit, scare_hit_soft, sub_swell, crt_whine_rise, breath_near, end_tone,
+  sys_startup, power_down). `SetAmbienceLevel` scales the room without stopping it (a scare's
+  6 dB duck, a climax's dropout); `SetAmbience(true)` also restores the level. `PlayStinger` opens a 1.3 s exclusive window (other one-shots
+  are dropped and recorded as muted); `UiMuted` drops cursorless UI sounds (toasts, message boxes) through a climax. Measured in game: Unity
+  pans a centred mono source at -3 dB per channel, so every in-game level is 3 dB under the design's mono mock (KEEP hit peak -5.0 dBFS, not
+  -1.9); the balance between sounds is the design's.
+- **Scares** (`Core/Audio/ScareRules.cs`, engine-free; `Runtime/Story/ScareScheduler.cs`; `NightDirector.Scares.cs`). Budgets Night 1 2,
+  Night 2 6 (pool at most 2), Night 3 9 (pool at most 2); cooldown 90 / 60 / 40 s (Night 3 finale 25 s); the gate names why a scare waits:
+  paused, climax, budget, tug, dialog (any message box, progress bar or shred), typing (a speaker typing, or any keystroke in the last 1.5 s),
+  reply (a Jotter waiting for the player), drag, tip (a first-time tip shown or queued), tutorial (Night 1 before `tutorial_done`),
+  watching-self (Night 1, CAM 03 with the door shut), beat start (8 s), early (the pool only: 120 s into Nights 2 and 3), 30 s after a
+  stinger, 6 s after a story sound, cooldown. A slot that never finds the gate open in its window is skipped and costs nothing; story-event
+  slots ignore everything but pause, climax and budget. Each ambient scare ducks the room 6 dB for its length plus 0.5 s.
+
+  | Night | Slot | When (as built) | Sound, volume |
+  |---|---|---|---|
+  | 1 | N1-1 | 3.5 to 5 s after "player cursor flinched", window 20 s | chair_creak 0.35 |
+  | 1 | N1-2 | 2 s after the 1987 mail, window 15 s | knock_door 0.45, pan -0.1 |
+  | 1 | reveal | each in-room move (rig) | step_near 0.6 / 0.8 / 1.0 |
+  | 2 | N2-1 | 20 s after she looked in, window 300 s | click_wrong answers the player's next click |
+  | 2 | N2-2 | a request of hers ignored 40 s (once) | whisper_burst 0.5, panned to the Work Queue |
+  | 2 | N2-3 | Gary surfaces (+0.3 s, his own swell removed) | breath_near 0.45 |
+  | 2 | pool | help, asks, third: every 110 to 170 s | chair_creak 0.45, key_tap_rev 0.5 (at the cursor), whisper_burst 0.45 (one ear) |
+  | 3 | N3-1 | batch47_b damaged (+0.4 s) | key_tap_rev 0.6 at the cursor |
+  | 3 | N3-2 | 2 s after the missed-call notice: the room drops out | breath_near 0.55, pan -0.2 |
+  | 3 | N3-3 | CAM 04 watched 6 s in the round (once) | metal_scrape 0.7 |
+  | 3 | N3-4 | the figure reaches Corridor (+1.5 s) | knock_door 0.8 |
+  | 3 | lost | the 1.5 s dip (story, not budgeted) | ear_ring 0.6 |
+  | 3 | N3-6, 7, 8 | 6:45 whisper (at Ellen), 6:52 your chair, 6:58 the knock (replaces the far footsteps) | 0.55, 0.7, 0.9 |
+  | 3 | pool | work, ruth: every 80 to 130 s | chair_creak 0.55, key_tap_rev 0.6, whisper_burst 0.55, click_wrong |
+
+- **Climaxes** (build, cut to true silence, one pre-mixed hit synced by frames, ringing aftermath; Reduce flashing plays `scare_hit_soft`, no
+  flash and no glitch, black instead of NO SIGNAL, same timing):
+  - **KEEP** (`Night3Director.Finale.cs`, `KeepClimax`). T0: the viewer shows CAM 03, the figure resolves behind the chair under a static
+    burst with a step; +0.3 s the room and the finale drone drop out over 1.5 s; she types DONT TURN AROUND (with the time and seat causes);
+    then `sub_swell` (S), `crt_whine_rise` at S+0.5, `breath_near` at S+0.85, the head turns from S+1.05; the last 0.35 s the feed noise
+    rises; S+4.0 every loop stops in 30 ms and the frame freezes (lit steadily, no grain, timestamp stopped); S+4.35 `scare_hit` (1.0), H =
+    S+4.45: flash 0.3, shake 6 px, glitch, and (full effects) its head right at the lens for 0.12 s; H+0.12 NO SIGNAL; H+0.2 `crt_off` and
+    the collapse; H+0.7 black; H+0.9 `ear_ring`; the dark ending skips its own power down (`EndingSpec.AfterHit`).
+  - **Night 1 reveal** (the demo's last scare, `RevealClimax`): T0 whine 0.7 and the drone swelling and bending a semitone over the 3.2 s
+    head turn; T0+3.5 cut and freeze; stinger 0.75 at T0+3.8; flash 0.4, shake 4, glitch; crt_off and collapse at H+0.2; black and
+    `ear_ring` 0.6 at H+0.7; then the existing 2.6 s of dark and STILL THERE.
+  - **Night 2 door** (`DoorClimax`, only if watched to the doorway): the room and drone drop out, knocks at +0.55, +1.08, +1.62 s shake the
+    door, stinger 0.6 at +2.0 s, the door flung wide under NO SIGNAL with `static_burst` 0.9, 2 s of silence, the room back over 3 s.
+  - **Night 3 seat cleared** (`SeatCleared`): the room and drone drop out, a breath, stinger 0.7 as the lights go (T0+1.5), `ear_ring`
+    0.6, the drone 0.2 in the dark, the room back after 3 s. SHRED's head turn is silent (`rig.Quiet`), LOG OFF has no scare.
+- **Measured in game** (`sfxorder` gaps and the recordings in `_work/2026-09-29/sound/out/*_game*.wav`, master 0.9): KEEP static_burst and
+  step at T0, sub_swell +5.2 to 5.6 s (her line), whine +0.49, breath +0.35, scare_hit +3.50, crt_off +0.31, ear_ring +0.71; 0.35 s of digital zero
+  before the pre-roll; hit peak -5.0 dBFS, loudest 50 ms -10.5 dBFS, about 15 dB over her typing; first typed ending letter about 6.2 s
+  after the hit (16 s from T0 with the line). KEEP soft -8.0 / -17.8. Night 1 reveal: whine to stinger 3.81 s, stinger to crt_off 0.31,
+  to ear_ring 0.51; peak -7.5 dBFS (soft -10.0). Night 2 door -6.5 dBFS (with her typing under it); Night 3 seat -7.2 dBFS. The limiter
+  engaged in no climax (max input 0.57 to 0.71).
+- **Test hooks.** `AudioManager` records every request (P one-shot, L loop start, S stop, A room level, M muted, X missing) in a 2048-entry
+  static ring with per-id counts; scares and climaxes write `[AUDIO] Scare: ...`, `[AUDIO] Scare skipped: ... (reason)`, `[AUDIO] Stinger
+  ...` and `[STORY] Climax: begin | build | silence | hit | aftermath`. Bridge (`Editor/SecondCursorTestBridge.Audio.cs`): `sfx`, `sfxclear`,
+  `sfxwait`, `sfxexpect`, `sfxnone`, `sfxorder`, `sfxplay`, `sfxloops`, `sfxsweep`, `sfxreport`, `scares`, `scareforce`, `sfxrecord start |
+  stop PATH` (a WAV of the limited output), `shotsafter PREFIX T...` (game view shots on a climax's timeline), and `settingsset
+  reduceflashing`.
+- **Content notes.** `disclaimer.body` (and `.deck`) add that Reduce flashing also softens the loudest sudden sounds, and a line under the
+  first-launch buttons says it (`disclaimer.choice.note`). `Docs/Launch/MarketingPackFull.md`, `MarketingPack.md` and `HowToPlay.md` now say
+  "a few sudden loud sounds (jump scares), the loudest in one of the endings" and that Reduce flashing softens them.
+- **Phase L review fixes** (`ReviewPhaseL.md`): 1 choice orders wait at least 180 s before they lapse (`WaitTask(..., minPatience)` from
+  `WaitOrder`); 2 the reply notice is not shown for a closed or answered Jotter or while the reply tip is queued (`Tips.IsQueued`); 3
+  `SaveData` version 4 seeds every tip id (`SaveData.TipIds`) for a version 3 save that finished a night, unlocked Night 2 or fought a tug (a
+  night start alone does not count); 4 tips are parented to the taskbar layer, under popup menus, the Nexus menu and the notices; 5 Work
+  Queue, Mail and Jotter handle a resize once a frame in `Tick` instead of on every grip move; 6 D5's answer waits out the player's turn in
+  Ruth's exchange (`SayLater(..., afterTurn: true)`).
+- **Tests.** CoreTests 387 (14 new in `PhaseMTests.cs`: the new clips exist, are deterministic and under the ceiling; only the hits
+  reach full volume; the hit is 4 dB over everything in the mix and the soft twin 6 dB under it; the hit lands after its pre-roll; the
+  build-ups end at their loudest; budgets and cooldowns; every gate reason and its order; the finale cooldown; the pool's early gate and
+  limit; story slots ignore all but pause, climax and budget; no pool sound twice in a row; the limiter holds the worst overlap at the
+  ceiling and leaves normal play untouched; the disclaimer strings. One new in `PhaseLTests.cs`: the version 4 tip seeding). SoundPreview:
+  every clip's loudest 50 ms <= -6 dBFS, the hit 4 dB over every clip at mix level, the soft twin 6 dB under, the build-ups end within 1 dB
+  of their loudest 300 ms. CompileCheck: 8 configurations OK.
+- **Checked through the bridge** (scripts and outputs in `_work/2026-09-29/phaseM`, saves under `saves/phaseM`, shots
+  `Library/SecondCursorBridge/shots/m_*.png`, contact sheets `phaseM/m_*_sheet.png`): `sfxsweep` 50/50 audible (limiter 0, max input 0.58);
+  each climax in Full effects and in Reduce flashing with `sfxorder`, a recording and a timed shot series (`m_n1full`, `m_n1soft`,
+  `m_keepfull`, `m_keepfinal`, `m_keepsoft`, `m_door`, `m_doorsoft`, `m_seat`, `m_seatsoft`); an in-place `beat work` out of Night 1's
+  presence dip brings the room back (`sfxloops`); in the pause menu Volume + / - play `ui_select` at the new level and CRT's click plays
+  (records at 0.60 and 0.54), no scare while paused; master volume 0 is silent, master 1.0 plays the KEEP hit at 1.000 with the limiter at
+  0.63 max input, engaged 0.
+- **Regression from the title on a fresh save** (`reg_n1.cmd`, `reg_n2.cmd`, `reg_n3.cmd`, from Phase L's scripts with `sfxclear`,
+  `sfxreport` and `scares`; save `saves/phaseM/reg`): Night 1 from New Game to its card (`The file came back.`; scares 2/2: the creak after
+  the flinch and the knock after the 1987 mail; the reveal climax; played again after the review fixes, same result); Night 2 from Continue
+  to its card (`Nobody shredded employee_209.dat by 3:00 AM.`: the script's 450 px/s pull lost the 209 tug this run, grip 0.71 at trust 0.63,
+  so it took the kept path; scares 1/6, Gary's breath; the pool waited on a Jotter reply and skipped); Night 3 from Continue to LOG OFF
+  (`You logged off with session 017 still open.`; scares 7/9: key_tap_rev at the damaged file, a pool creak, the breath on the line, a
+  pool click_wrong answered, metal_scrape on CAM 04, the 6:45 whisper, the 6:58 knock; the 6:52 creak waited behind the finale cooldown
+  during the idle fast-forward and was cancelled when the Log Off confirm opened). 0 game errors on every night; the clock monitor saw no
+  step back on Nights 1 and 2 and the known 0.007 min at Night 3's boot. The remaining `TIMEOUT` lines are waits for lines already logged
+  or for Gary's finished-voice lines (kept Gary this run). `sfxreport`: no one-shot under 0.02, no flood over 15 a second outside typing.
+- **Builds.** Full `Builds/Windows/SecondCursor.exe` 76.6 MB and demo `Builds/WindowsDemo/SecondCursorDemo.exe` 76.4 MB by the engine's
+  report (71.9 and 71.7 MB on disk with Symbols and D3D12 moved out to `Builds/Symbols/...`), 0 errors (the engine's usual 2 build
+  warnings), 0 compiler warnings in the game's scripts, content folders back in Resources, `SC_DEMO` off. Windowed smoke tests
+  (`phaseM/smoke.ps1`: full, demo, full with `-scnight 3 -scbeat finale`): each reaches its title or the finale, builds its 50 sounds and
+  logs no exception. Demo data grep (`phaseM/spoiler_grep.py`, Phase M terms added: none found): the hits are the same kinds as Phase L's
+  (Night 1's own text, the incident log, code constants and string keys).
+- **Review.** A code review found nothing critical or high; fixed: an armed `click_wrong` now expires after 20 s, is re-checked when the
+  click comes (never over a pause, a dialog, a tug or a climax) and counts only when it plays (`ArmClickAnswer`, `ClickAnswerAllowed`,
+  `ClickAnswered`); the finale's scare slots are not placed after a Log Off confirm has opened; every Night 3 ending cancels waiting slots
+  (a slot held shut by the shred dialog could have landed in SHRED's silence); a stinger's window also blocks loop starts (the seat-cleared
+  climax lets its drone through); the output recorder is editor-only. CompileCheck's Editor configuration now compiles against the
+  in-editor runtime (`RuntimeEditor.csproj`), as Unity does.
+- **Judgement calls.**
+  - N1-1's creak comes 3.5 to 5 s after the flinch (the design's 8 to 12 s landed after the file selects itself, 7 to 10 s after it).
+  - The early gate applies to the pool only: scripted slots sit where the story puts them (a checkpoint Continue or a jump would otherwise
+    have silenced them).
+  - The finale's 6:45 and 6:52 slots ignore the reply gate: the finale listens for "stay" throughout, so that gate would have closed them.
+  - N3-5's ring in the lost dip is part of the story beat, not the budget; Night 3's scripted budget is the other seven.
+  - The rig's step volumes are one rule on every night (Night 2's doorway step is 0.6, not the design's 0.7).
+  - The KEEP hit has the design's optional frame of the head at the lens (full effects only; `FigureStage.AtLens`), so its flash is 0.3,
+    not 0.5, and the dark shape reads through it. Night 1 keeps flash 0.4 and no lens frame, so the full game's ending stays the biggest.
+  - Night 1's ring plays at H+0.7 (with the black), not H+0.6. The doorway beat keeps its far door under the new step.
+  - The frozen frame is lit steadily (a flicker's dark instant could otherwise be the frame that holds).
+  - `sfxsweep` measures each one-shot over its first second (entity_appear peaks 0.78 s in).
+  - `click_wrong` from the pool or N2-1 counts against the budget when it answers a click, not when it is armed.
+  - Night 2's N2-1 needs her glimpse, 90 s into the work beat; a fast run through the chores never gets it.
+- **Not yet.** A listening pass on laptop speakers and headphones by a person (the numbers are measured, the feel is not); a flash-analysis pass
+  (PEAT) of the KEEP hit's frames; the Steam Deck's speakers.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -1352,6 +1505,7 @@ savecheck | qaread on | settingsset frameRate 60 | buildguard | democrash | relo
 clockmon start | clockmon report | clockcheck | hint t_shred_017   # Phase I: the clock sampled every editor frame, its own counters, a task's hint toast now
 tugsteps 30 0.1 8 0.3 | tughuman 400 5 j_ahead   # Phase J: the blind testers' tug input, and a player who lets go once the bar is theirs
 tugangle 90 400 1.2      # Phase K: in a tug, pull at 90 degrees from the arrow at 400 px/s for 1.2 s, then hold; prints the loss reason
+sfx 20 | sfxclear | sfxwait scare_hit 30 | sfxorder sub_swell scare_hit | sfxreport | scares | sfxrecord start | sfxrecord stop D:\...\x.wav | shotsafter m_keep 4.2 4.5   # Phase M
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

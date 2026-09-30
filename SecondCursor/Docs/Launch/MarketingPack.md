@@ -165,9 +165,9 @@ It is 1:52 AM in the basement of Letheworth Data Reclamation. This is your first
 - **The camera is pointed at you.** Camera 03 shows your office from behind, and each time you look again something is closer.
 - **Safe by design.** No file access, no webcam or microphone, no real-mouse control.
 
-**Content notes:** psychological horror; themes of surveillance, a missing employee, deceased employees, being replaced; death implied, never depicted; no gore; a tall figure on a security camera; sudden low sounds and long silences; no voice acting and no in-game profanity (players can type their own words, the game only reacts).
+**Content notes:** psychological horror; themes of surveillance, a missing employee, deceased employees, being replaced; death implied, never depicted; no gore; a tall figure on a security camera; long silences and a few sudden loud sounds (jump scares), the loudest in one of the endings; no voice acting and no in-game profanity (players can type their own words, the game only reacts).
 
-**Photosensitivity notice:** the game contains screen glitches and tearing (0.05 to 0.4 s each), screen shake, film grain, CRT flicker, bursts of static and a flickering light in the security-camera feed, and a bright flash when the monitor powers off. A Reduce flashing option (Esc menu) tones glitches, flashes, shake and flicker spikes down, and CRT effects can be switched off. Run a flash-analysis tool (for example PEAT) on captures of the CAM 03 reveal and the blackout before publishing, and adjust this notice to match.
+**Photosensitivity notice:** the game contains screen glitches and tearing (0.05 to 0.4 s each), screen shake, film grain, CRT flicker, bursts of static and a flickering light in the security-camera feed, and a bright flash when the monitor powers off. A Reduce flashing option (Esc menu) tones glitches, flashes, shake and flicker spikes down, and also softens the sudden loud sounds; CRT effects can be switched off. Run a flash-analysis tool (for example PEAT) on captures of the CAM 03 reveal and the blackout before publishing, and adjust this notice to match.
 
 **Suggested tags:** Psychological Horror, Horror, Atmospheric, Pixel Graphics, Retro, Mystery, Story Rich, Singleplayer, Indie. Avoid "Hacking". Test "Point & Click" before using it.
 

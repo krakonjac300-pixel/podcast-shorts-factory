@@ -132,6 +132,10 @@ namespace SecondCursor.Story
                 ((RectTransform)full.transform).At(ScreenRig.Width / 2 - 150, 400, 140, 24);
                 var reduced = UiButton.Create(p, "Reduce flashing", a => { _g.Fx.ReduceFlashing = true; chosen = true; }, "button:ReduceFlashing");
                 ((RectTransform)reduced.transform).At(ScreenRig.Width / 2 + 10, 400, 140, 24);
+                // Phase M: the choice also decides how hard the jump scares hit.
+                var note = UIBuilder.Text(p, _g.Content.Text("disclaimer.choice.note"), Palette.BiosText);
+                note.rectTransform.At(0, 432, ScreenRig.Width, 12);
+                note.Align = TextAlign.Center;
                 while (!chosen) yield return null;
                 // Options may have saved other settings while the choice was open (Esc): write back a fresh copy.
                 settings = Game.SaveSystem.LoadSettings();
@@ -140,6 +144,7 @@ namespace SecondCursor.Story
                 Game.SaveSystem.SaveSettings(settings);
                 full.gameObject.SetActive(false);
                 reduced.gameObject.SetActive(false);
+                note.gameObject.SetActive(false);
                 _clicked = false;
             }
             else

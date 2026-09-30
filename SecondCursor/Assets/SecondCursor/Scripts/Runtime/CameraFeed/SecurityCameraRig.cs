@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 
 namespace SecondCursor.CameraFeed
 {
-    public enum FigureStage { None, Corridor, Doorway, Middle, BehindChair, HallFar, SublevelC, Lobby, Seated00 }
+    public enum FigureStage { None, Corridor, Doorway, Middle, BehindChair, HallFar, SublevelC, Lobby, Seated00, AtLens }
 
     /// <summary>
     /// SecureView's CCTV: a tiny 3D building (lobby, corridor, the operator's own office) built from primitives at
@@ -83,6 +83,26 @@ namespace SecondCursor.CameraFeed
         public float LightFlicker { get; set; }
         public bool LightsOn { get; set; } = true;
         public bool SignalLost { get; set; }
+        /// <summary>Phase M: the feed makes no sound at all (no step when the figure moves, no feed hum): SHRED's silent head turn, a hit's silence.</summary>
+        public bool Quiet { get; set; }
+        /// <summary>Phase M: the picture holds perfectly still (nothing moves, no grain, the timestamp stops): the frame before a hit.</summary>
+        public bool FreezeFeed
+        {
+            get => _frozen;
+            set
+            {
+                if (value && !_frozen && _active != null)
+                {
+                    // The still frame is lit steadily: a flicker's dark instant must not be the frame that holds.
+                    LightFlicker = 0f;
+                    _dipTime = 0f;
+                    Tick(0f, false);
+                }
+                _frozen = value;
+            }
+        }
+
+        bool _frozen;
 
         GameServices _g;
         Shader _shader;
@@ -453,8 +473,13 @@ namespace SecondCursor.CameraFeed
         /// <summary>Cuts the figure to a stage instantly. It never moves while watched.</summary>
         void SetFigure(FigureStage stage)
         {
-            // The frame it moves on lands with a thump (it is never seen moving).
-            if (stage != _figureStage && stage != FigureStage.None) _g?.Audio?.Play("low_thump", 0.55f, 0.95f);
+            // The frame it moves on lands with a sound (it is never seen moving). Phase M: in the office it is a step on the carpet,
+            // louder every time (M6: closer every time you look); anywhere else the building's thump.
+            if (stage != _figureStage && stage != FigureStage.None && stage != FigureStage.AtLens && !Quiet)
+            {
+                bool inRoom = stage >= FigureStage.Doorway && stage <= FigureStage.BehindChair;
+                _g?.Audio?.Play(inRoom ? "step_near" : "low_thump", StepVolume(stage), inRoom ? 1f : 0.95f);
+            }
             _figureStage = stage;
             // It only ever stands in a wide-open doorway, and the door opened between frames like everything it does.
             if (stage == FigureStage.Doorway && _doorTarget < DoorwayMinOpen)
@@ -474,6 +499,16 @@ namespace SecondCursor.CameraFeed
                 case FigureStage.Doorway: pos = new Vector3(DoorX, 0f, -RoomHalfD + 0.13f); yaw = 0f; break;
                 case FigureStage.Middle: pos = new Vector3(0.22f, 0f, -0.62f); yaw = 300f; break;
                 case FigureStage.BehindChair: pos = new Vector3(SeatX + 0.48f, 0f, DeskZ - 0.33f); yaw = 280f; break;   // behind, a little to the left
+                case FigureStage.AtLens:
+                {
+                    // Phase M: the KEEP hit's frame: its head right in front of CAM 03's lens, facing it.
+                    var lens = _office.Cam.transform;
+                    Vector3 toLens = -lens.forward;
+                    toLens.y = 0f;
+                    _figure.SetPositionAndRotation(lens.position + lens.forward * 0.4f - Vector3.up * 1.95f, Quaternion.LookRotation(toLens.normalized));
+                    _figure.gameObject.SetActive(true);
+                    return;
+                }
                 default:
                     if (!ExtraStage(stage, out area, out pos, out yaw, out pitch))
                     {
@@ -485,6 +520,8 @@ namespace SecondCursor.CameraFeed
             _figure.SetPositionAndRotation(area.Root.TransformPoint(pos), area.Root.rotation * Quaternion.Euler(pitch, yaw, 0f));
             _figure.gameObject.SetActive(true);
         }
+
+        static float StepVolume(FigureStage stage) => stage == FigureStage.Doorway ? 0.6f : stage == FigureStage.Middle ? 0.8f : stage == FigureStage.BehindChair ? 1f : 0.55f;
 
         /// <summary>Only the watched camera renders; switching (or opening the app) is a cut.</summary>
         void RefreshCameras()
@@ -512,7 +549,7 @@ namespace SecondCursor.CameraFeed
         void LateUpdate()
         {
             RefreshCameras();   // picks up SignalLost
-            if (_active != null) Tick(Time.deltaTime, false);
+            if (_active != null && !FreezeFeed) Tick(Time.deltaTime, false);
         }
 
         void Tick(float dt, bool cut)

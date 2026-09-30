@@ -315,10 +315,10 @@ namespace SecondCursor.OS
             if (top != null) Focus(top, by);
         }
 
-        /// <summary>Close every window (desktop reset).</summary>
+        /// <summary>Close every window (desktop reset), silently (Phase M: the endings' sweep stacked four window sounds at -3 dBFS in the dark).</summary>
         public void CloseAll()
         {
-            foreach (var w in _windows.ToArray()) if (w != null) w.Close();
+            foreach (var w in _windows.ToArray()) if (w != null) w.Close(null, true);
             _windows.Clear();
             Active = null;
         }

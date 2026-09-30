@@ -89,21 +89,6 @@ namespace SecondCursor.Story
             }
         }
 
-        /// <summary>Night 1's power down: the hum stops, the tube dies, black.</summary>
-        IEnumerator PowerDown()
-        {
-            var g = _g;
-            g.Player.Visible = false;
-            g.Audio.StopAllLoops(0.2f);
-            g.Audio.Play("power_down");
-            if (g.CameraRig != null) g.CameraRig.LightsOn = false;
-            yield return Waits.Seconds(0.5f);
-            g.Audio.Play("crt_off");
-            yield return g.Fx.PowerOff(0.9f);
-            g.Fx.SetBlack(true);
-            yield return Waits.Seconds(2.6f);
-        }
-
         /// <summary>The black screen everything after the power down happens on (nothing behind it is clickable).</summary>
         RectTransform Room()
         {
@@ -371,15 +356,24 @@ namespace SecondCursor.Story
             rig.Figure = CameraFeed.FigureStage.None;
             rig.AdminPointer = -1f;
             var feed = FullscreenFeed(ContentIds.Cam00, out var time);
-            g.Audio.Play("camera_static", 0.5f);
+            // Phase M: a burst at the cut, the feed's own hiss for its four seconds, and one click in that room when the point stops.
+            g.Audio.Play("static_burst", 0.8f);
+            g.Audio.PlayLoop("camera_static", 0.12f, 0.3f);
             float t = 0f;
+            bool clicked = false;
             while (t < 4f)
             {
                 t += Time.deltaTime;
                 time.text = GameClock.FormatCamera(g.Clock.ExactMinutes + t / 60.0);
                 rig.AdminPointer = t >= 3f ? Mathf.Clamp01(t - 3f) : -1f;
+                if (!clicked && t >= 3.95f)
+                {
+                    clicked = true;
+                    g.Audio.Play("mouse_click", 0.5f, 0.8f);
+                }
                 yield return null;
             }
+            g.Audio.StopLoop("camera_static", 0.1f);
             rig.AdminPointer = -1f;
             Object.Destroy(feed.gameObject);
             _temp.Remove(feed.gameObject);

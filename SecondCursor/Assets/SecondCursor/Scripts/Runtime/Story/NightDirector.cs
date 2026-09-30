@@ -213,6 +213,10 @@ namespace SecondCursor.Story
             g.Player.Enabled = true;
             g.Player.Visible = true;
             g.Audio.StopLoop("drone_tension", 0.3f);
+            // Phase M: nothing a half-finished scare or climax left behind (an in-place jump out of a dip used to leave the room silent).
+            g.Scares.CancelAll();
+            EndClimax();
+            if (g.Flags.Has(Flags.LoggedIn)) g.Audio.SetAmbience(true, 0.5f);
             g.Shred.Abort();
             g.Shred.SpeedMultiplier = 1f;
             if (g.Fx.IsPoweredOff) g.Fx.PowerOn();
@@ -312,9 +316,10 @@ namespace SecondCursor.Story
         /// <summary>
         /// Waits for a task. After <paramref name="hintAfter"/> seconds (default: the difficulty's first hint)
         /// its hint pops up as a toast, and again at the difficulty's repeat interval while the player is
-        /// still stuck. Story difficulty caps every first hint at its own (short) delay.
+        /// still stuck. Story difficulty caps every first hint at its own (short) delay. It gives up after the hint and the
+        /// difficulty's patience, and never before <paramref name="minPatience"/> seconds.
         /// </summary>
-        protected IEnumerator WaitTask(string taskId, float hintAfter = -1f, Action onTimeout = null)
+        protected IEnumerator WaitTask(string taskId, float hintAfter = -1f, Action onTimeout = null, float minPatience = 0f)
         {
             var d = _g.Difficulty;
             if (hintAfter < 0f) hintAfter = d.TaskHintFirst;
@@ -333,7 +338,7 @@ namespace SecondCursor.Story
                         if (f != null && f.Shredded) _g.Files.Restore(target, ContentIds.FolderIntake, Actor.System);
                     }
                 }
-                if (Time.time - start > hintAfter + d.TaskForceAfterHint)
+                if (Time.time - start > Mathf.Max(hintAfter + d.TaskForceAfterHint, minPatience))
                 {
                     // Phase L: an order the player may decide either way lapses instead of being completed for them.
                     if (onTimeout != null) onTimeout();
@@ -420,7 +425,7 @@ namespace SecondCursor.Story
             _g.Tasks.Activate(taskId);
             if (!_g.Tasks.IsCompleted(taskId))
                 _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Tasks.Get(taskId)?.Title ?? "", "icon_task_active",
-                    a => _g.Apps.Launch(AppIds.WorkQueue, a), "notify_mail");
+                    a => _g.Apps.Launch(AppIds.WorkQueue, a), "notify_task");
         }
 
         protected void PhantomClick(Vector2 at)
@@ -625,7 +630,7 @@ namespace SecondCursor.Story
         protected IEnumerator StaticResolve(Action change, float seconds)
         {
             var rig = _g.CameraRig;
-            _g.Audio.Play("camera_static", 0.6f);
+            _g.Audio.Play("static_burst", 0.9f);
             rig.ExtraNoise = 0.95f;
             change();
             float t = 0f;
@@ -642,7 +647,7 @@ namespace SecondCursor.Story
         protected IEnumerator StaticCut(Action change)
         {
             var rig = _g.CameraRig;
-            _g.Audio.Play("camera_static", 0.6f);
+            _g.Audio.Play("static_burst", 0.9f);
             float t = 0f;
             bool changed = false;
             while (t < 0.45f)

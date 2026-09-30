@@ -6,6 +6,7 @@ using System.Linq;
 using SecondCursor.Apps;
 using SecondCursor.CameraFeed;
 using SecondCursor.Core;
+using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.Story;
@@ -66,7 +67,7 @@ namespace SecondCursor.Story
             E.Interrupt();
             E.State = EntityState.Observing;
 
-            bool cleared = false, timeUp = false, teachSaid = false, personnelSaid = false, doorSaid = false;
+            bool cleared = false, timeUp = false, teachSaid = false, personnelSaid = false, doorSaid = false, knocked = false;
             int advances = 0;
             var model = (CustodialRounds)null;
             _onForcedOpen = i =>
@@ -103,6 +104,18 @@ namespace SecondCursor.Story
                     model.Config.Hasten(0.4f);
                     SayLater(_ellen, "n3_rounds_door", 5f);
                 }
+                // Phase M (N3-4, N3-bed): at your door it knocks; the drone tightens as it comes (and bends down once it is in the room).
+                if (name == "Corridor" && !knocked)
+                {
+                    knocked = true;
+                    Scare("knock_door", 0.8f, -0.1f, 1.5f, 10f, ScareGate.EventNear | ScareGate.BeatStart);
+                }
+                float drone = RoundsDrone(name);
+                if (drone > 0f)
+                {
+                    g.Audio.PlayLoop("drone_tension", drone, 2f);
+                    g.Audio.SetLoopPitch("drone_tension", name == "Middle" ? 0.9439f : 1f);
+                }
             };
             _onPlayerReopen = () => { };
             _onSeatCleared = () => cleared = true;
@@ -124,12 +137,14 @@ namespace SecondCursor.Story
             model = g.Rounds.Model;
             // Phase J: once the shelf check is filed the queue says there is nothing to do until the round ends.
             RunSide(RoundsWaitLine(), "rounds-wait-line");
+            RunSide(ScrapeBelow(), "scrape-below");
 
             float start = Time.time;
             while (!cleared && !timeUp && Time.time - start < RoundsCap) yield return null;
             int maxStage = model.MaxStage;
             g.Rounds.Stop();
             UnhookRounds();
+            if (!cleared) g.Audio.StopLoop("drone_tension", 2f);
             if (g.Tasks.IsActive(ContentIds.TaskN3RoundsUntil)) g.Tasks.ForceComplete(ContentIds.TaskN3RoundsUntil);
             g.Rounds.ForcedOpenHandler = null;
             brain.AllowCloseCamera = false;
@@ -209,15 +224,27 @@ namespace SecondCursor.Story
             yield return Say(_gary, Lines("g3_teach"), GaryCps);
         }
 
+        /// <summary>Phase M: the round's drone by the figure's stage (0 = leave it as it is).</summary>
+        static float RoundsDrone(string stage) => stage == "Corridor" ? 0.12f : stage == "Doorway" ? 0.2f : stage == "Middle" ? 0.28f : 0f;
+
+        /// <summary>Phase M (N3-3, M10): the first time CAM 04 has been on screen for 6 s, something heavy moves on the shelves far below.</summary>
+        IEnumerator ScrapeBelow()
+        {
+            yield return WaitWatching(6f, RoundsCap, ContentIds.Cam04);
+            if (_g.Rounds.Running) Scare("metal_scrape", 0.7f, 0f, 0f, 20f);
+        }
+
         /// <summary>
         /// The seat is cleared: the viewer cuts to CAM 03 with the figure behind the chair, the lights go for three
-        /// seconds, and when they come back four minutes have passed. She kept a copy.
+        /// seconds, and when they come back four minutes have passed. She kept a copy. Phase M (5.5): the room and the drone
+        /// drop out, a breath, and the hit as the lights go; the ring in the dark.
         /// </summary>
         IEnumerator SeatCleared()
         {
             var g = _g;
             var rig = g.CameraRig;
             GameLog.Info(LogChannel.Story, "Rounds: seat cleared");
+            BeginClimax();
             g.Flags.Set(MemoryFlags.N3SeatCleared);
             var cam = g.Apps.Find<CameraApp>();
             if (cam == null) cam = g.Apps.Launch(AppIds.Camera, null) as CameraApp;
@@ -229,12 +256,19 @@ namespace SecondCursor.Story
                 rig.SeatedMimicsPlayer = false;
             }
             g.Rounds.PatchPersonnelFor("BehindChair");
-            yield return Wait(1.5f);
+            g.Audio.SetAmbienceLevel(0f, 0.3f);
+            g.Audio.StopLoop("drone_tension", 0.3f);
+            yield return Wait(0.2f);
+            g.Audio.Play("breath_near", 0.8f);
+            yield return Wait(1.3f - StingerPreRoll);
+            if (rig != null) rig.Quiet = true;
+            yield return Hit(0.7f, 0f, 3f, 0f, "ear_ring", "drone_tension");
             g.Fx.SetBlack(true);
-            g.Audio.Play("low_thump", 0.9f);
-            g.Audio.SetAmbience(false, 0.2f);
-            g.Audio.PlayLoop("drone_tension", 0.3f, 0.5f);
-            yield return Wait(3f);
+            yield return Wait(0.5f);
+            g.Audio.Play("ear_ring", 0.6f);
+            yield return Wait(0.5f);
+            g.Audio.PlayLoop("drone_tension", 0.2f, 0.5f);
+            yield return Wait(2f);
             g.Audio.StopLoop("drone_tension", 1.5f);
             g.Clock.Set(g.Clock.Hour24, g.Clock.Minute + 4);
             if (rig != null)
@@ -246,6 +280,7 @@ namespace SecondCursor.Story
             if (cam != null) cam.Window.Close(null);
             g.Fx.SetBlack(false);
             g.Audio.SetAmbience(true, 2f);
+            EndClimax();
             yield return Wait(1.2f);
             yield return Say(_ellen, Lines("n3_rounds_cleared"), 3.5f);
         }
@@ -287,6 +322,8 @@ namespace SecondCursor.Story
             g.Fx.Glitch(0.5f, 1f);
             g.Audio.Play("glitch_burst", 0.7f);
             g.Audio.SetAmbience(false, 0.2f);
+            // Phase M (N3-5, M15): something happened that you do not remember; your ears are still ringing.
+            g.Audio.Play("ear_ring", 0.6f);
             yield return Wait(1.5f);
             // The taskbar clock rolls through the missing hours instead of jumping (an instant set reads as a bug).
             yield return RollClock(Night3Rules.FinaleStart, ClockRollSeconds);

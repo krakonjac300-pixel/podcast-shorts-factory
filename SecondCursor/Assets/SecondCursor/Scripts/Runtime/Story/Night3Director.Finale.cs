@@ -5,6 +5,7 @@ using System.Collections;
 using SecondCursor.Apps;
 using SecondCursor.CameraFeed;
 using SecondCursor.Core;
+using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.Story;
@@ -64,7 +65,7 @@ namespace SecondCursor.Story
             _holdAt = -1;
             _exit = Night3Exit.None;
             _keepCause = "time";
-            _confirmed = _fastForward = _tugLineSaid = _garyGuardSaid = _logOffCut = false;
+            _confirmed = _fastForward = _tugLineSaid = _garyGuardSaid = _logOffCut = _logOffAsked = false;
             _garyLogOffTries = 0;
             if (g.Clock.TotalMinutes < Night3Rules.FinaleStart) g.Clock.Set(6, 41);
             g.Clock.Frozen = false;
@@ -118,6 +119,10 @@ namespace SecondCursor.Story
             g.Rounds.ClosedNoticeKey = "camera.closed.finale";
             g.Rounds.Begin(RoundsConfig.Night3Finale(g.Difficulty.Mode, g.Memory.Trust));
             bool open650 = false, open655 = false, open700 = false, open702 = false, said652 = false, said700 = false, flicker658 = false, gary700 = false;
+            // Phase M (N3-6, N3-7, N3-bed2): a whisper at 6:45 and your chair at 6:52 (a reply being waited for does not hold them:
+            // the finale listens for "stay" throughout), and a drone that tightens toward seven.
+            g.Scares.Finale = true;
+            bool whisper645 = false, creak652 = false, drone650 = false, drone655 = false, drone700 = false;
             float keepSince = -1f, at700 = -1f;
             _idleSince = Time.time;
             _idleLastPos = g.Player.Position;
@@ -127,6 +132,17 @@ namespace SecondCursor.Story
                 int clock = g.Clock.TotalMinutes;
                 if (brain.Defenses >= 1) brain.AllowIdleLurk = true;
                 if (!open650 && clock >= 6 * 60 + 50) { open650 = true; g.Rounds.OpenViewer(null); }
+                if (!whisper645 && clock >= 6 * 60 + 45 && !_logOffAsked)
+                {
+                    whisper645 = true;
+                    g.Scares.Slot("whisper_burst", 0.55f, () => Audio.AudioManager.PanFor(E.Agent.Position.x), 0f, 20f, ScareGate.Reply);
+                }
+                if (!creak652 && clock >= 6 * 60 + 52 && !_logOffAsked)
+                {
+                    creak652 = true;
+                    Scare("chair_creak", 0.7f, 0f, 0f, 20f, ScareGate.Reply);
+                }
+                if (!_logOffAsked) FinaleDrone(clock, ref drone650, ref drone655, ref drone700);
                 if (!open655 && clock >= 6 * 60 + 55)
                 {
                     open655 = true;
@@ -194,6 +210,8 @@ namespace SecondCursor.Story
                 yield return null;
             }
             g.Taskbar.ClockAmber = false;
+            // Phase M: the KEEP climax starts here: nothing ambient any more, and the cause notice shows without its chime.
+            if (_exit == Night3Exit.Keep) BeginClimax();
             // Phase J: a log off that the seat or the clock cut short says so at once (and the card names it).
             _logOffCut = _exit == Night3Exit.Keep && LogOffRunning && _keepCause != "confirm";
             if (_logOffCut)
@@ -203,6 +221,20 @@ namespace SecondCursor.Story
         }
 
         bool LogOffRunning => (_logOffConfirm != null && _logOffConfirm.IsOpen) || (_logOffProgress != null && _logOffProgress.IsOpen);
+        /// <summary>Phase M: a Log Off confirm has opened tonight: from then on nothing scary plays (the escape must feel clean).</summary>
+        bool _logOffAsked;
+
+        /// <summary>Phase M: the finale's drone, 0.1 from 6:50, 0.18 at 6:55 (the feed opens on CAM 03), 0.25 at 7:00.</summary>
+        void FinaleDrone(int clock, ref bool at650, ref bool at655, ref bool at700)
+        {
+            float level = 0f;
+            if (!at650 && clock >= 6 * 60 + 50) { at650 = true; level = 0.1f; }
+            if (!at655 && clock >= 6 * 60 + 55) { at655 = true; level = 0.18f; }
+            if (!at700 && clock >= Night3Rules.LogOffTime) { at700 = true; level = 0.25f; }
+            if (level <= 0f) return;
+            _g.Audio.PlayLoop("drone_tension", level, 4f);
+            _g.Audio.SetLoopPitch("drone_tension", 1f);
+        }
 
         /// <summary>The player moved the cursor, holds the button or typed something this frame.</summary>
         bool PlayerActive()
@@ -243,11 +275,11 @@ namespace SecondCursor.Story
             _idleSince = Time.time;
         }
 
-        /// <summary>6:58: distant footsteps, a glitch, and static over the feed if it is showing.</summary>
+        /// <summary>6:58: a knock on the office door (Phase M, N3-8: it is at your door two minutes before seven), a glitch, and static over the feed if it is showing.</summary>
         IEnumerator FeedFlicker()
         {
             GameLog.Info(LogChannel.Story, "Finale: feed flicker");
-            _g.Audio.Play("footstep_distant", 0.55f, 0.85f, 0.2f);
+            if (!_logOffAsked) Scare("knock_door", 0.9f, -0.1f, 0f, 1f, ScareRules.IgnoreAllButStory);
             _g.Fx.Glitch(0.18f, 0.55f);
             var cam = _g.Apps.Find<CameraApp>();
             if (cam != null && cam.IsOpen && !cam.Window.IsMinimized && _g.CameraRig != null) yield return StaticCut(() => { });
@@ -483,6 +515,10 @@ namespace SecondCursor.Story
             // Phase J: with the feed up, Custodial can reach the chair before the log off finishes (the tester's KEEP): say so here.
             string body = c.Text("logoff.confirm") + (g.Rounds.ViewedCamera() != null ? "\n" + c.Text("logoff.confirm.watched") : "");
             _logOffConfirm = Dialogs.Message(g, title, body, "icon_question", new[] { "Yes", "No" }, OnLogOffAnswer, 1);
+            // Phase M: from the first confirm on, nothing scary: no scare, and the drone goes.
+            _logOffAsked = true;
+            g.Scares.CancelAll();
+            g.Audio.StopLoop("drone_tension", 1f);
             var box = _logOffConfirm;
             RunSide(Say(_ellen, Lines(Night3Rules.LogOffLineSet(g.Memory.Trust)), 4.5f), "logoff-line");
             if (GaryFinished) Gary.Run(GaryRacesToNo(box), "gary-race-no");
@@ -542,8 +578,11 @@ namespace SecondCursor.Story
                 _keepCause = "time";
             }
             var exit = _exit;
-            // Nothing from the finale (her exchange, tug or log-off lines, Gary) may type into the dark ending.
+            // Nothing from the finale (her exchange, tug or log-off lines, Gary) may type into the dark ending, and no scare that is still
+            // waiting may land in SHRED's silence (Phase M review).
             StopSideRoutines();
+            g.Scares.CancelAll();
+            g.Scares.ClimaxRunning = true;
             // A stopped fast-forward never restores the clock itself.
             if (_fastForward)
             {
@@ -589,6 +628,7 @@ namespace SecondCursor.Story
             }
             // Phase J: the card says what caused this ending (the tester logged off and read "You stayed").
             spec.Outcome = g.Content.Text(Night3Rules.EndingCauseKey(exit, _keepCause, _logOffCut));
+            spec.AfterHit = exit == Night3Exit.Keep;
             _ending = new EndingSequence(g, spec);
             yield return _ending.Run();
         }
@@ -616,8 +656,10 @@ namespace SecondCursor.Story
             E.SetPresent(false, 0.2f);
             g.Audio.StopAllLoops(0.3f);
             g.Audio.SetAmbience(false, 0.3f);
+            // Phase M (5.6): no hit on SHRED; the head turns in total silence (its horror is your own cursor typing in the dark).
+            if (g.CameraRig != null) g.CameraRig.Quiet = true;
             yield return Wait(3f);
-            yield return FinalImage(false);
+            yield return FinalImage();
         }
 
         /// <summary>KEEP: by time or by the seat, she says it over the feed; confirmed, the feed simply opens at seven.</summary>
@@ -626,24 +668,79 @@ namespace SecondCursor.Story
             var g = _g;
             if (g.Clock.TotalMinutes < Night3Rules.LogOffTime) g.Clock.Set(7, 0);
             if (!E.IsVisible) yield return E.Appear(new Vector2(ScreenRig.Width * 0.62f, ScreenRig.Height * 0.5f), 0.4f, false);
-            yield return FinalImage(withLine);
+            yield return KeepClimax(withLine);
         }
 
-        /// <summary>The CAM 03 image of Night 1's ending: the figure behind the chair, and "you" turn to the camera.</summary>
-        IEnumerator FinalImage(bool feedLine)
+        /// <summary>The viewer shows CAM 03 (opened or restored) with the figure behind the chair and the door wide; null rig = no feed.</summary>
+        SecurityCameraRig ShowFinalFeed()
         {
             var g = _g;
-            var rig = g.CameraRig;
             var cam = g.Apps.Find<CameraApp>();
             if (cam == null) cam = g.Apps.Launch(AppIds.Camera, null) as CameraApp;
             else cam.Window.Restore(null);
             cam?.Select(ContentIds.Cam03, null);
-            if (rig == null) yield break;
-            rig.Figure = FigureStage.BehindChair;
+            var rig = g.CameraRig;
+            if (rig == null) return null;
             rig.DoorOpen = 1f;
             rig.SeatedMimicsPlayer = false;
             rig.LightFlicker = 1f;
+            return rig;
+        }
+
+        /// <summary>
+        /// KEEP, the losing path, as the game's big climax (Phase M, 5.2): it resolves out of static right behind you, the room drops out
+        /// while she types DONT TURN AROUND, pressure and the monitor's whine build while "you" turn to the camera, a breath at the
+        /// microphone, then true silence on a frozen frame, the hit, NO SIGNAL, the tube dies, and your ears ring in the dark.
+        /// </summary>
+        IEnumerator KeepClimax(bool feedLine)
+        {
+            var g = _g;
+            var rig = ShowFinalFeed();
+            if (rig == null) yield break;
+            BeginClimax();
+            if (rig.Figure == FigureStage.BehindChair) g.Audio.Play("step_near", 1f);
+            RunSide(StaticResolve(() => rig.Figure = FigureStage.BehindChair, 0.5f), "keep-resolve");
+            yield return Wait(0.3f);
+            g.Audio.SetAmbienceLevel(0f, 1.5f);
+            g.Audio.StopLoop("drone_tension", 1.5f);
+            yield return Wait(0.1f);
             if (feedLine) yield return Say(_ellen, Lines("n3_finale_feed"), 4f);
+            else yield return Wait(0.2f);
+            GameLog.Info(LogChannel.Story, "Climax: build (keep)");
+            g.Audio.Play("sub_swell", 1f);
+            float t = 0f, noise = g.Fx.ReduceFlashing ? 0.2f : 0.35f;
+            bool whine = false, breath = false;
+            while (t < KeepBuildToCut)
+            {
+                t += Time.deltaTime;
+                if (!whine && t >= KeepWhineAt) { whine = true; g.Audio.Play("crt_whine_rise", 1f); }
+                if (!breath && t >= KeepTurnAt - 0.2f) { breath = true; g.Audio.Play("breath_near", 0.9f); }
+                float turn = t - KeepTurnAt, toCut = KeepBuildToCut - t;
+                if (turn > 0f) rig.SeatedHeadTurn = Mathf.SmoothStep(0f, 1f, turn / 3.2f);
+                // The last 0.35 s the feed's noise rises instead of glitching, then the cut leaves a clean frame.
+                if (toCut < 0.35f) rig.ExtraNoise = (1f - toCut / 0.35f) * noise;
+                else if (turn > 0f && UnityEngine.Random.value < 0.02f) g.Fx.Glitch(0.05f, 0.6f);
+                yield return null;
+            }
+            CutToSilence(KeepSilence);
+            yield return Wait(KeepSilence - StingerPreRoll);
+            // A lighter flash than Night 1's: the dark shape at the lens must still read through it.
+            yield return Hit(1f, 1f, 6f, 0.3f, "crt_off", "ear_ring");
+            // Full effects: for the hit's first frames its head is right at the lens.
+            if (!g.Fx.ReduceFlashing) rig.Figure = FigureStage.AtLens;
+            yield return TubeDies(true, 0.6f, 0.9f, 0.8f);
+        }
+
+        /// <summary>KEEP's build from sub_swell: the whine joins, the head starts to turn, the cut (both build clips end there), the silence.</summary>
+        const float KeepWhineAt = 0.5f, KeepTurnAt = 1.05f, KeepBuildToCut = 4f, KeepSilence = 0.45f;
+
+        /// <summary>SHRED's CAM 03 image: the figure behind the chair, and "you" turn to the camera, in silence.</summary>
+        IEnumerator FinalImage()
+        {
+            var g = _g;
+            var rig = ShowFinalFeed();
+            if (rig == null) yield break;
+            rig.Figure = FigureStage.BehindChair;
             float t = 0f;
             while (t < 3.2f)
             {

@@ -72,6 +72,8 @@ namespace SecondCursor.Game
         public SecurityCameraRig CameraRig;
         /// <summary>Custodial rounds on the cameras (the watch meter).</summary>
         public RoundsSystem Rounds;
+        /// <summary>Phase M: the rare ambient scares (budgets, cooldown, the gate).</summary>
+        public ScareScheduler Scares;
 
         // Night and difficulty
         /// <summary>The night being played (1-3).</summary>

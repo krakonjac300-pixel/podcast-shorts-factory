@@ -350,7 +350,7 @@ Then a second cursor shows up.
 
 SECOND CURSOR is a short horror game played entirely inside NEXUS OS 4.1, a beige 1998 office computer. You click, drag, double-click and type. That is all the control you get. It is also all the control the ghost has.
 
-[b]Photosensitivity:[/b] contains screen glitches and tearing (0.05 to 0.4 s each), screen shake, film grain, CRT flicker, bursts of static, a flickering light in the security camera feeds, and a bright flash when the monitor powers off. Choose Reduce flashing on the first screen, or set Flashing to Reduced in Options (Esc, or the || button on the taskbar). It tones glitches, flashes, shake and flicker spikes down, and the CRT effects can be switched off.
+[b]Photosensitivity:[/b] contains screen glitches and tearing (0.05 to 0.4 s each), screen shake, film grain, CRT flicker, bursts of static, a flickering light in the security camera feeds, a bright flash when the monitor powers off, and a few sudden loud sounds (jump scares), the loudest in one of the endings. Choose Reduce flashing on the first screen, or set Flashing to Reduced in Options (Esc, or the || button on the taskbar). It tones glitches, flashes, shake and flicker spikes down, softens the sudden loud sounds, and the CRT effects can be switched off.
 
 [h2]THREE NIGHTS, ABOUT AN HOUR[/h2]
 A first run takes about an hour. Each night adds a system instead of repeating the last one.
@@ -407,7 +407,7 @@ Everything happens inside the fake computer. The game does not read your files, 
 
 [b]Try Night 1 free first.[/b] The demo is the whole first night, about 12 to 15 minutes.
 
-[b]Content notes:[/b] psychological horror. Themes of surveillance, missing and deceased employees, and being replaced. Death is implied and never depicted. No gore. A tall figure appears on security cameras. Sudden low sounds and long silences. No voice acting. The game writes no profanity; if you type your own, it reacts to it. English only.
+[b]Content notes:[/b] psychological horror. Themes of surveillance, missing and deceased employees, and being replaced. Death is implied and never depicted. No gore. A tall figure appears on security cameras. Long silences and a few sudden loud sounds (jump scares), the loudest in one of the endings. No voice acting. The game writes no profanity; if you type your own, it reacts to it. English only.
 ```
 
 ### 2.3 Tags (20, in priority order)
@@ -476,7 +476,7 @@ Nights 2 and 3, the third pointer, the Restricted code and all three endings. Th
 [h2]Tell us what you typed[/h2]
 Post the best thing you typed to the ghost in the Steam discussions for this demo. We post the game's real reply to the best ones.
 
-Contains screen glitches, static, sudden low sounds and a bright flash when the monitor powers off. Choose Reduce flashing on the first screen, or set Flashing to Reduced in Options (Esc, or the || button on the taskbar). English only.
+Contains screen glitches, static, a few sudden loud sounds and a bright flash when the monitor powers off. Choose Reduce flashing on the first screen, or set Flashing to Reduced in Options (Esc, or the || button on the taskbar); it also softens the sudden loud sounds. English only.
 
 [b]When the screen goes black, a card says WISHLIST NOW. That is the way to the other two nights.[/b]
 ```

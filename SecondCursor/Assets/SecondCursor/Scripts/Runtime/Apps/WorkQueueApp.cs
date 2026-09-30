@@ -59,7 +59,7 @@ namespace SecondCursor.Apps
             _detail.Scale = scale;
             MoreBelow.Create(detailFrame.rectTransform, _detailScroll, G.Content.Text("mail.more", "More below"), "morebelow:workqueue");
             // Phase L: the list's titles and the instructions follow the window's width when it is resized or snapped to a half.
-            Window.Resized += _ => { Canvas.ForceUpdateCanvases(); Refresh(); };
+            Window.Resized += _ => _resized = true;
             Refresh();
         }
 
@@ -375,9 +375,18 @@ namespace SecondCursor.Apps
 
         int WorldRevision() => G.Files.Revision * 31 + (G.Orders != null ? G.Orders.Revision : 0);
 
+        /// <summary>The window was resized since the last frame (the grip fires on every pointer move).</summary>
+        bool _resized;
+
         public override void Tick(float dt)
         {
-            if (_revision != G.Tasks.Revision || (G.Mail != null && _mailRevision != G.Mail.Revision)) Refresh();
+            if (_resized)
+            {
+                _resized = false;
+                Canvas.ForceUpdateCanvases();
+                Refresh();
+            }
+            else if (_revision != G.Tasks.Revision || (G.Mail != null && _mailRevision != G.Mail.Revision)) Refresh();
             else if (_clockMinute != G.Clock.TotalMinutes || _worldRevision != WorldRevision())
             {
                 // The countdown ticks with the clock; the checklist follows files and orders that moved without changing the count.

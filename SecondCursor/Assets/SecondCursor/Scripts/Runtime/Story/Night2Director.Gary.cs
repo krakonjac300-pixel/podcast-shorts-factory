@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using SecondCursor.Apps;
 using SecondCursor.CameraFeed;
 using SecondCursor.Core;
+using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
@@ -143,7 +144,9 @@ namespace SecondCursor.Story
             g.Flags.Set(Flags.N2GaryArrived);
             var bottom = new Vector2(ScreenRig.Width * 0.5f, WindowManager.TaskbarHeight + 6f);
             Gary.Teleport(bottom);
-            yield return Gary.Appear(bottom, 1.4f, true);
+            // Phase M (N2-3): the third pointer is a held person: he arrives as a breath, not with her swell.
+            Scare("breath_near", 0.45f, 0f, 0.3f, 3f, ScareRules.IgnoreAllButStory);
+            yield return Gary.Appear(bottom, 1.4f, false);
             yield return Wait(1.2f);
 
             // He opens his own Notepad (double-click on its icon, slowly) and talks.
@@ -583,6 +586,8 @@ namespace SecondCursor.Story
             _onForcedOpen = i =>
             {
                 forcedOpens++;
+                // Phase M (N2-bed): the first Custodial round finally has air: a low drone from Security's first open.
+                if (forcedOpens == 1) g.Audio.PlayLoop("drone_tension", RoundsDrone, 4f);
                 if (!saidRounds)
                 {
                     saidRounds = true;
@@ -629,6 +634,7 @@ namespace SecondCursor.Story
             }
             g.Rounds.Stop();
             UnhookRounds();
+            if (!reachedDoor) g.Audio.StopLoop("drone_tension", 2f);
             if (g.Tasks.IsActive(ContentIds.TaskN2RoundsWatch)) g.Tasks.ForceComplete(ContentIds.TaskN2RoundsWatch);
             brain.Enabled = false;
             brain.AllowCloseCamera = false;
@@ -636,15 +642,14 @@ namespace SecondCursor.Story
             var rig = g.CameraRig;
             if (reachedDoor)
             {
-                // It reached the doorway and stood there long enough: the door swings wide and the feed dies.
+                // It reached the doorway and stood there long enough: it knocks, the door is flung wide and the feed dies (Phase M, 5.4).
                 GameLog.Info(LogChannel.Story, "Rounds: Custodial reached the doorway");
-                rig.DoorOpen = 1f;
-                g.Audio.Play("door_distant", 0.6f, 1f, -0.2f);
-                rig.SignalLost = true;
-                yield return Wait(2f);
+                yield return DoorClimax(rig);
                 var cam = g.Apps.Find<CameraApp>();
                 if (cam != null) cam.Window.Close(null);
                 rig.SignalLost = false;
+                g.Audio.SetAmbience(true, 3f);
+                EndClimax();
                 g.Flags.Set(MemoryFlags.N2WatchedToDoor);
                 yield return TypeLines(_ellen, Lines("n2_rounds_door"), 4f);
             }
@@ -656,6 +661,40 @@ namespace SecondCursor.Story
             g.Flags.Clear(Flags.CameraUnlocked);
             g.Flags.Set(Flags.N2RoundsDone);
             yield return Wait(1f);
+        }
+
+        const float RoundsDrone = 0.12f;
+        /// <summary>The door climax: the knocks start this long after it reaches the doorway; the hit lands this long after that.</summary>
+        const float KnockAfter = 0.5f, KnockToHit = 1.6f;
+
+        /// <summary>
+        /// Night 2's door (5.4), only for a player who watched it to the doorway: the room and the drone drop out, three knocks shake the
+        /// door, the hit, and the door is flung wide under NO SIGNAL for two silent seconds.
+        /// </summary>
+        IEnumerator DoorClimax(SecurityCameraRig rig)
+        {
+            var g = _g;
+            BeginClimax();
+            g.Audio.SetAmbienceLevel(0f, 0.8f);
+            g.Audio.StopLoop("drone_tension", 0.8f);
+            yield return Wait(KnockAfter);
+            g.Audio.Play("knock_door", 0.9f, 1f, -0.1f);
+            float t = 0f, door = rig.DoorOpen;
+            int knocks = 0;
+            float[] knockAt = { 0.05f, 0.58f, 1.12f };
+            while (t < KnockToHit - StingerPreRoll)
+            {
+                t += Time.deltaTime;
+                // The door jolts with each knock.
+                if (knocks < knockAt.Length && t >= knockAt[knocks]) rig.DoorOpen = door + 0.03f * ++knocks;
+                yield return null;
+            }
+            rig.Quiet = true;
+            yield return Hit(0.6f, 0.8f, 3f, 0f, "static_burst");
+            g.Audio.Play("static_burst", 0.9f);
+            rig.DoorOpen = 1f;
+            rig.SignalLost = true;
+            yield return Wait(2f);
         }
 
         void UnhookRounds()

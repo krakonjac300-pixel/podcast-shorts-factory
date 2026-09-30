@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <Compile Include="../../Assets/SecondCursor/Scripts/Core/Audio/ProceduralSoundBank.cs" />
+    <Compile Include="../../Assets/SecondCursor/Scripts/Core/Audio/ProceduralSoundBank.Scares.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
 

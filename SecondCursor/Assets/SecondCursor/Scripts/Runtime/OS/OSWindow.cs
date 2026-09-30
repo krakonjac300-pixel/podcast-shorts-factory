@@ -358,12 +358,12 @@ namespace SecondCursor.OS
             Close(by);
         }
 
-        public void Close(CursorAgent by = null)
+        public void Close(CursorAgent by = null, bool silent = false)
         {
             if (IsClosed) return;
             IsClosed = true;
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.OS, (by != null ? by.Name : "System") + " closed " + Title);
-            Sfx.Play("ui_window", by);
+            if (!silent) Sfx.Play("ui_window", by);
             Closed?.Invoke(this, by);
             Manager.OnClosed(this, by);
             gameObject.SetActive(false); // unregister its interactables now, not at end of frame
@@ -385,6 +385,7 @@ namespace SecondCursor.OS
             {
                 IsMinimized = false;
                 gameObject.SetActive(true);
+                Sfx.Play("ui_window", by);
                 Manager.OnRestored(this, by);
             }
             Manager.Focus(this, by);

@@ -57,7 +57,7 @@ namespace SecondCursor.Apps
             _status.VAlign = TextVAlign.Middle;
 
             // Phase L: the message follows the window's width when it is resized or snapped to a half.
-            Window.Resized += _ => { if (_showing != null) Layout(); };
+            Window.Resized += _ => _resized = true;
             Refresh();
             // Open straight onto the newest unread message.
             string newest = null;
@@ -128,10 +128,14 @@ namespace SecondCursor.Apps
             _list.SelectWhere(r => (string)r.Tag == id, by);
         }
 
+        /// <summary>The window was resized since the last frame (the grip fires on every pointer move).</summary>
+        bool _resized;
+
         public override void Tick(float dt)
         {
             if (_revision != G.Mail.Revision) Refresh();
-            if (_showing != null && _body.Scale != Game.DisplaySettings.ReadingScale) Layout();
+            if (_showing != null && (_resized || _body.Scale != Game.DisplaySettings.ReadingScale)) Layout();
+            _resized = false;
         }
     }
 }

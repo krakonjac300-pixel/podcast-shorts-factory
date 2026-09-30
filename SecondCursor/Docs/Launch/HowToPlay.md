@@ -136,7 +136,7 @@ Each night saves at a few checkpoints. [b]Continue[/b] on the title picks up fro
 A first run takes about an hour across three nights. Seeing all three endings takes around two hours. The free demo is Night 1 and takes about 12 to 15 minutes.
 
 [b]Is it scary?[/b]
-It is quiet psychological horror: slow dread more than shocks. There is no gore, and death is implied, never shown. Expect a mouse pointer that is not yours, messages typed to you, a figure on a security camera, sudden low sounds and long silences. Headphones recommended.
+It is quiet psychological horror: slow dread, with a few jump scares. There is no gore, and death is implied, never shown. Expect a mouse pointer that is not yours, messages typed to you, a figure on a security camera, long silences and a few sudden loud sounds (the loudest in one of the endings). Headphones recommended, at a comfortable level. Reduce flashing (first screen or Options) also softens the sudden loud sounds.
 
 [b]Is it safe to stream or record?[/b]
 Yes. The game does not read or change your files (anything you save in the Jotter goes to the game's own pretend disk). It does not use your webcam or microphone, never moves your real mouse, and makes no internet connection of its own; Steam handles achievements the way it does for any game. Anything the fake computer says about cameras, recording or other users is part of the story. One practical note: while a shift is running, your pointer stays inside the game window, so a hard drag cannot land on another monitor. Pausing frees it.
@@ -157,7 +157,7 @@ Yes. The right trackpad moves the pointer, A clicks, R2 drags, L2 shows what you
 English only, for text and for typing. There is no voice acting. You can type in any language, but replies are matched to English words.
 
 [b]Are there photosensitivity options?[/b]
-Yes. The game contains screen glitches and tearing, screen shake, film grain, CRT flicker, bursts of static, a flickering light in the camera feeds and a bright flash when the monitor powers off. You can choose Reduce flashing on the very first screen, or set Flashing to Reduced in Options at any time. It tones down glitches, flashes, shake and flicker spikes. CRT effects can be switched off too.
+Yes. The game contains screen glitches and tearing, screen shake, film grain, CRT flicker, bursts of static, a flickering light in the camera feeds and a bright flash when the monitor powers off. You can choose Reduce flashing on the very first screen, or set Flashing to Reduced in Options at any time. It tones down glitches, flashes, shake and flicker spikes, and softens the sudden loud sounds. CRT effects can be switched off too.
 
 [b]Do I have to type?[/b]
 No. The work itself is all mouse. Typing is how you talk back in the Jotter, and it is the heart of the game, but the night carries on if you stay quiet.

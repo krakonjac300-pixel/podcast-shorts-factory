@@ -264,6 +264,8 @@ namespace SecondCursor.Game
             var minus = UiButton.Create(row, "-", a => Volume(-0.1f), "pause:voldown");
             ((RectTransform)minus.transform).At(0, 0, 30, ButtonHeight);
             var plus = UiButton.Create(row, "+", a => Volume(0.1f), "pause:volup");
+            // Phase M: the new level is previewed instead of the click (the menu's sounds play through the pause).
+            minus.ClickSound = plus.ClickSound = "";
             ((RectTransform)plus.transform).At(BoxWidth - 70, 0, 30, ButtonHeight);
             _volume = UIBuilder.Text(row, "", Palette.Text);
             _volume.rectTransform.Stretch(34, 0, 34, 0);
@@ -314,7 +316,9 @@ namespace SecondCursor.Game
         {
             _g.Audio.MasterVolume = Mathf.Clamp01(Mathf.Round((_g.Audio.MasterVolume + delta) * 10f) / 10f);
             _volume.text = "Volume " + Mathf.RoundToInt(_g.Audio.MasterVolume * 100f) + "%";
-            if (delta != 0f) SaveSystem.SaveSettings(_g);
+            if (delta == 0f) return;
+            SaveSystem.SaveSettings(_g);
+            _g.Audio.Play("ui_select");
         }
 
         UiButton Button(RectTransform box, string label, string id, Action<CursorAgent> click, ref int y)

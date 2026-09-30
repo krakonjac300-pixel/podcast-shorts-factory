@@ -72,6 +72,7 @@ internal static class Program
                 if (keyVariants[a].SequenceEqual(keyVariants[b])) failures.Add($"key_tap seeds {a} and {b} are identical");
 
         // ---- per-sound report
+        var stRms = new Dictionary<string, double>();
         var sb = new StringBuilder();
         sb.AppendLine($"{"id",-17} {"loop",4} {"dur s",6} {"peak",6} {"peakdB",7} {"rmsdB",7} {"stRms",7} {"mixdB",7} {"dc",9} " +
                       $"{"edge/seam",10} {"stepRatio",9} {"seamRmsdB",9} {"seam pct d1/d2/rms",19} {"cold ms",8} {"warm ms",8}");
@@ -145,6 +146,9 @@ internal static class Program
             if (!finite) failures.Add($"{id}: NaN/Inf");
             if (peak > 0.9) failures.Add($"{id}: peak {peak:0.000} > 0.9");
             if (Math.Abs(dc) > 1e-3) failures.Add($"{id}: DC offset {dc:0.00000}");
+            // Phase M headroom rule: nothing's loudest 50 ms passes -6 dBFS (only the hit comes near).
+            if (stRmsDb > -6.0) failures.Add($"{id}: loudest 50 ms {stRmsDb:0.0} dBFS > -6.0");
+            stRms[id] = stRmsDb;
 
             sb.AppendLine($"{id,-17} {(loop ? "yes" : ""),4} {dur,6:0.000} {peak,6:0.000} {20 * Math.Log10(peak),7:0.0} {rmsDb,7:0.0} {stRmsDb,7:0.0} " +
                           $"{mixDb,7:0.0} {dc,9:0.0e0} {edge,10} {stepRatio,9} {seamRms,9} {seamPct,19} {coldMs[id],8:0.0} {warmMs[id],8:0.00}");
@@ -152,6 +156,23 @@ internal static class Program
             WriteWav(Path.Combine(outDir, id + ".wav"), x);
         }
         for (int s = 1; s < 4; s++) WriteWav(Path.Combine(outDir, $"key_tap_seed{s}.wav"), keyVariants[s]);
+
+        // ---- Phase M: at its default volume the hit is the loudest thing in the mix, its soft twin clearly softer, and the
+        // build-ups end at their loudest (the silence before a hit starts exactly where they stop).
+        double Mix50(string id) => stRms[id] + 20 * Math.Log10(ProceduralSoundBank.DefaultVolume(id));
+        foreach (var kv in stRms)
+            if (kv.Key != "scare_hit" && kv.Key != "scare_hit_soft" && Mix50("scare_hit") - Mix50(kv.Key) < 4.0)
+                failures.Add($"scare_hit's loudest 50 ms in the mix is only {Mix50("scare_hit") - Mix50(kv.Key):0.0} dB over {kv.Key}'s");
+        if (stRms["scare_hit"] - stRms["scare_hit_soft"] < 6.0) failures.Add($"scare_hit_soft is only {stRms["scare_hit"] - stRms["scare_hit_soft"]:0.0} dB under scare_hit");
+        foreach (string id in new[] { "sub_swell", "crt_whine_rise" })
+        {
+            float[] x = buffers[id];
+            // 300 ms windows: the swell's beat and the whine's flutter move shorter windows by +/-2 dB by design.
+            double last = Db(Rms(x, x.Length - Ms(330), Ms(300))), loudest = Db(MaxShortTermRms(x, Ms(300)));
+            sb.AppendLine($"{id}: the 300 ms before its end fade is {loudest - last:0.00} dB under its loudest 300 ms");
+            if (loudest - last > 1.0) failures.Add($"{id}: does not end at its loudest ({loudest - last:0.0} dB down)");
+        }
+        sb.AppendLine($"scare_hit 50 ms {stRms["scare_hit"]:0.0} dBFS, scare_hit_soft {stRms["scare_hit_soft"]:0.0} dBFS");
 
         sb.AppendLine();
         sb.AppendLine($"sounds: {ids.Count}   total audio: {totalSeconds:0.0} s ({totalSeconds * Sr / 1e6:0.00} M samples)");

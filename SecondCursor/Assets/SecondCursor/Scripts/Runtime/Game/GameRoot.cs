@@ -184,6 +184,7 @@ namespace SecondCursor.Game
             g.Rounds = RoundsSystem.Create(g, transform);
             NightSetup.ForNight(g);
             g.Director = NightDirector.Create(g, transform, g.Night);
+            g.Scares = ScareScheduler.Create(g, transform);
             SystemNotices.Attach(g);
             // After the world set-up (which may set memory flags): only what happens from here can unlock anything.
             g.AchievementWatch = AchievementWatcher.Attach(g);
@@ -238,15 +239,16 @@ namespace SecondCursor.Game
 
         void EnsureAudioListener()
         {
-            var listeners = SceneObjects.All<AudioListener>();
-            bool any = false;
-            foreach (var l in listeners)
+            AudioListener active = null;
+            foreach (var l in SceneObjects.All<AudioListener>())
             {
                 // A listener on a previous (restarting) game root is about to be destroyed: ignore it.
                 var owner = l.GetComponentInParent<GameRoot>();
-                if (l.enabled && l.gameObject.activeInHierarchy && (owner == null || owner == this)) any = true;
+                if (l.enabled && l.gameObject.activeInHierarchy && (owner == null || owner == this)) active = l;
             }
-            if (!any) gameObject.AddComponent<AudioListener>();
+            if (active == null) active = gameObject.AddComponent<AudioListener>();
+            // Phase M: the safety limiter sits on the listener that hears the game.
+            if (active.GetComponent<MasterLimiter>() == null) active.gameObject.AddComponent<MasterLimiter>();
             // Other scene cameras would only render underneath the overlay: switch them off to save GPU time.
             foreach (var cam in SceneObjects.All<Camera>())
             {

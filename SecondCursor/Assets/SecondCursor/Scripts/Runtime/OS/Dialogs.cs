@@ -122,7 +122,8 @@ namespace SecondCursor.OS
             }
             win.Closed += (x, a) => box.Answer("Close", a);
             if (onResult != null) box.Answered += onResult;
-            Sfx.Play(icon == "icon_error" ? "sys_error" : "sys_warning");
+            // Phase M: the alarm bell is for warnings and refusals; a question or a notice opens with the window's own swell.
+            Sfx.Play(icon == "icon_error" ? "sys_error" : icon == "icon_question" || icon == "icon_info" ? "ui_window" : "sys_warning");
             return box;
         }
 

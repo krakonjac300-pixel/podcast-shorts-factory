@@ -43,6 +43,12 @@ namespace SecondCursor.Story
             }
         }
 
+        /// <summary>Phase M (the scare gate): a speaker is typing a line right now.</summary>
+        public bool AnySpeakerTyping => _speakers.Exists(s => s.Typing);
+
+        /// <summary>Phase M (the scare gate): a conversation Jotter is waiting for the player's reply.</summary>
+        public bool AwaitingReply => _speakers.Exists(s => s.Pad != null && s.Pad.IsOpen && s.Pad.ConversationMode && s.Pad.PlayerCanType);
+
         protected Speaker AddSpeaker(EntityController cursor)
         {
             var s = new Speaker(cursor);
@@ -240,7 +246,9 @@ namespace SecondCursor.Story
         IEnumerator ReplyNoticeIfNoTip(Speaker pad, string hintKey)
         {
             yield return WaitUntil(() => _g.Tips.Seen("reply"), 8f);
-            if (!_g.Tips.Seen("reply")) ShowReplyNotice(pad, hintKey);
+            // Phase L review: not for a Jotter that is gone or already answered, nor while the tip still waits its turn.
+            if (pad.Pad == null || !pad.Pad.IsOpen || pad.Pad.LastPlayerKeyTime >= 0f || _g.Tips.Seen("reply") || _g.Tips.IsQueued("reply")) yield break;
+            ShowReplyNotice(pad, hintKey);
         }
 
         /// <summary>The player's turn: waits for a sent line (passed to <paramref name="onSaid"/>) or for silence.</summary>

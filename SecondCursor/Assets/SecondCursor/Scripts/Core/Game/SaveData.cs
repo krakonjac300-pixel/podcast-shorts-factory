@@ -55,7 +55,9 @@ namespace SecondCursor.Core.Game
     [Serializable]
     public class SaveData
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
+        /// <summary>Every one-time tip (Phase L); a veteran's older save is seeded with them all (version 4).</summary>
+        public static readonly string[] TipIds = { "open", "files", "move", "orders", "shred", "nexus", "reply", "tug" };
         public const int Nights = 3;
         public const int MaxPlayerLines = 3;
         public const int MaxPlayerLineLength = 40;
@@ -147,6 +149,10 @@ namespace SecondCursor.Core.Game
             }
             for (int i = 0; i < endingsSeen.Length; i++)
                 if (endingsSeen[i] == "night1_blackout") endingsSeen[i] = "n1_blackout";
+            // Phase L review: a player who finished a night or fought a tug was taught before tips were remembered. A night start
+            // alone does not count (it is recorded at the first start, so it would silence a new player who quit early).
+            if (version < 4 && (lastCompletedNight >= 1 || nightUnlocked > 1 || tugWinsTotal + tugLossesTotal > 0))
+                foreach (var id in TipIds) MarkTipShown(id);
             version = CurrentVersion;
             return true;
         }

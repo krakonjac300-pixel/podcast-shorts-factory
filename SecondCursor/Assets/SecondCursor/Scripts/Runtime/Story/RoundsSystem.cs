@@ -181,7 +181,8 @@ namespace SecondCursor.Story
             bool onIt = cam.CurrentCamera == Model.FigureCamera;
             string body = text.Format(index == 0 ? "rounds.begin" : "rounds.reopen", CameraName(_g, cam.CurrentCamera)) + "\n"
                 + text.Text(onIt ? OnItNoticeKey ?? "rounds.onit" : NotOnItNoticeKey ?? "rounds.notonit");
-            _g.Notifications.Show(text.Text("app.camera"), body, "icon_camera", null, "sys_warning");
+            // Phase M: the alarm rings for Security's first open of a round; the repeats (up to 13 in Night 3's) chime softly.
+            _g.Notifications.Show(text.Text("app.camera"), body, "icon_camera", null, index == 0 ? "sys_warning" : "ui_select");
             GameLog.Info(LogChannel.Story, "Rounds: viewer forced open (" + (index + 1) + ") on " + cam.CurrentCamera);
             ForcedOpen?.Invoke(index);
         }
@@ -205,7 +206,9 @@ namespace SecondCursor.Story
         void OnStageAdvanced(int stage)
         {
             GameLog.Info(LogChannel.Story, "Rounds: stage " + stage + " (" + Model.FigureStage + ")");
-            _g.Audio?.Play("footstep_distant", 0.45f, 0.9f, 0.2f);
+            // Far away it is footsteps down the building; in the office the rig's own step (Phase M: closer every time).
+            var at = StageFor(Model.FigureStage);
+            if (at < FigureStage.Doorway || at > FigureStage.BehindChair) _g.Audio?.Play("footstep_distant", 0.45f, 0.9f, 0.2f);
             StageAdvanced?.Invoke(stage);
             PlaceFigure(true);
             if (PatchPersonnel) PatchPersonnelFor(Model.FigureStage);
@@ -282,7 +285,7 @@ namespace SecondCursor.Story
         IEnumerator StaticCut(Action change)
         {
             var rig = _g.CameraRig;
-            _g.Audio?.Play("camera_static", 0.6f);
+            _g.Audio?.Play("static_burst", 0.9f);
             float t = 0f;
             bool changed = false;
             while (t < 0.45f)

@@ -123,7 +123,7 @@ namespace SecondCursor.Apps
             // Phase L: a document opens at its beginning (typing and a conversation still follow the end), and its text follows the
             // window's width when it is resized or snapped to a half.
             _scroll.ScrollTo(0f);
-            Window.Resized += _ => Reflow();
+            Window.Resized += _ => _resized = true;
 
             // Phase H: a conversation says when your typing waits (the other session is typing) or goes nowhere.
             _convStatus = UIBuilder.Rect("Conversation Status", client).BottomStrip(2, 15, 3, 19);
@@ -544,8 +544,16 @@ namespace SecondCursor.Apps
 
         public void OnKey(GameKey key, CursorAgent by) { }
 
+        /// <summary>The window was resized since the last frame (the grip fires on every pointer move).</summary>
+        bool _resized;
+
         public override void Tick(float dt)
         {
+            if (_resized)
+            {
+                _resized = false;
+                Reflow();
+            }
             _caretBlink += dt;
             // A conversation is shown at double size: it has to read on a phone screen in a clip. Documents follow
             // the Reading text option (Large on a Steam Deck).

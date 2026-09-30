@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using SecondCursor.Apps;
 using SecondCursor.Core;
+using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.Story;
@@ -64,6 +65,8 @@ namespace SecondCursor.Story
             yield return Wait(2f);
             g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("notify.missedcall"), "icon_info", null, "sys_warning");
             GameLog.Info(LogChannel.Story, "Missed call: ext. 2118");
+            // Phase M (N3-2): there is no desk phone, and someone is breathing on the line: the room drops out around the breath.
+            _g.Scares.Slot("breath_near", 0.55f, () => -0.2f, 2f, 2f, ScareRules.IgnoreAllButStory, () => RunSide(RoomDropout(0.08f, 1.4f, 2f), "breath-dropout"));
             yield return Wait(8f);
             g.Mail.Deliver(ContentIds.MailN3RuthComment);
             float mailAt = Time.time;
