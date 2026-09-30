@@ -36,7 +36,7 @@
         { "label": "Requested By", "value": "Office of Retention" },
         { "label": "Check With", "value": "CAM 04" }
       ],
-      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf. Otherwise, reject.",
+      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf (a RESERVED shelf counts as the owner's). Otherwise, reject.",
       "correct": "approve", "employeeRef": "142", "rule": "shelf"
     },
     {
@@ -49,7 +49,7 @@
         { "label": "Requested By", "value": "Office of Retention" },
         { "label": "Check With", "value": "CAM 04" }
       ],
-      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf. Otherwise, reject.",
+      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf (a RESERVED shelf counts as the owner's). Otherwise, reject.",
       "correct": "reject", "employeeRef": "188", "rule": "shelf"
     },
     {
@@ -62,7 +62,7 @@
         { "label": "Requested By", "value": "Office of Retention" },
         { "label": "Check With", "value": "CAM 04" }
       ],
-      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf. Otherwise, reject.",
+      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf (a RESERVED shelf counts as the owner's). Otherwise, reject.",
       "correct": "approve", "employeeRef": "214", "rule": "shelf"
     }
   ]

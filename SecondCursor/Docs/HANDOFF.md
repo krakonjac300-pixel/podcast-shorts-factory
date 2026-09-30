@@ -1061,6 +1061,146 @@ The owner's rule stands: an average person must understand the game from what th
   Night 2/3 tension values rest on the simulation's archetypes (their stroke length decides the snap), so watch those first tugs in the
   next blind playtest.
 
+### Phase K (dependable computer, readable tug, final choice)
+
+Input: the owner's suggestions 1, 3 and 5 (`_work/2026-09-29/launch/OwnerSuggestions_2026-09-30.md`) and the fourth blind playtest
+(`_work/2026-09-29/playtest/BlindPlaytest4.md`, findings 1 to 12 and 16 to 20). The theme: ordinary computer behaviour is dependable and
+confirmed, so the deliberate interference reads as someone else's. Difficulty values of Phases F and J are unchanged; the one new timing is
+a 0.3 s grab hitch (below).
+
+- **Trustworthy tasks (suggestion 1, finding 16).** `VFile.MovedBy` records which other session last moved a file (`VirtualFileSystem.Move(...,
+  by)`; the player and the system leave it empty). A move task's counter says who did the work (`WorkTask.HelpedBy`, `ProgressText`:
+  `3/4, 1 by session 017`) in the Work Queue and on the taskbar. The Work Queue's detail pane lists every target of a move task (or every
+  order of a multi-order task) and where it is now (`[x] batch46_b.dat: in Archive (session 017)`, `[ ] batch46_d.dat: on the Desktop`),
+  refreshed whenever files or orders change. Every move by the player is confirmed in File Manager's status bar (`Moved batch46_a.dat to
+  Archive. Task: 2/4 done.`, bold for 15 s), another session's move too (`Session 017 moved ...`); a file dropped on the desktop from a folder
+  gets a notice (`files.moved.desktop`); help with a task's file by another session is always a notice (`files.help.by`, and
+  `files.unhelp.by` when one is taken back out). The list keeps its row order within a folder (a renamed file keeps its row, new files go
+  at the end) and never rebuilds under a press or a drag that started in it; file rows take a drop into the folder shown, like the empty
+  part of the list. A move task the story has to finish (a timed-out task, the Night 2 and 3 safety nets) moves its remaining files and says
+  so (`NightDirector.FileTheRest`, `task.filed.rest`) instead of ticking a task whose files are still in Intake.
+- **Archive mismatch: causes found and fixed.**
+  1. A drop that missed the folder row landed on the desktop behind the window: the file left Intake and the count stayed, with nothing
+     said. Now: the notice, the status line, and the checklist line `on the Desktop`.
+  2. A timed-out move task was ticked done with files still in Intake (`WaitTask` force-complete). Now the rest is filed and named.
+  3. Help by session 017 (Night 2's Batch 46) or 209 (finished Gary's Batch 47/48) raised the count silently. Now a notice, the counter's
+     attribution and the checklist.
+  4. The list re-sorted under the pointer (Night 2's `b7_seat.dat` rename, Night 3's `0217.dat` flicker, any move by another session), so a
+     press could land on another file or lose its row. Now the order is stable and nothing is rebuilt under a press or a drag.
+  5. A drop on a file row of the list was refused while a drop on the empty part was accepted. Now both drop into the folder shown.
+  Checked with no mismatch: a file moved twice (the second drop on its own folder is a missed drop with its notice), a drop on the folder
+  tree versus the list (both move, both confirmed), checkpoint restores (Prepare moves the files it force-completes), the renamed file (it
+  counts under its new name; the checklist shows both names).
+- **Tug-of-war (findings 2, 5, 11, 12).** The arrow is decided once per fight: at a screen edge her end slides along it instead of bouncing,
+  so the arrow never flips; and it is what counts: `TugOfWar.PullAxis` scores the pull along the arrow (unset, the model keeps its old
+  per-frame axis, which the Phase F/J simulations use). Every contest starts with a 0.3 s grab hitch (`ConflictSystem.GrabHitchSeconds`,
+  the read grace's rules: her pull and drift wait, the player's pull counts; the night's first contest keeps its 1.2 s), and for its first
+  second a double-size arrow pulses at the player's pointer. The label names the way: `SESSION 017 IS PULLING. HOLD AND DRAG DOWN-LEFT UNTIL
+  THE BAR IS YOURS.` A lost fight says what to change from what the pointer did (`Core/Entity/TugCoach.cs`, unit-tested): `YOU LET GO TOO
+  EARLY`, `YOU HELD STILL. THE ARROW POINTED DOWN-RIGHT.`, `YOU PULLED LEFT. THE ARROW POINTED DOWN-RIGHT.`, `YOU STOPPED PULLING`, `YOU
+  PULLED TOO SLOWLY`, and `SESSION 017 PULLED HARDER` only after a firm pull along the arrow; the notice says the same. The result keeps the
+  bar frozen where the fight ended (`TugOfWar.FinalLead`) and the arrow dimmed where it was, for 3.2 s. A file she wins is set down on bare
+  desktop about 90 px from the grab along her pull (`EntityBrain.NearSpot`, clear of the bin, the pointer and the notices) and blinks; a
+  KeepAway snatch blinks too. A fight the player wins stays won: she never grabs that drag again (`_wonByPlayer`). Night 1's conflict does
+  not end under a file the player is carrying; at its 175 s hard cap a held file is taken back with `SESSION 017 GRABBED IT BACK. IT WILL NOT
+  LET GO TONIGHT.`
+- **Final choice (suggestion 5, findings 1, 17).** At 7:00 on Night 3 the queue gets `Leave by 7:05 AM, or session 017 keeps you` (a Wait
+  task with a 7:05 deadline, listed before her request, so it is the taskbar's task): the taskbar counts down in real time (`About 1 min
+  left: ...`, red) and the detail pane names the consequence and the ways out (Log Off and what it needs, the bin, and that telling her to
+  stay is KEEP too) and the camera rule. What 7:00 brings is staggered: the notice (`... by 7:05 AM, or session 017 keeps you.`) and the task
+  first, Gary 4 s later, Security's feed 8 s later. The finale's forced opens say the feed is the danger (`finale.onit`, `finale.notonit`) and
+  her close says why (`camera.closed.finale`). **Why the tester found the game "no longer running":** their Editor.log shows `End card:
+  n3_keep` and then `[PLAYER] Quit` from `MenuNav.Tick`: keys they typed (meant for a Jotter that had just gone) reached the KEEP card, moved
+  the focus to Quit and pressed it, and Quit in the Editor ends Play mode (in a build it quits). Nothing crashed and nothing was swallowed:
+  the ending had played in full while they read for 55 s. Now the card shows 1.5 s before its buttons take any input, and Quit asks first
+  (`Quit SECOND CURSOR?`, Back focused). The KEEP they got was `Keep (seat)` (Security's 7:00 feed while they read), which the countdown's
+  hint and the forced-open notices now explain. The last typed ending line already stays 4.1 s at full strength before it fades (checked).
+  Night 2's card names a late partial shred (`You shredded employee_209.dat at 3:03 AM, 3 min late. Half of him is still held.`; `just after the deadline` under a
+  minute).
+- **Cameras and rounds (findings 3, 7, 8, 9).** One rule in every hint and mail: Security keeps the viewer open; never watch the camera that
+  shows Custodial (watching brings it closer and session 017 closes the viewer when it shows Custodial); Personnel 000 says where it is. The
+  Security mails no longer say "keep watching" or name the camera covering Custodial; "you can let it close" is gone. Every forced open names
+  its camera and whether Custodial is on it (`rounds.begin`, `rounds.reopen`, `rounds.onit`, `rounds.notonit`), so "restored" is never a
+  window that is not there. During Night 3's shelf check Security opens CAM 04 and she leaves CAM 04 open (`RoundsSystem.PreferredCamera`,
+  `ShownCameraSpared`); if Custodial is in Sublevel C, watching it moves it up to the Lobby as before. Personnel 000's field reads `Location
+  now:`. The shelf rule says a RESERVED shelf counts as the owner's (task and orders), and each shelf decision gets a result line, as a notice
+  and under the order in the checklist: `WO-3342 rejected: shelf 18 reads "214 ROURKE C. (RESERVED)". The rule says approve.`
+- **Jotter and deadlines (findings 4, 6).** A reply typed while it is not your turn is echoed at once in the status line (`Session 017 is
+  typing. Your reply waits until it stops: are you ellen marsh?_`); one nobody reads goes on the page in grey marked `(not sent)`
+  (`PixelText.SetDimRanges`) with the reason (`It reads a reply only when this line says: Your turn.`), and the line says `Your turn: type a
+  reply and press Enter.` whenever it is. Deadlines also count down in real time at the clock's current speed (`TaskDeadline.RealSeconds`,
+  `Approx`: taskbar `About 2 min 30 s left: ...`, queue `Due: 3:00 AM (29 min on the shift clock, about 2 min 30 s of real time)`). Night 3's
+  "Nothing to do until then" before the round lasts at most 25 s before the clock runs to 3:00 over 12 s, on every pass.
+- **Windows and notices (suggestion 3, findings 18 to 20).** Dragging a window's title bar to the left or right screen edge snaps it to that
+  half (an outline shows the half while the pointer is at the edge); dragging it away gives its own size back; double-click still maximizes
+  and restores the pre-snap size. Each conversation Jotter names its session and person (`Session 017` on Night 1 until the reveal, then
+  `Session 017: Ellen Marsh`; `Session 209: Gary Pruitt`) and wears that cursor's colours on its caption (`OSWindow.SetCaptionColors`).
+  Notices keep off the focused window and the one under the pointer: the stack grows only up to them and moves to the left of the screen
+  (right of the icon column) when the right has less room (`Notifications.Avoid`, `WindowManager.NoticeAvoid`). The wheel over something that
+  sits on a scroll area without belonging to it (the More below button) scrolls the area. The first click on a background window already
+  focused and acted; the two-click cases were a notice over the button (a click dismisses a notice: now notices avoid the window under the
+  pointer) and taskbar buttons reflowing under the pointer when another session opened or closed a window (the buttons now wait until the
+  pointer leaves them).
+- **Tug table (bridge, `phaseK/tug_*.cmd`: 0.25 s reaction, continuous pull along the arrow, let go once the bar is yours; second contest =
+  right after a won first):**
+
+  | Night, contest | 300 px/s | 400 px/s | 500 px/s | 600 px/s |
+  |---|---|---|---|---|
+  | 1, first (1.2 s read grace) | won, 0.46 s | won, 0.32 s | won, 0.26 s | won, 0.22 s |
+  | 1, second (0.3 s hitch) | won, 0.50 s | won, 0.33 s | won, 0.26 s | won, 0.22 s |
+  | 2, first | won, 0.75 s | won, 0.45 s | won, 0.34 s | won, 0.28 s |
+  | 2, second | 2 of 4 tries won | won, 0.47 s | won, 0.34 s | won, 0.28 s |
+  | 3, first (finale) | 3 of 4 tries won | won, 0.61 s | won, 0.43 s | won, 0.35 s |
+  | 3, second | 0 of 4 tries | won, 0.66 s | won, 0.44 s | won, 0.35 s |
+
+  Times are from the start of the pull to the release. The 300 px/s losses on Nights 2 and 3 end `YOU PULLED TOO SLOWLY` (the average
+  along the arrow, reaction included, is under half the night's full-strength speed); Night 3 is the designed spike and after a won first
+  contest the adaptive assist is one level down. `PhaseKTests` reproduces the pattern in the model (every first contest from 300 px/s,
+  every second contest from 400 px/s). The loss texts were checked on screen: held still (`k_tug_lost_still`), wrong way
+  (`k_tug_wrong`: "YOU PULLED LEFT. THE ARROW POINTED DOWN-RIGHT."), too slowly (`k_tug_slow`), stopped (`k_tug_stopped`), and a win
+  held for 4 s with no re-grab (`k_tug_won_hold2`).
+
+- **Tests.** CoreTests 357 (20 new in `PhaseKTests.cs`: move attribution and the counter, target notes, the arrow as the pull axis,
+  the grab hitch, the final lead, every loss reason and its words, direction names, real-time deadlines, shelf captions and the RESERVED
+  rule, the 7:05 countdown task, the late-shred card, one camera rule in hints and mails, Jotter and move strings, no long dashes). Updated
+  with reasons: `NightContentTests` (format arguments up to {4}), `PhaseHTests` (the label names the direction), `PhaseITests` (the pulled-harder
+  line is only for a firm pull; the rounds hints give the one camera rule). CompileCheck: 8 configurations OK.
+- **Checked through the bridge** (scripts and outputs in `_work/2026-09-29/phaseK`, saves under `saves/phaseK`, screenshots
+  `Library/SecondCursorBridge/shots/k_*.png`): moves confirmed in the status bar and a missed drop on the
+  desktop named in the checklist (`k_task_moved1`, `k_task_desktop`, `k_task_check`); session 017's help as a notice and in the counter
+  (`k_help_notice2`); the renamed file, a second drop on its own folder and a drop on a file row (`k_list_sheet`); the big arrow, every
+  loss text and a held win (`k_tug_*`); Night 1's hard cap under a carried file (`k_grabbed_back`); the 7:00 stagger, the countdown in
+  the taskbar and the queue (`k_fin_700a`, `k_fin_703`, `k_fin_viewer`); KEEP by doing nothing from 7:00 to the card with its cause, the
+  card's input delay and the Quit question (`k_keep_*`); SHRED with its cause and the last line held 4.1 s (`k_shred_hold_sheet`: log
+  `Ending: last line typed` at 65.5 s, card at 70.2 s); Night 2's late shred on the card (`k_n2_late_card`) and its real-time due
+  (`k_n2_due`); the shelf check on CAM 04, `Location now:` and the result lines (`k_shelf_*`); the Jotter's echo, grey `(not sent)` and
+  the named, coloured title (`k_jot_*`); the snap halves (`k_snap`); the wheel over the More below chip (`k_wheel_chip_zoom`).
+- **Regression from the title on a fresh save** (`reg_n1.cmd`, `reg_n2.cmd`, `reg_n3c.cmd`, saves `saves/phaseK/reg`):
+  Night 1 from New Game to the blackout card (`The file came back.`); Night 2 from Continue to its card (`Nobody shredded
+  employee_209.dat by 3:00 AM.`); Night 3 from the title's `Continue: Night 3` through Batches 47 and 48, the verifies, the code and
+  `session.cfg`, the shelf check on CAM 04 with its three result lines, the round, the lost time, the 7:00 countdown task and LOG OFF
+  (`You logged off with session 017 still open.`, `k_reg_n3_card`). 0 game errors on every night; the clock monitor saw no step back
+  on Nights 1 and 2 and one of 0.011 min on Night 3, the log-on reset to 1:52 inside Night 3's boot (Review J5; Phase J's run showed
+  the same 0.007), before the clock is on screen. KEEP (doing nothing from 7:00) and SHRED were played to their cards separately (above).
+- **Builds.** Full `Builds/Windows/SecondCursor.exe` 76.5 MB and demo `Builds/WindowsDemo/SecondCursorDemo.exe` 76.3 MB, 0 errors (the
+  engine's usual 2 build warnings), 0 compiler warnings in the game's scripts, content folders back in Resources, `SC_DEMO` off. Windowed
+  smoke tests (`phaseK/smoke.ps1`: full, demo, full with `-scnight 3 -scbeat finale`): each reaches its title or the finale and logs no
+  exception. Demo data grep (`phaseK/spoiler_grep.py`, Phase K terms added): none of the new Night 2 and 3 text; the hits are the same
+  as Phase J's (Night 1's own "Custodial rounds" mail, `session.cfg` and incident log, and code constants in `SecondCursor.Core.dll`).
+- **Judgement calls.**
+  - The grab hitch (0.3 s) is the owner's "short freeze at the grab", done with the read grace's rules so a fast correct reaction still
+    counts; it makes later contests a little kinder to a player who reacts in time. Phase F/J values are untouched.
+  - The pull is scored along the arrow rather than straight away from her pointer, so "drag the way the arrow points" is exactly true; the
+    difficulty simulations keep the old axis (unset `PullAxis`).
+  - A won drag is safe on every night, not only Night 1: "YOU KEPT THE FILE" means it until the player lets go.
+  - During the shelf check Security opens CAM 04 and she spares it; the round's danger returns once the check is filed. This lowers the
+    chance of a cleared seat during Night 3's round (a scare, not an ending).
+  - Notices avoid the focused window and the window under the pointer, not every window; with a maximized window at least one notice still
+    shows on the right.
+  - The end card's input delay (1.5 s) covers keys and clicks alike; the KEEP card itself was never skipped, only left.
+- **Not yet.** Findings 13 to 15 (Quick Start lines, the Night 2 playback) and suggestions 2, 4 and 6 are Phase L. Real hands should confirm
+  the grab hitch and the big arrow; the Steam Deck has not seen the snap halves or the grey replies.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -1083,6 +1223,7 @@ dragtug 915 66 1.5 3 | tugplay 600 | tugplay 0 | waitaction Lurk | tugs      # P
 savecheck | qaread on | settingsset frameRate 60 | buildguard | democrash | reload | steamcheck | storeart | storeshot 04_tug | storeshotafter 0.45 04_tug   # Phase G
 clockmon start | clockmon report | clockcheck | hint t_shred_017   # Phase I: the clock sampled every editor frame, its own counters, a task's hint toast now
 tugsteps 30 0.1 8 0.3 | tughuman 400 5 j_ahead   # Phase J: the blind testers' tug input, and a player who lets go once the bar is theirs
+tugangle 90 400 1.2      # Phase K: in a tug, pull at 90 degrees from the arrow at 400 px/s for 1.2 s, then hold; prints the loss reason
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

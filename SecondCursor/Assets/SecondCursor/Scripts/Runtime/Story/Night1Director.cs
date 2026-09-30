@@ -434,7 +434,9 @@ namespace SecondCursor.Story
                 if (brain.Defenses >= 1) brain.AllowIdleLurk = true;
                 bool shredded = _g.Files.GetFile(ContentIds.File017)?.Shredded ?? false;
                 if (shredded) break;
-                if (brain.Defenses >= ConflictDefenseCap && !_g.Conflict.IsFighting && !_g.Shred.Busy) break;
+                // Phase K: a file the player won is theirs until they let go, so the fight never ends (and blocks the order) under it.
+                bool carrying = _g.Player.Payload != null && _g.Player.Payload.FileId == ContentIds.File017;
+                if (brain.Defenses >= ConflictDefenseCap && !_g.Conflict.IsFighting && !_g.Shred.Busy && !carrying) break;
                 float elapsed = Time.time - start;
                 int attempts = _g.Memory.Count(MemoryKind.ShredAttempt, ContentIds.File017) - attemptsAtStart;
                 // A player who has not tried yet (no shred request, no tug, no defense) is nudged, then let go.
@@ -454,11 +456,18 @@ namespace SecondCursor.Story
                     GameLog.Info(LogChannel.Story, "Conflict: no attempt, moving on");
                     break;
                 }
-                if (elapsed > 150f && !_g.Conflict.IsFighting && !_g.Shred.Busy) break;
+                if (elapsed > 150f && !_g.Conflict.IsFighting && !_g.Shred.Busy && !carrying) break;
                 if (elapsed > 175f)
                 {
-                    // Hard cap: never let an abandoned dialog stall the shift.
+                    // Hard cap: never let an abandoned dialog stall the shift. A file still held here is taken back, and it says so.
                     _g.Shred.Abort();
+                    if (_g.Conflict.IsFighting) _g.Conflict.Interrupt();
+                    var held = _g.Player.Payload;
+                    if (held != null && held.FileId == ContentIds.File017)
+                    {
+                        _g.DragDrop.Cancel(held);
+                        _g.Conflict.Hud.ShowMessage(_g.Content.Text("tug.grabbed.back"), _g.Player.Position);
+                    }
                     break;
                 }
                 yield return null;

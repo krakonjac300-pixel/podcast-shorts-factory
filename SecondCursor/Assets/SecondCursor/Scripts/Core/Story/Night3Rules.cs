@@ -105,6 +105,19 @@ namespace SecondCursor.Core.Story
             return "reject";
         }
 
+        /// <summary>
+        /// Phase K: the CAM 04 label of the shelf an order lists ("SHELF 18: 214 ROURKE C. (RESERVED)"), or null; the result line
+        /// after each shelf decision quotes it, so the player sees what the rule was checked against.
+        /// </summary>
+        public static string ShelfCaptionFor(string listedLocation, IList<string> shelfCaptions)
+        {
+            int shelf = ShelfNumber(listedLocation);
+            if (shelf < 0 || shelfCaptions == null) return null;
+            foreach (var caption in shelfCaptions)
+                if (ShelfNumber(caption) == shelf) return caption;
+            return null;
+        }
+
         /// <summary>The number after the word SHELF ("Sublevel C, SHELF 14" gives 14), or -1.</summary>
         public static int ShelfNumber(string text)
         {

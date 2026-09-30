@@ -114,6 +114,9 @@ namespace SecondCursor.Story
             g.Rounds.TimeUp += _onTimeUp;
             g.Rounds.ForcedBy = null;
             g.Rounds.ForcedOpenHandler = GaryFinished ? GaryForcedOpen : (Action<string>)null;
+            // Phase K: while the shelf check is open Security opens CAM 04 and she leaves it open (the blind tester had to hit CAM 04
+            // within 0.2 s of every forced open for four minutes); once it is filed the round is as before.
+            g.Rounds.PreferredCamera = () => _g.Tasks.IsActive(ContentIds.TaskN3Shelf) ? ContentIds.Cam04 : null;
             var config = RoundsConfig.Night3(g.Difficulty.Mode, g.Memory.Trust, g.Flags.Has(MemoryFlags.N2WatchedToDoor), g.Flags.Has(MemoryFlags.N2Hid214));
             // The spec's 1.2-2.0 s is the whole close (7.4 budget); her hand needs about 0.4 s to get there.
             if (g.Difficulty.Mode == DifficultyMode.Normal) config.Hasten(0.4f);
@@ -257,6 +260,7 @@ namespace SecondCursor.Story
             if (_onSeatCleared != null) r.SeatCleared -= _onSeatCleared;
             if (_onTimeUp != null) r.TimeUp -= _onTimeUp;
             if (_onShelfLaunch != null) _g.Apps.Launched -= _onShelfLaunch;
+            r.PreferredCamera = null;
             _onForcedOpen = _onStage = null;
             _onPlayerReopen = _onSeatCleared = _onTimeUp = null;
             _onShelfLaunch = null;

@@ -117,7 +117,7 @@ namespace SecondCursor.OS
             win.TitleHit.dragThreshold = 4f;
             win.TitleHit.DragBegin += win.OnCaptionDragBegin;
             win.TitleHit.Drag += win.OnCaptionDrag;
-            win.TitleHit.DragEnd += a => { if (win._dragOwner == a) win._dragOwner = null; };
+            win.TitleHit.DragEnd += win.OnCaptionDragEnd;
             win.TitleHit.Click += (a, n) => { if (n == 2 && (win.Flags & WindowFlags.CanMaximize) != 0) win.ToggleMaximize(a); };
 
             int textLeft = 4;
@@ -232,8 +232,18 @@ namespace SecondCursor.OS
             if (Locked && a.IsPlayer) { Shake(0.25f, 2f); return; }
             // Last grab wins: if the other cursor grabs the caption mid-drag, the window goes with it.
             _dragOwner = a;
+            _beforeDrag = new Rect(TopLeft, Size);
             var worldTopLeft = new Vector2(Rect.WorldRect().xMin, Rect.WorldRect().yMax);
             _dragGrab = a.Position - worldTopLeft;
+            if (IsSnapped)
+            {
+                // Dragged out of a half, it gets its own size back under the pointer, where along the caption it was held.
+                float ratio = Size.x > 0f ? _dragGrab.x / Size.x : 0.5f;
+                IsSnapped = false;
+                Rect.sizeDelta = _unsnapped.size;
+                _dragGrab.x = Mathf.Round(ratio * _unsnapped.width);
+                Resized?.Invoke(this);
+            }
         }
 
         void OnCaptionDrag(CursorAgent a, Vector2 delta)
@@ -241,6 +251,44 @@ namespace SecondCursor.OS
             if (_dragOwner != a) return;
             Vector2 worldTopLeft = a.Position - _dragGrab;
             MoveTo(new Vector2(worldTopLeft.x, ScreenRig.Height - worldTopLeft.y), a);
+            if (CanSnap(a)) Manager.ShowSnapPreview(SnapSide(a.Position.x));
+        }
+
+        void OnCaptionDragEnd(CursorAgent a)
+        {
+            if (_dragOwner != a) return;
+            _dragOwner = null;
+            Manager.ShowSnapPreview(0);
+            if (!CanSnap(a) || SnapSide(a.Position.x) == 0) return;
+            // The size and place it had before this drag come back when it leaves the half (not where the drag left it).
+            if (!IsSnapped) _unsnapped = _beforeDrag;
+            SnapTo(SnapSide(a.Position.x), a);
+        }
+
+        // ------------------------------------------------------------ side by side (Phase K, suggestion 3)
+
+        /// <summary>Pixels from a screen edge at which letting go of a caption snaps the window to that half.</summary>
+        const float SnapEdge = 3f;
+        Rect _unsnapped, _beforeDrag;
+
+        /// <summary>The window fills the left or right half of the desktop (dragged there by its caption).</summary>
+        public bool IsSnapped { get; private set; }
+
+        bool CanSnap(CursorAgent a) => a != null && a.IsPlayer && (Flags & WindowFlags.Resizable) != 0 && !IsMaximized;
+
+        static int SnapSide(float x) => x <= SnapEdge ? -1 : x >= ScreenRig.Width - 1f - SnapEdge ? 1 : 0;
+
+        /// <summary>Fills the left (-1) or right (1) half of the desktop; a caption drag gives it its own size back.</summary>
+        void SnapTo(int side, CursorAgent by)
+        {
+            if (IsMaximized || side == 0) return;
+            StopShake();
+            IsSnapped = true;
+            Rect.sizeDelta = new Vector2(ScreenRig.Width / 2, ScreenRig.Height - WindowManager.TaskbarHeight);
+            SetTopLeft(new Vector2(side < 0 ? 0 : ScreenRig.Width / 2, 0));
+            Resized?.Invoke(this);
+            Moved?.Invoke(this, by);
+            GameLog.Info(LogChannel.OS, Title + " snapped to the " + (side < 0 ? "left" : "right") + " half");
         }
 
         public CursorAgent DraggedBy => _dragOwner;
@@ -250,9 +298,29 @@ namespace SecondCursor.OS
         internal void SetActive(bool active)
         {
             IsActive = active;
+            if (_ownCaption)
+            {
+                // Phase K: a window with its own colours (a remote session's Jotter) keeps them, faded while it is not active.
+                _caption.SetGradient(active ? _captionA : Palette.Lerp(_captionA, Palette.TitleInactiveA, 0.5f), active ? _captionB : Palette.Lerp(_captionB, Palette.TitleInactiveB, 0.5f));
+                _titleText.color = active ? (Color)_captionText : (Color)Palette.Lerp(_captionText, Palette.TitleTextInactive, 0.5f);
+                return;
+            }
             if (active) _caption.SetGradient(Palette.TitleActiveA, Palette.TitleActiveB);
             else _caption.SetGradient(Palette.TitleInactiveA, Palette.TitleInactiveB);
             _titleText.color = active ? Palette.TitleText : Palette.TitleTextInactive;
+        }
+
+        bool _ownCaption;
+        Color32 _captionA, _captionB, _captionText;
+
+        /// <summary>Phase K: the caption's own gradient and title colour (the colours of the cursor whose Jotter this is).</summary>
+        public void SetCaptionColors(Color32 a, Color32 b, Color32 text)
+        {
+            _ownCaption = true;
+            _captionA = a;
+            _captionB = b;
+            _captionText = text;
+            SetActive(IsActive);
         }
 
         public void SetTitle(string title)
@@ -328,7 +396,8 @@ namespace SecondCursor.OS
             StopShake();
             if (!IsMaximized)
             {
-                _restore = new Rect(TopLeft, Size);
+                _restore = IsSnapped ? _unsnapped : new Rect(TopLeft, Size);
+                IsSnapped = false;
                 IsMaximized = true;
                 SetTopLeft(Vector2.zero);
                 Rect.sizeDelta = new Vector2(ScreenRig.Width, ScreenRig.Height - WindowManager.TaskbarHeight);

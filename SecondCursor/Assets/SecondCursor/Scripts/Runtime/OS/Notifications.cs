@@ -30,6 +30,12 @@ namespace SecondCursor.OS
         /// sits on the button you are about to press: the newest notices wait for the older ones to go instead.
         /// </summary>
         public Func<float> Ceiling;
+        /// <summary>
+        /// Phase K (suggestion 3): windows the stack must not cover (virtual px, y up): the focused window and the Work Queue. The stack
+        /// grows only up to them, and moves to the left of the screen when the right has less room.
+        /// </summary>
+        public Func<List<Rect>> Avoid;
+        bool _left;
 
         /// <summary>A shown toast: its body can change after it appears (a line that lands on its own beat).</summary>
         public sealed class Toast
@@ -162,7 +168,7 @@ namespace SecondCursor.OS
 
             // Oldest first: a toast whose turn has come appears when there is room for it above the bin.
             float baseY = WindowManager.TaskbarHeight + 84;
-            float ceiling = Ceiling != null ? Ceiling() : float.MaxValue;
+            float ceiling = PickColumn(baseY);
             float used = 0f;
             foreach (var t in _toasts) if (t.Shown) used += t.Height + 4;
             foreach (var t in _toasts)
@@ -193,13 +199,53 @@ namespace SecondCursor.OS
                 t.Slot = t.Slot < 0f ? slot : Mathf.MoveTowards(t.Slot, slot, dt * 6f);
                 float slideIn = Mathf.Clamp01(t.Age / 0.2f);
                 float slideOut = Mathf.Clamp01((t.Age - Life) / 0.3f);
-                // Stack above the Disposal bin; in and out sideways, so a toast never passes over the drop target.
+                // Stack above the Disposal bin (or right of the icon column); in and out sideways, never across the drop target.
                 float ty = y + (t.Slot - slot) * (t.Height + 4);
-                float tx = -4f + ((1f - slideIn) + slideOut) * (t.Rect.sizeDelta.x + 8f);
+                float w = t.Rect.sizeDelta.x;
+                float tx = _left ? -(ScreenRig.Width - LeftColumnX - w) - ((1f - slideIn) + slideOut) * (LeftColumnX + w + 8f)
+                    : -4f + ((1f - slideIn) + slideOut) * (w + 8f);
                 t.Rect.anchoredPosition = new Vector2(Mathf.Round(tx), Mathf.Round(ty));
                 y += t.Height + 4;
                 slot++;
             }
+        }
+
+        /// <summary>Where the left-hand stack starts (just right of the desktop icon column).</summary>
+        const float LeftColumnX = WindowManager.IconColumnRight + 4;
+
+        /// <summary>
+        /// Picks the side the stack uses and returns the highest a toast may reach there. A new side is taken only while nothing is
+        /// showing (toasts on screen never jump across).
+        /// </summary>
+        float PickColumn(float baseY)
+        {
+            float ceiling = Ceiling != null ? Ceiling() : float.MaxValue;
+            var avoid = Avoid?.Invoke();
+            if (avoid == null || avoid.Count == 0)
+            {
+                if (!AnyShown()) _left = false;
+                return _left ? float.MaxValue : ceiling;
+            }
+            float w = W * Mathf.Clamp(Game.DisplaySettings.ReadingScale, 1, 2) + 8f;
+            float right = Mathf.Min(ceiling, Room(avoid, ScreenRig.Width - w, ScreenRig.Width, baseY));
+            float left = Room(avoid, LeftColumnX, LeftColumnX + w, baseY);
+            if (!AnyShown()) _left = right < baseY + H && left > right;
+            return _left ? left : right;
+        }
+
+        /// <summary>The highest a stack in the columns from <paramref name="x0"/> to <paramref name="x1"/> can reach below the avoided windows.</summary>
+        static float Room(List<Rect> avoid, float x0, float x1, float baseY)
+        {
+            float top = float.MaxValue;
+            foreach (var r in avoid)
+                if (r.xMax > x0 && r.xMin < x1 && r.yMax > baseY) top = Mathf.Min(top, Mathf.Max(baseY, r.yMin - 4f));
+            return top;
+        }
+
+        bool AnyShown()
+        {
+            foreach (var t in _toasts) if (t.Shown && !t.Dismissed) return true;
+            return false;
         }
 
         static bool SafeKeep(Toast t)

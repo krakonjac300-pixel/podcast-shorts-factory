@@ -127,6 +127,13 @@ namespace SecondCursor.Core.Entity
         public float Effort => _effort;
         /// <summary>Highest smoothed pull reached in this contest (the adaptive assist reads it).</summary>
         public float PeakEffort { get; private set; }
+        /// <summary>
+        /// Phase K: the way the player must drag, fixed for the whole contest (the arrow on the file). Zero = away from the
+        /// entity's pointer, measured every frame (the model's original rule, which the difficulty tests still use).
+        /// </summary>
+        public Vec2 PullAxis;
+        /// <summary>Phase K: the meter reading just before the contest was decided (the result keeps showing how close it was).</summary>
+        public float FinalLead { get; private set; } = 0.5f;
 
         /// <summary>
         /// How close the player is to winning, for the on-screen pull meter: 0 = the entity is about to take the file
@@ -182,7 +189,7 @@ namespace SecondCursor.Core.Entity
             Vec2 velocity = _hasPrev ? (playerPos - _prevPlayer) / dt : Vec2.Zero;
             _prevPlayer = playerPos;
             _hasPrev = true;
-            Vec2 away = (playerPos - entityPos).Normalized;
+            Vec2 away = PullAxis.SqrLength > 0.5f ? PullAxis : (playerPos - entityPos).Normalized;
             if (away.SqrLength < 0.5f) away = new Vec2(-1f, 0f);
             float signedPull = Vec2.Dot(velocity, away) / _s.pullSpeedForFullStrength;
             _effort += (signedPull - _effort) * MathUtil.Damp(1f / Math.Max(0.01f, _s.effortSmoothing), dt);
@@ -230,6 +237,7 @@ namespace SecondCursor.Core.Entity
 
         TugOutcome Finish(TugOutcome outcome, Vec2 playerPos, Vec2 entityPos)
         {
+            FinalLead = PlayerLead;
             Outcome = outcome;
             EntityShare = outcome == TugOutcome.PlayerWins ? 0f : 1f;
             ObjectPosition = outcome == TugOutcome.PlayerWins ? playerPos : entityPos;

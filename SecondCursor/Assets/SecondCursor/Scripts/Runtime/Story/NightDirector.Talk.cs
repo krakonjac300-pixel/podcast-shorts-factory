@@ -51,11 +51,44 @@ namespace SecondCursor.Story
         }
 
         /// <summary>The speaker's Notepad if it is still open, else null (and forgotten).</summary>
-        protected static NotepadApp EnsurePad(Speaker s)
+        protected NotepadApp EnsurePad(Speaker s)
         {
-            if (s.Pad != null && s.Pad.IsOpen) return s.Pad;
+            if (s.Pad != null && s.Pad.IsOpen)
+            {
+                ApplyIdentity(s.Pad, s.Cursor);
+                return s.Pad;
+            }
             s.Pad = null;
             return null;
+        }
+
+        /// <summary>
+        /// Phase K (suggestion 3): a conversation Jotter says whose it is: "Session 017" (and her name once the player has seen it:
+        /// Night 1's reveal, or any later night), "Session 209: Gary Pruitt", in that cursor's colours.
+        /// </summary>
+        protected void ApplyIdentity(NotepadApp pad, EntityController cursor)
+        {
+            if (pad == null || !pad.IsOpen) return;
+            var c = _g.Content;
+            bool gary = cursor == _g.Gary;
+            string number = gary ? ContentIds.Employee209 : ContentIds.Employee017;
+            bool known = gary || _g.Night > 1 || _g.Flags.Has(Flags.Staff017Revealed);
+            string title = known ? c.Format("notepad.title.person", number, PersonName(number)) : c.Format("notepad.title.session", number);
+            if (pad.Window.Title.StartsWith(title, StringComparison.Ordinal)) return;
+            if (gary) pad.SetConversation(SystemNotices.SessionOf(_g, cursor.Agent), title, Palette.GaryFill, GaryCaptionB, Palette.GaryOutline);
+            else pad.SetConversation(SystemNotices.SessionOf(_g, cursor.Agent), title, Palette.EntityFill, EllenCaptionB, Palette.EntityOutline);
+        }
+
+        static readonly Color32 GaryCaptionB = new Color32(0x7A, 0x5A, 0x1E, 0xFF), EllenCaptionB = new Color32(0x3A, 0x44, 0x42, 0xFF);
+
+        /// <summary>"Marsh, Ellen R." in Personnel reads "Ellen Marsh" on a title.</summary>
+        string PersonName(string number)
+        {
+            string name = _g.Content.Employee(number)?.name ?? number;
+            int comma = name.IndexOf(',');
+            if (comma < 0) return name;
+            string first = name.Substring(comma + 1).Trim().Split(' ')[0];
+            return first + " " + name.Substring(0, comma).Trim();
         }
 
         /// <summary>The speaker double-clicks Notepad itself (or brings its open one back) and takes the keyboard.</summary>
@@ -68,6 +101,7 @@ namespace SecondCursor.Story
                 s.Pad = (NotepadApp)_g.Apps.Launch(AppIds.Notepad, c.Agent);
                 s.Pad.ConversationMode = true;
                 s.Pad.PlayerCanType = false;
+                ApplyIdentity(s.Pad, c);
                 yield break;
             }
             var before = new HashSet<App>(_g.Apps.OpenApps);
@@ -78,6 +112,7 @@ namespace SecondCursor.Story
                 s.Pad = (NotepadApp)_g.Apps.Launch(AppIds.Notepad, c.Agent);
             s.Pad.ConversationMode = true;
             s.Pad.PlayerCanType = false;
+            ApplyIdentity(s.Pad, c);
             s.Pad.Window.Focus(c.Agent);
         }
 

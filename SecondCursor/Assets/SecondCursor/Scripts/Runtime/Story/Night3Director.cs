@@ -79,6 +79,7 @@ namespace SecondCursor.Story
                 {
                     g.Flags.Set(MemoryFlags.N3OwnShelfRejected);
                 }
+                if (Array.IndexOf(ShelfOrders, id) >= 0) ShelfResultLine(id, decision);
             };
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
             g.Rounds.PatchPersonnel = true;
@@ -316,6 +317,35 @@ namespace SecondCursor.Story
             if (fileId == ContentIds.FileSessionCfg) return c.Text(Night3Rules.AllowsLogoff(text) ? "policy.logoff.on" : "policy.logoff.off");
             if (fileId == ContentIds.FileCamviewCfg) return c.Text(Night3Rules.OperatorOverride(text) ? "policy.cam00.on" : "policy.cam00.off");
             return null;
+        }
+
+        /// <summary>
+        /// Phase K (finding 9): each shelf decision gets its result line, in a notice and under the order in the Work Queue: what CAM 04
+        /// shows on the listed shelf and whether the decision follows the rule ("WO-3342 rejected: shelf 18 reads 214 ROURKE C.
+        /// (RESERVED). The rule says approve."). The tester rejected 3342 as a guess and never learned what the rule made of it.
+        /// </summary>
+        void ShelfResultLine(string orderId, string decision)
+        {
+            var c = _g.Content;
+            var order = c.Order(orderId);
+            if (order == null || (decision != "approve" && decision != "reject")) return;
+            string listed = "", owner = "";
+            foreach (var f in order.fields)
+            {
+                if (f.label == "Listed Location") listed = f.value;
+                else if (f.label == "Owner Emp. No.") owner = f.value;
+            }
+            var labels = _g.CameraRig != null ? _g.CameraRig.ShelfLabels : null;
+            string caption = Night3Rules.ShelfCaptionFor(listed, labels) ?? "";
+            int colon = caption.IndexOf(':');
+            string reads = colon >= 0 ? caption.Substring(colon + 1).Trim() : c.Text("shelf.result.nolabel");
+            string rule = Night3Rules.ShelfDecision(listed, owner, labels);
+            string line = c.Format(decision == rule ? "shelf.result.match" : "shelf.result.against", orderId.Replace("wo_", "WO-"),
+                c.Text(decision == "approve" ? "workqueue.check.approved" : "workqueue.check.rejected"), Night3Rules.ShelfNumber(listed), reads,
+                c.Text(rule == "approve" ? "shelf.rule.approve" : "shelf.rule.reject"));
+            _g.Tasks.SetTargetNote(ContentIds.TaskN3Shelf, orderId, line);
+            _g.Notifications.Show(c.Text("app.workorders"), line, "icon_info", null, "ui_select");
+            GameLog.Info(LogChannel.Story, "Shelf result: " + line);
         }
 
         /// <summary>The shelf check is done: the queue line and a notice say what was filed.</summary>

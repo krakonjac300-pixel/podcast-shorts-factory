@@ -314,6 +314,8 @@ namespace SecondCursor.Story
                 sb.Append('\n');
                 text.text = sb.ToString();
             }
+            // Phase K (finding 17): the last line stays at full strength for 4.1 s (1.6 s above and this) before it fades.
+            GameLog.Info(LogChannel.Story, "Ending: last line typed");
             yield return Waits.Seconds(2.5f);
             if (ellen) g.Entity.SetPresent(false, 1.5f);
             if (casey && _caseyView != null) _caseyAgent.Visible = false;

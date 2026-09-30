@@ -40,6 +40,15 @@ namespace SecondCursor.Story
         /// the camera to show. The handler must end up calling <see cref="ShowOnViewer"/>.
         /// </summary>
         [NonSerialized] public Action<string> ForcedOpenHandler;
+        /// <summary>
+        /// Phase K: the camera Security opens instead of the figure's while this returns one (Night 3's shelf check opens CAM 04),
+        /// so a job that needs a camera can be done by a person who switches at human speed. Null = the figure's camera.
+        /// </summary>
+        [NonSerialized] public Func<string> PreferredCamera;
+        /// <summary>Phase K: the second line of a forced open's notice when Custodial is on that camera (null = the rounds' own).</summary>
+        [NonSerialized] public string OnItNoticeKey, NotOnItNoticeKey;
+        /// <summary>Phase K: the notice when session 017 closes a viewer that showed Custodial (null = the rounds' own, which says to reopen it).</summary>
+        [NonSerialized] public string ClosedNoticeKey;
 
         /// <summary>Security opened the viewer on the figure: the index of this forced open (0 = the first).</summary>
         public event Action<int> ForcedOpen;
@@ -62,6 +71,8 @@ namespace SecondCursor.Story
 
         /// <summary>The viewer is open, not minimized, and shows the figure's current camera.</summary>
         public bool IsFigureOnShownCamera => Running && Model != null && !Model.Finished && ViewedCamera() == Model.FigureCamera;
+        /// <summary>Phase K: the viewer shows the camera a job needs (<see cref="PreferredCamera"/>): session 017 leaves it open.</summary>
+        public bool ShownCameraSpared => PreferredCamera != null && ViewedCamera() != null && PreferredCamera() == ViewedCamera();
 
         /// <summary>How long the second cursor waits before closing a viewer that shows the figure.</summary>
         public float CloseReaction() => Model != null ? Model.Config.CloseReaction(UnityEngine.Random.value) : 1.5f;
@@ -145,7 +156,7 @@ namespace SecondCursor.Story
         public void OpenViewer(string camera)
         {
             if (Model == null || Model.Finished) return;
-            string cam = string.IsNullOrEmpty(camera) ? Model.FigureCamera : camera;
+            string cam = !string.IsNullOrEmpty(camera) ? camera : PreferredCamera?.Invoke() ?? Model.FigureCamera;
             if (ForcedOpenHandler != null)
             {
                 ForcedOpenHandler(cam);
@@ -165,9 +176,21 @@ namespace SecondCursor.Story
             if (cam.CurrentCamera != camera) cam.Select(string.IsNullOrEmpty(camera) ? Model.FigureCamera : camera, by);
             int index = ForcedOpens++;
             var text = _g.Content;
-            _g.Notifications.Show(text.Text("app.camera"), text.Text(index == 0 ? "rounds.begin" : "rounds.reopen"), "icon_camera", null, "sys_warning");
+            // Phase K: the notice names the camera and says the one rule, so "restored" is never a mystery: switch away from
+            // Custodial, or (the shelf check's CAM 04) it is not on this one.
+            bool onIt = cam.CurrentCamera == Model.FigureCamera;
+            string body = text.Format(index == 0 ? "rounds.begin" : "rounds.reopen", CameraName(_g, cam.CurrentCamera)) + "\n"
+                + text.Text(onIt ? OnItNoticeKey ?? "rounds.onit" : NotOnItNoticeKey ?? "rounds.notonit");
+            _g.Notifications.Show(text.Text("app.camera"), body, "icon_camera", null, "sys_warning");
             GameLog.Info(LogChannel.Story, "Rounds: viewer forced open (" + (index + 1) + ") on " + cam.CurrentCamera);
             ForcedOpen?.Invoke(index);
+        }
+
+        /// <summary>"CAM 04, SUBLEVEL C": a camera's label for a notice.</summary>
+        public static string CameraName(GameServices g, string camId)
+        {
+            var cam = g.Content.Camera(camId);
+            return cam != null && !string.IsNullOrEmpty(cam.label) ? cam.label.Replace(" - ", ", ").Replace(": ", ", ") : camId;
         }
 
         void OnPlayerReopen()

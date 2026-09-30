@@ -23,6 +23,8 @@ namespace SecondCursor.Story
     public static class EndCard
     {
         const int ButtonWidth = 150, ButtonHeight = 24, ButtonGap = 12, ButtonTop = 420;
+        /// <summary>Seconds the card shows before its buttons take any input.</summary>
+        const float ButtonsAfter = 1.5f;
 
         /// <summary>The spec's buttons, or the defaults its kind of card gets.</summary>
         public static EndCardButtons ButtonsFor(EndingSpec spec)
@@ -90,6 +92,10 @@ namespace SecondCursor.Story
 
             g.Player.Enabled = true;
             g.Player.Visible = true;
+            // Phase K: the card is read before it can be left. The fourth blind tester's typing (meant for a Jotter that had just gone)
+            // reached the KEEP card, focused Quit and pressed it: the session ended before the card was seen. The buttons come a
+            // moment later, and Quit asks first.
+            yield return Waits.Seconds(ButtonsAfter);
             var nav = new MenuNav(g) { RingColor = Palette.BiosBright };
             var buttons = Buttons(g, spec, parent, nav);
             nav.Focus(buttons.Count > 0 ? buttons[0] : null);
@@ -182,9 +188,8 @@ namespace SecondCursor.Story
             if ((want & EndCardButtons.Wishlist) != 0) defs.Add((c.Text("end.card.wishlist"), "button:Wishlist", a => SteamBridge.OpenStorePage()));
             if ((want & EndCardButtons.Title) != 0) defs.Add((c.Text("end.card.menu"), "button:Title", a => GameBootstrap.ToTitle()));
             if ((want & EndCardButtons.NightSelect) != 0) defs.Add((c.Text("end.card.select"), "button:NightSelect", a => GameBootstrap.ToNightSelect()));
-            if ((want & EndCardButtons.Quit) != 0) defs.Add((c.Text("end.card.quit"), "button:Quit", a => PauseMenu.QuitGame()));
-
             var list = new List<UiButton>();
+            if ((want & EndCardButtons.Quit) != 0) defs.Add((c.Text("end.card.quit"), "button:Quit", a => AskQuit(g, parent, nav, list)));
             int total = defs.Count * ButtonWidth + (defs.Count - 1) * ButtonGap;
             int x = (ScreenRig.Width - total) / 2;
             foreach (var (label, id, click) in defs)
@@ -196,6 +201,38 @@ namespace SecondCursor.Story
                 x += ButtonWidth + ButtonGap;
             }
             return list;
+        }
+
+        /// <summary>Quit asks first, like the pause menu's: the card's buttons give way to "Quit SECOND CURSOR?" with Back focused.</summary>
+        static void AskQuit(GameServices g, RectTransform parent, MenuNav nav, List<UiButton> buttons)
+        {
+            var c = g.Content;
+            foreach (var b in buttons) b.gameObject.SetActive(false);
+            var ask = UIBuilder.Text(parent, c.Text("end.card.quit.ask"), Palette.BiosBright, true);
+            ask.rectTransform.At(0, ButtonTop - 22, ScreenRig.Width, 12);
+            ask.Align = TextAlign.Center;
+            var parts = new List<GameObject> { ask.gameObject };
+            nav.Clear();
+            int x = (ScreenRig.Width - (ButtonWidth * 2 + ButtonGap)) / 2;
+            UiButton back = null;
+            foreach (var (label, id, quit) in new[] { (c.Text("end.card.quit.back"), "button:QuitBack", false), (c.Text("end.card.quit"), "button:QuitYes", true) })
+            {
+                var b = UiButton.Create(parent, label, a =>
+                {
+                    if (quit) { PauseMenu.QuitGame(); return; }
+                    foreach (var o in parts) UnityEngine.Object.Destroy(o);
+                    nav.Clear();
+                    foreach (var old in buttons) { old.gameObject.SetActive(true); nav.Add(old); }
+                    nav.Focus(buttons.Count > 0 ? buttons[buttons.Count - 1] : null);
+                }, id);
+                ((RectTransform)b.transform).At(x, ButtonTop, ButtonWidth, ButtonHeight);
+                parts.Add(b.gameObject);
+                nav.Add(b);
+                if (!quit) back = b;
+                x += ButtonWidth + ButtonGap;
+            }
+            nav.Focus(back);
+            GameLog.Info(LogChannel.Story, "End card: Quit asks first");
         }
     }
 }

@@ -212,7 +212,7 @@ namespace SecondCursor.Input
             // Mouse wheel goes to the nearest scrollable container under the pointer.
             if (Mathf.Abs(a.Scroll) > 0.001f && hit != null)
             {
-                var scroll = hit.GetComponentInParent<UI.ScrollArea>();
+                var scroll = hit.GetComponentInParent<UI.ScrollArea>() ?? ScrollAreaAt(hit, a.Position);
                 if (scroll != null) scroll.ScrollBy(-a.Scroll * scroll.WheelStep);
             }
 
@@ -225,6 +225,19 @@ namespace SecondCursor.Input
             else if (a.Payload != null) a.Shape = CursorShape.Drag;
             else if (a.IsDragging && a.Pressed != null) a.Shape = a.Pressed.cursor;
             else a.Shape = hit != null && hit.interactable ? hit.cursor : CursorShape.Arrow;
+        }
+
+        /// <summary>
+        /// Phase K (finding 18): the wheel over something that sits on top of a scroll area without belonging to it (Mail's "More
+        /// below" button) scrolls the area under it, in the same window.
+        /// </summary>
+        static UI.ScrollArea ScrollAreaAt(Interactable hit, Vector2 point)
+        {
+            var window = hit.GetComponentInParent<OS.OSWindow>();
+            if (window == null) return null;
+            foreach (var area in window.GetComponentsInChildren<UI.ScrollArea>())
+                if (area.Viewport != null && area.Viewport.WorldRect().Contains(point)) return area;
+            return null;
         }
 
         // ------------------------------------------------------------------ hit testing

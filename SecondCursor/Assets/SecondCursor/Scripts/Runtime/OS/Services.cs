@@ -411,5 +411,6 @@ namespace SecondCursor.OS
         public string DecisionFor(string orderId) => _g.Orders?.DecisionFor(orderId);
         public bool IsFileOpenedByPlayer(string fileId) => _g.Flags.Get(Core.Story.Flags.OpenedByPlayerPrefix + fileId) > 0;
         public bool IsEmployeeViewedByPlayer(string employeeId) => _g.Flags.Get(Core.Story.Flags.ViewedByPlayerPrefix + employeeId) > 0;
+        public string MovedBy(string fileId) => _g.Files.GetFile(fileId)?.MovedBy;
     }
 }

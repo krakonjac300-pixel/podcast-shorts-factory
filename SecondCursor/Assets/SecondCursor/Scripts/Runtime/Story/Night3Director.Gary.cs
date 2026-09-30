@@ -121,7 +121,7 @@ namespace SecondCursor.Story
             }
             // Whatever his hand did not finish, the batch is his by 20 s.
             foreach (var f in Batch48)
-                if (_g.Files.Exists(f) && _g.Files.FolderOf(f) != ContentIds.FolderArchive) _g.Files.Move(f, ContentIds.FolderArchive, Actor.Entity);
+                if (_g.Files.Exists(f) && _g.Files.FolderOf(f) != ContentIds.FolderArchive) _g.Files.Move(f, ContentIds.FolderArchive, Actor.Entity, SystemNotices.SessionOf(_g, Gary.Agent));
         }
 
         /// <summary>Gary drags the next file of a batch onto the Archive folder row, opening File Manager where it is.</summary>

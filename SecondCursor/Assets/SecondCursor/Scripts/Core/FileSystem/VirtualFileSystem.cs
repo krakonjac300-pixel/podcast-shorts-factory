@@ -36,6 +36,8 @@ namespace SecondCursor.Core.FileSystem
         public bool Protected;
         public bool Corrupted;
         public bool Shredded;
+        /// <summary>Phase K: the other session that last moved the file ("session 017"); null when the player or the system did.</summary>
+        public string MovedBy;
         public readonly HashSet<string> Tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         public bool HasTag(string tag) => Tags.Contains(tag);
@@ -224,12 +226,14 @@ namespace SecondCursor.Core.FileSystem
             return true;
         }
 
-        public bool Move(string fileId, string folderId, Actor actor)
+        /// <param name="by">Phase K: which other session moved it (only for <see cref="Actor.Entity"/>), so the Work Queue can say who did the work.</param>
+        public bool Move(string fileId, string folderId, Actor actor, string by = null)
         {
             if (!CanMove(fileId, folderId, out _)) return false;
             var file = _files[fileId];
             string from = file.FolderId;
             file.FolderId = folderId;
+            file.MovedBy = actor == Actor.Entity ? (string.IsNullOrEmpty(by) ? "another session" : by) : null;
             Revision++;
             GameLog.Info(actor == Actor.Entity ? LogChannel.Entity : LogChannel.OS,
                 (actor == Actor.Player ? "Player" : actor.ToString()) + " moved " + file.Name + " " + from + " -> " + folderId);

@@ -26,6 +26,8 @@ namespace SecondCursor.Core.Tasks
         bool IsFileOpenedByPlayer(string fileId);
         /// <summary>The player has looked at this employee's record in Personnel.</summary>
         bool IsEmployeeViewedByPlayer(string employeeId);
+        /// <summary>Phase K: the other session that last moved this file ("session 017"), or null when the player (or the system) did.</summary>
+        string MovedBy(string fileId);
     }
 
     public sealed class WorkTask
@@ -46,6 +48,13 @@ namespace SecondCursor.Core.Tasks
         /// so). Null = the authored text.
         /// </summary>
         public string TitleOverride, DescriptionOverride, HintOverride;
+        /// <summary>
+        /// Phase K: how many of the done targets another session did, by session ("session 017" = 1), in the order they were
+        /// first seen. Empty when the player did all of it.
+        /// </summary>
+        public readonly List<KeyValuePair<string, int>> HelpedBy = new List<KeyValuePair<string, int>>();
+        /// <summary>Phase K: a line the story files under one target (the shelf check says what each decision was checked against).</summary>
+        public readonly Dictionary<string, string> TargetNotes = new Dictionary<string, string>(StringComparer.Ordinal);
 
         public WorkTask(TaskData data)
         {
@@ -58,6 +67,8 @@ namespace SecondCursor.Core.Tasks
         public string Title => TitleOverride ?? Data.title;
         public string Description => DescriptionOverride ?? Data.description;
         public string Hint => HintOverride ?? Data.hint;
+        /// <summary>"3/4" or "3/4, 1 by session 017" (see <see cref="TaskProgress.Format"/>).</summary>
+        public string ProgressText => TaskProgress.Format(Progress, Goal, HelpedBy);
         public bool IsDone => State == TaskState.Completed;
         public bool IsWithdrawn => State == TaskState.Withdrawn;
         /// <summary>Written into the Work Queue by the second cursor, not by the company.</summary>
@@ -76,6 +87,19 @@ namespace SecondCursor.Core.Tasks
                 case "wait": return TaskType.Wait;
                 default: return TaskType.Unknown;
             }
+        }
+    }
+
+    /// <summary>Phase K: a task's counter says who did the work ("3/4, 1 by session 017"), so help by another session is never silent.</summary>
+    public static class TaskProgress
+    {
+        public static string Format(int progress, int goal, IReadOnlyList<KeyValuePair<string, int>> helpedBy)
+        {
+            string s = progress + "/" + goal;
+            if (helpedBy == null) return s;
+            foreach (var kv in helpedBy)
+                if (kv.Value > 0) s += ", " + kv.Value + " by " + kv.Key;
+            return s;
         }
     }
 
@@ -104,6 +128,27 @@ namespace SecondCursor.Core.Tasks
             int due = Minutes(deadline);
             if (due < 0) return -1;
             return Math.Max(0, due - clockMinutes);
+        }
+
+        /// <summary>
+        /// Phase K: real seconds until the deadline at the shift clock's current speed (game minutes per real second); -1 when
+        /// that cannot be said (a held clock, no deadline). The fourth blind tester read "29 min left" and lost it in 3 minutes.
+        /// </summary>
+        public static float RealSeconds(string deadline, double clockMinutes, float minutesPerSecond, bool frozen)
+        {
+            int due = Minutes(deadline);
+            if (due < 0 || frozen || minutesPerSecond <= 1e-4f) return -1f;
+            return (float)Math.Max(0.0, (due - clockMinutes) / minutesPerSecond);
+        }
+
+        /// <summary>"about 2 min 30 s", "about 1 min", "about 40 s", "a few seconds" (minutes to the half, seconds to five).</summary>
+        public static string Approx(float seconds)
+        {
+            if (seconds < 10f) return "a few seconds";
+            if (seconds < 57.5f) return "about " + (int)(Math.Round(seconds / 5.0) * 5) + " s";
+            int halves = (int)Math.Round(seconds / 30.0);
+            int min = halves / 2;
+            return "about " + min + " min" + (halves % 2 == 1 ? " 30 s" : "");
         }
     }
 
@@ -217,6 +262,15 @@ namespace SecondCursor.Core.Tasks
             GameLog.Info(LogChannel.Task, "Rewrote " + t.Id + " \"" + t.Title + "\"");
         }
 
+        /// <summary>Phase K: a note under one of a task's targets in the Work Queue's checklist.</summary>
+        public void SetTargetNote(string id, string target, string note)
+        {
+            var t = Get(id);
+            if (t == null || string.IsNullOrEmpty(target)) return;
+            t.TargetNotes[target] = note;
+            Revision++;
+        }
+
         /// <summary>What a finished task filed, shown after its title in the Work Queue.</summary>
         public void SetResult(string id, string note)
         {
@@ -235,8 +289,9 @@ namespace SecondCursor.Core.Tasks
             foreach (var t in active)
             {
                 if (t.State != TaskState.Active) continue;
+                string helpedBefore = t.ProgressText;
                 int progress = Measure(t);
-                if (progress != t.Progress)
+                if (progress != t.Progress || t.ProgressText != helpedBefore)
                 {
                     t.Progress = progress;
                     Revision++;
@@ -256,7 +311,17 @@ namespace SecondCursor.Core.Tasks
                     foreach (var id in targets) if (_world.IsEmailRead(id)) n++;
                     break;
                 case TaskType.MoveFile:
-                    foreach (var id in targets) if (_world.FolderOf(id) == t.Data.param) n++;
+                    t.HelpedBy.Clear();
+                    foreach (var id in targets)
+                    {
+                        if (_world.FolderOf(id) != t.Data.param) continue;
+                        n++;
+                        string by = _world.MovedBy(id);
+                        if (string.IsNullOrEmpty(by)) continue;
+                        int at = t.HelpedBy.FindIndex(kv => kv.Key == by);
+                        if (at < 0) t.HelpedBy.Add(new KeyValuePair<string, int>(by, 1));
+                        else t.HelpedBy[at] = new KeyValuePair<string, int>(by, t.HelpedBy[at].Value + 1);
+                    }
                     break;
                 case TaskType.DeleteFile:
                     foreach (var id in targets) if (_world.IsShredded(id)) n++;

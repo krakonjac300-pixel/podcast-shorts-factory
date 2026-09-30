@@ -23,6 +23,13 @@ namespace SecondCursor.Story
     {
         const float RuthMinSeconds = 150f;
         const float RuthMaxSeconds = 300f;
+        /// <summary>
+        /// Phase K (finding 6): once the queue says "Nothing to do until then", the wait is at most this long before the clock runs
+        /// to 3:00 (over <see cref="ToRoundsSeconds"/>), however quickly the chores were done; the fourth tester waited 20 s on one
+        /// pass and four minutes on the replay.
+        /// </summary>
+        const float WaitRoundsCap = 25f, ToRoundsSeconds = 12f;
+        float _waitRoundsSince = -1f;
 
         /// <summary>Ellen present and lurking with her brain on (after a jump past her arrival).</summary>
         IEnumerator EnsureEllenLurking(bool keepAway = false)
@@ -69,14 +76,14 @@ namespace SecondCursor.Story
             RunSide(CodeHints(), "code-hints");
             RunSide(WaitForRoundsLine(), "wait-rounds");
 
-            // At least 150 s after the mail, and the batch done; at 300 s the batch is done for you.
-            while (!(Done(ContentIds.TaskN3Batch48) && Time.time - mailAt >= RuthMinSeconds))
+            // At least 150 s after the mail (or the wait line's cap), and the batch done; at 300 s the batch is done for you.
+            _waitRoundsSince = -1f;
+            while (!(Done(ContentIds.TaskN3Batch48) && (Time.time - mailAt >= RuthMinSeconds || (_waitRoundsSince > 0f && Time.time - _waitRoundsSince >= WaitRoundsCap))))
             {
                 if (Time.time - mailAt >= RuthMaxSeconds)
                 {
                     GameLog.Warn(LogChannel.Story, "Batch 48 archived by the safety net");
-                    foreach (var f in Batch48) if (g.Files.Exists(f)) g.Files.Move(f, ContentIds.FolderArchive, Core.FileSystem.Actor.System);
-                    g.Tasks.ForceComplete(ContentIds.TaskN3Batch48);
+                    FileTheRest(ContentIds.TaskN3Batch48);
                     break;
                 }
                 yield return null;
@@ -85,7 +92,7 @@ namespace SecondCursor.Story
             float talk = Time.time + 20f;
             while (_ellen.Typing && Time.time < talk) yield return null;
             _holdAt = -1;
-            yield return EnsureClockAtLeast(3, 0, Time.time - mailAt >= RuthMaxSeconds ? 10f : 30f);
+            yield return EnsureClockAtLeast(3, 0, ToRoundsSeconds);
         }
 
         /// <summary>
@@ -97,7 +104,9 @@ namespace SecondCursor.Story
             yield return WaitUntil(() => Done(ContentIds.TaskN3Batch48), 900f);
             if (!Done(ContentIds.TaskN3Batch48) || CurrentBeat != "ruth") yield break;
             yield return Wait(1.5f);
-            if (CurrentBeat == "ruth") GiveTask(ContentIds.TaskN3WaitRounds);
+            if (CurrentBeat != "ruth") yield break;
+            GiveTask(ContentIds.TaskN3WaitRounds);
+            _waitRoundsSince = Time.time;
         }
 
         /// <summary>Every .dat in Intake is called 0217.dat for 2.5 s (a glitch and a click you did not make).</summary>

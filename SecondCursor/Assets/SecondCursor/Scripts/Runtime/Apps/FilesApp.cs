@@ -3,6 +3,7 @@ using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.FileSystem;
 using SecondCursor.Core.Tasks;
+using SecondCursor.Game;
 using SecondCursor.Input;
 using SecondCursor.OS;
 using SecondCursor.Rendering;
@@ -71,8 +72,7 @@ namespace SecondCursor.Apps
                 G.DragDrop.BeginFileDrag(a, file.Id, file.Name, FileIcons.SpriteFor(file), row.Hit, new Vector2(iconRect.xMin - 8, iconRect.yMax + 8));
             };
             _filesBackground = _files.Scroll.Viewport.GetComponent<Interactable>();
-            _filesBackground.AcceptsDrop = (a, p) => p.Kind == PayloadKind.File && CanDropInto(p.FileId, _folderId);
-            _filesBackground.Drop += (a, p) => DropInto(p.FileId, _folderId, a);
+            AcceptDropsHere(_filesBackground);
             _filesBackground.Click += (a, n) => _files.Select(-1, a);
 
             // Status bar
@@ -82,7 +82,52 @@ namespace SecondCursor.Apps
             _status.rectTransform.Stretch(4, 0, 4, 0);
             _status.VAlign = TextVAlign.Middle;
 
+            G.Files.FileMoved += OnFileMoved;
             Navigate(_folderId, by, true);
+        }
+
+        protected override void OnClosed(CursorAgent by) => G.Files.FileMoved -= OnFileMoved;
+
+        /// <summary>The file list (its background and its file rows alike) takes a drop into the folder it shows.</summary>
+        void AcceptDropsHere(Interactable hit)
+        {
+            hit.AcceptsDrop = (a, p) => p.Kind == PayloadKind.File && CanDropInto(p.FileId, _folderId);
+            hit.Drop += (a, p) => DropInto(p.FileId, _folderId, a);
+        }
+
+        const float NoteSeconds = 15f;
+        string _note;
+        float _noteUntil;
+
+        /// <summary>
+        /// Phase K: every file move says so in the status bar, with who moved it and, for a file a task needs, the task's count
+        /// ("Moved batch46_a.dat to Archive. Archive Batch 46 (4 files): 2/4."). The owner saw a count that did not match the
+        /// folder; now each move is confirmed where it happens.
+        /// </summary>
+        void OnFileMoved(VFile f, string from, string to, Actor actor)
+        {
+            if (actor == Actor.System || f == null) return;
+            var c = G.Content;
+            string folder = G.Files.GetFolder(to)?.Name ?? to;
+            string text = actor == Actor.Player ? c.Format("files.moved", f.Name, folder) : c.Format("files.moved.by", f.Name, folder, f.MovedBy);
+            var task = TaskFor(G, f.Id);
+            if (task != null) text += " " + c.Format("files.moved.count", task.Title, (task.IsDone ? task.Goal : task.Progress) + "/" + task.Goal);
+            _note = char.ToUpperInvariant(text[0]) + text.Substring(1);
+            _noteUntil = Time.unscaledTime + NoteSeconds;
+            _revision = -1;
+        }
+
+        /// <summary>The company's move task (active or just finished) that needs this file, or null.</summary>
+        public static WorkTask TaskFor(GameServices g, string fileId)
+        {
+            WorkTask best = null;
+            foreach (var t in g.Tasks.Tasks)
+            {
+                if (t.Type != TaskType.MoveFile || t.IsEntityAuthored || (t.State != TaskState.Active && t.State != TaskState.Completed)) continue;
+                if (System.Array.IndexOf(t.Data.targets, fileId) < 0) continue;
+                if (best == null || t.State == TaskState.Active) best = t;
+            }
+            return best;
         }
 
         public bool CanDropInto(string fileId, string folderId)
@@ -104,7 +149,7 @@ namespace SecondCursor.Apps
                 Denied(a);
                 return;
             }
-            G.Files.Move(fileId, folderId, a.IsEntity ? Actor.Entity : Actor.Player);
+            G.Files.Move(fileId, folderId, a.IsEntity ? Actor.Entity : Actor.Player, a.IsEntity ? SystemNotices.SessionOf(G, a) : null);
             G.Tasks.Evaluate();
         }
 
@@ -121,9 +166,37 @@ namespace SecondCursor.Apps
                 return;
             }
             if (folderId == _folderId && _revision == G.Files.Revision && !force) return;
+            if (folderId != _folderId || force) _order.Clear();
             _folderId = folderId;
             _revision = -1;
             Refresh();
+        }
+
+        /// <summary>
+        /// Phase K: the order of the listed files. A new folder lists by name; after that a renamed file keeps its row and new
+        /// files go at the end (like the old desktops until a refresh), so the list never re-sorts under the pointer.
+        /// </summary>
+        readonly List<string> _order = new List<string>();
+
+        List<VFile> Ordered(List<VFile> byName)
+        {
+            var next = new List<string>();
+            foreach (var id in _order) if (byName.Exists(f => f.Id == id)) next.Add(id);
+            foreach (var f in byName) if (!next.Contains(f.Id)) next.Add(f.Id);
+            _order.Clear();
+            _order.AddRange(next);
+            var list = new List<VFile>();
+            foreach (var id in next) list.Add(byName.Find(f => f.Id == id));
+            return list;
+        }
+
+        /// <summary>The player's button is down on something in this window (a press about to become a drag, or a drag from it).</summary>
+        bool PlayerPressingHere()
+        {
+            var p = G.Player;
+            if (!p.Held) return false;
+            var from = p.Payload != null ? p.Payload.Source : p.Pressed;
+            return from != null && from.transform.IsChildOf(Window.transform);
         }
 
         void Denied(CursorAgent by)
@@ -165,16 +238,20 @@ namespace SecondCursor.Apps
                     row.Hit.Drop += (a, p) => DropInto(p.FileId, sub.Id, a);
                     count++;
                 }
-                foreach (var file in G.Files.FilesIn(folder.Id))
+                foreach (var file in Ordered(G.Files.FilesIn(folder.Id)))
                 {
                     var row = _files.AddRow(FileIcons.SpriteFor(file), file.Id, "file:" + file.Id, file.Name, file.Size, file.Modified);
                     row.Hit.draggable = true;
+                    AcceptDropsHere(row.Hit);
                     count++;
                 }
             }
             if (selectedFile != null) _files.SelectWhere(r => (string)r.Tag == selectedFile, null);
             _up.Enabled = folder != null && !string.IsNullOrEmpty(folder.ParentId);
-            if (_folderId == ContentIds.FolderDisposal)
+            bool note = _note != null && Time.unscaledTime < _noteUntil;
+            _status.Bold = note;
+            if (note) _status.text = _note;
+            else if (_folderId == ContentIds.FolderDisposal)
                 _status.text = "Shredded files cannot be recovered.";
             else
                 _status.text = count + " object(s)";
@@ -231,7 +308,9 @@ namespace SecondCursor.Apps
 
         public override void Tick(float dt)
         {
-            if (_revision != G.Files.Revision) Refresh();
+            // Phase K: never rebuild the rows under a press or a drag that started here (the pressed row would be replaced).
+            if (_note != null && Time.unscaledTime >= _noteUntil) { _note = null; _revision = -1; }
+            if (_revision != G.Files.Revision && !PlayerPressingHere()) Refresh();
             GuideTick();
         }
 

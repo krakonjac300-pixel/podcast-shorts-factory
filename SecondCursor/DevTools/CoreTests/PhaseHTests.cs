@@ -88,6 +88,7 @@ namespace SecondCursor.Tests
             public string DecisionFor(string orderId) => null;
             public bool IsFileOpenedByPlayer(string fileId) => false;
             public bool IsEmployeeViewedByPlayer(string employeeId) => false;
+            public string MovedBy(string fileId) => null;
         }
 
         static WorkTaskManager Manager(params TaskData[] tasks) => new WorkTaskManager(tasks, new World());
@@ -192,7 +193,7 @@ namespace SecondCursor.Tests
                                         "end.n1.outcome.shredded", "end.n1.outcome.kept" })
                 Assert.True(db.HasText(key), "missing base string " + key);
             Assert.StartsWith("SESSION 017 IS PULLING", db.Text("tug.label"));
-            Assert.Contains("DRAG AWAY", db.Text("tug.label"));
+            Assert.Contains("HOLD AND DRAG {0}", db.Text("tug.label"));   // Phase K: the label names the arrow's direction
             Assert.Contains("session 017", db.Text("notify.conflict"));
             Assert.Contains("hold the button", db.Text("quickstart.body"));   // Phase J: "... until the bar is yours"
             Assert.Contains("|| button", db.Text("quickstart.body"));

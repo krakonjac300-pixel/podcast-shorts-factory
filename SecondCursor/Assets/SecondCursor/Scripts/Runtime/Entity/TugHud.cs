@@ -40,6 +40,12 @@ namespace SecondCursor.Entity
         /// <summary>Pixel-art arrow on the contested file: dark backing squares under bright ones.</summary>
         readonly List<Image> _arrowBack = new List<Image>();
         readonly List<Image> _arrowDots = new List<Image>();
+        /// <summary>Phase K: the same arrow at twice the size at the player's pointer for the first moments of every fight.</summary>
+        readonly List<Image> _bigBack = new List<Image>();
+        readonly List<Image> _bigDots = new List<Image>();
+        const float BigArrowSeconds = 1f;
+        /// <summary>Where the arrow was drawn last (it stays there, dimmed, while the result shows).</summary>
+        Vector2 _arrowAt;
 
         public static TugHud Create(GameServices g, ConflictSystem conflict)
         {
@@ -98,21 +104,27 @@ namespace SecondCursor.Entity
 
         void BuildArrow()
         {
+            BuildDots(_arrowBack, _arrowDots, 1, "Tug Arrow");
+            BuildDots(_bigBack, _bigDots, 2, "Tug Big Arrow");
+        }
+
+        void BuildDots(List<Image> backs, List<Image> dots, int scale, string name)
+        {
             var layer = _g.Layers.Effects;
             for (int i = 0; i < ArrowShape.Length; i++)
             {
-                var back = UIBuilder.Solid(layer, new Color(0f, 0f, 0f, 0.75f), "Tug Arrow Back " + i);
+                var back = UIBuilder.Solid(layer, new Color(0f, 0f, 0f, 0.75f), name + " Back " + i);
                 back.rectTransform.anchorMin = back.rectTransform.anchorMax = Vector2.zero;
                 back.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                back.rectTransform.sizeDelta = new Vector2(6f, 6f);
+                back.rectTransform.sizeDelta = new Vector2(6f * scale, 6f * scale);
                 back.enabled = false;
-                _arrowBack.Add(back);
-                var dot = UIBuilder.Solid(layer, ArrowColor, "Tug Arrow " + i);
+                backs.Add(back);
+                var dot = UIBuilder.Solid(layer, ArrowColor, name + " " + i);
                 dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = Vector2.zero;
                 dot.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                dot.rectTransform.sizeDelta = new Vector2(4f, 4f);
+                dot.rectTransform.sizeDelta = new Vector2(4f * scale, 4f * scale);
                 dot.enabled = false;
-                _arrowDots.Add(dot);
+                dots.Add(dot);
             }
         }
 
@@ -125,33 +137,50 @@ namespace SecondCursor.Entity
         /// The arrow on the file: from its edge, the way to drag (Phase J: away from her, turned toward open screen, so a pull
         /// never runs into a corner). It only shows the fight's direction, so it cannot change what the fight does.
         /// </summary>
-        void UpdateArrow(Vector2 file, bool show)
+        void UpdateArrow(Vector2 file, bool show, float alpha = 1f)
         {
-            Vector2 dir = _g.Conflict.PullDirection;
-            show &= dir.sqrMagnitude > 0.5f;
-            _arrowShown = show;
+            _arrowShown = show && _g.Conflict.PullDirection.sqrMagnitude > 0.5f;
+            if (_arrowShown)
+            {
+                _arrowAt = file;
+                _arrowTip = file + _g.Conflict.PullDirection.normalized * 60f;
+            }
+            DrawArrow(_arrowBack, _arrowDots, file, 24f, 1, _arrowShown, alpha);
+        }
+
+        /// <summary>
+        /// Phase K: for the first second of every fight the arrow also shows at twice the size at the player's own pointer, where the
+        /// eyes are when the file is grabbed (the blind tester never found the small one in time).
+        /// </summary>
+        void UpdateBigArrow(bool show)
+        {
+            float pulse = 0.65f + 0.35f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f));
+            DrawArrow(_bigBack, _bigDots, _g.Player.Position, 14f, 2, show && _g.Conflict.PullDirection.sqrMagnitude > 0.5f, pulse);
+        }
+
+        void DrawArrow(List<Image> backs, List<Image> dots, Vector2 from, float start, int scale, bool show, float alpha)
+        {
             if (!show)
             {
-                for (int i = 0; i < _arrowDots.Count; i++) { _arrowDots[i].enabled = false; _arrowBack[i].enabled = false; }
+                for (int i = 0; i < dots.Count; i++) { dots[i].enabled = false; backs[i].enabled = false; }
                 return;
             }
-            dir.Normalize();
+            Vector2 dir = _g.Conflict.PullDirection.normalized;
             Vector2 side = new Vector2(-dir.y, dir.x);
-            const float start = 24f;
-            _arrowTip = file + dir * (start + 36f);
             for (int i = 0; i < ArrowShape.Length; i++)
             {
-                Vector2 q = ArrowShape[i];
-                Vector2 at = file + dir * (start + q.x) + side * q.y;
+                Vector2 q = ArrowShape[i] * scale;
+                Vector2 at = from + dir * (start + q.x) + side * q.y;
                 Vector2 p = new Vector2(Mathf.Round(at.x), Mathf.Round(at.y));
-                _arrowBack[i].rectTransform.anchoredPosition = p;
-                _arrowDots[i].rectTransform.anchoredPosition = p;
+                backs[i].rectTransform.anchoredPosition = p;
+                dots[i].rectTransform.anchoredPosition = p;
                 // A bright band runs along the shaft toward the tip so the direction reads even at a glance.
-                float wave = Mathf.Repeat(Time.unscaledTime * 2.4f - q.x * 0.03f, 1f);
-                float k = q.x >= 30f ? 1f : (wave < 0.4f ? 1f : 0.65f);
-                _arrowDots[i].color = new Color(1f, 0.93f, 0.55f, k);
-                _arrowBack[i].enabled = true;
-                _arrowDots[i].enabled = true;
+                float wave = Mathf.Repeat(Time.unscaledTime * 2.4f - q.x * 0.03f / scale, 1f);
+                float k = q.x >= 30f * scale ? 1f : (wave < 0.4f ? 1f : 0.65f);
+                dots[i].color = new Color(1f, 0.93f, 0.55f, k * alpha);
+                backs[i].color = new Color(0f, 0f, 0f, 0.75f * alpha);
+                backs[i].enabled = true;
+                dots[i].enabled = true;
             }
         }
 
@@ -171,23 +200,43 @@ namespace SecondCursor.Entity
         void ShowFightText(bool ahead)
         {
             _ahead = ahead;
+            // Phase K: the label names the arrow's direction ("HOLD AND DRAG DOWN-LEFT UNTIL THE BAR IS YOURS.").
             SetText(ahead ? T("tug.ahead", "THE BAR IS YOURS.\nLET GO ON THE BIN OR A FOLDER.")
-                : T("tug.label", "SESSION 017 IS PULLING.\nHOLD AND DRAG AWAY UNTIL THE BAR IS YOURS."), ahead ? Palette.Green : Palette.Text, true);
+                : F("tug.label", _g.Conflict.ArrowDirection), ahead ? Palette.Green : Palette.Text, true);
+        }
+
+        string F(string key, params object[] args) => _g.Content != null ? _g.Content.Format(key, args) : key;
+
+        /// <summary>Phase K: the result's own words and notice key for what the player's pointer did.</summary>
+        static string ReasonKey(TugLossReason r)
+        {
+            switch (r)
+            {
+                case TugLossReason.LetGo: return "release";
+                case TugLossReason.HeldStill: return "still";
+                case TugLossReason.WrongWay: return "wrong";
+                case TugLossReason.Stopped: return "stopped";
+                case TugLossReason.TooSlow: return "slow";
+                default: return "pulled";
+            }
         }
 
         void OnEnded(DragPayload p, TugOutcome outcome)
         {
+            var c = _g.Conflict;
             bool won = outcome == TugOutcome.PlayerWins;
-            bool letGo = !won && _g.Conflict.LastLostByRelease;
-            // Phase I: a lost fight says why. You let go of the button too early, or she pulled harder.
-            string lost = letGo
-                ? T("tug.lost.release", "YOU LET GO TOO EARLY.\nHOLD ON UNTIL THE BAR IS YOURS.")
-                : T("tug.lost.pulled", "SESSION 017 PULLED HARDER.\nDRAG FASTER, AWAY FROM IT.");
-            SetText(won ? T("tug.won", "YOU KEPT THE FILE.") : lost, won ? Palette.Green : Palette.Red, false);
-            UpdateArrow(Vector2.zero, false);
+            bool letGo = !won && c.LastLostByRelease;
+            // Phase I: a lost fight says why. Phase K: from what the pointer really did, with the arrow's direction by name ("YOU
+            // PULLED LEFT. THE ARROW POINTED DOWN."), and the bar stays up where it ended, so the player sees how close it was.
+            string reason = won ? "won" : ReasonKey(c.LastLossReason);
+            SetText(won ? T("tug.won", "YOU KEPT THE FILE.") : F("tug.lost." + reason, c.LastArrowDirection, c.LastPlayerDirection),
+                won ? Palette.Green : Palette.Red, true);
+            SetMeter(won ? 1f : c.LastFinalLead);
+            UpdateArrow(_arrowAt, true, 0.45f);
+            UpdateBigArrow(false);
             _resultUntil = Time.unscaledTime + ResultSeconds;
             _winner = won ? _g.Player : _g.EntityAgent;
-            GameLog.Info(LogChannel.Entity, "Tug HUD: " + (won ? "kept" : letGo ? "taken (you let go)" : "taken (pulled harder)"));
+            GameLog.Info(LogChannel.Entity, "Tug HUD: " + (won ? "kept" : "taken (" + reason + ")"));
             string name = p != null && !string.IsNullOrEmpty(p.Label) ? p.Label : "the file";
             // Let go over the bin mid-fight: the bin did not ignore the drop, the other session still held the file.
             if (letGo && !_refusedShown && OverDisposal(_g.Conflict.LastEndPlayerPosition))
@@ -198,8 +247,9 @@ namespace SecondCursor.Entity
                 return;
             }
             // Phase J: the result is also a notice, for a player who was looking somewhere else when the fight ended.
-            string key = won ? "notify.conflict.won" : letGo ? "notify.conflict.release" : "notify.conflict";
-            _g.Notifications.Show(T("os.name", "NEXUS OS"), _g.Content.Format(key, name), won ? "icon_info" : "icon_error", null, won ? "ui_select" : "sys_warning");
+            string key = won ? "notify.conflict.won" : reason == "pulled" ? "notify.conflict" : "notify.conflict." + reason;
+            _g.Notifications.Show(T("os.name", "NEXUS OS"), _g.Content.Format(key, name, c.LastArrowDirection, c.LastPlayerDirection),
+                won ? "icon_info" : "icon_error", null, won ? "ui_select" : "sys_warning");
         }
 
         /// <summary>
@@ -215,6 +265,7 @@ namespace SecondCursor.Entity
             _anchor = at;
             _panel.gameObject.SetActive(true);
             UpdateArrow(Vector2.zero, false);
+            UpdateBigArrow(false);
             Place(at);
             GameLog.Info(LogChannel.Entity, "Tug HUD: snatched (not holding)");
         }
@@ -313,12 +364,14 @@ namespace SecondCursor.Entity
                 SetMeter(c.PlayerLead);
                 Place(c.ObjectPosition);
                 UpdateArrow(c.ObjectPosition, true);
+                UpdateBigArrow(c.Elapsed < BigArrowSeconds);
                 return;
             }
             if (_resultUntil > 0f && Time.unscaledTime < _resultUntil)
             {
-                // The result follows the file: it is in the winner's hand now.
+                // The result follows the file: it is in the winner's hand now. The arrow and the bar stay as the fight ended.
                 Place(_winner != null ? _winner.Position : _anchor);
+                if (_arrowShown) UpdateArrow(_arrowAt, true, 0.45f);
                 return;
             }
             if (_arrowShown) UpdateArrow(Vector2.zero, false);

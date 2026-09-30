@@ -172,7 +172,9 @@ namespace SecondCursor.OS
             _clock.text = _g.Clock.Format12();
             Color32 clockColor = ClockAmber ? AmberClock : Palette.Text;
             if (!_clock.color.Equals((Color)clockColor)) _clock.color = clockColor;
-            if (_dirty) Rebuild();
+            // Phase K: the buttons never reflow under the player's pointer (a window opened or closed by another session moved the
+            // button the blind tester was about to click); they catch up as soon as the pointer leaves them.
+            if (_dirty && !_buttonArea.WorldRect().Contains(_g.Player.Position)) Rebuild();
             UpdateTask();
             if (_deviceFlash > 0f)
             {
@@ -208,10 +210,13 @@ namespace SecondCursor.OS
                 _task.gameObject.SetActive(current != null);
                 if (current != null)
                 {
-                    string progress = current.Goal > 1 ? " (" + current.Progress + "/" + current.Goal + ")" : "";
+                    string progress = current.Goal > 1 ? " (" + current.ProgressText + ")" : "";
                     // Phase H: a task with a due time counts down on the button (the clock's speed changes during a night).
                     int left = timed ? Core.Tasks.TaskDeadline.MinutesLeft(current.Data.deadline, _g.Clock.TotalMinutes) : -1;
-                    string text = left > 0 ? _g.Content.Format("taskbar.due", current.Title + progress, left)
+                    // Phase K: in real time where the clock's speed allows ("About 1 min left: ..."), not only in shift minutes.
+                    float real = timed ? Core.Tasks.TaskDeadline.RealSeconds(current.Data.deadline, _g.Clock.ExactMinutes, _g.Clock.Rate, _g.Clock.Frozen) : -1f;
+                    string text = left > 0 && real >= 0f ? _g.Content.Format("taskbar.due.real", current.Title + progress, Capital(Core.Tasks.TaskDeadline.Approx(real)))
+                        : left > 0 ? _g.Content.Format("taskbar.due", current.Title + progress, left)
                         : left == 0 ? _g.Content.Format("taskbar.duenow", current.Title + progress)
                         : "Task: " + current.Title + progress;
                     _task.SetLabel(Ellipsize(text, TaskWidth - 30));
@@ -285,6 +290,8 @@ namespace SecondCursor.OS
             };
             return b;
         }
+
+        static string Capital(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
 
         static string Ellipsize(string s, int width)
         {

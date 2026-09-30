@@ -331,7 +331,7 @@ namespace SecondCursor.Story
                 if (Time.time - start > hintAfter + d.TaskForceAfterHint)
                 {
                     GameLog.Warn(LogChannel.Story, "Task " + taskId + " force-completed after timeout");
-                    _g.Tasks.ForceComplete(taskId);
+                    FileTheRest(taskId);
                     break;
                 }
                 if (Time.time > nextHint)
@@ -342,6 +342,25 @@ namespace SecondCursor.Story
                 yield return null;
             }
             yield return Wait(0.8f);
+        }
+
+        /// <summary>
+        /// Phase K: a task the story finishes itself (a safety net) moves its remaining files where they belong and says so, so
+        /// the Work Queue never shows a finished batch while one of its files is still in Intake (an "archive mismatch").
+        /// </summary>
+        protected void FileTheRest(string taskId)
+        {
+            var t = _g.Tasks.Get(taskId);
+            if (t != null && t.Type == TaskType.MoveFile && t.State == Core.Tasks.TaskState.Active)
+            {
+                var moved = new List<string>();
+                foreach (var id in t.Data.targets)
+                    if (_g.Files.Exists(id) && _g.Files.FolderOf(id) != t.Data.param && _g.Files.Move(id, t.Data.param, Actor.System)) moved.Add(_g.Files.GetFile(id).Name);
+                if (moved.Count > 0)
+                    _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Content.Format("task.filed.rest", t.Title, string.Join(", ", moved),
+                        _g.Files.GetFolder(t.Data.param)?.Name ?? t.Data.param), "icon_task_done", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
+            }
+            _g.Tasks.ForceComplete(taskId);
         }
 
         /// <summary>
@@ -465,7 +484,7 @@ namespace SecondCursor.Story
             if (_g.Files.Exists(fileId) && !playerHasIt && !_g.Shred.Busy)
             {
                 bool moved = _g.Files.FolderOf(fileId) != ContentIds.FolderDesktop;
-                if (moved) _g.Files.Move(fileId, ContentIds.FolderDesktop, Actor.Entity);
+                if (moved) _g.Files.Move(fileId, ContentIds.FolderDesktop, Actor.Entity, SystemNotices.SessionOf(_g, c.Agent));
                 if (hers || moved) _g.Desktop.SetFilePosition(fileId, OSLayers.WorldToDesktop(spot) - new Vector2(37f, 16f));
             }
         }

@@ -68,6 +68,25 @@ namespace SecondCursor.Entity
         public Vector2 ObjectPosition => _model != null && IsFighting ? _model.ObjectPosition.ToUnity() : _lastObject;
         /// <summary>The last contest was lost because the player let go of the button (not by being out-pulled).</summary>
         public bool LastLostByRelease { get; private set; }
+        /// <summary>Phase K: what the player's pointer did in the last lost contest (the result text says what to change).</summary>
+        public TugLossReason LastLossReason { get; private set; }
+        /// <summary>Phase K: where the player's pointer went in the last contest ("LEFT"), and where the arrow pointed ("DOWN").</summary>
+        public string LastPlayerDirection { get; private set; } = "";
+        public string LastArrowDirection { get; private set; } = "";
+        /// <summary>Phase K: the meter just before the last contest was decided (the result keeps it on screen).</summary>
+        public float LastFinalLead { get; private set; } = 0.5f;
+        /// <summary>Phase K: where the file was when the last contest started (a file she wins is set down near here).</summary>
+        public Vector2 LastGrabPoint { get; private set; }
+        /// <summary>Phase K: the way the arrow pointed, for the arrow's own name while the fight runs ("DOWN-LEFT").</summary>
+        public string ArrowDirection => TugCoach.DirectionName(PullDirection.ToCore());
+        /// <summary>Phase K: seconds into the current contest (the big arrow at the pointer shows at its start).</summary>
+        public float Elapsed => _model != null && IsFighting ? _model.Elapsed : 0f;
+        TugCoach _coach;
+        /// <summary>
+        /// Phase K: every contest starts with this standoff (her pull and drift wait, the player's pull counts) while a big arrow at
+        /// the pointer shows the way; the night's first contest keeps its longer read grace.
+        /// </summary>
+        public const float GrabHitchSeconds = 0.3f;
         /// <summary>Where the player's cursor was when the last contest ended.</summary>
         public Vector2 LastEndPlayerPosition { get; private set; }
         Vector2 _lastObject;
@@ -121,11 +140,17 @@ namespace SecondCursor.Entity
             _graceContest = _readGraceArmed;
             _readGraceArmed = false;
             CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy, _graceContest) : new TugOfWarSettings();
+            CurrentSettings.readGrace = Mathf.Max(CurrentSettings.readGrace, GrabHitchSeconds);
             _model = new TugOfWar(CurrentSettings);
             // Away from the player and the bin, turned if the player's pull would have no room (a grab by the bin).
             _escapeDir = TugGeometry.EscapeDirection(_g.Player.Position.ToCore(), _g.EntityAgent.Position.ToCore(),
                 _g.Desktop.DisposalIcon.Hit.Center.ToCore(), ScreenRig.Width, ScreenRig.Height, WindowManager.TaskbarHeight).ToUnity();
             if (_escapeDir.sqrMagnitude < 0.1f) _escapeDir = Vector2.up;
+            _escapeDir.Normalize();
+            // Phase K: the arrow is decided once per fight and it is exactly what counts: pulling along it is the pull.
+            _model.PullAxis = (-_escapeDir).ToCore();
+            _coach = new TugCoach((-_escapeDir).ToCore());
+            LastGrabPoint = p.GhostPosition + new Vector2(16f, -14f);
 
             _g.Flags.Set(Flags.ConflictStarted);
             _g.Audio?.Play("grab_snap", 0.7f, 0.8f, Audio.AudioManager.PanFor(_g.EntityAgent.Position.x));
@@ -155,12 +180,14 @@ namespace SecondCursor.Entity
             // The entity's end drags away (strength-dependent), with a nervous tremble. During the read grace it holds
             // still (only the tremble), so the label can be read and the cursors do not drift apart.
             float driftScale = _model.InReadGrace ? 0f : 1f;
-            Vector2 drift = _escapeDir * TugOfWar.EntityDriftSpeed(grip) * dt * driftScale + UnityEngine.Random.insideUnitCircle * (1.5f + _model.Strain * 3f);
+            Vector2 drift = _escapeDir * TugOfWar.EntityDriftSpeed(grip) * dt * driftScale;
+            // At a screen edge her end slides along it (Phase K: the arrow, which is her way reversed, never flips mid-fight).
+            if ((entity.Position.x <= 1f && drift.x < 0f) || (entity.Position.x >= ScreenRig.Width - 2f && drift.x > 0f)) drift.x = 0f;
+            if ((entity.Position.y <= WindowManager.TaskbarHeight + 1f && drift.y < 0f) || (entity.Position.y >= ScreenRig.Height - 2f && drift.y > 0f)) drift.y = 0f;
+            drift += UnityEngine.Random.insideUnitCircle * (1.5f + _model.Strain * 3f);
             entity.Position = ScreenRig.ClampToScreen(entity.Position + drift);
-            // Bounce the escape direction off the screen edges so it doesn't get pinned.
-            if (entity.Position.x <= 1f || entity.Position.x >= ScreenRig.Width - 2f) _escapeDir.x = -_escapeDir.x;
-            if (entity.Position.y <= WindowManager.TaskbarHeight + 1f || entity.Position.y >= ScreenRig.Height - 2f) _escapeDir.y = -_escapeDir.y;
 
+            _coach.Step(dt, player.Position.ToCore(), playerGrips);
             var outcome = _model.Step(dt, player.Position.ToCore(), playerGrips, entity.Position.ToCore(), grip);
             if (outcome == TugOutcome.None) outcome = Overrule(dt, playerGrips);
             float strain = _model.Strain;
@@ -323,6 +350,16 @@ namespace SecondCursor.Entity
             var p = _payload;
             LastLostByRelease = outcome == TugOutcome.EntityWins && !_playerGripsNow;
             LastEndPlayerPosition = _g.Player.Position;
+            LastFinalLead = _model.IsOver ? _model.FinalLead : _model.PlayerLead;
+            if (_coach != null)
+            {
+                LastLossReason = _coach.Classify(LastLostByRelease, CurrentSettings.pullSpeedForFullStrength);
+                LastArrowDirection = ArrowDirection;
+                LastPlayerDirection = TugCoach.DirectionName(_coach.Net);
+                if (outcome == TugOutcome.EntityWins)
+                    GameLog.Info(LogChannel.Entity, "Tug lost: " + LastLossReason + " (pulled " + LastPlayerDirection + " " + _coach.Along.ToString("0") + " px along of "
+                        + _coach.Path.ToString("0") + " px in " + _coach.HeldSeconds.ToString("0.00") + " s; arrow " + LastArrowDirection + ")");
+            }
             _playerGripsNow = true;
             _payload = null;
             foreach (var d in _band) d.enabled = false;

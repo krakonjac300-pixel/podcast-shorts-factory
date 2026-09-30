@@ -189,6 +189,21 @@ namespace SecondCursor.OS
             }
         }
 
+        readonly List<Rect> _noticeAvoid = new List<Rect>();
+
+        /// <summary>
+        /// Phase K: the windows notices keep off (world rects): the focused one, which the player reads or types in, and the one under
+        /// the player's pointer, which they are about to click (a notice over the Work Queue's More below took the first click).
+        /// </summary>
+        public List<Rect> NoticeAvoid(Vector2 pointer)
+        {
+            _noticeAvoid.Clear();
+            var hovered = TopmostAt(pointer);
+            foreach (var w in _windows)
+                if (w != null && !w.IsClosed && !w.IsMinimized && (w == Active || w == hovered)) _noticeAvoid.Add(w.WorldRect);
+            return _noticeAvoid;
+        }
+
         /// <summary>Centered on the desktop area.</summary>
         public static Vector2Int Centered(int w, int h) =>
             new Vector2Int((ScreenRig.Width - w) / 2, Mathf.Max(0, (ScreenRig.Height - TaskbarHeight - h) / 2));
@@ -301,6 +316,30 @@ namespace SecondCursor.OS
             foreach (var w in _windows.ToArray()) if (w != null) w.Close();
             _windows.Clear();
             Active = null;
+        }
+
+        BevelGraphic _snapPreview;
+
+        /// <summary>Phase K: while a caption is held at a screen edge, an outline shows the half the window will fill (0 = hide).</summary>
+        internal void ShowSnapPreview(int side)
+        {
+            if (side == 0)
+            {
+                if (_snapPreview != null) _snapPreview.enabled = false;
+                return;
+            }
+            if (_snapPreview == null)
+            {
+                _snapPreview = UIBuilder.Bevel(_fxLayer, BevelStyle.Outline, "Snap Preview");
+                _snapPreview.Fill = Palette.Highlight;
+                _snapPreview.raycastTarget = false;
+                var rt = _snapPreview.rectTransform;
+                rt.anchorMin = rt.anchorMax = Vector2.zero;
+                rt.pivot = Vector2.zero;
+            }
+            _snapPreview.rectTransform.anchoredPosition = new Vector2(side < 0 ? 2f : ScreenRig.Width / 2 + 2f, TaskbarHeight + 2f);
+            _snapPreview.rectTransform.sizeDelta = new Vector2(ScreenRig.Width / 2 - 4f, ScreenRig.Height - TaskbarHeight - 4f);
+            _snapPreview.enabled = true;
         }
 
         // ------------------------------------------------------------ zoom rectangles

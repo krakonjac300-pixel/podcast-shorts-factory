@@ -38,6 +38,22 @@ namespace SecondCursor.Apps
         public bool ThinkingCaret;
         public event Action<string, CursorAgent> LineSubmitted;
         public float LastPlayerKeyTime { get; private set; } = -100f;
+        /// <summary>Phase K: who is on the other side of a conversation ("session 017"), for its title and status line.</summary>
+        public string SessionLabel = "the remote session";
+        /// <summary>Phase K: replies nobody read, drawn grey with "(not sent)" (character ranges of the text).</summary>
+        readonly System.Collections.Generic.List<Vector2Int> _unsent = new System.Collections.Generic.List<Vector2Int>();
+
+        /// <summary>
+        /// Phase K (suggestion 3): a conversation names its session and person in the title and wears that cursor's colours on its
+        /// caption, so two Jotters at once never look alike ("Session 017: Ellen Marsh - Jotter").
+        /// </summary>
+        public void SetConversation(string session, string title, Color32 captionA, Color32 captionB, Color32 titleText)
+        {
+            SessionLabel = session;
+            _baseTitle = title + " - " + G.Content.Text("app.notepad");
+            Window.SetTitle(_baseTitle);
+            Window.SetCaptionColors(captionA, captionB, titleText);
+        }
 
         public override string AppId => AppIds.Notepad;
         public string Text => _text.ToString();
@@ -114,6 +130,7 @@ namespace SecondCursor.Apps
             _convStatusText = UIBuilder.Text(_convStatus, "", Palette.Text);
             _convStatusText.rectTransform.Stretch(5, 1, 4, 1);
             _convStatusText.VAlign = TextVAlign.Middle;
+            _convStatusText.Wrap = true;
             _convStatus.gameObject.SetActive(false);
         }
 
@@ -128,9 +145,33 @@ namespace SecondCursor.Apps
         /// Typing into a conversation nobody has answered for this long goes nowhere, and says so. Long enough for a reply
         /// that is on its way (the think pause and the cursor reaching its pad after you sent a line).
         /// </summary>
-        const float NotListeningAfter = 3f, NotReadingShow = 3f;
+        const float NotListeningAfter = 3f, NotReadingShow = 8f;
 
         bool NobodyListening => ConversationMode && !PlayerCanType && !EntityTyping && !ThinkingCaret && Time.time - _remoteActiveAt > NotListeningAfter;
+        /// <summary>A reply typed to nobody goes on the page as not sent this long after its last key (or at its Enter).</summary>
+        const float FlushUnsentAfter = 2f;
+
+        /// <summary>The held reply as the status line shows it: its last line, with a caret.</summary>
+        string PendingHeld()
+        {
+            string h = _held.ToString().TrimEnd('\n');
+            int nl = h.LastIndexOf('\n');
+            if (nl >= 0) h = h.Substring(nl + 1);
+            if (h.Length > 40) h = "..." + h.Substring(h.Length - 40);
+            return h + "_";
+        }
+
+        /// <summary>A reply nobody read: on its own line, grey, marked "(not sent)".</summary>
+        void AppendUnsent(string line)
+        {
+            if (_text.Length > 0 && _text[_text.Length - 1] != '\n') _text.Append('\n');
+            int start = _text.Length;
+            _text.Append(line).Append(' ').Append(G.Content.Text("notepad.notsent", "(not sent)")).Append('\n');
+            _unsent.Add(new Vector2Int(start, _text.Length));
+            _inputStart = _text.Length;
+            _view.SetDimRanges(_unsent, Palette.TextDisabled);
+            Changed(true);
+        }
 
         void UpdateConversationStatus()
         {
@@ -140,28 +181,40 @@ namespace SecondCursor.Apps
                 _remoteActiveAt = Time.time;
                 _notReadingUntil = -1f;   // someone is there again: the "not reading" line goes at once
             }
-            if (_held.Length > 0 && NobodyListening)
+            string held = _held.ToString();
+            if (held.Length > 0 && NobodyListening && (held.IndexOf('\n') >= 0 || Time.time - LastPlayerKeyTime > FlushUnsentAfter))
             {
                 // The other side stopped without giving you a turn: a reply typed ahead would otherwise be sent much later,
-                // as an answer to something else. It is dropped, and the Jotter says nobody is reading.
+                // as an answer to something else. Phase K: it is not dropped silently any more: it stays on the page, grey, "(not sent)".
                 _held.Length = 0;
+                foreach (var line in held.Split('\n')) if (line.Trim().Length > 0) AppendUnsent(line.Trim());
                 _notReadingUntil = Time.time + NotReadingShow;
-                GameLog.Info(LogChannel.Player, "Jotter: typed-ahead reply dropped (the remote session is not reading)");
+                GameLog.Info(LogChannel.Player, "Jotter: reply not sent (" + SessionLabel + " is not reading)");
             }
             string text = null;
-            if (ConversationMode && _held.Length > 0 && (EntityTyping || !PlayerCanType)) text = G.Content.Text("notepad.status.typing", "Remote session is typing. Your reply is sent when it stops.");
-            else if (ConversationMode && Time.time < _notReadingUntil) text = G.Content.Text("notepad.status.away", "Remote session is not reading.");
+            // Phase K (finding 4): what you type while it is not your turn is echoed here at once, with why it waits.
+            if (ConversationMode && _held.Length > 0)
+                text = G.Content.Format(NobodyListening ? "notepad.status.unsent" : "notepad.status.typing", SessionLabel, PendingHeld());
+            else if (ConversationMode && Time.time < _notReadingUntil) text = G.Content.Format("notepad.status.away", SessionLabel);
+            else if (WaitsForPlayer && PendingInput.Length == 0) text = G.Content.Text("notepad.status.turn");
+            if (text != null && text.Length > 0) text = char.ToUpperInvariant(text[0]) + text.Substring(1);
             bool show = text != null;
+            // Phase K: the strip grows to a second line for the longer reasons (it used to be cut at the window's edge).
+            int height = show ? Mathf.Max(15, PixelFont.Measure(text, Mathf.FloorToInt(_convStatus.rect.width) - 9, false, 1).y + 4) : 0;
             if (show) _convStatusText.text = text;
-            if (_convStatus.gameObject.activeSelf == show) return;
+            if (_convStatus.gameObject.activeSelf == show && height == _convStatusHeight) return;
+            _convStatusHeight = height;
             _convStatus.gameObject.SetActive(show);
+            if (show) _convStatus.BottomStrip(2, height, 3, 19);
             // The strip must not hide the newest line: the text frame gives it room while it shows.
             if (_frame != null)
             {
-                _frame.offsetMin = new Vector2(_frame.offsetMin.x, show ? Mathf.Max(_frameBottom, 17) : _frameBottom);
+                _frame.offsetMin = new Vector2(_frame.offsetMin.x, show ? Mathf.Max(_frameBottom, height + 2) : _frameBottom);
                 Changed(true);
             }
         }
+
+        int _convStatusHeight;
 
         PixelText _status;
         string _baseTitle;
@@ -275,6 +328,8 @@ namespace SecondCursor.Apps
         public void SetText(string text)
         {
             _text.Length = 0;
+            _unsent.Clear();
+            _view?.SetDimRanges(_unsent, Palette.TextDisabled);
             _text.Append(text ?? "");
             _inputStart = _text.Length;
             Changed(true);
@@ -379,17 +434,13 @@ namespace SecondCursor.Apps
         {
             if (!PlayerCanType || EntityTyping)
             {
-                if (ConversationMode && NobodyListening)
+                // Mid-conversation keystrokes are not lost: they are typed ahead and play out on your line when it is your turn, one
+                // line (up to its Enter) per turn. Phase K: with nobody reading they are shown too, and go on the page as not sent.
+                if (ConversationMode)
                 {
-                    // Nobody on the other side (Phase H): the keys go nowhere, and the Jotter says so instead of eating them.
-                    if (Time.time >= _notReadingUntil) GameLog.Info(LogChannel.Player, "Jotter: typed while the remote session is not reading");
-                    _notReadingUntil = Time.time + NotReadingShow;
+                    HoldKeys(text, by);
                     Sfx.Play("key_tap", by);
-                    return;
                 }
-                // Mid-conversation keystrokes are not lost: they are typed ahead and play out on your line
-                // when it is your turn, one line (up to its Enter) per turn.
-                if (ConversationMode) HoldKeys(text, by);
                 return;
             }
             bool edited = false;

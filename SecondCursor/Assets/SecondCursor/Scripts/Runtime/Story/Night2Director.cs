@@ -35,6 +35,8 @@ namespace SecondCursor.Story
         const float Rate = 0.06f;
         /// <summary>3:00 AM: the deadline of the order to shred employee_209.dat.</summary>
         const int LateShredMinute = 180;
+        /// <summary>The clock minute employee_209.dat was shredded after its deadline (0 = it was not).</summary>
+        const string LateShredFlag = "n2.late_shred_minute";
         const int FreezeMinute = 2 * 60 + 49;
         /// <summary>Seconds into the work beat before the second cursor looks in from the edge (Phase F).</summary>
         const float GlimpseAfter = 90f;
@@ -77,6 +79,11 @@ namespace SecondCursor.Story
             g.Shred.IsInUse = id => id == ContentIds.File017;
             // Phase I: after the 3:00 deadline a late shred says what it does now (the card's "He is still held" is its result).
             g.Shred.ConfirmNote = id => id == ContentIds.File209 && g.Clock.TotalMinutes >= LateShredMinute ? g.Content.Text("shred.confirm.late", "") : null;
+            // Phase K (finding 10): a shred after the deadline is remembered with its time, so the card can say it happened.
+            g.Shred.Completed += (id, by) =>
+            {
+                if (id == ContentIds.File209 && _finishOver && g.Clock.TotalMinutes >= LateShredMinute) g.Flags.SetCounter(LateShredFlag, g.Clock.TotalMinutes);
+            };
             g.Orders.Decided += (id, decision, by) =>
             {
                 // Approving the wipe of Gary's drive (wrong: he is on leave) is remembered.
@@ -356,8 +363,7 @@ namespace SecondCursor.Story
             if (!Done(ContentIds.TaskN2Batch46))
             {
                 GameLog.Warn(LogChannel.Story, "Batch 46 archived by the safety net");
-                foreach (var f in Batch46) if (_g.Files.Exists(f)) _g.Files.Move(f, ContentIds.FolderArchive, Actor.System);
-                _g.Tasks.ForceComplete(ContentIds.TaskN2Batch46);
+                FileTheRest(ContentIds.TaskN2Batch46);
             }
             yield return Wait(1f);
         }
@@ -661,6 +667,7 @@ namespace SecondCursor.Story
                     pad.ConversationMode = true;
                     pad.PlayerCanType = false;
                     s.Pad = pad;
+                    ApplyIdentity(pad, s.Cursor);
                 }
             }
             foreach (var line in lines)

@@ -33,6 +33,11 @@ namespace SecondCursor.Story
         const int FeedFlickerTime = 6 * 60 + 58;
         /// <summary>M8: game minutes before 7:00 during which the tray clock is amber.</summary>
         const int AmberMinutes = 5;
+        /// <summary>
+        /// Phase K: real seconds after 7:00 before Gary's line and before Security opens the feed. The fourth blind tester got three
+        /// notices, two Jotters and the viewer in the same second, read for 55 s, and the night ended unseen.
+        /// </summary>
+        const float GaryAfter700 = 4f, FeedAfter700 = 8f;
         /// <summary>Squared virtual pixels the cursor must travel from its last anchor to count as activity (4 px).</summary>
         const float IdleMoveSqr = 16f;
         float _idleSince;
@@ -107,9 +112,13 @@ namespace SecondCursor.Story
             // The feed: the corridor to the seat. Security (or finished Gary) opens it by the clock.
             g.Rounds.ForcedBy = null;
             g.Rounds.ForcedOpenHandler = GaryFinished ? GaryForcedOpen : (Action<string>)null;
+            // Phase K: every forced open of the finale says the feed is the danger now (close it or look elsewhere).
+            g.Rounds.OnItNoticeKey = "finale.onit";
+            g.Rounds.NotOnItNoticeKey = "finale.notonit";
+            g.Rounds.ClosedNoticeKey = "camera.closed.finale";
             g.Rounds.Begin(RoundsConfig.Night3Finale(g.Difficulty.Mode, g.Memory.Trust));
-            bool open650 = false, open655 = false, open700 = false, open702 = false, said652 = false, said700 = false, flicker658 = false;
-            float keepSince = -1f;
+            bool open650 = false, open655 = false, open700 = false, open702 = false, said652 = false, said700 = false, flicker658 = false, gary700 = false;
+            float keepSince = -1f, at700 = -1f;
             _idleSince = Time.time;
             _idleLastPos = g.Player.Position;
 
@@ -130,7 +139,8 @@ namespace SecondCursor.Story
                     flicker658 = true;
                     RunSide(FeedFlicker(), "feed-flicker");
                 }
-                if (!open700 && clock >= Night3Rules.LogOffTime) { open700 = true; g.Rounds.OpenViewer(null); }
+                // Phase K: at 7:00 the notice and the countdown come first; Gary 4 s later; Security opens the feed 8 s later.
+                if (!open700 && at700 > 0f && Time.time - at700 >= FeedAfter700 && !LogOffRunning) { open700 = true; g.Rounds.OpenViewer(null); }
                 // Phase J: Security does not open the feed on a log off that is under way (it cut the tester's log off short).
                 if (!open702 && clock >= Night3Rules.LogOffTime + 2 && !LogOffRunning) { open702 = true; g.Rounds.OpenViewer(null); }
 
@@ -149,9 +159,16 @@ namespace SecondCursor.Story
                 if (!said700 && clock >= Night3Rules.LogOffTime)
                 {
                     said700 = true;
-                    // Where to log off: a click on the notice opens the Nexus menu.
+                    at700 = Time.time;
+                    // Where to log off: a click on the notice opens the Nexus menu. Phase K: the Work Queue and the taskbar count down to
+                    // 7:05 and name what doing nothing means and the ways out (suggestion 5, finding 1).
                     g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("logoff.available"), "icon_info", a => g.Taskbar.StartMenu.OpenFromElsewhere(a), "ui_select");
+                    GiveTask(ContentIds.TaskN3LogOffBy);
                     GameLog.Info(LogChannel.Story, "7:00: log off available");
+                }
+                if (!gary700 && at700 > 0f && Time.time - at700 >= GaryAfter700)
+                {
+                    gary700 = true;
                     if (!GaryFinished) RunSide(GarySays("g3_finale"), "gary-finale");
                 }
                 if (clock >= Night3Rules.LogOffTime && !_fastForward) g.Clock.Rate = RoundsRate;
@@ -389,6 +406,7 @@ namespace SecondCursor.Story
             if (_onFinaleCancelled != null) g.Shred.Cancelled -= _onFinaleCancelled;
             if (_onFinaleTug != null) g.Conflict.TugStarted -= _onFinaleTug;
             if (_onFinaleSeat != null && g.Rounds != null) g.Rounds.SeatCleared -= _onFinaleSeat;
+            if (g.Rounds != null) g.Rounds.OnItNoticeKey = g.Rounds.NotOnItNoticeKey = g.Rounds.ClosedNoticeKey = null;
             _onFinaleConfirm = null;
             _onFinaleProgress = null;
             _onFinaleShredded = null;
@@ -533,6 +551,7 @@ namespace SecondCursor.Story
                 g.Clock.Rate = RoundsRate;
             }
             UnhookFinale();
+            g.Tasks.Withdraw(ContentIds.TaskN3LogOffBy);
             g.Rounds.Stop();
             g.Rounds.ForcedOpenHandler = null;
             E.Brain.Enabled = false;

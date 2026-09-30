@@ -341,6 +341,7 @@ namespace SecondCursor.Tests
             public string DecisionFor(string orderId) => null;
             public bool IsFileOpenedByPlayer(string fileId) => false;
             public bool IsEmployeeViewedByPlayer(string employeeId) => false;
+            public string MovedBy(string fileId) => null;
         }
 
         [Fact]
@@ -385,10 +386,11 @@ namespace SecondCursor.Tests
             if (!Present) return;
             var db = Night(1);
             Assert.StartsWith("YOU LET GO TOO EARLY.", db.Text("tug.lost.release"));   // Phase J: the bar says when it is safe
-            Assert.Equal("SESSION 017 PULLED HARDER. DRAG FASTER, AWAY FROM IT.", db.Text("tug.lost.pulled"));
+            // Phase K: "drag faster, away from it" was said after every loss; now it is only for a firm pull that still lost.
+            Assert.Equal("SESSION 017 PULLED HARDER.\nDRAG THE WAY THE ARROW POINTS, FAST, AND DON'T STOP.", db.Text("tug.lost.pulled"));
             Assert.Equal("SESSION 017 TOOK THE FILE WHILE YOU WEREN'T HOLDING IT.", db.Text("tug.snatch"));
             Assert.Contains("R2", db.Text("tug.lost.release.deck"));
-            Assert.Contains("PULL FASTER", db.Text("tug.lost.pulled.deck"));
+            Assert.Contains("PULL THE WAY THE ARROW POINTS", db.Text("tug.lost.pulled.deck"));
             Assert.Contains("while you were not holding it", db.Text("file.moved.by"));
         }
 
@@ -428,11 +430,11 @@ namespace SecondCursor.Tests
             if (!Present) return;
             foreach (var (night, id) in new[] { (2, "t2_rounds_watch"), (3, "t3_shelf_check") })
             {
+                // Phase K: one camera rule everywhere (never watch the camera that shows Custodial; Personnel 000 says where it is).
                 var t = Night(night).Task(id);
-                Assert.Contains("keeps closing", t.hint);
-                Assert.Contains("custodian", t.hint);
+                Assert.Contains("Custodial", t.hint);
                 Assert.Contains("Personnel 000", t.hint);
-                Assert.Contains("different camera", t.hint);
+                Assert.Contains("Location now", t.hint);
             }
         }
 

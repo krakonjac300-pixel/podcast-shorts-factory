@@ -246,7 +246,7 @@ namespace SecondCursor.Tests
         public void EveryTemplateTokenIsKnown()
         {
             if (!Present) return;
-            var known = new HashSet<string>(NightTemplates.Known) { "0", "1", "2" };
+            var known = new HashSet<string>(NightTemplates.Known) { "0", "1", "2", "3", "4" };   // Phase K: the shelf result lines take five arguments
             var bad = new List<string>();
             foreach (var (file, text) in EveryContentString())
                 foreach (var token in NightTemplates.TokensIn(text))

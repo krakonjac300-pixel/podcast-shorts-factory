@@ -178,7 +178,7 @@ namespace SecondCursor.Apps
         string FullTitle(WorkTask t)
         {
             string title = t.State == TaskState.Completed && !string.IsNullOrEmpty(t.ResultNote) ? t.ResultNote
-                : t.Title + (t.Goal > 1 && t.State == TaskState.Active ? " (" + t.Progress + "/" + t.Goal + ")" : "");
+                : t.Title + (t.Goal > 1 && t.State == TaskState.Active ? " (" + t.ProgressText + ")" : "");
             if (t.IsEntityAuthored) title += " " + G.Content.Text("workqueue.remote");
             return title;
         }
@@ -281,15 +281,65 @@ namespace SecondCursor.Apps
                 if (!string.IsNullOrEmpty(deadline) && current.State == TaskState.Active)
                 {
                     int left = TaskDeadline.MinutesLeft(deadline, G.Clock.TotalMinutes);
-                    due = (left >= 0 ? G.Content.Format("workqueue.deadline.left", deadline, left) : G.Content.Format("workqueue.deadline", deadline)) + "\n";
+                    float real = TaskDeadline.RealSeconds(deadline, G.Clock.ExactMinutes, G.Clock.Rate, G.Clock.Frozen);
+                    // Phase K: the shift clock runs fast, so the countdown also says how long that is in real time.
+                    due = (left < 0 ? G.Content.Format("workqueue.deadline", deadline)
+                        : real >= 0f ? G.Content.Format("workqueue.deadline.real", deadline, left, TaskDeadline.Approx(real))
+                        : G.Content.Format("workqueue.deadline.left", deadline, left)) + "\n";
                 }
-                text = due + current.Description + (string.IsNullOrEmpty(current.Hint) ? "" : "\n\nHint: " + current.Hint);
+                text = due + current.Description + Checklist(current) + (string.IsNullOrEmpty(current.Hint) ? "" : "\n\nHint: " + current.Hint);
             }
             string id = current?.Id;
             if (id != _detailTaskId) { toTop = true; _detailTaskId = id; }
             _detail.text = text;
             LayoutDetail();
             if (toTop) _detailScroll.ScrollTo(0f);
+        }
+
+        /// <summary>
+        /// Phase K: a task with several files or orders lists each one and where it is now ("[x] batch46_b.dat: in Archive (session
+        /// 017)", "[ ] batch46_d.dat: on the Desktop"), so the count can always be checked against the folders.
+        /// </summary>
+        string Checklist(WorkTask t)
+        {
+            var targets = t.Data.targets;
+            bool files = t.Type == TaskType.MoveFile, orders = t.Type == TaskType.DecideOrder;
+            if ((!files && !orders) || targets.Length < (files ? 1 : 2) || t.IsEntityAuthored) return "";
+            var c = G.Content;
+            var sb = new System.Text.StringBuilder("\n\n").Append(c.Text(files ? "workqueue.check.files" : "workqueue.check.orders"));
+            foreach (var id in targets)
+            {
+                sb.Append('\n');
+                if (files)
+                {
+                    var f = G.Files.GetFile(id);
+                    string folder = f == null ? null : f.Shredded ? "" : f.FolderId;
+                    bool done = folder == t.Data.param;
+                    string name = f != null ? f.Name : id;
+                    string original = OriginalName(id);
+                    if (original != null && original != name) name += " (" + original + ")";
+                    string where = folder == null ? c.Text("workqueue.check.missing") : folder.Length == 0 ? c.Text("workqueue.check.shredded")
+                        : c.Format(folder == ContentIds.FolderDesktop ? "workqueue.check.desktop" : "workqueue.check.in", G.Files.GetFolder(folder)?.Name ?? folder);
+                    if (done && !string.IsNullOrEmpty(f.MovedBy)) where += " (" + f.MovedBy + ")";
+                    sb.Append(done ? "[x] " : "[ ] ").Append(name).Append(": ").Append(where);
+                }
+                else
+                {
+                    string d = G.Orders.DecisionFor(id);
+                    sb.Append(d != null ? "[x] " : "[ ] ").Append(id.Replace("wo_", "WO-")).Append(": ")
+                      .Append(d == null ? c.Text("workqueue.check.pending") : d == "approve" ? c.Text("workqueue.check.approved")
+                          : d == WorkOrderService.Cancelled ? c.Text("workqueue.check.cancelled") : c.Text("workqueue.check.rejected"));
+                    if (t.TargetNotes.TryGetValue(id, out var note)) sb.Append("\n    ").Append(note);
+                }
+            }
+            return sb.ToString();
+        }
+
+        string OriginalName(string fileId)
+        {
+            foreach (var f in G.Content.FileSystem.files)
+                if (f != null && f.id == fileId) return f.name;
+            return null;
         }
 
         void LayoutDetail()
@@ -319,14 +369,20 @@ namespace SecondCursor.Apps
         }
 
         const float RemoteFadeStep = 15f, RemoteBlinkSeconds = 3f;
+        int _worldRevision = -1;
+
+        int WorldRevision() => G.Files.Revision * 31 + (G.Orders != null ? G.Orders.Revision : 0);
 
         public override void Tick(float dt)
         {
             if (_revision != G.Tasks.Revision || (G.Mail != null && _mailRevision != G.Mail.Revision)) Refresh();
-            else if (_clockMinute != G.Clock.TotalMinutes)
+            else if (_clockMinute != G.Clock.TotalMinutes || _worldRevision != WorldRevision())
             {
+                // The countdown ticks with the clock; the checklist follows files and orders that moved without changing the count.
                 var current = Shown();
-                if (current != null && !string.IsNullOrEmpty(current.Data.deadline)) RefreshDetail(current, false);
+                _worldRevision = WorldRevision();
+                if (current != null && (!string.IsNullOrEmpty(current.Data.deadline) || current.Type == TaskType.MoveFile || current.Type == TaskType.DecideOrder))
+                    RefreshDetail(current, false);
                 else _clockMinute = G.Clock.TotalMinutes;
             }
             FadeRemoteRows();

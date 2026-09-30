@@ -305,7 +305,7 @@ namespace SecondCursor.OS
             if (p.Kind != PayloadKind.File) return;
             _filePositions[p.FileId] = topLeft;
             var actor = a.IsEntity ? Actor.Entity : Actor.Player;
-            if (_g.Files.FolderOf(p.FileId) != ContentIds.FolderDesktop) _g.Files.Move(p.FileId, ContentIds.FolderDesktop, actor);
+            if (_g.Files.FolderOf(p.FileId) != ContentIds.FolderDesktop) _g.Files.Move(p.FileId, ContentIds.FolderDesktop, actor, a.IsEntity ? SystemNotices.SessionOf(_g, a) : null);
             var existing = IconForFile(p.FileId);
             if (existing != null) existing.TopLeft = topLeft;
         }

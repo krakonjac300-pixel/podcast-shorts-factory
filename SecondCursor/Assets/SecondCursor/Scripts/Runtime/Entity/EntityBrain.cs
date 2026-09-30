@@ -48,6 +48,11 @@ namespace SecondCursor.Entity
         float _thinkTimer;
         /// <summary>The shred progress it fought over Cancel for a whole patience and gave up on (no retry for that shred).</summary>
         object _cancelGaveUp;
+        /// <summary>
+        /// Phase K: the drag the player took from her in a tug. She does not grab it again until the player lets go ("YOU KEPT THE
+        /// FILE" must stay true: the blind tester saw a win taken back 0.35 s later).
+        /// </summary>
+        DragPayload _wonByPlayer;
 
         public bool Enabled;
         /// <summary>The file it will not let the player destroy.</summary>
@@ -201,12 +206,35 @@ namespace SecondCursor.Entity
             return best;
         }
 
+        /// <summary>
+        /// Phase K: where a file she won is set down: bare desktop about 90 px from the grab along her pull, clear of the Disposal
+        /// bin, the player's pointer and the notices, so the next try starts where the last one did. Far away only as a fallback.
+        /// </summary>
+        Vector2 NearSpot(Vector2 grab, Vector2 away)
+        {
+            Vector2 target = grab + (away.sqrMagnitude > 0.1f ? away.normalized : Vector2.up) * 90f;
+            Vector2 bin = _g.Desktop.DisposalIcon.Hit.Center;
+            Vector2 best = Vector2.zero;
+            float bestScore = float.MaxValue;
+            for (float dx = -240f; dx <= 240f; dx += 30f)
+            {
+                for (float dy = -180f; dy <= 180f; dy += 30f)
+                {
+                    var c = ScreenRig.ClampToScreen(target + new Vector2(dx, dy));
+                    if (Vector2.Distance(c, bin) < 110f || Vector2.Distance(c, Player.Position) < 60f || WindowManager.InToastColumn(c) || !_c.IsBareDesktop(c)) continue;
+                    float score = Vector2.Distance(c, target);
+                    if (score < bestScore) { bestScore = score; best = c; }
+                }
+            }
+            return bestScore < float.MaxValue ? best : SafeSpot();
+        }
+
         /// <summary>Make sure the protected file ends up visible on the desktop (a refused drop would leave it elsewhere).</summary>
         void EnsureFileOnDesktop(Vector2 spot)
         {
             if (!_g.Files.Exists(ProtectedFileId)) return;
             if (_g.Files.FolderOf(ProtectedFileId) != ContentIds.FolderDesktop)
-                _g.Files.Move(ProtectedFileId, ContentIds.FolderDesktop, Core.FileSystem.Actor.Entity);
+                _g.Files.Move(ProtectedFileId, ContentIds.FolderDesktop, Core.FileSystem.Actor.Entity, SystemNotices.SessionOf(_g, _c.Agent));
             var icon = _g.Desktop.IconForFile(ProtectedFileId);
             var desk = OSLayers.WorldToDesktop(spot) - new Vector2(DesktopIcon.CellW * 0.5f, 18f);
             if (icon == null || !_c.IsBareDesktop(icon.Hit.Center)) _g.Desktop.SetFilePosition(ProtectedFileId, desk);
@@ -217,7 +245,7 @@ namespace SecondCursor.Entity
         float ScoreIntercept()
         {
             var p = Player.Payload;
-            if (p == null || !IsProtected(p.FileId) || p.Contested || p.Holder != Player) return 0f;
+            if (p == null || !IsProtected(p.FileId) || p.Contested || p.Holder != Player || p == _wonByPlayer) return 0f;
             if (InterceptRadius > 0f)
             {
                 Vector2 bin = _g.Desktop.DisposalIcon.Hit.Center;
@@ -271,17 +299,18 @@ namespace SecondCursor.Entity
 
             if (payload.Holder == _c.Agent && !payload.Dropped)
             {
-                // Won: run off with it and leave it somewhere safe on the desktop. If the player grabs it
-                // again on the way, the fight resumes (ConflictSystem moves the cursor meanwhile).
+                // Won: she sets it down on bare desktop near where she grabbed it (Phase K: it used to be thrown to the far corner)
+                // and it blinks. If the player grabs it again on the way, the fight resumes (ConflictSystem moves the cursor meanwhile).
                 RegisterDefense("tug");
-                Vector2 spot = SafeSpot();
+                Vector2 grab = _g.Conflict.LastGrabPoint, away = -_g.Conflict.PullDirection;
+                Vector2 spot = NearSpot(grab, away);
                 int guard = 0;
                 while (payload.Holder == _c.Agent && !payload.Dropped)
                 {
                     // A re-grab fight runs as long as it runs; only carrying attempts count toward the guard.
                     if (_g.Conflict.IsFighting) { yield return null; continue; }
                     if (++guard > 20) break;
-                    spot = SafeSpot();
+                    spot = NearSpot(grab, away);
                     yield return _c.MoveToDynamic(() => _g.Conflict.IsFighting || payload.Holder != _c.Agent ? (Vector2?)null : spot, MovementProfiles.Aggressive, 40f);
                     if (_g.Conflict.IsFighting || payload.Holder != _c.Agent) continue;
                     yield return Waits.Seconds(0.1f);
@@ -291,6 +320,7 @@ namespace SecondCursor.Entity
                     yield return null;
                     yield return null;
                     EnsureFileOnDesktop(spot);
+                    _g.Desktop.Attention(ProtectedFileId, 1.6f);
                     break;
                 }
                 if (_c.Agent.Held) _c.Agent.SetButton(false);
@@ -306,13 +336,15 @@ namespace SecondCursor.Entity
                 else
                 {
                     // The player took it back on the way: same as losing the tug.
+                    _wonByPlayer = Player.Payload;
                     Delay(InterceptName, ReGrabCooldown);
                     yield return _c.Recoil(Player.Position);
                 }
             }
             else
             {
-                // Lost the tug: she needs a moment before she can lunge again (the player gets to the bin).
+                // Lost the tug: not this drag again, and a moment before she can lunge at the next one.
+                _wonByPlayer = Player.Payload;
                 Delay(InterceptName, ReGrabCooldown);
                 _c.Agent.SetButton(false);
                 yield return _c.Recoil(Player.Position);
@@ -499,6 +531,7 @@ namespace SecondCursor.Entity
             // The player grabbed it on the way and a tug decided it (Phase F: she holds still for the fight).
             if (_g.Flags.Get(Core.Story.Flags.CounterPlayerWins) > winsBefore)
             {
+                _wonByPlayer = Player.Payload;
                 Delay(InterceptName, ReGrabCooldown);
                 yield break;
             }
@@ -509,7 +542,12 @@ namespace SecondCursor.Entity
             }
             icon = _g.Desktop.IconForFile(ProtectedFileId);
             bool playerHasIt = Player.Payload != null && IsProtected(Player.Payload.FileId);
-            if (icon != null && !playerHasIt && Vector2.Distance(icon.TopLeft, before) > 20f) RegisterDefense("keepaway");
+            if (icon != null && !playerHasIt && Vector2.Distance(icon.TopLeft, before) > 20f)
+            {
+                // Phase K: the file blinks where she left it, so the player can follow where it went.
+                _g.Desktop.Attention(ProtectedFileId, 1.6f);
+                RegisterDefense("keepaway");
+            }
         }
 
         // ------------------------------------------------------------------ CloseFilesWindow
@@ -540,7 +578,7 @@ namespace SecondCursor.Entity
 
         float ScoreCloseCamera()
         {
-            if (!AllowCloseCamera || _g.Rounds == null || !_g.Rounds.IsFigureOnShownCamera) return 0f;
+            if (!AllowCloseCamera || _g.Rounds == null || !_g.Rounds.IsFigureOnShownCamera || _g.Rounds.ShownCameraSpared) return 0f;
             return 80f;
         }
 

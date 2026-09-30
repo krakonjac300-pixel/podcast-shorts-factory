@@ -88,8 +88,10 @@ namespace SecondCursor.Apps
                 DrawPhoto("redacted");
                 return;
             }
+            // Phase K: Custodial's office field follows it around the building, so it says so ("Office: B-7" read as a home office).
+            string office = e.id == ContentIds.Employee000 ? "\nLocation now: " : "\nOffice:      ";
             _fields.text = "Name:        " + e.name + "\nEmployee No. " + e.number + "\nDepartment:  " + e.department + "\nPosition:    " + e.position +
-                           "\nOffice:      " + e.office + "\nHired:       " + e.hired + "\nLast login:  " + e.lastLogin + "\nSupervisor:  " + e.supervisor;
+                           office + e.office + "\nHired:       " + e.hired + "\nLast login:  " + e.lastLogin + "\nSupervisor:  " + e.supervisor;
             _status.text = "Status: " + e.status;
             _status.color = StatusColor(e.status);
             _notes.text = string.IsNullOrEmpty(e.notes) ? "" : "Notes:\n" + e.notes;

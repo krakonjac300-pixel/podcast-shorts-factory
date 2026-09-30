@@ -24,6 +24,7 @@ namespace SecondCursor.Tests
             public string DecisionFor(string id) => null;
             public bool IsFileOpenedByPlayer(string id) => Opened.Contains(id);
             public bool IsEmployeeViewedByPlayer(string id) => Viewed.Contains(id);
+            public string MovedBy(string fileId) => null;
         }
 
         static TaskData Task(string id, string type, string author = "", params string[] targets) =>

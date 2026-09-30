@@ -22,7 +22,8 @@ namespace SecondCursor.EditorTools
             "         waitaction NAME [TIMEOUT] (the second cursor's current behaviour, e.g. Lurk) | tugs (tug totals this shift)\n" +
             "Phase I: clockmon start|report|stop (samples the taskbar clock every editor frame and counts steps back) | clockcheck (the clock's own counters)\n" +
             "Phase J: tugsteps STEP INTERVAL COUNT HOLD (button held: COUNT jumps of STEP px away from her every INTERVAL s, hold HOLD s, let go; prints the result)\n" +
-            "         tughuman SPEED [TIMEOUT] [SHOT] (in a tug: pull along the arrow at SPEED px/s until the bar is yours, then let go; prints the result)\n";
+            "         tughuman SPEED [TIMEOUT] [SHOT] (in a tug: pull along the arrow at SPEED px/s until the bar is yours, then let go; prints the result)\n" +
+            "Phase K: tugangle DEGREES SPEED [PULLSECONDS] (in a tug: pull at DEGREES from the arrow, 0 = along it, for PULLSECONDS, then hold still until it ends; prints the loss reason)\n";
 
         static IEnumerator TryGameBalanceCommand(GameServices g, string cmd, string[] a, string rest)
         {
@@ -44,6 +45,10 @@ namespace SecondCursor.EditorTools
                     _scripted = true;
                     AttachInput();
                     return TugHuman(F(a, 1, 400f), F(a, 2, 8f), a.Length > 3 ? a[3] : null);
+                case "tugangle":
+                    _scripted = true;
+                    AttachInput();
+                    return TugAngle(F(a, 1, 0f), F(a, 2, 400f), F(a, 3, 99f));
                 case "waitaction":
                 {
                     string name = a.Length > 1 ? a[1] : "Lurk";
@@ -201,6 +206,35 @@ namespace SecondCursor.EditorTools
             var release = TugRelease(g, true, meter, "tughuman " + speed.ToString("0", CultureInfo.InvariantCulture) + " px/s, "
                 + (EditorApplication.timeSinceStartup - start).ToString("0.00", CultureInfo.InvariantCulture) + " s");
             while (release.MoveNext()) yield return release.Current;
+        }
+
+        /// <summary>
+        /// Phase K: a pull at <paramref name="degrees"/> from the arrow (0 = along it, 90 = across, 180 = against it) at
+        /// <paramref name="speed"/> px/s for <paramref name="pullSeconds"/>, then the pointer holds still with the button down until the
+        /// fight ends. Prints the result and the loss reason the tug panel shows.
+        /// </summary>
+        static IEnumerator TugAngle(float degrees, float speed, float pullSeconds)
+        {
+            var wait = WaitFor(() => G != null && G.Conflict.IsFighting, 8f, "a tug");
+            while (wait.MoveNext()) yield return wait.Current;
+            var g = G;
+            if (g == null || !g.Conflict.IsFighting) yield break;
+            float t = 0f;
+            _input.Steer((pos, dt) =>
+            {
+                var gg = G;
+                if (gg == null || !gg.Conflict.IsFighting || t > 12f) return null;
+                t += dt;
+                if (t > pullSeconds || speed <= 0f) return pos;
+                Vector2 dir = Quaternion.Euler(0f, 0f, degrees) * gg.Conflict.PullDirection.normalized;
+                return ScreenRig.ClampToScreen(pos + dir * speed * dt);
+            });
+            var drain = Drain();
+            while (drain.MoveNext()) yield return drain.Current;
+            string end = GameLog.Recent(60).Select(e => e.ToString()).LastOrDefault(e => e.Contains("Tug-of-war ended"));
+            string why = GameLog.Recent(60).Select(e => e.ToString()).LastOrDefault(e => e.Contains("Tug lost:"));
+            Say("tugangle " + degrees.ToString("0", CultureInfo.InvariantCulture) + " deg " + speed.ToString("0", CultureInfo.InvariantCulture) + " px/s: "
+                + (end ?? "no result") + (why != null ? "; " + why : ""));
         }
 
         /// <summary>Lets go of the button, waits for the fight to be decided and prints how it ended.</summary>

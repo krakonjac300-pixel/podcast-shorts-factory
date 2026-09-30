@@ -157,6 +157,7 @@ namespace SecondCursor.Game
             g.Windows = new WindowManager(g.Layers.Windows, g.Layers.Effects, g.Router);
             g.Notifications = Notifications.Create(g.Layers.Notifications);
             g.Notifications.Ceiling = () => g.Windows != null ? g.Windows.NoticeCeiling() : float.MaxValue;
+            g.Notifications.Avoid = () => g.Windows.NoticeAvoid(g.Player.Position);
             g.Mail = new MailService(g);
             g.Orders = new WorkOrderService(g);
             g.Tasks = new WorkTaskManager(g.Content.Tasks.tasks, new TaskWorld(g));

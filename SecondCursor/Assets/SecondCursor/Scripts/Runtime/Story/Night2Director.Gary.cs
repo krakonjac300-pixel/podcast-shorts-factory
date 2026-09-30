@@ -680,6 +680,7 @@ namespace SecondCursor.Story
             g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("session.suspended"), "icon_warning", null, "sys_warning");
             yield return Wait(2.5f);
             bool finished = g.Flags.Has(MemoryFlags.N2FinishedGary);
+            int late = g.Flags.Get(LateShredFlag);
             string id = finished ? ContentIds.EndingN2Finished : ContentIds.EndingN2Kept;
             CompleteNight(id);
             var spec = new EndingSpec
@@ -689,9 +690,11 @@ namespace SecondCursor.Story
                 GaryLines = finished ? null : Lines("g2_goodnight"),
                 TitleKey = "end.n2.title",
                 SubtitleKey = finished ? "end.n2.subtitle.finished" : "end.n2.subtitle.kept",
-                // Phase J: like Night 1's card, one line says what the player's choice about 209 was.
-                Outcome = g.Content.Text(finished ? "end.n2.outcome.finished"
-                    : g.Flags.Has(MemoryFlags.N2ArchivedGary) ? "end.n2.outcome.archived" : "end.n2.outcome.missed"),
+                // Phase J: like Night 1's card, one line says what the player's choice about 209 was (Phase K: a late shred too).
+                Outcome = finished ? g.Content.Text("end.n2.outcome.finished")
+                    : g.Flags.Has(MemoryFlags.N2ArchivedGary) ? g.Content.Text("end.n2.outcome.archived")
+                    : late > 0 ? g.Content.Format(late > LateShredMinute ? "end.n2.outcome.late" : "end.n2.outcome.late0", GameClock.Format12(late), late - LateShredMinute)
+                    : g.Content.Text("end.n2.outcome.missed"),
                 DemoCard = false,
                 ContinueNight = 3,
             };

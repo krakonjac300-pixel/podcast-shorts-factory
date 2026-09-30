@@ -43,9 +43,35 @@ namespace SecondCursor.OS
                 string app = g.Content.Text("app." + w.AppId, w.Title);
                 if (!Due("close:" + w.AppId)) return;
                 bool camera = w.AppId == AppIds.Camera;
-                g.Notifications.Show(app, camera ? g.Content.Format("camera.closed.by", SessionOf(g, by)) : g.Content.Format("window.closed.by", app, SessionOf(g, by)),
-                    camera ? "icon_camera" : "icon_info", null, "ui_select");
+                // Phase K: during rounds it says why (it showed Custodial) and how to get the viewer back.
+                var rounds = g.Rounds;
+                bool custodial = camera && rounds != null && rounds.Running && rounds.Model != null && (w.Owner as Apps.CameraApp)?.CurrentCamera == rounds.Model.FigureCamera;
+                g.Notifications.Show(app, camera ? g.Content.Format(custodial ? rounds.ClosedNoticeKey ?? "camera.closed.custodial" : "camera.closed.by", SessionOf(g, by))
+                    : g.Content.Format("window.closed.by", app, SessionOf(g, by)), camera ? "icon_camera" : "icon_info", null, "ui_select");
                 GameLog.Info(LogChannel.OS, "Notice: " + app + " closed by " + SessionOf(g, by));
+            };
+            g.Files.FileMoved += (file, from, to, actor) =>
+            {
+                if (file == null || actor == Core.FileSystem.Actor.System) return;
+                var c = g.Content;
+                string toName = g.Files.GetFolder(to)?.Name ?? to, fromName = g.Files.GetFolder(from)?.Name ?? from;
+                if (actor == Core.FileSystem.Actor.Player)
+                {
+                    // Phase K: a file dropped on the desktop leaves the File Manager list: say where it went.
+                    if (to == ContentIds.FolderDesktop && from != ContentIds.FolderDesktop)
+                        g.Notifications.Show(c.Text("os.name"), c.Format("files.moved.desktop", file.Name, fromName), "icon_info", null, "ui_select");
+                    return;
+                }
+                // Phase K (finding 16): help by another session with a file a task needs is never silent, nor is undoing it.
+                var task = Apps.FilesApp.TaskFor(g, file.Id);
+                if (task == null) return;
+                bool into = to == task.Data.param;
+                // The last file of a batch completes the task at once: that help counts too. Taking one out only matters while it is open.
+                if (!into && (from != task.Data.param || task.State != Core.Tasks.TaskState.Active)) return;
+                string key = into ? "files.help.by" : "files.unhelp.by";
+                g.Notifications.Show(c.Text("app.workqueue"), c.Format(key, file.Name, to == task.Data.param ? toName : fromName, file.MovedBy, task.Title, task.ProgressText),
+                    "icon_task_active", a => g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
+                GameLog.Info(LogChannel.OS, "Notice: " + file.Name + " moved " + from + " -> " + to + " by " + file.MovedBy + " (" + task.Id + " " + task.ProgressText + ")");
             };
             if (g.Entity != null && g.Entity.Brain != null)
             {
