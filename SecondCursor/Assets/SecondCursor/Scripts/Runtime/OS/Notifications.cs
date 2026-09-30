@@ -24,6 +24,13 @@ namespace SecondCursor.OS
         public const float Stagger = 1.1f;
         float _nextShowAt = -100f;
 
+        /// <summary>
+        /// Phase I: the highest a toast's top edge may reach (virtual px from the bottom), or null for no limit. A window with a part that
+        /// must stay clickable at the right edge (the Work Orders' Approve and Reject during the shelf check) sets it, so a notice never
+        /// sits on the button you are about to press: the newest notices wait for the older ones to go instead.
+        /// </summary>
+        public Func<float> Ceiling;
+
         /// <summary>A shown toast: its body can change after it appears (a line that lands on its own beat).</summary>
         public sealed class Toast
         {
@@ -37,11 +44,13 @@ namespace SecondCursor.OS
             internal string Sound;
             /// <summary>While false the toast is dismissed (shown or still waiting its turn).</summary>
             internal Func<bool> KeepWhile;
+            /// <summary>It has appeared (its turn came and there was room for it).</summary>
+            internal bool Shown;
             public PixelText Body { get; internal set; }
 
             public bool IsShowing => Rect != null && !Dismissed;
-            /// <summary>Still waiting for its turn behind a toast that arrived just before it.</summary>
-            internal bool Waiting => Age < 0f;
+            /// <summary>Still waiting for its turn behind a toast that arrived just before it, or for room to appear.</summary>
+            internal bool Waiting => !Shown;
 
             public void SetBody(string text)
             {
@@ -125,12 +134,8 @@ namespace SecondCursor.OS
                 onClick?.Invoke(a);
             };
             _toasts.Add(toast);
-            if (delay <= 0f)
-            {
-                if (!string.IsNullOrEmpty(sound)) Sfx.Play(sound);
-                toast.Sound = null;
-            }
-            else rt.gameObject.SetActive(false);
+            // Not shown yet: its turn (the stagger) and room for it are settled in Layout.
+            rt.gameObject.SetActive(false);
             Layout(0f);
             return toast;
         }
@@ -139,34 +144,45 @@ namespace SecondCursor.OS
 
         void Layout(float dt)
         {
+            // Age them, drop the dismissed and the expired.
             for (int i = _toasts.Count - 1; i >= 0; i--)
             {
                 var t = _toasts[i];
-                bool wasWaiting = t.Waiting;
-                t.Age += dt;
+                if (t.Shown || t.Age < 0f) t.Age += dt;
                 if (t.Sticky && t.Age > Life - 0.01f) t.Age = Life - 0.01f;
                 if (t.KeepWhile != null && !SafeKeep(t)) t.Dismissed = true;
                 if (t.Rect == null || t.Dismissed || t.Age > Life + 0.3f)
                 {
                     if (t.Rect != null) Destroy(t.Rect.gameObject);
                     _toasts.RemoveAt(i);
-                    continue;
-                }
-                if (wasWaiting && !t.Waiting)
-                {
-                    // Its turn: it appears now, with its sound.
-                    t.Rect.gameObject.SetActive(true);
-                    if (!string.IsNullOrEmpty(t.Sound)) Sfx.Play(t.Sound);
-                    t.Sound = null;
-                    t.Slot = -1f;   // takes the slot it lands in (below), instead of the one it was queued behind
                 }
             }
-            float y = WindowManager.TaskbarHeight + 84;
+
+            // Oldest first: a toast whose turn has come appears when there is room for it above the bin.
+            float baseY = WindowManager.TaskbarHeight + 84;
+            float ceiling = Ceiling != null ? Ceiling() : float.MaxValue;
+            float used = 0f;
+            foreach (var t in _toasts) if (t.Shown) used += t.Height + 4;
+            foreach (var t in _toasts)
+            {
+                if (t.Shown || t.Age < 0f) continue;
+                t.Age = 0f;   // its time only starts when it is on screen
+                bool room = used == 0f || baseY + used + t.Height <= ceiling;
+                if (!room) continue;
+                t.Shown = true;
+                t.Rect.gameObject.SetActive(true);
+                if (!string.IsNullOrEmpty(t.Sound)) Sfx.Play(t.Sound);
+                t.Sound = null;
+                t.Slot = -1f;   // takes the slot it lands in (below), instead of the one it was queued behind
+                used += t.Height + 4;
+            }
+
+            float y = baseY;
             int slot = 0;
             for (int i = 0; i < _toasts.Count; i++)
             {
                 var t = _toasts[i];
-                if (t.Waiting) continue;
+                if (!t.Shown) continue;
                 t.Slot = t.Slot < 0f ? slot : Mathf.MoveTowards(t.Slot, slot, dt * 6f);
                 float slideIn = Mathf.Clamp01(t.Age / 0.2f);
                 float slideOut = Mathf.Clamp01((t.Age - Life) / 0.3f);

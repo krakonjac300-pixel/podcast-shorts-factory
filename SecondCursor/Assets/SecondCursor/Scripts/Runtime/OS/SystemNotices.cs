@@ -57,6 +57,10 @@ namespace SecondCursor.OS
                     if (file == null) return;
                     g.Notifications.Show(g.Content.Text("os.name"), g.Content.Format("file.moved.by", file.Name, SessionOf(g, g.EntityAgent)), "icon_info", null, "ui_select");
                     GameLog.Info(LogChannel.OS, "Notice: " + file.Name + " moved by session 017");
+                    // Phase I: beside the file itself, in the fight's own panel: it was taken while nobody was holding it.
+                    var icon = g.Desktop != null ? g.Desktop.IconForFile(file.Id) : null;
+                    if (icon != null && g.Conflict != null && g.Conflict.Hud != null)
+                        g.Conflict.Hud.ShowMessage(g.Content.Text("tug.snatch", "SESSION 017 TOOK THE FILE WHILE YOU WEREN'T HOLDING IT."), icon.Hit.Center);
                 };
             }
         }

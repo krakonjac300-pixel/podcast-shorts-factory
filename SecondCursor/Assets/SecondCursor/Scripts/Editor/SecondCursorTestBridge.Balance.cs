@@ -19,7 +19,8 @@ namespace SecondCursor.EditorTools
     {
         const string BalanceHelp =
             "Phase F: dragtug X Y DUR [HOLD] (drag toward X Y, wait there up to HOLD s, stop when a tug starts; prints the grab time) | tugplay SPEED [TIMEOUT] (yank away from her at SPEED px/s until the tug ends; 0 = hold still)\n" +
-            "         waitaction NAME [TIMEOUT] (the second cursor's current behaviour, e.g. Lurk) | tugs (tug totals this shift)\n";
+            "         waitaction NAME [TIMEOUT] (the second cursor's current behaviour, e.g. Lurk) | tugs (tug totals this shift)\n" +
+            "Phase I: clockmon start|report|stop (samples the taskbar clock every editor frame and counts steps back) | clockcheck (the clock's own counters)\n";
 
         static IEnumerator TryGameBalanceCommand(GameServices g, string cmd, string[] a, string rest)
         {
@@ -38,6 +39,18 @@ namespace SecondCursor.EditorTools
                     string name = a.Length > 1 ? a[1] : "Lurk";
                     return WaitFor(() => G != null && G.Entity != null && G.Entity.CurrentAction == name, F(a, 2, 30f), "entity action " + name);
                 }
+                case "hint":
+                    // Shows a task's hint toast now (Phase I: it waits while a shred dialog is open).
+                    g.Director.ShowTaskHint(a.Length > 1 ? a[1] : "");
+                    return Done();
+                case "clockmon":
+                    ClockMonitorCommand(a.Length > 1 ? a[1] : "report");
+                    return Done();
+                case "clockcheck":
+                    Say("clock " + g.Clock.Format12() + " (" + g.Clock.ExactMinutes.ToString("0.00", CultureInfo.InvariantCulture) + " min), high water "
+                        + g.Clock.HighWater.ToString("0.00", CultureInfo.InvariantCulture) + ", rate " + g.Clock.Rate.ToString("0.000", CultureInfo.InvariantCulture)
+                        + (g.Clock.Frozen ? " (held)" : "") + ", refused back-sets " + g.Clock.RefusedBackSets + ", regressions " + g.Clock.Regressions);
+                    return Done();
                 case "tugs":
                     Say("tug wins=" + g.Flags.Get(Core.Story.Flags.CounterPlayerWins) + " losses=" + g.Flags.Get(Core.Story.Flags.CounterTugLosses)
                         + " defenses=" + g.Entity.Brain.Defenses + " tugLosses=" + g.Entity.Brain.TugLosses + " " + AssistLine(g));
@@ -116,6 +129,61 @@ namespace SecondCursor.EditorTools
             string end = GameLog.Recent(60).Select(e => e.ToString()).LastOrDefault(e => e.Contains("Tug-of-war ended"));
             Say("tugplay " + speed.ToString("0", CultureInfo.InvariantCulture) + " px/s: " + (end ?? "no result")
                 + (g.Conflict.LastOutcomeForced ? " (FORCED)" : " (real)") + "; " + AssistLine(g));
+        }
+
+        // ------------------------------------------------------------------ clock monitor (Phase I)
+
+        static bool _monActive;
+        static object _monClock;
+        static double _monLast, _monFirst, _monMax, _monWorst;
+        static int _monBack, _monSamples;
+
+        /// <summary>Called every editor update: samples the game clock (independent of the clock's own bookkeeping).</summary>
+        static void ClockMonitorTick()
+        {
+            if (!_monActive) return;
+            var g = G;
+            if (g == null || g.Clock == null) return;
+            double now = g.Clock.ExactMinutes;
+            if (!ReferenceEquals(_monClock, g.Clock))
+            {
+                // A new shift (a new clock object) starts from its own beginning.
+                _monClock = g.Clock;
+                _monLast = now;
+                if (_monSamples == 0) _monFirst = now;
+            }
+            if (now + 1e-6 < _monLast)
+            {
+                _monBack++;
+                _monWorst = Math.Max(_monWorst, _monLast - now);
+            }
+            _monLast = now;
+            _monMax = Math.Max(_monMax, now);
+            _monSamples++;
+        }
+
+        static void ClockMonitorCommand(string what)
+        {
+            switch (what)
+            {
+                case "start":
+                    _monActive = true;
+                    _monClock = null;
+                    _monBack = 0;
+                    _monSamples = 0;
+                    _monWorst = 0;
+                    _monMax = 0;
+                    Say("clockmon started");
+                    break;
+                case "stop":
+                    _monActive = false;
+                    goto default;
+                default:
+                    Say("clockmon " + (_monActive ? "running" : "stopped") + ": " + _monSamples + " samples, first " + _monFirst.ToString("0.00", CultureInfo.InvariantCulture)
+                        + " last " + _monLast.ToString("0.00", CultureInfo.InvariantCulture) + " highest " + _monMax.ToString("0.00", CultureInfo.InvariantCulture)
+                        + " min, steps back " + _monBack + " (worst " + _monWorst.ToString("0.000", CultureInfo.InvariantCulture) + " min)");
+                    break;
+            }
         }
 
         /// <summary>The direction closest to <paramref name="dir"/> that still has at least 40 px of screen ahead.</summary>

@@ -87,13 +87,13 @@ Click [b]Nexus[/b] (bottom left) for every program, plus [b]Documents[/b], [b]Sy
 [/list]
 
 [h2]Replying in the Jotter[/h2]
-When a remote session types to you in the Jotter, a notice says so. Type a reply and press [b]Enter[/b]. One line at a time, anything you like. If your letters do not appear, click the Jotter window (or the notice) first. Some files can be changed in the Jotter: text is added at the end, and [b]File > Save[/b] (or [b]Ctrl+S[/b]) keeps the change.
+When a remote session types to you in the Jotter, a notice says so. Type a reply and press [b]Enter[/b]. One line at a time, anything you like. Your typing goes to the Jotter that is waiting for you, even when another window is in front. Some files can be changed in the Jotter: typing starts a new line at the end, and [b]File > Save[/b] (or [b]Ctrl+S[/b]) keeps the change.
 
 [h2]Camera Viewer[/h2]
 It shows the building's security cameras. The camera list is on the left: click a camera to switch to it. The viewer is meant for Security staff, so "Access Denied" is normal. Your work is in the Work Queue. If another session closes the viewer, a notice says so: double-click Camera Viewer to open it again.
 
 [h2]If a file gets pulled away from you[/h2]
-A label above the file says [b]SESSION 017 IS PULLING[/b]. Keep the mouse button held and drag firmly away from the other pointer. The bar under the label shows who is winning. Hold still, or let go, and it keeps the file. You can always try again.
+A label above the file says [b]SESSION 017 IS PULLING[/b]. Keep the mouse button held and drag firmly away from the other pointer: a small arrow on the file shows which way. The bar under the label shows who is winning. The first fight of a night starts with a moment to read the label. Hold still, or let go, and it keeps the file; the label says which it was ([b]YOU LET GO[/b], or [b]SESSION 017 PULLED HARDER[/b]). If it takes a file you were not holding, the label says so. You can always try again. Mail may tell you to let the other pointer finish: let it move things on its own, but when a task tells you to shred a file, fight for it.
 
 [h2]If you are stuck[/h2]
 [list]
@@ -206,9 +206,14 @@ Store copy = `MarketingPackFull.md` section 2 as it stands today. Items LaunchAu
 | Approve, Reject; Owner Emp. No. | `WorkApps.cs`, `workorder.*`; `workorders.json` |
 | Yes (shred confirm), Shredding is permanent | `Services.cs`; `shred.confirm.body`, briefing mail |
 | TERMINATED | `tasks.json` task description, briefing mail |
-| File > Save, Ctrl+S; "Text is added at the end" | `NotepadApp.cs` File menu; `notepad.editable.hint`, `help.body` |
+| File > Save, Ctrl+S; "Typing starts a new line at the end" | `NotepadApp.cs` File menu; `notepad.editable.hint`, `help.body` |
 | Remote session typing notice; "Type a reply and press Enter" | `notify.jotter.reply` |
-| Drag firmly away; if you let go, it keeps the file; SESSION 017 IS PULLING, the bar above the file | `notify.conflict`, `help.body`, `tug.label` |
+| Drag firmly away; if you let go, it keeps the file; SESSION 017 IS PULLING, the arrow and the bar above the file; YOU LET GO; SESSION 017 PULLED HARDER; SESSION 017 TOOK THE FILE WHILE YOU WEREN'T HOLDING IT | `notify.conflict`, `help.body`, `tug.label`, `tug.lost.release`, `tug.lost.pulled`, `tug.snatch` |
+| If mail says to let the other pointer finish, let it; a task that says to shred a file means fight for it | `quickstart.body`, `help.body` |
+| YOUR TASKS appear in the Work Queue when you click Begin | `quickstart.body` |
+| Queue clear. Await further assignments. (also after the last task is ticked) | `workqueue.empty`, `WorkQueueApp.cs` |
+| PRIORITY: Shred employee_017.dat (blocked: held by session 017); "Nobody can" | `task.blocked.017.*`, `Night1Director.cs` |
+| More below (a button that scrolls one page) | `mail.more`, `MoreBelow.cs` |
 | "Access Denied"; "your work is in the Work Queue" | `camera.denied.title`, `camera.denied.body` |
 | Some programs need clearance you do not have. Stick to your tasks. | `quickstart.body` |
 | CRT effects, Flashing (Full/Reduced), Display, Volume | `PauseMenu.cs` (hard-coded) |

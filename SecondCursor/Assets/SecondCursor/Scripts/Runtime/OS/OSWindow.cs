@@ -63,10 +63,11 @@ namespace SecondCursor.OS
         /// </summary>
         [System.NonSerialized] public float CoverCost = 1f;
         /// <summary>
-        /// Phase H: a part of this window new windows keep clear of at all costs (the Work Orders' Approve and Reject), as
-        /// a size measured from the window's bottom-right corner. Zero = none.
+        /// Phase H: a part of this window new windows keep clear of at all costs (the Work Orders' Approve and Reject), as a
+        /// rectangle measured from the window's top-left corner (desktop px, y down). Empty = none. Phase I: the buttons moved
+        /// to the top of the form, where the windows that open next (Personnel) cannot land on them.
         /// </summary>
-        [System.NonSerialized] public Vector2 KeepVisibleBottomRight;
+        [System.NonSerialized] public Rect KeepVisible;
         public bool AlwaysOnTop => (Flags & WindowFlags.AlwaysOnTop) != 0;
         public bool ShowInTaskbar => (Flags & WindowFlags.NoTaskbar) == 0;
 

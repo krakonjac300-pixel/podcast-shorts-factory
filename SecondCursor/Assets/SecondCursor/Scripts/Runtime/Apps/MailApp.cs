@@ -9,7 +9,8 @@ namespace SecondCursor.Apps
 {
     /// <summary>
     /// Company mail client: message list on top (unread in bold), reading pane below. Phase H: a taller reading pane, a
-    /// "More below" marker while the message goes on under the fold, and it opens clear of the notices' column.
+    /// "More below" marker while the message goes on under the fold, and it opens clear of the notices' column. Phase I: the
+    /// marker is a button that scrolls one page, and the window opens left of the Work Queue.
     /// </summary>
     public sealed class MailApp : App
     {
@@ -18,16 +19,18 @@ namespace SecondCursor.Apps
         PixelText _header;
         PixelText _body;
         PixelText _status;
-        RectTransform _more;
         int _revision = -1;
         string _showing;
+
+        /// <summary>Phase I: Mail (560 wide) ends left of the Work Queue (which starts at x 690), so the task and its hint stay readable.</summary>
+        const int MailX = 100;
 
         public override string AppId => AppIds.Mail;
         protected override bool AvoidsNotices => true;
 
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
-            var win = CreateWindow(G.Content.Text("app.mail"), "icon_mail", 150, 16, 560, 460, WindowFlags.Standard, zoomFrom);
+            var win = CreateWindow(G.Content.Text("app.mail"), "icon_mail", MailX, 16, 560, 460, WindowFlags.Standard, zoomFrom);
             var client = win.Client;
 
             _list = new ListView(client, "Inbox", new[] { 150, 250, 130 }, new[] { "From", "Subject", "Received" }, true);
@@ -44,17 +47,8 @@ namespace SecondCursor.Apps
             _body.Wrap = true;
 
             // The message goes on below the fold: say so at the bottom of the pane until it is scrolled to the end.
-            _more = UIBuilder.Rect("More Below", readerFrame.rectTransform).BottomRight(20, 3, 96, 14);
-            var moreFace = _more.gameObject.AddComponent<BevelGraphic>();
-            moreFace.Style = BevelStyle.Window;
-            moreFace.Fill = Palette.Tooltip;
-            moreFace.raycastTarget = false;
-            var arrow = UIBuilder.Icon(_more, "glyph_arrow_down", 1);
-            arrow.rectTransform.anchoredPosition = new Vector2(4f, -3f);
-            var moreText = UIBuilder.Text(_more, G.Content.Text("mail.more", "More below"), Palette.Text, true);
-            moreText.rectTransform.Stretch(16, 1, 2, 1);
-            moreText.VAlign = TextVAlign.Middle;
-            _more.gameObject.SetActive(false);
+            // Phase I: it is a button now, and a click scrolls one page.
+            MoreBelow.Create(readerFrame.rectTransform, _reader, G.Content.Text("mail.more", "More below"), "morebelow:mail");
 
             var status = UIBuilder.Bevel(client, BevelStyle.StatusField, "Status");
             status.rectTransform.BottomStrip(0, 18, 2, 2);
@@ -82,7 +76,7 @@ namespace SecondCursor.Apps
                 bool unread = !G.Mail.IsRead(mail.id);
                 string from = string.IsNullOrEmpty(mail.from) ? "(no sender)" : ShortFrom(mail.from);
                 var row = _list.AddRow(unread ? "icon_mail_unread" : "icon_mail", mail.id, "mail:" + mail.id,
-                    from, string.IsNullOrEmpty(mail.subject) ? "(no subject)" : mail.subject, mail.date);
+                    from, string.IsNullOrEmpty(mail.subject) ? "(no subject)" : mail.subject, G.Mail.DateOf(mail.id));
                 _list.SetBold(row, unread);
             }
             if (selected != null) _list.SelectWhere(r => (string)r.Tag == selected, null);
@@ -102,7 +96,7 @@ namespace SecondCursor.Apps
             bool changed = _showing != id;
             _showing = id;
             _header.text = "From:    " + (string.IsNullOrEmpty(mail.from) ? "" : mail.from) + "\nTo:      " + mail.to +
-                           "\nSubject: " + mail.subject + "\nDate:    " + mail.date;
+                           "\nSubject: " + mail.subject + "\nDate:    " + G.Mail.DateOf(id);
             _body.text = mail.body;
             Layout();
             if (changed) _reader.ScrollTo(0);
@@ -136,8 +130,6 @@ namespace SecondCursor.Apps
         {
             if (_revision != G.Mail.Revision) Refresh();
             if (_showing != null && _body.Scale != Game.DisplaySettings.ReadingScale) Layout();
-            bool more = _showing != null && _reader.MaxOffset > 2f && _reader.Offset < _reader.MaxOffset - 2f;
-            if (_more != null && _more.gameObject.activeSelf != more) _more.gameObject.SetActive(more);
         }
     }
 }

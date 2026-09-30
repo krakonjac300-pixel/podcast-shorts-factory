@@ -108,6 +108,7 @@ namespace SecondCursor.EditorTools
         static void Update()
         {
             if (!Enabled) return;
+            ClockMonitorTick();
             AttachInput();
             if (_current == null && _lines == null)
             {
@@ -320,7 +321,7 @@ namespace SecondCursor.EditorTools
                     Say("next contests: " + (Entity.ConflictSystem.ForcedOutcome == Core.Entity.TugOutcome.None ? "real" : Entity.ConflictSystem.ForcedOutcome.ToString()));
                     break;
                 }
-                case "setclock": g.Clock.Set((int)F(a, 1, 1f), (int)F(a, 2, 52f)); Say("clock " + g.Clock.Format12()); break;
+                case "setclock": g.Clock.Reset((int)F(a, 1, 1f), (int)F(a, 2, 52f)); Say("clock " + g.Clock.Format12()); break;
                 case "difficulty":
                 {
                     // Read when a night is built: save it and restart the current beat.

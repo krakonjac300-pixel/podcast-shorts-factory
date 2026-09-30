@@ -4,6 +4,7 @@ using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Story;
 using SecondCursor.Core.Tasks;
 using SecondCursor.Game;
 using SecondCursor.Input;
@@ -54,6 +55,11 @@ namespace SecondCursor.OS
         public float SpeedMultiplier = 1f;
         /// <summary>Return true to refuse with "in use by another user".</summary>
         public Func<string, bool> IsInUse;
+        /// <summary>
+        /// One more line for a file's Confirm Shred box, chosen when it opens (Phase I: Night 2's employee_209.dat after 3:00
+        /// says a late shred releases only part of the record). Null or empty = none.
+        /// </summary>
+        public Func<string, string> ConfirmNote;
 
         public event Action<string, CursorAgent> Requested;
         public event Action<string, MessageBox> ConfirmShown;
@@ -111,6 +117,8 @@ namespace SecondCursor.OS
             string body = c.Format("shred.confirm.body", file.Name);
             string note = c.Text("shred.confirm.note." + fileId, "");
             if (note.Length > 0) body += "\n" + note;
+            string late = ConfirmNote?.Invoke(fileId);
+            if (!string.IsNullOrEmpty(late)) body += "\n" + late;
             Confirm = Dialogs.Message(_g, c.Text("shred.confirm.title"), body, "icon_question",
                 new[] { "Yes", "No" }, OnConfirm, 0);
             ConfirmShown?.Invoke(fileId, Confirm);
@@ -211,6 +219,8 @@ namespace SecondCursor.OS
         readonly HashSet<string> _read = new HashSet<string>();
         /// <summary>Mail that arrived during this shift with a notice (not the preloaded or story-restored mail), oldest first.</summary>
         readonly List<string> _live = new List<string>();
+        /// <summary>Phase I: the date mail that arrived during the shift shows (never later than the clock at that moment).</summary>
+        readonly Dictionary<string, string> _received = new Dictionary<string, string>();
 
         /// <summary>The newest mail that arrived with a notice this shift and is still unread (null = none); the Work Queue lists it.</summary>
         public string NewestUnreadLive
@@ -258,8 +268,15 @@ namespace SecondCursor.OS
         System.DateTime SortDate(string id)
         {
             var mail = _g.Content.Email(id);
-            return mail != null && System.DateTime.TryParseExact(mail.date, "ddd MM/dd/yy h:mm tt",
+            return mail != null && System.DateTime.TryParseExact(DateOf(id), "ddd MM/dd/yy h:mm tt",
                 System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : System.DateTime.MinValue;
+        }
+
+        /// <summary>The date a mail shows in the list and its header: when it arrived, for mail that came in tonight.</summary>
+        public string DateOf(string id)
+        {
+            if (id != null && _received.TryGetValue(id, out var d)) return d;
+            return _g.Content.Email(id)?.date ?? "";
         }
 
         /// <summary>
@@ -295,6 +312,7 @@ namespace SecondCursor.OS
         {
             if (string.IsNullOrEmpty(id) || _inbox.Contains(id) || _g.Content.Email(id) == null) return;
             _inbox.Add(id);
+            _received[id] = MailDates.Received(_g.Content.Email(id).date, _g.Night, _g.Clock != null ? _g.Clock.TotalMinutes : int.MaxValue);
             Revision++;
             GameLog.Info(LogChannel.Story, "Mail delivered " + id);
             Delivered?.Invoke(id);

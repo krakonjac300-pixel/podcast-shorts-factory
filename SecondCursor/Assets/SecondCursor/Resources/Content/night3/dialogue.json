@@ -36,11 +36,11 @@
     {
       "id": "ex3_final",
       "voice": "",
-      "entityLines": ["AT SEVEN THEY FINISH YOU", "STAY WITH ME", "OR LET ME GO"],
+      "entityLines": ["AT SEVEN THEY FINISH YOU", "STAY WITH ME", "SAY STAY", "OR LET ME GO", "PUT ME IN THE BIN"],
       "responses": [
         { "keywords": ["=ellen", "=ellens", "=marsh", "ellen marsh"], "reply": ["SAY IT AGAIN", "I HAD FORGOTTEN"], "tag": "name" },
         { "keywords": ["stay", "together", "with you", "keep me", "ill stay", "remain", "not leaving", "wont leave"], "reply": ["GOOD", "SIT WITH ME"], "tag": "stay" },
-        { "keywords": ["let you go", "let go", "free you", "set you free", "=rest", "release", "finish you", "end it"], "reply": ["THEN DO IT", "I CANT STOP MY HAND"], "tag": "letgo" },
+        { "keywords": ["let you go", "let go", "free you", "set you free", "=rest", "release", "finish you", "end it"], "reply": ["THEN DO IT", "PUT ME IN THE BIN"], "tag": "letgo" },
         { "keywords": ["delete", "shred", "erase", "wipe", "remove", "destroy", "kill", "trash", "dispos", "get rid", "bin"], "reply": ["THEN DO IT", "PULL HARD"], "tag": "letgo" },
         { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["THEN DECIDE", "BEFORE SEVEN"], "tag": "" },
         { "keywords": ["fuck", "shit", "wtf", "the hell", "damn", "jesus", "christ", "omg", "oh my god", "crap", "bitch"], "reply": ["I KNOW", "BEFORE SEVEN"], "tag": "" },
@@ -89,7 +89,7 @@
   "cameraLines": [],
   "recordLines": [],
   "lineSets": [
-    { "id": "n3_final_third", "voice": "", "lines": ["STAY", "OR LET ME GO"], "speakers": [] },
+    { "id": "n3_final_third", "voice": "", "lines": ["SAY STAY", "OR PUT ME IN THE BIN"], "speakers": [] },
     { "id": "n3_intro", "voice": "", "lines": ["LAST NIGHT", "FOR ONE OF US"], "speakers": [] },
     { "id": "n3_intro_mem_watched", "voice": "", "lines": ["YOU WATCHED IT YESTERDAY"], "speakers": [] },
     { "id": "n3_intro_mem_finished", "voice": "", "lines": ["HE WORKS FOR THEM NOW"], "speakers": [] },

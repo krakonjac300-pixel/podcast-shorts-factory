@@ -156,6 +156,7 @@ namespace SecondCursor.Game
             // Fake OS
             g.Windows = new WindowManager(g.Layers.Windows, g.Layers.Effects, g.Router);
             g.Notifications = Notifications.Create(g.Layers.Notifications);
+            g.Notifications.Ceiling = () => g.Windows != null ? g.Windows.NoticeCeiling() : float.MaxValue;
             g.Mail = new MailService(g);
             g.Orders = new WorkOrderService(g);
             g.Tasks = new WorkTaskManager(g.Content.Tasks.tasks, new TaskWorld(g));
@@ -227,7 +228,7 @@ namespace SecondCursor.Game
             g.Memory.Seed(cp.trust);
             g.Director.ResumeElapsed(cp.elapsed);
             g.Assist.SetLevel(Mathf.Max(g.Difficulty.AssistFloor, cp.assistLevel));
-            g.Clock.Set(cp.clockMinutes / 60, cp.clockMinutes % 60);
+            g.Clock.Reset(cp.clockMinutes / 60, cp.clockMinutes % 60);
             g.Audio.SetAmbience(true, 2f);
             GameLog.Info(LogChannel.System, "Resuming night " + g.Night + " at checkpoint '" + beat + "'");
             return true;

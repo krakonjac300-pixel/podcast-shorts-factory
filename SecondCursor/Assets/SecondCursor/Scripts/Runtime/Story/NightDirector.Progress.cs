@@ -83,6 +83,8 @@ namespace SecondCursor.Story
             assist.FirstRaise += ShowConflictToast;
             g.Difficulty = profile;
             g.Assist = assist;
+            // Phase I: a fight under Story's rules reads differently: the first one after choosing it has its standoff too.
+            if (mode == DifficultyMode.Story && g.Conflict != null) g.Conflict.ArmReadGrace();
             if (g.Entity != null)
             {
                 g.Entity.Personality.grip = profile.GripBase;

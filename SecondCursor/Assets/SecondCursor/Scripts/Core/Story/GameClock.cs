@@ -4,31 +4,84 @@ namespace SecondCursor.Core.Story
 {
     /// <summary>
     /// In-game time shown in the taskbar. The night shift runs faster than real time so the clock visibly
-    /// moves; the story can freeze it, jump it, or make it glitch.
+    /// moves; the story can freeze it, speed it up or jump it forward, but never back (Phase I: a player who reads
+    /// "10 min left" next to a clock that has gone backwards trusts neither). <see cref="Set"/> only ever moves it
+    /// forward; <see cref="Reset"/> is for a fresh shift, a restored checkpoint and tests.
     /// </summary>
     public sealed class GameClock
     {
-        float _minutes;
+        double _minutes;
+        float _rate = 1f / 12f;
+        double _highWater;
 
-        /// <summary>Game minutes that pass per real second.</summary>
-        public float Rate = 1f / 12f;
+        /// <summary>Game minutes that pass per real second (never below 0: time does not run backwards).</summary>
+        public float Rate
+        {
+            get => _rate;
+            set => _rate = value < 0f || float.IsNaN(value) ? 0f : value;
+        }
+
         public bool Frozen;
+
+        /// <summary>Times <see cref="Set"/> was asked for an earlier time and refused (a story bug, counted so tests and the bridge can see it).</summary>
+        public int RefusedBackSets { get; private set; }
+
+        /// <summary>Times the shown time was found lower than the highest one reached since the last <see cref="Reset"/>. Always 0.</summary>
+        public int Regressions { get; private set; }
+
+        /// <summary>The latest time reached since the last <see cref="Reset"/> (minutes since midnight, with the fraction).</summary>
+        public double HighWater => _highWater;
 
         public GameClock(int startHour, int startMinute)
         {
-            Set(startHour, startMinute);
+            Reset(startHour, startMinute);
         }
 
         public int TotalMinutes => (int)Math.Floor(_minutes);
         public int Hour24 => (TotalMinutes / 60) % 24;
         public int Minute => TotalMinutes % 60;
 
-        public void Set(int hour24, int minute) => _minutes = ((hour24 % 24) * 60 + minute) % (24 * 60);
+        /// <summary>
+        /// Jumps the clock forward to h:mm. A time that is not later than the shown one changes nothing (the same minute keeps
+        /// its fraction), so "make sure it shows at least 3:00" can never move the clock back.
+        /// </summary>
+        public void Set(int hour24, int minute)
+        {
+            double target = (((hour24 % 24) * 60 + minute) % (24 * 60) + (24 * 60)) % (24 * 60);
+            if (target <= _minutes)
+            {
+                if (target < Math.Floor(_minutes))
+                {
+                    RefusedBackSets++;
+                    GameLog.Warn(LogChannel.Story, "Clock: refused to go back to " + Format12((int)target) + " from " + Format12());
+                }
+                return;
+            }
+            _minutes = target;
+            NoteReached();
+        }
+
+        /// <summary>Starts the clock at h:mm whatever it showed (a fresh shift, a restored checkpoint, a test). Not for the story.</summary>
+        public void Reset(int hour24, int minute)
+        {
+            _minutes = (((hour24 % 24) * 60 + minute) % (24 * 60) + (24 * 60)) % (24 * 60);
+            _highWater = _minutes;
+            Regressions = 0;
+            RefusedBackSets = 0;
+        }
 
         public void Tick(float realDeltaSeconds)
         {
             if (Frozen || realDeltaSeconds <= 0f) return;
-            _minutes = (_minutes + realDeltaSeconds * Rate) % (24 * 60);
+            _minutes = (_minutes + realDeltaSeconds * (double)_rate) % (24 * 60);
+            NoteReached();
+        }
+
+        void NoteReached()
+        {
+            // The clock wraps at midnight (no night reaches it); a value far below the mark is that wrap, not a step back.
+            if (_minutes + 1e-6 < _highWater && _highWater - _minutes < 12 * 60) Regressions++;
+            else if (_minutes > _highWater || _highWater - _minutes >= 12 * 60) _highWater = _minutes;
         }
 
         /// <summary>"2:47 AM" style.</summary>

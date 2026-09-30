@@ -62,8 +62,8 @@
       "id": "t_shred_017",
       "title": "PRIORITY: Shred employee_017.dat",
       "description": "Order from the Office of Retention. Shred employee_017.dat immediately. Do not open it.",
-      "hint": "Drag employee_017.dat from the Desktop onto the Disposal bin and confirm.",
-      "hintDeck": "Hold R2 on employee_017.dat on the Desktop, drop it on the Disposal bin and confirm.",
+      "hint": "Drag employee_017.dat from the Desktop onto the Disposal bin and confirm. If another pointer grabs it, keep the button held and drag away from it.",
+      "hintDeck": "Hold R2 on employee_017.dat on the Desktop, drop it on the Disposal bin and confirm. If another pointer grabs it, keep R2 held and pull away from it.",
       "type": "DeleteFile",
       "targets": ["employee_017"],
       "param": ""

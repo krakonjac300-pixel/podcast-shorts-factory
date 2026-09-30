@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using SecondCursor.Input;
 using SecondCursor.Rendering;
 using SecondCursor.UI;
+using SecondCursor.Core;
 using UnityEngine;
 
 namespace SecondCursor.OS
@@ -122,11 +123,56 @@ namespace SecondCursor.OS
                 if (win == null || win.IsClosed || win.IsMinimized || win.AlwaysOnTop) continue;
                 Vector2 tl = win.TopLeft, size = win.Size;
                 sum += Overlap(x, y, w, h, new Rect(tl, size)) * Mathf.Max(1f, win.CoverCost);
-                var keep = win.KeepVisibleBottomRight;
-                if (keep.x > 0f && keep.y > 0f)
-                    sum += Overlap(x, y, w, h, new Rect(tl + size - keep, keep)) * KeepVisibleWeight;
+                var keep = win.KeepVisible;
+                // A window that opens lower than the strip lets its owner move up to make room (MakeRoomFor), so only a spot
+                // too high for that counts as covering it.
+                if (keep.width > 0f && keep.height > 0f && y - MakeRoomMargin < keep.yMax)
+                    sum += Overlap(x, y, w, h, new Rect(tl + keep.position, keep.size)) * KeepVisibleWeight;
             }
             return sum;
+        }
+
+        const int MakeRoomMargin = 2;
+
+        /// <summary>
+        /// The highest a notice may reach (virtual px from the bottom) so it never sits over a window's must-stay-visible part at
+        /// the right edge (the Work Orders' Approve and Reject when they are in the notices' column). No limit is float.MaxValue.
+        /// </summary>
+        public float NoticeCeiling()
+        {
+            float ceiling = float.MaxValue;
+            foreach (var win in _windows)
+            {
+                if (win == null || win.IsClosed || win.IsMinimized) continue;
+                var keep = win.KeepVisible;
+                if (keep.width <= 0f || keep.height <= 0f) continue;
+                var r = new Rect(win.TopLeft + keep.position, keep.size);
+                if (r.xMax < ToastColumn.xMin) continue;
+                ceiling = Mathf.Min(ceiling, ScreenRig.Height - r.yMax - 2f);
+            }
+            return ceiling;
+        }
+
+        /// <summary>
+        /// Phase I: a window that has just been placed at (x, y, w, h) sits over another window's must-stay-visible part (the Work
+        /// Orders' Approve and Reject, which Personnel has to open next to): that window moves up until the part is clear above
+        /// the new window's top edge. Nothing is closed or minimized, and a window being dragged or maximized stays put.
+        /// </summary>
+        public void MakeRoomFor(int x, int y, int w, int h)
+        {
+            var placed = new Rect(x, y, w, h);
+            foreach (var win in _windows)
+            {
+                if (win == null || win.IsClosed || win.IsMinimized || win.IsMaximized || win.AlwaysOnTop || win.DraggedBy != null) continue;
+                var keep = win.KeepVisible;
+                if (keep.width <= 0f || keep.height <= 0f) continue;
+                Vector2 tl = win.TopLeft;
+                if (!new Rect(tl + keep.position, keep.size).Overlaps(placed)) continue;
+                float top = y - MakeRoomMargin - keep.yMax;
+                if (top < 0f || top >= tl.y) continue;
+                win.MoveTo(new Vector2(tl.x, top));
+                GameLog.Info(LogChannel.OS, "Window moved up to keep its buttons clear: " + win.Title);
+            }
         }
 
         /// <summary>Centered on the desktop area.</summary>

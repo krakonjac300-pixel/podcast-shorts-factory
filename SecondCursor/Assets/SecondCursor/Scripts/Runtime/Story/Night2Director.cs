@@ -33,6 +33,8 @@ namespace SecondCursor.Story
         /// <summary>The earliest clock each beat shows after a jump (only ever raised).</summary>
         static readonly int[] BeatClock = { 112, 112, 128, 138, 152, 169, 180, 185 };
         const float Rate = 0.06f;
+        /// <summary>3:00 AM: the deadline of the order to shred employee_209.dat.</summary>
+        const int LateShredMinute = 180;
         const int FreezeMinute = 2 * 60 + 49;
         /// <summary>Seconds into the work beat before the second cursor looks in from the edge (Phase F).</summary>
         const float GlimpseAfter = 90f;
@@ -61,6 +63,8 @@ namespace SecondCursor.Story
         EntityController Gary => _g.Gary;
         string[] Lines(string id) => _g.Content.Lines(id);
         bool Done(string taskId) => _g.Tasks.IsCompleted(taskId);
+        /// <summary>Phase I: the note on a remote request that ran out or whose file is gone; it stays in the queue, struck through.</summary>
+        string Expired => _g.Content.Text("workqueue.withdrawn.expired", "expired");
 
         protected override void Init()
         {
@@ -71,6 +75,8 @@ namespace SecondCursor.Story
             _gary.MoveProfile = MovementProfiles.TiredName;
             g.Apps.CanLaunch = CanLaunch;
             g.Shred.IsInUse = id => id == ContentIds.File017;
+            // Phase I: after the 3:00 deadline a late shred says what it does now (the card's "He is still held" is its result).
+            g.Shred.ConfirmNote = id => id == ContentIds.File209 && g.Clock.TotalMinutes >= LateShredMinute ? g.Content.Text("shred.confirm.late", "") : null;
             g.Orders.Decided += (id, decision, by) =>
             {
                 // Approving the wipe of Gary's drive (wrong: he is on leave) is remembered.
@@ -302,8 +308,10 @@ namespace SecondCursor.Story
             if (!Dragging45()) yield break;
             yield return Wait(1.5f);
             if (!_g.Files.Exists(ContentIds.Batch45C)) yield break;
+            string was = _g.Files.GetFile(ContentIds.Batch45C)?.Name ?? "batch45_c.dat";
             _g.Files.Rename(ContentIds.Batch45C, "b7_seat.dat");
-            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.renamed"), "icon_info", null, "ui_select");
+            // Phase I: it names the file, what it is called now, and that it still counts.
+            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Format("notify.renamed", was, "b7_seat.dat"), "icon_info", null, "ui_select");
             var fm = _g.Apps.Find<FilesApp>();
             var row = fm != null && !fm.Window.IsMinimized ? fm.RowFor(ContentIds.Batch45C) : null;
             PhantomClick(row != null ? row.Hit.Center : new Vector2(ScreenRig.Width * 0.5f, ScreenRig.Height * 0.5f));
@@ -566,7 +574,7 @@ namespace SecondCursor.Story
             }
             else
             {
-                _g.Tasks.Withdraw(taskId);
+                _g.Tasks.Withdraw(taskId, Expired);
                 _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Content.Text("notify.queue.withdrawn"), "icon_task_pending", null, "sys_warning");
                 _g.Memory.Record(MemoryKind.ResistedEntity, taskId, Time.time);
                 yield return TypeLines(_ellen, Lines("n2_withdrawn"), 4f);

@@ -379,13 +379,19 @@ namespace SecondCursor.Story
         IEnumerator GaryDuringFinish(float orderAt)
         {
             Gary.Run(TypeLines(_gary, Lines("g2_plea"), 3f), "gary-plea");
-            bool try20 = false, try50 = false, saidDrop = false, shown = false;
+            bool try20 = false, try50 = false, saidDrop = false;
+            int checks = 0;
+            float nextShow = 1.5f;
             while (!_finishOver)
             {
-                // Once his Notepad is up (it may land on the file), make sure the file is in view.
-                if (!shown && Time.time - orderAt > 6f)
+                // The order is about a file you must be able to see. His Notepad (which opens 3 s in) and the player's own windows
+                // can land on it, so the check repeats every 2 s for the first 24 s (Phase I: it used to run once, before his
+                // Notepad covered the icon). It only moves the icon when something covers it.
+                float sinceOrder = Time.time - orderAt;
+                if (checks < 12 && sinceOrder > nextShow && !_triedShred209)
                 {
-                    shown = true;
+                    checks++;
+                    nextShow = sinceOrder + 2f;
                     yield return Ensure209Visible();
                 }
                 if (Gary.Busy) { yield return null; continue; }
@@ -528,7 +534,7 @@ namespace SecondCursor.Story
             var g = _g;
             g.Flags.Set(MemoryFlags.N2FinishedGary);
             g.Memory.Record(MemoryKind.ResistedEntity, "gary", Time.time);
-            if (g.Tasks.IsActive(ContentIds.TaskE2Archive209)) g.Tasks.Withdraw(ContentIds.TaskE2Archive209);
+            if (g.Tasks.IsActive(ContentIds.TaskE2Archive209)) g.Tasks.Withdraw(ContentIds.TaskE2Archive209, Expired);
             Gary.FadeTo(Gary.MaxAlpha, 0.3f);
             yield return TypeLines(_gary, Lines("g2_thanks"), 3f);
             // M7: the room goes silent for 1.2 s where the word stops, and his caret keeps blinking for 2 s before he goes.
@@ -560,7 +566,7 @@ namespace SecondCursor.Story
             }
             else if (g.Tasks.IsActive(ContentIds.TaskE2Archive209))
             {
-                g.Tasks.Withdraw(ContentIds.TaskE2Archive209);
+                g.Tasks.Withdraw(ContentIds.TaskE2Archive209, Expired);
             }
             // Phase H: the order stays in the queue, struck through with why, and the notice says what was missed.
             if (!Done(ContentIds.TaskN2Shred209))
@@ -627,6 +633,8 @@ namespace SecondCursor.Story
             g.Rounds.ReachedFinal += _onReachedFinal;
             g.Rounds.TimeUp += _onTimeUp;
             g.Rounds.ForcedBy = null;
+            // Phase I: Personnel 000 says where Custodial is, as on Night 3 (the rounds hint sends you there).
+            g.Rounds.PatchPersonnel = true;
             g.Rounds.Begin(RoundsConfig.Night2(g.Difficulty.Mode, g.Memory.Trust));
             // Phase H: what Security asks for during the round is a line in the queue, not only a mail.
             GiveTask(ContentIds.TaskN2RoundsWatch);

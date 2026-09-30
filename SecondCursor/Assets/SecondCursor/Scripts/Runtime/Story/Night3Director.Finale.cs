@@ -101,6 +101,8 @@ namespace SecondCursor.Story
             // A shred that slipped through before the hooks existed still counts.
             if (g.Files.GetFile(ContentIds.File017)?.Shredded == true) _exit = Night3Exit.Shred;
             RunSide(FinalExchange(), "final-exchange");
+            RunSide(LetGoRequest(), "letgo-request");
+            RunSide(KeepFile017InView(), "keep-017-in-view");
 
             // The feed: the corridor to the seat. Security (or finished Gary) opens it by the clock.
             g.Rounds.ForcedBy = null;
@@ -245,17 +247,61 @@ namespace SecondCursor.Story
             yield return Say(_gary, Lines(lineSet), GaryCps);
         }
 
-        /// <summary>"At seven they finish you. Stay with me, or let me go." One exchange; staying asks to be confirmed.</summary>
+        /// <summary>Seconds into the finale before her request to be put in the bin appears in the queue.</summary>
+        const float LetGoTaskDelay = 4f;
+
+        /// <summary>
+        /// Phase I: "or let me go" is something you do, so it is written into the Work Queue in her colours, like her
+        /// asks on Night 2: PUT ME IN THE BIN, with the file it means. (The blind tester guessed the file and lost three
+        /// fights while the Jotter said nothing about it.)
+        /// </summary>
+        IEnumerator LetGoRequest()
+        {
+            yield return Wait(LetGoTaskDelay);
+            if (_exit != Night3Exit.None || CurrentBeat != "finale") yield break;
+            if (!_g.Files.Exists(ContentIds.File017) || (_g.Files.GetFile(ContentIds.File017)?.Shredded ?? false)) yield break;
+            GiveEntityTask(ContentIds.TaskE3LetGo);
+        }
+
+        /// <summary>
+        /// Phase I: "put me in the bin" is about a file you must be able to see. Her Jotter (and any window of yours) can open
+        /// over employee_017.dat, so for the first 30 s of the finale it is moved out onto bare desktop and blinks whenever
+        /// something covers it. Nothing is moved while you carry it or a shred is going on.
+        /// </summary>
+        IEnumerator KeepFile017InView()
+        {
+            var g = _g;
+            for (int i = 0; i < 15 && _exit == Night3Exit.None; i++)
+            {
+                yield return Wait(2f);
+                var icon = g.Desktop.IconForFile(ContentIds.File017);
+                if (icon == null || g.Router.HitTest(icon.Hit.Center) == icon.Hit) continue;
+                if (g.Player.Payload != null || g.Shred.Busy || g.Conflict.IsFighting) continue;
+                yield return FindDropSpot(File017Spot);
+                icon = g.Desktop.IconForFile(ContentIds.File017);
+                if (icon == null || g.Player.Payload != null) continue;
+                g.Desktop.SetFilePosition(ContentIds.File017, OSLayers.WorldToDesktop(_dropSpot) - new Vector2(37f, 16f));
+                g.Desktop.Attention(ContentIds.File017, 1.6f);
+                GameLog.Info(LogChannel.Story, "employee_017.dat moved into view");
+            }
+        }
+
+        /// <summary>
+        /// "At seven they finish you. Stay with me (say stay), or let me go (put me in the bin)." Staying asks to be confirmed.
+        /// Phase I: she keeps reading until an exit is chosen, whatever else is typed first: a question no longer leaves you
+        /// talking to nobody, and "stay" typed later still counts.
+        /// </summary>
         IEnumerator FinalExchange()
         {
             yield return Wait(1.5f);
             var last = new DialogueReply[1];
             // M8: two misses get another turn each; the third miss is steered to the two words that work.
             yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Final, OnFinalReply, last, 2.4f, 4f, 25f, "DONT",
-                fallbackRetries: 2, lastFallbackSet: "n3_final_third");
+                fallbackRetries: 2, lastFallbackSet: "n3_final_third", keepListening: r => r.Tag != "stay" && _exit == Night3Exit.None);
             if (last[0] == null || last[0].Tag != "stay" || _exit != Night3Exit.None) yield break;
             var confirm = new DialogueReply[1];
-            yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Confirm, OnFinalReply, confirm, 3f, 4f, 25f, "DONT");
+            yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Confirm, OnFinalReply, confirm, 3f, 4f, 25f, "DONT",
+                keepListening: r => r.Tag != "confirm" && _exit == Night3Exit.None);
             if (confirm[0] == null || confirm[0].Tag != "confirm" || _exit != Night3Exit.None) yield break;
             // She keeps the time: seven comes quickly.
             _confirmed = true;

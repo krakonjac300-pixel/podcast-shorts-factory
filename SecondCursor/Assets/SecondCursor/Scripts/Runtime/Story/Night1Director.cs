@@ -62,6 +62,25 @@ namespace SecondCursor.Story
             };
             // employee_017.dat cannot be shredded outside the conflict (it is "in use by another user").
             g.Shred.IsInUse = id => id == ContentIds.File017;
+            // Phase I: once the bin has said so, the order in the queue says it too, instead of still asking for the impossible.
+            g.Shred.RefusedInUse += OnShredRefusedInUse;
+        }
+
+        /// <summary>
+        /// The Disposal bin refused employee_017.dat ("File In Use ... session 017"): the priority order becomes
+        /// "blocked: held by session 017", with a hint that nobody can shred it while it is held (the blind tester left
+        /// Night 1 believing they had failed a task that cannot be done).
+        /// </summary>
+        void OnShredRefusedInUse(string fileId)
+        {
+            if (fileId == ContentIds.File017) BlockTask017();
+        }
+
+        void BlockTask017()
+        {
+            if (!_g.Tasks.IsActive(ContentIds.TaskShred017)) return;
+            var c = _g.Content;
+            _g.Tasks.Rewrite(ContentIds.TaskShred017, c.Text("task.blocked.017.title"), c.Text("task.blocked.017.description"), c.Text("task.blocked.017.hint"));
         }
 
         bool CanLaunch(string appId, CursorAgent by)
@@ -319,6 +338,10 @@ namespace SecondCursor.Story
         {
             E.Phase = EntityPhase.Presence;
             E.State = EntityState.Curious;
+            // Phase I: every task is ticked and nothing new is in the queue yet: say so, instead of leaving a silent gap
+            // in which a file appears by itself.
+            _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Content.Text("queue.clear.toast"), "icon_task_done",
+                a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
             yield return Wait(3f);
 
             // The second cursor enters from the right edge, carrying employee_017.dat out of nowhere.
@@ -469,6 +492,8 @@ namespace SecondCursor.Story
             else if (!_g.Flags.Has(Flags.File017Returned))
             {
                 _g.Mail.Deliver(ContentIds.MailSupervisorCheck);
+                // The fight is over and the file is still held: the order says so (nobody can shred it while it is).
+                BlockTask017();
             }
             _g.Shred.IsInUse = id => id == ContentIds.File017;
             RemoveConflictHint();

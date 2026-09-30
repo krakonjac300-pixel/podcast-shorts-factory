@@ -32,6 +32,12 @@ namespace SecondCursor.Core.Entity
         public float rampPerSecond = 0.14f;
         /// <summary>Seconds of button-up tolerated before the player counts as having let go.</summary>
         public float releaseGrace = 0.06f;
+        /// <summary>
+        /// Phase I read grace: for this many seconds after the grab the entity's pull cannot move the share toward it, it
+        /// cannot snap the file away and its ramp has not started, so a first-time player can read the label. The
+        /// player's own pull counts from the first frame. 0 = no grace (every contest but a night's first).
+        /// </summary>
+        public float readGrace;
 
         public TugOfWarSettings Clone() => (TugOfWarSettings)MemberwiseClone();
     }
@@ -104,6 +110,10 @@ namespace SecondCursor.Core.Entity
         public float Tension { get; private set; }
         public float Strain { get; private set; }
         public float Elapsed { get; private set; }
+        /// <summary>Seconds of the contest after the read grace (all of it when there is none): what the ramp and the assist count.</summary>
+        public float ActiveElapsed => Math.Max(0f, Elapsed - _s.readGrace);
+        /// <summary>The read grace is still running (the entity's pull is held back).</summary>
+        public bool InReadGrace => !IsOver && _s.readGrace > 0f && Elapsed < _s.readGrace;
         public TugOutcome Outcome { get; private set; }
         public Vec2 ObjectPosition { get; private set; }
         public bool IsOver => Outcome != TugOutcome.None;
@@ -170,7 +180,8 @@ namespace SecondCursor.Core.Entity
             if (_effort > PeakEffort) PeakEffort = _effort;
 
             PlayerStrength = Math.Min(_s.maxPlayerStrength, _s.playerBaseStrength + Math.Max(0f, _effort) + velocity.Length * _s.jiggleCredit);
-            float ramp = Math.Max(0f, Elapsed - _s.rampDelay) * _s.rampPerSecond;
+            bool grace = _s.readGrace > 0f && Elapsed <= _s.readGrace;
+            float ramp = Math.Max(0f, ActiveElapsed - _s.rampDelay) * _s.rampPerSecond;
             EntityStrength = Math.Max(0f, entityPull) + ramp;
 
             if (!playerHolding)
@@ -184,7 +195,10 @@ namespace SecondCursor.Core.Entity
                 _releasedFor = 0f;
             }
 
-            EntityShare = MathUtil.Clamp01(EntityShare + (EntityStrength - PlayerStrength) * _s.shareRate * dt);
+            float shift = (EntityStrength - PlayerStrength) * _s.shareRate * dt;
+            // Read grace: her pull waits; only the player's pull can move the share.
+            if (grace && shift > 0f) shift = 0f;
+            EntityShare = MathUtil.Clamp01(EntityShare + shift);
             Tension = Vec2.Distance(playerPos, entityPos);
             ObjectPosition = Vec2.Lerp(playerPos, entityPos, EntityShare);
 
@@ -194,7 +208,12 @@ namespace SecondCursor.Core.Entity
 
             if (EntityShare <= _s.playerWinShare) return Finish(TugOutcome.PlayerWins, playerPos, entityPos);
             if (EntityShare >= _s.entityWinShare) return Finish(TugOutcome.EntityWins, playerPos, entityPos);
-            if (Tension > _s.maxTension) return Finish(EntityShare < 0.5f ? TugOutcome.PlayerWins : TugOutcome.EntityWins, playerPos, entityPos);
+            if (Tension > _s.maxTension)
+            {
+                // Read grace: the cursors coming apart cannot hand her the file, only the player can win by it.
+                if (EntityShare < 0.5f) return Finish(TugOutcome.PlayerWins, playerPos, entityPos);
+                if (!grace) return Finish(TugOutcome.EntityWins, playerPos, entityPos);
+            }
             return TugOutcome.None;
         }
 

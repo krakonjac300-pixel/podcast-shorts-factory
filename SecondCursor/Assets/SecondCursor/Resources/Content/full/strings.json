@@ -13,7 +13,7 @@
     { "key": "notify.queue.withdrawn", "value": "Work item withdrawn by a remote session." },
     { "key": "notify.order.suspended", "value": "Office of Retention: order suspended." },
     { "key": "notify.intake.remote", "value": "1 file added to Intake by a remote session." },
-    { "key": "notify.renamed", "value": "File renamed by another user." },
+    { "key": "notify.renamed", "value": "{0} renamed to {1} by another user.\nIt is the same file and still counts." },
     { "key": "notify.damaged", "value": "File damaged by another user." },
     { "key": "notify.disposal.emptied", "value": "Disposal emptied by Custodial Services (000)." },
     { "key": "workqueue.remote", "value": "(remote session)" },
@@ -90,6 +90,7 @@
     { "key": "workqueue.withdrawn.cancelled", "value": "cancelled" },
     { "key": "workorders.shelf.filed", "value": "Shelf check filed: {0} approved, {1} rejected" },
     { "key": "logoff.cancelled.by", "value": "Log off cancelled by {0}." },
-    { "key": "camera.next", "value": "NEXT: {0}" }
+    { "key": "camera.next", "value": "NEXT: {0}" },
+    { "key": "workqueue.withdrawn.expired", "value": "expired" }
   ]
 }

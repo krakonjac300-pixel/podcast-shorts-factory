@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using SecondCursor.Core;
 using SecondCursor.Core.Entity;
 using SecondCursor.Game;
@@ -15,6 +16,8 @@ namespace SecondCursor.Entity
     /// a NEXUS label above it says who is pulling and what to do, with a pull meter (YOU on the left, 017 on the right)
     /// that follows the fight; when it ends the label says who kept the file. A release over the Disposal bin during a
     /// fight gets a Disposal notice, so a lost tug never reads as a drop the bin ignored. Nothing here changes the fight.
+    /// Phase I (second blind playtest): a small arrow on the file points away from her pointer (the way to drag), a lost
+    /// fight says why (you let go, or she pulled harder), and a file she takes while you are not holding it says so.
     /// </summary>
     public sealed class TugHud : MonoBehaviour
     {
@@ -32,6 +35,9 @@ namespace SecondCursor.Entity
         Vector2 _anchor;
         bool _refusedShown;
         CursorAgent _winner;
+        /// <summary>Pixel-art arrow on the contested file: dark backing squares under bright ones.</summary>
+        readonly List<Image> _arrowBack = new List<Image>();
+        readonly List<Image> _arrowDots = new List<Image>();
 
         public static TugHud Create(GameServices g, ConflictSystem conflict)
         {
@@ -67,6 +73,79 @@ namespace SecondCursor.Entity
             _youText = UIBuilder.Text(_panel, "", Palette.Selection, true, "You Label");
             _themText = UIBuilder.Text(_panel, "", Palette.Red, true, "Them Label");
             _themText.Align = TextAlign.Right;
+            BuildArrow();
+        }
+
+        /// <summary>
+        /// The arrow in its own frame, x along the direction to drag, y across (px): a 3 px thick shaft and a filled head, drawn
+        /// with 4 px squares on a 3 px grid.
+        /// </summary>
+        static readonly Vector2[] ArrowShape = BuildShape();
+
+        static Vector2[] BuildShape()
+        {
+            var pts = new List<Vector2>();
+            for (int x = 0; x <= 27; x += 3) pts.Add(new Vector2(x, 0f));
+            for (int y = -6; y <= 6; y += 3) pts.Add(new Vector2(30f, y));
+            for (int y = -3; y <= 3; y += 3) pts.Add(new Vector2(33f, y));
+            pts.Add(new Vector2(36f, 0f));
+            return pts.ToArray();
+        }
+
+        void BuildArrow()
+        {
+            var layer = _g.Layers.Effects;
+            for (int i = 0; i < ArrowShape.Length; i++)
+            {
+                var back = UIBuilder.Solid(layer, new Color(0f, 0f, 0f, 0.75f), "Tug Arrow Back " + i);
+                back.rectTransform.anchorMin = back.rectTransform.anchorMax = Vector2.zero;
+                back.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                back.rectTransform.sizeDelta = new Vector2(6f, 6f);
+                back.enabled = false;
+                _arrowBack.Add(back);
+                var dot = UIBuilder.Solid(layer, new Color(1f, 0.93f, 0.55f, 1f), "Tug Arrow " + i);
+                dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = Vector2.zero;
+                dot.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                dot.rectTransform.sizeDelta = new Vector2(4f, 4f);
+                dot.enabled = false;
+                _arrowDots.Add(dot);
+            }
+        }
+
+        /// <summary>True while the arrow is drawn (the bridge and the tests read it).</summary>
+        public bool ArrowShown { get; private set; }
+
+        /// <summary>
+        /// The arrow on the file: from its edge, straight away from her pointer (the way to drag). It only reads the two
+        /// pointers, never the fight, so it cannot change what the fight does.
+        /// </summary>
+        void UpdateArrow(Vector2 file, bool show)
+        {
+            Vector2 away = _g.Player.Position - _g.EntityAgent.Position;
+            show &= away.sqrMagnitude > 4f;
+            ArrowShown = show;
+            if (!show)
+            {
+                for (int i = 0; i < _arrowDots.Count; i++) { _arrowDots[i].enabled = false; _arrowBack[i].enabled = false; }
+                return;
+            }
+            Vector2 dir = away.normalized;
+            Vector2 side = new Vector2(-dir.y, dir.x);
+            const float start = 24f;
+            for (int i = 0; i < ArrowShape.Length; i++)
+            {
+                Vector2 q = ArrowShape[i];
+                Vector2 at = file + dir * (start + q.x) + side * q.y;
+                Vector2 p = new Vector2(Mathf.Round(at.x), Mathf.Round(at.y));
+                _arrowBack[i].rectTransform.anchoredPosition = p;
+                _arrowDots[i].rectTransform.anchoredPosition = p;
+                // A bright band runs along the shaft toward the tip so the direction reads even at a glance.
+                float wave = Mathf.Repeat(Time.unscaledTime * 2.4f - q.x * 0.03f, 1f);
+                float k = q.x >= 30f ? 1f : (wave < 0.4f ? 1f : 0.65f);
+                _arrowDots[i].color = new Color(1f, 0.93f, 0.55f, k);
+                _arrowBack[i].enabled = true;
+                _arrowDots[i].enabled = true;
+            }
         }
 
         string T(string key, string fallback) => _g.Content != null ? _g.Content.Text(key, fallback) : fallback;
@@ -84,11 +163,15 @@ namespace SecondCursor.Entity
         void OnEnded(DragPayload p, TugOutcome outcome)
         {
             bool won = outcome == TugOutcome.PlayerWins;
-            SetText(won ? T("tug.won", "YOU KEPT THE FILE.") : T("tug.lost", "SESSION 017 TOOK THE FILE.\nGRAB IT, HOLD AND DRAG AWAY."),
-                won ? Palette.Green : Palette.Red, false);
+            // Phase I: a lost fight says why. You let go of the button, or she pulled harder.
+            string lost = _g.Conflict.LastLostByRelease
+                ? T("tug.lost.release", "YOU LET GO.\nHOLD THE BUTTON UNTIL YOU KEPT THE FILE.")
+                : T("tug.lost.pulled", "SESSION 017 PULLED HARDER.\nDRAG FASTER, AWAY FROM IT.");
+            SetText(won ? T("tug.won", "YOU KEPT THE FILE.") : lost, won ? Palette.Green : Palette.Red, false);
+            UpdateArrow(Vector2.zero, false);
             _resultUntil = Time.unscaledTime + (won ? WonSeconds : LostSeconds);
             _winner = won ? _g.Player : _g.EntityAgent;
-            GameLog.Info(LogChannel.Entity, "Tug HUD: " + (won ? "kept" : "taken"));
+            GameLog.Info(LogChannel.Entity, "Tug HUD: " + (won ? "kept" : (_g.Conflict.LastLostByRelease ? "taken (you let go)" : "taken (pulled harder)")));
             // Let go over the bin mid-fight: the bin did not ignore the drop, the other session still held the file.
             if (!won && _g.Conflict.LastLostByRelease && !_refusedShown && OverDisposal(_g.Conflict.LastEndPlayerPosition))
             {
@@ -97,6 +180,23 @@ namespace SecondCursor.Entity
                 _g.Notifications.Show(T("app.disposal", "Disposal"), _g.Content.Format("tug.refused", name), "icon_error", null, "sys_error");
                 GameLog.Info(LogChannel.OS, "Disposal refused " + name + ": still held by session 017");
             }
+        }
+
+        /// <summary>
+        /// A line beside a point with no fight going on: a file she took while the player was not holding it. It uses the
+        /// same panel and time as the result of a fight.
+        /// </summary>
+        public void ShowMessage(string text, Vector2 at)
+        {
+            if (_g.Conflict != null && _g.Conflict.IsFighting) return;
+            SetText(text, Palette.Red, false);
+            _resultUntil = Time.unscaledTime + LostSeconds;
+            _winner = null;
+            _anchor = at;
+            _panel.gameObject.SetActive(true);
+            UpdateArrow(Vector2.zero, false);
+            Place(at);
+            GameLog.Info(LogChannel.Entity, "Tug HUD: snatched (not holding)");
         }
 
         bool OverDisposal(Vector2 at)
@@ -188,6 +288,7 @@ namespace SecondCursor.Entity
                 if (!_meter.gameObject.activeSelf) OnStarted(null);
                 SetMeter(c.PlayerLead);
                 Place(c.ObjectPosition);
+                UpdateArrow(c.ObjectPosition, true);
                 return;
             }
             if (_resultUntil > 0f && Time.unscaledTime < _resultUntil)
@@ -196,6 +297,7 @@ namespace SecondCursor.Entity
                 Place(_winner != null ? _winner.Position : _anchor);
                 return;
             }
+            if (ArrowShown) UpdateArrow(Vector2.zero, false);
             if (_panel.gameObject.activeSelf) _panel.gameObject.SetActive(false);
             _resultUntil = -1f;
         }

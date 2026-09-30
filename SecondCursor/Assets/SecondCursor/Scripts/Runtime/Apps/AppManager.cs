@@ -34,6 +34,7 @@ namespace SecondCursor.Apps
         protected OSWindow CreateWindow(string title, string icon, int x, int y, int w, int h, WindowFlags flags, Rect? zoomFrom)
         {
             var at = G.Windows.PlaceAvoidingOverlap(x, y, w, h, AvoidsNotices);
+            G.Windows.MakeRoomFor(at.x, at.y, w, h);
             Window = G.Windows.Create(AppId, title, icon, at.x, at.y, w, h, flags, zoomFrom);
             Window.Owner = this;
             Window.Closed += (win, a) => OnClosed(a);
@@ -216,14 +217,48 @@ namespace SecondCursor.Apps
 
         public static void MarkEscapeHandled() => EscapeHandledFrame = Time.frameCount;
 
-        /// <summary>Route keyboard input to the focused window's app.</summary>
+        /// <summary>
+        /// Route keyboard input to the focused window's app. Phase I: typing that would go nowhere (the Camera Viewer, or another
+        /// remote session's Jotter, holds the focus) goes to the Jotter that is waiting for the player's reply instead, and that
+        /// Jotter comes to the front. Before this, a reply typed while Security's viewer had the focus vanished without a trace.
+        /// </summary>
         public void RouteKeyboard(IInputBackend input, CursorAgent player)
         {
             var win = _g.Windows.Active;
-            if (win == null || !(win.Owner is IKeyboardTarget target)) return;
+            var target = win != null ? win.Owner as IKeyboardTarget : null;
+            if (!string.IsNullOrEmpty(input.TypedText))
+            {
+                var pad = ConversationPadFor(win != null ? win.Owner as App : null);
+                if (pad != null && !ReferenceEquals(pad, target))
+                {
+                    pad.Window.Focus(player);
+                    target = pad;
+                    GameLog.Info(LogChannel.Player, "Typing went to the Jotter that is waiting for a reply (another window had the focus)");
+                }
+            }
+            if (target == null) return;
             if (!string.IsNullOrEmpty(input.TypedText)) target.OnTyped(input.TypedText, player);
             foreach (GameKey k in RoutedKeys)
                 if (input.KeyDown(k)) target.OnKey(k, player);
+        }
+
+        /// <summary>
+        /// The conversation Jotter that should get the player's typing instead of <paramref name="focused"/> (the app that has the
+        /// focus): null when the focused app takes typing itself (a Jotter waiting for the player, a page being edited, the code
+        /// prompt) or when no conversation is going on. Prefers the Jotter that waits for a line now, else one whose owner is
+        /// still typing (the keys are typed ahead and sent when it stops).
+        /// </summary>
+        NotepadApp ConversationPadFor(App focused)
+        {
+            if (focused is NotepadApp here && (here.WaitsForPlayer || !here.ConversationMode)) return null;
+            if (focused is AuthPromptApp) return null;
+            for (int i = _open.Count - 1; i >= 0; i--)
+                if (_open[i] is NotepadApp n && n.IsOpen && n.WaitsForPlayer) return n;
+            // Somebody is typing to you and nothing has the focus for it: hold the keys in that Jotter.
+            if (focused is NotepadApp talking && talking.IsTalking) return null;
+            for (int i = _open.Count - 1; i >= 0; i--)
+                if (_open[i] is NotepadApp n && n.IsOpen && n.IsTalking) return n;
+            return null;
         }
 
         static readonly GameKey[] RoutedKeys = { GameKey.Delete, GameKey.Up, GameKey.Down, GameKey.Left, GameKey.Right, GameKey.Tab, GameKey.Escape };

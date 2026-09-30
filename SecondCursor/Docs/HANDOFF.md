@@ -829,6 +829,122 @@ The game got clearer, not easier: no difficulty value, timing or story branch ch
     pause and her hand reaching the pad) is never mistaken for nobody; the status strip gets its own room under the text.
   - No difficulty change: the realistic continuous pull wins 9 to 10 of 10 first contests.
 
+### Phase I (second blind playtest fixes)
+
+Input: `_work/2026-09-29/playtest/BlindPlaytest2.md` (a second screen-only playtest of all three nights, 22 findings, 10 tug
+attempts and 1 win) and the coordinator's decisions. The rule is still: an average person must understand the game from what the
+screen says. The game got clearer, not harder or easier, except for one deliberate change (the read grace below).
+
+- **Tug read grace (findings 1, 14).** The night's first contest (each `ConflictSystem` starts armed; `ArmReadGrace()` again when Story is
+  applied at a checkpoint) starts with a 1.2 s standoff (`DifficultyProfile.ReadGraceSeconds`, `TugOfWarSettings.readGrace`,
+  `TugFor(assist, mercy, readGrace)`): her pull cannot move the share toward her, she cannot snap the file away through tension, her
+  drift is held (only the tremble), her ramp and the assist count from the end of the grace (`TugOfWar.ActiveElapsed`). The player's own
+  pull counts from the first frame, and letting go still loses at once. Every later contest keeps today's values (readGrace 0). The
+  label and the YOU/017 meter are up the whole time. A pixel arrow on the file (`TugHud`, 19 squares on a 3 px grid, a bright band
+  running to the tip) points straight away from her pointer. A lost fight says why: `YOU LET GO. HOLD THE BUTTON UNTIL YOU KEPT THE
+  FILE.` (`ConflictSystem.LastLostByRelease`) or `SESSION 017 PULLED HARDER. DRAG FASTER, AWAY FROM IT.`; a file KeepAway takes while
+  you are not holding it says `SESSION 017 TOOK THE FILE WHILE YOU WEREN'T HOLDING IT.` beside the icon (`TugHud.ShowMessage`, from
+  `SystemNotices`) and in the notice. Quick Start and Help resolve the "let it finish" mail against the fight: "If mail says to let the
+  other pointer finish, let it. But if a task tells you to shred a file, hold on and fight for it." The t_shred_017 and t2_shred_209
+  hints say what to do when it is grabbed.
+- **Tug numbers (Night 1 Normal, first contest, real tugs on the bridge, `dragtug 915 66 2.2` then `wait D` then `tugplay S`):**
+
+  | Pull starts after the grab | continuous pull 300 to 600 px/s (10 speeds) | Phase H code, same pull |
+  |---|---|---|
+  | 0.25 s | 10 of 10 won | 10 of 10 (Phase H) |
+  | 0.8 s | 10 of 10 won | lost every try (0.5 s pause: 0 of 3) |
+  | 1.2 s | 10 of 10 won | lost every try |
+
+  Second contest of the same shift (no grace): pull after 0.25 s 4 of 4 won (300, 400, 500, 600 px/s), after 0.5 s 1 of 4 (only 600),
+  after 0.8 s 0 of 4: unchanged from Phase H. `PhaseITests` reproduces both rows in the simulator (grace: all 30 combinations win;
+  without it a pull starting at 0.8 s wins at most 2 of 10). Holding still through the grace loses about 1 s after it ends.
+- **Impossible-by-design orders (findings 2, 3, 20).** `WorkTask` can be rewritten (`WorkTaskManager.Rewrite`, `TitleOverride`,
+  `DescriptionOverride`, `HintOverride`): Night 1's order becomes `PRIORITY: Shred employee_017.dat (blocked: held by session 017)` with
+  "You cannot shred it while session 017 holds it. Nobody can. Keep watching." when the bin says File In Use (`Shred.RefusedInUse`)
+  or the fight beat ends with the file still held (`task.blocked.017.*`); the Night 1 card says "Session 017 was holding the file.
+  Nobody could shred it." Night 2: a Confirm Shred for employee_209.dat at 3:00 AM or later adds "Too late. Reclamation already started.
+  Shredding now releases only part of the record." (`ShredService.ConfirmNote`, `shred.confirm.late`), so "He is still held" reads as
+  the result. Remote requests that ran out or whose file is gone stay in the queue struck through with `EXPIRED` (`Withdraw(id,
+  "expired")`), instead of vanishing. The Work Queue wraps a long title to a second line (the blocked order, "Shelf check: Sublevel C
+  (3 orders) (0/3)") and shows `Queue clear. Await further assignments.` under the ticked rows when nothing is left.
+- **Clock (finding 9).** Checked frame by frame on the bridge and in the tester's own screenshots (crops in
+  `_work/2026-09-29/phaseI/n2_clocks.png`, `n3_clocks2.png`): the clock never ran backwards. The report's "2:58 then 2:55" and "6:58
+  then 6:51" are 2:50, 2:55 and 6:50, 6:51: the small pixel font's 0 and 8 look alike in a downscaled screenshot, and "10 min left" was
+  correct next to 2:50. It is now guaranteed anyway: `GameClock.Set` only moves forward (an earlier time is refused and counted in
+  `RefusedBackSets`; `Reset` starts a clock at any time and is used only for a fresh shift, a restored checkpoint and the bridge),
+  `Rate` cannot go below 0, and `Regressions` counts any step back at `Tick`. Every director call (`EnsureClockAtLeast`, the Night 2
+  landing, the Night 3 idle fast-forward and the KEEP run to seven, the lost hours, the holds) goes through it. Bridge: `clockmon
+  start|report|stop` samples the clock every editor frame independently of the clock's own counters, `clockcheck` prints them.
+  Proof: a Night 2 finish through the 3:00 deadline (tug, setclock past it, rounds), a Night 3 finale with the idle fast-forward started
+  by 60 s of stillness, stopped by a mouse move and started again to 7:00, the KEEP confirm run to seven, and three full nights from the
+  title: 0 steps back in each; `PhaseITests.Night2sDeadlineLandingAndNight3sFinaleFastForwardNeverStepBack` and four more clock tests.
+- **Mail dates (finding 10).** Mail that arrives tonight is stamped with the clock if its authored time is later (`MailDates.Received`,
+  `MailService.DateOf`, shown in the list and the header, used for the sort). "Re: remote activity" (2:31 AM) arriving at 2:15 reads 2:15.
+  Earlier days and the 1987 message keep their dates.
+- **Jotter (findings 8, 13, 21).** Root cause of the vanished replies: Security's forced viewer (6:50, 6:55) and other windows take the
+  focus, and typing into a window that is not a text target went nowhere. `AppManager.RouteKeyboard` now sends typing to the
+  conversation Jotter that waits for a line (or is typing to you) and brings it to the front. The finale's exchange used to end after
+  any keyword reply ("what?", "how do I let you go?") and then nobody read anything: `RunExchangeChain(keepListening:)` keeps reading
+  until an exit is chosen (silence lines are typed once), so "stay" typed at any point still reaches KEEP (checked: "how do i let you go?",
+  "what?", "stay", "stay" -> KEEP by confirmation). "Remote session is not reading." now only shows when the design really has nobody
+  listening. Editable pages start typing on a new line (`ALLOW_LOGOFF=0` then `ALLOW_LOGOFF=1`), the status line says so, Backspace works
+  (checked). Every remote session's first talk gets the "Type a reply and press Enter" notice (Gary, Night 3's Ellen).
+- **Finale (finding 7).** Ellen types `AT SEVEN THEY FINISH YOU / STAY WITH ME / SAY STAY / OR LET ME GO / PUT ME IN THE BIN`; 4 s in, a
+  remote request `PUT ME IN THE BIN (remote session)` appears in the Work Queue (`e3_letgo`, a DeleteFile of employee_017, no timeout) with
+  a hint about holding on. The steer after three misses is `SAY STAY / OR PUT ME IN THE BIN`; "let you go" is answered `THEN DO IT / PUT ME IN
+  THE BIN`. Log Off is signposted as before (checked: it still works).
+- **Camera rounds (finding 4).** `t2_rounds_watch` and `t3_shelf_check` hints: "If the viewer keeps closing, you are watching the custodian.
+  Check Personnel 000 for where Custodial is, then watch a different camera." Night 2's Personnel 000 now follows the figure too
+  (`RoundsSystem.PatchPersonnel` for Night 2: office and last login only; 001's login and Ruth's leave stay Night 3's).
+- **Smaller.** 5: the Work Queue's instructions and hint scroll (scroll bar plus a `More below` button, `MoreBelow`), and the shelf hint is
+  shorter. 6: at the shelf check (`TidyShelfCheckWindows`) the Work Orders window goes to the bottom right corner (its Approve/Reject are
+  at its top right), remote sessions' Jotters are tucked into the bottom left corner (`TuckAwayPad`, also as they open), and the viewer
+  opens at the top left, so the label and the NEXT line at the top of the feed stay visible; nothing is closed. 11: a task hint waits while a
+  shred dialog is open and goes away when the progress bar starts (`ShowTaskHint`). 12: a "Queue clear. Stand by..." notice when Batch 44 is
+  done, plus the queue line. 15: `More below` is a button (Mail and the Work Queue) that scrolls one page. 16, 22: Mail opens at x 100
+  (clear of the Work Queue). Work Orders' buttons moved to the top of the form (`OSWindow.KeepVisible` replaces `KeepVisibleBottomRight`),
+  it opens clear of the notices' column, and a window opening over that strip makes its owner move up (`WindowManager.MakeRoomFor`): with
+  File Manager, Work Orders and Personnel open, Approve and Reject stay visible above Personnel (checked, one click decides the order).
+  The "swallowed first click" was a notice sitting exactly over Reject (a click on a notice dismisses it): notices now wait for room instead
+  of stacking over such a strip (`Notifications.Ceiling`, `WindowManager.NoticeCeiling`; checked: three clicks decide the three shelf orders
+  while the round's notices arrive). 17: the Quick Start says tasks appear when you click Begin. 18: `batch45_c.dat renamed to b7_seat.dat by
+  another user. It is the same file and still counts.` 19: employee_209.dat is kept in view (the check repeats every 2 s for 24 s, because
+  Gary's Notepad opens over it at 3 s) and the hint says it is on the desktop; the same for employee_017.dat in the finale (her Jotter
+  opened over it: `KeepFile017InView`).
+- **Bridge.** `clockmon start|report|stop`, `clockcheck`, `hint TASKID`. Notes for the next tester: a batch that does not start with `play`
+  waits 30 s per game command for a game that is not there (the chain then looks hung); `tug win|lose` stays set until `tug real`;
+  `clickid files/folder:intake` can pick the list row instead of the tree item (the registry order shifts whenever windows gain UI), so
+  the regression scripts use `#0` (`_work/2026-09-29/phaseI/reg_n*.cmd`). `NightDirector.Talk.cs` now holds the Jotter conversation helpers
+  (NightDirector.cs was over the 800 line ceiling).
+- **Regression** (`_work/2026-09-29/phaseI/reg_n1.cmd`, `reg_n2.cmd`, `reg_n3.cmd`, `reg_n3b.cmd`; saves under `saves/phaseI_reg`): from the title on a
+  fresh save, New Game, Normal, Night 1 to its card (real tug won with the grace, 017 shredded, "The file came back."), Continue to Night 2 to
+  its card (finished), Night 3 (Continue from the title, and again from `night 3` after the layout fixes) through the code, both config
+  edits, the shelf check (all three orders decided with notices arriving), the lost hours and the finale to LOG OFF and its card; separately
+  KEEP (types "how do i let you go?", "what?", "stay", "stay") and SHRED (forced tug win, Yes, hold Cancel, `e3_letgo` completes). 0 game
+  errors, 0 compiler warnings, 0 steps back on the clock monitor across all of it. The scripted chores that the Night 2 rename (batch45_c
+  reorders the rows mid-drag) defeats were finished by the existing safety nets, as in Phase H.
+- **Builds.** Fresh `Builds/Windows` 71.9 MB and `Builds/WindowsDemo` 71.7 MB on disk (Unity's report says 76.5 and 76.3 MB, which
+  counts the `D3D12` folder that is moved out afterwards), Symbols and `NotShipped` moved to `Builds/Symbols/<build>`. Windowed smoke
+  tests on D: (`-scsavedir`, `-logFile` under `_work/2026-09-29/phaseI/smoke`): full, demo and full with `-scnight 3 -scbeat rounds`
+  start, reach their beat and log no exception. Demo data grep (`_work/2026-09-29/phaseI/spoiler_grep.py`): none of the new Night 2 and 3
+  text (PUT ME IN THE BIN, Too late. Reclamation already started, Check Personnel 000, expired, the shelf hint); the only hits are Night
+  1's own facilities mail ("Custodial rounds") and code constants in `SecondCursor.Core.dll` (`ALLOW_LOGOFF`, task ids such as `e3_letgo`).
+- **Tests.** CoreTests 324 (29 new in `PhaseITests.cs`: the grace and its numbers, the clock, mail dates, task rewrites, the new
+  strings). Updated with reasons: `SimulationTests.ClockFormats` (`Set` refuses to go back, `Reset` starts anywhere), `PhaseGTests`
+  (`n3_final_third`). CompileCheck: 8 configurations OK.
+- **Judgement calls.**
+  - The read grace freezes her drift, not only her pull: with the drift the cursors are 120 px further apart when it ends, and a pull that
+    starts at 1.2 s can lose to the tension snap.
+  - The clock finding is not a bug in the clock; the guarantee and the checks are what was added.
+  - The finale keeps reading for up to 40 more lines and types its silence lines once; a chat that says nothing for ten minutes is left alone.
+  - Night 2's Personnel 000 follows the figure so that the rounds hint is true there too; the copy of 000's login onto 001 and Ruth's
+    leave stay Night 3's secrets.
+  - Notices wait for room instead of overlapping a window's button strip; at least one notice always shows.
+  - The Work Orders window is moved up to make room, never the new window down: the player's newest window stays where the placement put it.
+- **Not yet.** The tray clock stays in the small font (a taller or slashed zero would stop 0 and 8 being mistaken in a downscaled
+  screenshot, but real players see it at 2x); real players still need to confirm that 1.2 s is enough to read the label; the Steam Deck
+  has not seen the arrow.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -849,6 +965,7 @@ savedir D:\Downloads\Podaci\Project 1\_work\saves\test   # test saves (then rese
 title records | achievements next | haslog Achievement unlocked | deck on | store on | define SC_DEMO on | builddemo
 dragtug 915 66 1.5 3 | tugplay 600 | tugplay 0 | waitaction Lurk | tugs      # Phase F: real tugs played by the scripted cursor
 savecheck | qaread on | settingsset frameRate 60 | buildguard | democrash | reload | steamcheck | storeart | storeshot 04_tug | storeshotafter 0.45 04_tug   # Phase G
+clockmon start | clockmon report | clockcheck | hint t_shred_017   # Phase I: the clock sampled every editor frame, its own counters, a task's hint toast now
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

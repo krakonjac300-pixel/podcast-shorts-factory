@@ -33,7 +33,7 @@ namespace SecondCursor.Story
         public int PlayerReopens { get; private set; }
         /// <summary>Who performs forced opens (null = Security, no cursor).</summary>
         [NonSerialized] public CursorAgent ForcedBy;
-        /// <summary>Night 3: Personnel follows the figure (spec 5.6).</summary>
+        /// <summary>Nights 2 and 3: Personnel follows the figure (spec 5.6; Phase I: Night 2 too, so "check Personnel 000" is true there).</summary>
         [NonSerialized] public bool PatchPersonnel;
         /// <summary>
         /// Called instead of opening the viewer itself when set (finished Gary opens it by hand); the round passes
@@ -203,7 +203,11 @@ namespace SecondCursor.Story
             string office = OfficeFor(stage);
             if (office == null) return;
             custodial.office = office;
-            custodial.lastLogin = "11/20/98 3:00 AM (on rounds)";
+            bool night3 = _g.Night >= 3;
+            custodial.lastLogin = (night3 ? "11/20/98" : "11/19/98") + " 3:00 AM (on rounds)";
+            _g.Apps.Find<StaffApp>()?.Refresh();
+            // The rest is Night 3's: 001's login copying 000's, and Ruth leaving when it reaches the hall.
+            if (!night3) return;
             var twin = c.Employee(ContentIds.Employee001);
             if (twin != null) twin.lastLogin = custodial.lastLogin;
             if (stage == "HallFar")

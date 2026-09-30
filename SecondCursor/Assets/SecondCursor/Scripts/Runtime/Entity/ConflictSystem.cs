@@ -34,6 +34,12 @@ namespace SecondCursor.Entity
 
         bool _mercy;
         MercyRelease _mercyRelease;
+        /// <summary>
+        /// Phase I read grace: the next contest starts with a standoff (Difficulty.ReadGraceSeconds) so the label can be read.
+        /// Armed for a night's first contest (each root starts armed) and again when Story is chosen mid-night.
+        /// </summary>
+        bool _readGraceArmed = true;
+        bool _graceContest;
 
         /// <summary>Development builds only: decide the next contests (None = fight for real). Set by the debug panel and the test bridge.</summary>
         public static TugOutcome ForcedOutcome = TugOutcome.None;
@@ -43,6 +49,14 @@ namespace SecondCursor.Entity
         public TugOfWarSettings CurrentSettings { get; private set; } = new TugOfWarSettings();
         public bool IsFighting => _payload != null;
         public bool IsMercyContest => IsFighting && _mercy;
+        /// <summary>The contest in progress is still in its read grace (her pull and her drift wait).</summary>
+        public bool InReadGrace => IsFighting && _model != null && _model.InReadGrace;
+        /// <summary>The next contest will start with the read grace.</summary>
+        public bool ReadGraceArmed => _readGraceArmed;
+        /// <summary>The explanation panel of the fight (label, meter, arrow).</summary>
+        public TugHud Hud { get; private set; }
+        /// <summary>The next contest starts with the read grace again (Story was chosen: its fights read differently).</summary>
+        public void ArmReadGrace() => _readGraceArmed = true;
         /// <summary>The last contest's outcome was decided by a debug override (development builds): it never counts for records.</summary>
         public bool LastOutcomeForced { get; private set; }
         bool _forcedNow;
@@ -81,7 +95,7 @@ namespace SecondCursor.Entity
             }
             g.DragDrop.ContestStarted += c.OnContestStarted;
             // Phase H: the fight explains itself above the file (label, pull meter, who kept it).
-            TugHud.Create(g, c);
+            c.Hud = TugHud.Create(g, c);
             g.DragDrop.PayloadFinished += (p, accepted, by) =>
             {
                 if (p != c._payload) return;
@@ -101,7 +115,9 @@ namespace SecondCursor.Entity
             _forcedNow = false;
             _mercy = _g.Assist != null && _g.Assist.BeginContest();
             _mercyRelease = _mercy ? new MercyRelease() : null;
-            CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy) : new TugOfWarSettings();
+            _graceContest = _readGraceArmed;
+            _readGraceArmed = false;
+            CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy, _graceContest) : new TugOfWarSettings();
             _model = new TugOfWar(CurrentSettings);
             // Away from the player and the bin, turned if the player's pull would have no room (a grab by the bin).
             _escapeDir = TugGeometry.EscapeDirection(_g.Player.Position.ToCore(), _g.EntityAgent.Position.ToCore(),
@@ -114,6 +130,7 @@ namespace SecondCursor.Entity
             _g.Fx?.Glitch(0.12f, 0.6f);
             GameLog.Info(LogChannel.Entity, "Tug-of-war started over " + p.FileId);
             if (_mercy) GameLog.Info(LogChannel.Entity, "Mercy contest");
+            if (_graceContest) GameLog.Info(LogChannel.Entity, "Read grace: " + CurrentSettings.readGrace.ToString("0.0") + " s standoff");
             TugStarted?.Invoke(p);
         }
 
@@ -132,8 +149,10 @@ namespace SecondCursor.Entity
             }
             float grip = _mercy ? AdaptiveAssist.MercyGrip : _g.Entity != null ? _g.Entity.Brain.Grip : 0.62f;
 
-            // The entity's end drags away (strength-dependent), with a nervous tremble.
-            Vector2 drift = _escapeDir * TugOfWar.EntityDriftSpeed(grip) * dt + UnityEngine.Random.insideUnitCircle * (1.5f + _model.Strain * 3f);
+            // The entity's end drags away (strength-dependent), with a nervous tremble. During the read grace it holds
+            // still (only the tremble), so the label can be read and the cursors do not drift apart.
+            float driftScale = _model.InReadGrace ? 0f : 1f;
+            Vector2 drift = _escapeDir * TugOfWar.EntityDriftSpeed(grip) * dt * driftScale + UnityEngine.Random.insideUnitCircle * (1.5f + _model.Strain * 3f);
             entity.Position = ScreenRig.ClampToScreen(entity.Position + drift);
             // Bounce the escape direction off the screen edges so it doesn't get pinned.
             if (entity.Position.x <= 1f || entity.Position.x >= ScreenRig.Width - 2f) _escapeDir.x = -_escapeDir.x;
@@ -223,6 +242,7 @@ namespace SecondCursor.Entity
             var p = _payload;
             if (p == null) return;
             _payload = null;   // so the PayloadFinished handler does not score the cancelled drag
+            if (_graceContest) _readGraceArmed = true;   // the player never got to read it: the next fight has its standoff
             foreach (var d in _band) d.enabled = false;
             if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
             if (_g.EntityView != null) _g.EntityView.Jitter = 0f;
@@ -337,7 +357,8 @@ namespace SecondCursor.Entity
             _forcedNow = false;
             if (LastOutcomeForced) _g.Disarm("forced tug outcome");
             GameLog.Info(LogChannel.Entity, "Tug-of-war ended: " + outcome);
-            _g.Assist?.ReportTug(outcome == TugOutcome.PlayerWins, _model.Elapsed, _model.PeakEffort);
+            _g.Assist?.ReportTug(outcome == TugOutcome.PlayerWins, _model.ActiveElapsed, _model.PeakEffort);
+            _graceContest = false;
             _mercy = false;
             TugEnded?.Invoke(p, outcome);
         }

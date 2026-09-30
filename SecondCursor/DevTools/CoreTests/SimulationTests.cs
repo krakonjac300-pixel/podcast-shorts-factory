@@ -331,7 +331,10 @@ namespace SecondCursor.Tests
             c.Rate = 1f;
             c.Tick(60f);
             Assert.Equal("3:05 AM", c.Format12());
+            // Phase I: Set only moves the clock forward (an earlier time is refused); Reset starts a fresh clock anywhere.
             c.Set(0, 0);
+            Assert.Equal("3:05 AM", c.Format12());
+            c.Reset(0, 0);
             Assert.Equal("12:00 AM", c.Format12());
         }
 

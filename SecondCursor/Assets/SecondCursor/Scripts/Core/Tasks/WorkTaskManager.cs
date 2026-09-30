@@ -41,6 +41,11 @@ namespace SecondCursor.Core.Tasks
         public string WithdrawNote;
         /// <summary>What a finished task filed ("1 approved, 2 rejected"); the Work Queue shows it after the title.</summary>
         public string ResultNote;
+        /// <summary>
+        /// Phase I: the story rewrote the task's words (a shred that nobody can do while another session holds the file says
+        /// so). Null = the authored text.
+        /// </summary>
+        public string TitleOverride, DescriptionOverride, HintOverride;
 
         public WorkTask(TaskData data)
         {
@@ -50,7 +55,9 @@ namespace SecondCursor.Core.Tasks
         }
 
         public string Id => Data.id;
-        public string Title => Data.title;
+        public string Title => TitleOverride ?? Data.title;
+        public string Description => DescriptionOverride ?? Data.description;
+        public string Hint => HintOverride ?? Data.hint;
         public bool IsDone => State == TaskState.Completed;
         public bool IsWithdrawn => State == TaskState.Withdrawn;
         /// <summary>Written into the Work Queue by the second cursor, not by the company.</summary>
@@ -193,6 +200,22 @@ namespace SecondCursor.Core.Tasks
 
         /// <summary>A withdrawn task the Work Queue still lists (shown before, withdrawn with a note).</summary>
         public static bool IsListedWithdrawn(WorkTask t) => t != null && t.State == TaskState.Withdrawn && t.WasShown && t.WithdrawNote != null;
+
+        /// <summary>
+        /// Phase I: rewrites what a task says while it stays the same task (the Night 1 order to shred employee_017.dat turns into
+        /// "blocked: held by session 017" once the bin has refused it). Null leaves that part as authored.
+        /// </summary>
+        public void Rewrite(string id, string title, string description, string hint)
+        {
+            var t = Get(id);
+            if (t == null) return;
+            if (t.TitleOverride == title && t.DescriptionOverride == description && t.HintOverride == hint) return;
+            t.TitleOverride = title;
+            t.DescriptionOverride = description;
+            t.HintOverride = hint;
+            Revision++;
+            GameLog.Info(LogChannel.Task, "Rewrote " + t.Id + " \"" + t.Title + "\"");
+        }
 
         /// <summary>What a finished task filed, shown after its title in the Work Queue.</summary>
         public void SetResult(string id, string note)

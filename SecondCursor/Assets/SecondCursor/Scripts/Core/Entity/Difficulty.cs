@@ -78,10 +78,21 @@ namespace SecondCursor.Core.Entity
             return AdaptiveAssist.CarryLevel(previousNightFinalLevel);
         }
 
-        /// <summary>A fresh copy of the tug settings for one contest, scaled by the current assist level.</summary>
-        public TugOfWarSettings TugFor(AdaptiveAssist assist, bool mercy = false)
+        /// <summary>
+        /// Phase I: seconds after the grab in which the second cursor's pull does not count, for the first contest of a night
+        /// (and the first after Story is chosen). A first-time player needs over a second to read the label; measured on the
+        /// bridge, a pull that starts after 0.5 s of holding still otherwise loses every time.
+        /// </summary>
+        public const float ReadGraceSeconds = 1.2f;
+
+        /// <summary>
+        /// A fresh copy of the tug settings for one contest, scaled by the current assist level. <paramref name="readGrace"/>:
+        /// the night's first contest, which starts with <see cref="ReadGraceSeconds"/> of standoff.
+        /// </summary>
+        public TugOfWarSettings TugFor(AdaptiveAssist assist, bool mercy = false, bool readGrace = false)
         {
             var s = Tug.Clone();
+            s.readGrace = readGrace ? ReadGraceSeconds : 0f;
             var fx = AdaptiveAssist.Effects(assist != null ? assist.Level : 0);
             s.pullSpeedForFullStrength *= fx.PullSpeed;
             s.rampPerSecond *= fx.Ramp;

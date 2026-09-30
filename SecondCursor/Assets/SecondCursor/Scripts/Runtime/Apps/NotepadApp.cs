@@ -30,6 +30,10 @@ namespace SecondCursor.Apps
         /// <summary>In conversation mode, Enter submits the player's line instead of just inserting a newline.</summary>
         public bool ConversationMode;
         public bool EntityTyping { get; private set; }
+        /// <summary>A conversation that waits for the player's next line right now (it is the player's turn).</summary>
+        public bool WaitsForPlayer => IsOpen && ConversationMode && PlayerCanType && !EntityTyping;
+        /// <summary>A conversation whose other side is typing or thinking (a reply typed now waits for the turn).</summary>
+        public bool IsTalking => IsOpen && ConversationMode && (EntityTyping || ThinkingCaret);
         /// <summary>The speaker is "thinking" before a reply: the caret blinks although nobody types.</summary>
         public bool ThinkingCaret;
         public event Action<string, CursorAgent> LineSubmitted;
@@ -400,6 +404,13 @@ namespace SecondCursor.Apps
                     continue;
                 }
                 if (!ConversationMode) edited = true;
+                // Phase I: typing into a page that ends without a line break starts a new line ("ALLOW_LOGOFF=0ALLOW_LOGOFF=1"
+                // was one glued line the blind tester could not take apart).
+                if (!ConversationMode && CanSave && c != '\b' && c != '\n' && _text.Length > 0 && _text.Length <= _inputStart && _text[_text.Length - 1] != '\n')
+                {
+                    _text.Append('\n');
+                    _inputStart = _text.Length;
+                }
                 if (c == '\b')
                 {
                     if (_text.Length > (ConversationMode ? _inputStart : 0)) _text.Length -= 1;

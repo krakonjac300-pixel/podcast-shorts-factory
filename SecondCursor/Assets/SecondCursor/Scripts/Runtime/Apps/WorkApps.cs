@@ -22,11 +22,17 @@ namespace SecondCursor.Apps
 
         public override string AppId => AppIds.WorkOrders;
 
+        /// <summary>Phase I: the notices stack above the Disposal bin, at the right edge; Approve and Reject must never sit under one.</summary>
+        protected override bool AvoidsNotices => true;
+
+        const int WindowW = 500, WindowH = 320;
+
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
-            CreateWindow(G.Content.Text("app.workorders"), "icon_workorders", 120, 110, 500, 320, WindowFlags.Standard, zoomFrom);
-            // Phase H: Personnel (opened next, to check the owner) must never land on Approve and Reject.
-            Window.KeepVisibleBottomRight = new Vector2(186f, 34f);
+            CreateWindow(G.Content.Text("app.workorders"), "icon_workorders", 120, 110, WindowW, WindowH, WindowFlags.Standard, zoomFrom);
+            // Phase H: Personnel (opened next, to check the owner) must never land on Approve and Reject. Phase I: the buttons
+            // are at the top of the form (a window that opens below cannot cover them), and the window keeps clear of notices.
+            Window.KeepVisible = new Rect(WindowW - 190f, 24f, 186f, 30f);
             var client = Window.Client;
 
             _list = new ListView(client, "Orders", new[] { 60, 110 }, new[] { "Order", "Status" }, false);
@@ -43,7 +49,7 @@ namespace SecondCursor.Apps
             };
 
             var paper = UIBuilder.Bevel(client, BevelStyle.Sunken, "Form");
-            paper.rectTransform.Stretch(180, 2, 2, 34);
+            paper.rectTransform.Stretch(180, 32, 2, 2);
             _form = UIBuilder.Text(paper.rectTransform, "Select a work order.", Palette.Text);
             _form.Wrap = true;
             _form.rectTransform.Stretch(8, 8, 8, 8);
@@ -53,9 +59,9 @@ namespace SecondCursor.Apps
             _stamp.Align = TextAlign.Right;
 
             _approve = UiButton.Create(client, "Approve", a => Decide("approve", a), "button:Approve");
-            ((RectTransform)_approve.transform).BottomRight(92, 6, 82, 22);
+            ((RectTransform)_approve.transform).TopRight(92, 4, 82, 22);
             _reject = UiButton.Create(client, "Reject", a => Decide("reject", a), "button:Reject");
-            ((RectTransform)_reject.transform).BottomRight(4, 6, 82, 22);
+            ((RectTransform)_reject.transform).TopRight(4, 4, 82, 22);
             Refresh();
             if (_list.Rows.Count > 0)
             {

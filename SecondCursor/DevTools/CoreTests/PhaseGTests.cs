@@ -198,7 +198,8 @@ namespace SecondCursor.Tests
             if (!Present) return;
             Assert.Equal(new[] { "I SAID CLOSE IT", "OR LOOK AT ANOTHER CAMERA" }, Night(2).Lines("n2_rounds_again"));
             Assert.Equal(new[] { "READ IT FIRST" }, Night(2).Lines("n2_read_it_first"));
-            Assert.Equal(new[] { "STAY", "OR LET ME GO" }, Night(3).Lines("n3_final_third"));
+            // Phase I: the steer names both actions ("say stay" or "put me in the bin").
+            Assert.Equal(new[] { "SAY STAY", "OR PUT ME IN THE BIN" }, Night(3).Lines("n3_final_third"));
             Assert.Equal("Record owner: 209 (held).", Night(2).Text("shred.confirm.note.employee_209"));
         }
 

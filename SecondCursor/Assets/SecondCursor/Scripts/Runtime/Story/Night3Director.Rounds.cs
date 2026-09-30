@@ -2,12 +2,14 @@
 #if !SC_DEMO
 using System;
 using System.Collections;
+using System.Linq;
 using SecondCursor.Apps;
 using SecondCursor.CameraFeed;
 using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.Story;
+using SecondCursor.Input;
 using SecondCursor.Rendering;
 using UnityEngine;
 
@@ -41,6 +43,16 @@ namespace SecondCursor.Story
             yield return Wait(2f);
             foreach (var id in ShelfOrders) g.Orders.SetHidden(id, false);
             GiveTask(ContentIds.TaskN3Shelf);
+            // Phase I: the viewer (top left) and the Work Orders (bottom right) get their own corners.
+            TidyShelfCheckWindows();
+            _shelfPads = 0;
+            Action<string, CursorAgent> tidyOnLaunch = (appId, by) =>
+            {
+                if (appId == AppIds.WorkOrders) TidyShelfCheckWindows();
+                // The remote sessions' Jotters open where they like; here they go to the bottom left, clear of the top of the feed.
+                else if (appId == AppIds.Notepad && by != null && !by.IsPlayer) TuckAwayPad(g.Apps.Find<NotepadApp>());
+            };
+            g.Apps.Launched += tidyOnLaunch;
 
             // Ellen closes the viewer whenever it shows Custodial (and says why). She stops lurking first, so
             // the first forced open finds her hand free.
@@ -109,6 +121,7 @@ namespace SecondCursor.Story
 
             float start = Time.time;
             while (!cleared && !timeUp && Time.time - start < RoundsCap) yield return null;
+            g.Apps.Launched -= tidyOnLaunch;
             int maxStage = model.MaxStage;
             g.Rounds.Stop();
             UnhookRounds();
@@ -150,6 +163,33 @@ namespace SecondCursor.Story
             g.Flags.Clear(Flags.CameraUnlocked);
             g.Flags.Set(Flags.N3RoundsDone);
             yield return Wait(1.5f);
+        }
+
+        /// <summary>
+        /// Phase I (finding 6): the shelf check needs the top of the CAM 04 feed (its label and the NEXT line) and the Work Orders
+        /// side by side. The Work Orders go to the bottom right corner (its Approve and Reject are at its top right, clear of the
+        /// viewer, which opens at the top left); windows are never closed, only moved.
+        /// </summary>
+        int _shelfPads;
+
+        /// <summary>A remote session's Jotter goes to the bottom left corner (each further one a little up and right).</summary>
+        void TuckAwayPad(NotepadApp pad)
+        {
+            if (pad == null || pad.Window == null || pad.Window.IsMaximized) return;
+            var size = pad.Window.Size;
+            float step = 18f * (_shelfPads++ % 3);
+            pad.Window.MoveTo(new Vector2(92f + step, ScreenRig.Height - OS.WindowManager.TaskbarHeight - size.y - 2f - step));
+        }
+
+        void TidyShelfCheckWindows()
+        {
+            foreach (var app in _g.Apps.OpenApps.ToArray())
+                if (app is NotepadApp pad && pad.IsOpen && pad.ConversationMode && !pad.Window.IsMinimized) TuckAwayPad(pad);
+            var wo = _g.Apps.FindById(AppIds.WorkOrders);
+            if (wo == null || wo.Window == null || wo.Window.IsMinimized || wo.Window.IsMaximized) return;
+            var size = wo.Window.Size;
+            wo.Window.MoveTo(new Vector2(ScreenRig.Width - size.x - 4f, ScreenRig.Height - OS.WindowManager.TaskbarHeight - size.y - 2f));
+            GameLog.Info(LogChannel.Story, "Shelf check: Work Orders moved to the bottom right");
         }
 
         /// <summary>
