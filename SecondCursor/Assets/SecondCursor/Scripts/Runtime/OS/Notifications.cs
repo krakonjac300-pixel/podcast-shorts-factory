@@ -22,7 +22,7 @@ namespace SecondCursor.OS
         const float Life = 7f;
         /// <summary>Seconds between two toasts that were asked for at the same moment.</summary>
         public const float Stagger = 1.1f;
-        float _nextShowAt = -100f;
+        float _nextShowAt = -100f, _nextRelease = -100f;
 
         /// <summary>
         /// Phase I: the highest a toast's top edge may reach (virtual px from the bottom), or null for no limit. A window with a part that
@@ -36,6 +36,8 @@ namespace SecondCursor.OS
         {
             internal RectTransform Rect;
             internal float Age;
+            /// <summary>Seconds its turn has come but there was no room for it (Review J2).</summary>
+            internal float Waited;
             internal float Slot;
             internal bool Dismissed;
             internal bool Sticky;
@@ -167,8 +169,13 @@ namespace SecondCursor.OS
             {
                 if (t.Shown || t.Age < 0f) continue;
                 t.Age = 0f;   // its time only starts when it is on screen
+                // Review J2: a notice that waited for room longer than it would have shown is stale: it goes unseen.
+                t.Waited += dt;
+                if (t.Waited > Life && !t.Sticky && t.KeepWhile == null) { t.Dismissed = true; continue; }
                 bool room = used == 0f || baseY + used + t.Height <= ceiling;
-                if (!room) continue;
+                // When room comes back, the ones that waited come in one after another, not in a burst.
+                if (!room || Time.time < _nextRelease) continue;
+                _nextRelease = Time.time + Stagger;
                 t.Shown = true;
                 t.Rect.gameObject.SetActive(true);
                 if (!string.IsNullOrEmpty(t.Sound)) Sfx.Play(t.Sound);

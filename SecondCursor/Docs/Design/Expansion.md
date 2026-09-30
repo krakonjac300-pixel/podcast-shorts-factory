@@ -1425,6 +1425,8 @@ Manual checks:
 | LOG OFF | Start, Log Off at 7:00 or later, confirm, let the progress finish | only if ALLOW_LOGOFF=1: Restricted code solved and session.cfg edited, or kept Gary does it at 6:48 | kept Gary (unlocks it, guards No) | finished Gary (races to No, goes for Cancel); watching the feed (a cleared seat means KEEP first) |
 | KEEP | say stay and confirm; or reach 7:05; or let the feed clear the seat | yes (default) | none | none |
 
+Phase J: every Night 3 card has a cause line under its subtitle (`Night3Rules.EndingCauseKey`: "You put employee_017.dat in the bin and shredded it.", "You logged off with session 017 still open.", "You told her to stay.", "The figure reached your chair while you watched the feed." or "... before your log off finished.", "It was 7:05 AM and you were still logged on."). The Log Off confirm warns when the Camera Viewer is watching Custodial, Security does not force the feed open while a log off is under way, and a log off cut short by the seat or the clock says so at once (`logoff.cancelled.seat`, `logoff.cancelled.time`; another session's No or Cancel: `logoff.cancelled.by`).
+
 Memory decides which exits exist and how hard they are; the last act decides which one you get. Night 1's fight over 017 and the Night 2 obey or refuse choices feed trust, Night 2's Gary choice decides whether LOG OFF has an ally or an enemy, and Night 2's watching and hiding choices change the Night 3 rounds.
 
 ### 6.2 Sequences
@@ -1498,7 +1500,7 @@ Phase F values (tuned in `_work/2026-09-29/balance/BalanceReport.md`, applied in
 | jiggleCredit | 0.0001 | 0.0001 | 0.0001 | 0.0001 |
 | maxPlayerStrength | 2.2 | 2.2 | 2.2 | 0.65 |
 | effortSmoothing (s) | 0.12 | 0.12 | 0.12 | 0.12 |
-| maxTension (px) | 280 | 300 | 320 | off (99999) |
+| maxTension (px) | 280 | 315 (Phase J; was 300) | 330 (Phase J; was 320) | off (99999) |
 | strainTension (px, band and shake only; 0 = maxTension) | 0 | 0 | 0 | 300 |
 | rampDelay (s) | 3.0 | 2.5 | 2.0 | 99 (off) |
 | rampPerSecond | 0.14 | 0.18 | 0.22 | 0.00 |
@@ -1532,7 +1534,7 @@ Grip = min(cap, base * assist.GripMult * trustMult * (1 + tugLosses * growth * a
 `trustMult` is 1.0 except in the Night 3 finale (0.9 or 1.1, Section 5.3). Mercy (Section 7.3) overrides the result.
 
 Rules around the tug (Phase F):
-- Letting go during a tug is letting go: a release over the bin or the desktop while both cursors grip the file is not a drop, and the contest decides (`PointerRouter`).
+- Letting go during a tug resolves by who is ahead (Phase J): with the pull meter at 0.6 or more for the player (`TugOfWar.ReleaseKeepLead`, the line on the bar) the player keeps the file and the release is an ordinary drop (a folder, the desktop, or the bin and its confirm); below it the release is not a drop and she takes the file (`PointerRouter.ContestRelease`, `ConflictSystem`). Drop targets light up under a contested file only while letting go would keep it.
 - She keeps thinking while she lurks (anything that scores above lurking interrupts it at once). While her file can be shredded and is on the desktop, she lurks 60 to 120 px around the midpoint between the file and the Disposal bin, so a grab happens mid-path.
 - After she loses a tug she does not lunge again for 2 s. While she carries a file (a won tug, a KeepAway snatch), a grab by the player pauses her carry until the tug is decided.
 - Night 2's 209: she lunges within 420 px of the bin when the drag heads for it (direction within about 37 degrees), otherwise within 150 px (Archive drags pass).
@@ -1548,7 +1550,7 @@ Inputs, reported by `ConflictSystem.TugEnded` and `EntityBrain.Defended`:
 - "easy win": a tug won in under 0.45 s with peak effort of at least 1.8.
 
 Rules:
-1. Loss streak reaches 2.0: L = min(L + 1, 3), streak resets. The first time per night L goes up, the NEXUS conflict toast (`notify.conflict`) shows again.
+1. Loss streak reaches 2.0: L = min(L + 1, 3), streak resets. (Phase J: the first-raise toast is gone; every tug posts its own result notice, `notify.conflict*`.)
 2. Two wins in a row, or one easy win: L = max(L - 1, -1) (Story: never below +2).
 3. Mercy: at L = 3, two more tug losses arm mercy (Story: one loss at any level). The next contest uses grip 0.15, no ramp, and the entity lets go by itself after 1.0 s of player effort of at least 0.15, or after 2.5 s of the button simply held (`MercyRelease`). Mercy disarms after that contest. It is logged (`[ENTITY] Mercy contest`).
 4. Night start: Normal starts at `clamp(previous night's final L - 1, 0, 1)`; Night 1 starts at 0. Story starts at +2.
@@ -1599,7 +1601,7 @@ A toggle on the title screen and in the pause menu (`title.difficulty.*`, `pause
 | Company task, first toast | 30 s (briefing 25; Batch 44 after the anomalies 40) | 40 s (briefing 30) | 45 s (briefing 30) | 15 s |
 | Company task, repeat | 40 s | 45 s | 50 s | 25 s |
 | Force-complete a task | hint + 150 s | hint + 150 s | hint + 150 s | hint + 90 s |
-| Conflict toast | after the first lost tug | when L first rises | when L first rises | after the first lost tug |
+| Conflict toast | every tug posts its result (Phase J) | every tug posts its result (Phase J) | every tug posts its result (Phase J) | every tug posts its result (Phase J) |
 | Night 1 conflict, player has not tried | supervisor mail at 45 s, task hint toasts at 48 and 90 s, the beat moves on at 100 s | n/a | n/a | same |
 | Entity task nudge | n/a | 35 s (withdraw at 75 s) | n/a | 20 s (withdraw at 75 s) |
 | Code: Ellen `n3_code_hint1` | n/a | n/a | 60 s after the Ruth mail is read, or right after the first wrong code if that is later | 30 s |

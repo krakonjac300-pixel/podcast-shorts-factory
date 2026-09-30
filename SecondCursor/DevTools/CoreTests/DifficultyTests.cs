@@ -265,7 +265,6 @@ namespace SecondCursor.Tests
             Assert.Equal(40f, p.TaskHintRepeat);
             // Phase F: a stuck chore is finished for the player 150 s after its first hint (was 240 s).
             Assert.Equal(150f, p.TaskForceAfterHint);
-            Assert.True(p.ConflictToastOnFirstLoss);
         }
 
         [Fact]
@@ -546,18 +545,16 @@ namespace SecondCursor.Tests
             Assert.Equal(2, AdaptiveAssist.ForNight(DifficultyTable.For(2, DifficultyMode.Story), 0).Level);
         }
 
+        /// <summary>Phase J: every tug's result is its own notice now, so the first-raise toast is gone; the level still climbs one step per two losses.</summary>
         [Fact]
-        public void FirstRaiseIsAnnouncedOncePerNight()
+        public void TwoLostTugsRaiseTheLevelOneStep()
         {
             var a = new AdaptiveAssist();
-            int raised = 0, changes = 0;
-            a.FirstRaise += () => raised++;
+            int changes = 0;
             a.LevelChanged += (from, to) => changes++;
             for (int i = 0; i < 6; i++) a.ReportTug(false, 1f, 0.2f);
             Assert.Equal(3, a.Level);
-            Assert.Equal(1, raised);
             Assert.Equal(3, changes);
-            Assert.True(a.RaisedThisNight);
         }
     }
 

@@ -945,6 +945,122 @@ screen says. The game got clearer, not harder or easier, except for one delibera
   screenshot, but real players see it at 2x); real players still need to confirm that 1.2 s is enough to read the label; the Steam Deck
   has not seen the arrow.
 
+### Phase J (third blind playtest: tug release rule, ending causes, clarity)
+
+Input: `_work/2026-09-29/playtest/BlindPlaytest3.md` (18 findings; 0 of 6 tugs won, 1 of 22 across the three blind playtests; Night 3
+ended "KEEP. You stayed." right after the tester logged off), the coordinator's decisions and `_work/2026-09-29/launch/ReviewPhaseI.md`.
+The owner's rule stands: an average person must understand the game from what the screen says.
+
+- **Release rule (decision 1).** Letting go during a tug resolves by who is ahead: with the meter at 0.6 or more for the player
+  (`TugOfWar.ReleaseKeepLead`, `KeepsOnRelease`; `Step` finishes PlayerWins on a release that is ahead) the player keeps the file and the
+  release is an ordinary drop: `PointerRouter.ContestRelease` runs at the start of every release, `ConflictSystem.OnPlayerRelease` ends
+  the fight as a win and hands the payload to the player without cancelling it, and the router drops it where the pointer is (a folder,
+  the desktop, or the bin and its confirm). Below the line nothing changes: she takes the file after the release grace. Drop targets light
+  up under a contested file only while letting go would keep it (`PointerRouter.ContestKeeps`). Night 1 values are unchanged.
+- **What the fight says (decisions 2, 3).** `TugHud`: `SESSION 017 IS PULLING. / HOLD AND DRAG AWAY UNTIL THE BAR IS YOURS.`; past the
+  line it turns green and says `THE BAR IS YOURS. / LET GO ON THE BIN OR A FOLDER.` (`tug.ahead`, Deck variants). The meter has an amber
+  line at 60%. The arrow points along `ConflictSystem.PullDirection` (the escape direction reversed, so `TugGeometry`'s room rule applies:
+  it never points into a corner), and the label keeps clear of the arrow's tip as it does of both pointers. Results stay 3.2 s (were 1.6 and
+  2.4 s): `YOU KEPT THE FILE.`, `YOU LET GO TOO EARLY. / HOLD ON UNTIL THE BAR IS YOURS.` (released below the line) or `SESSION 017 PULLED
+  HARDER...`, and every result is also a notice (`notify.conflict.won`, `notify.conflict.release`, `notify.conflict`, each naming the file;
+  a release over the bin keeps its Disposal notice instead, reworded). The old first-loss toast and `AdaptiveAssist.FirstRaise` (a second
+  toast after two losses) are gone: the result notice says it every time. Quick Start, Help, Welcome back and the shred hints say "until
+  the bar is yours".
+- **Tug numbers (Night 1 Normal, real tugs on the bridge; `_work/2026-09-29/phaseJ/tug_*.cmd`).**
+
+  | Contest | Testers' input (30 px jumps every 0.1 s for 0.8 s, 0.3 s still, let go) | A player who reads the bar (0.25 s reaction, pull along the arrow at 300 to 600 px/s, let go when the label says so) |
+  |---|---|---|
+  | First (read grace) | from the press: 0 of 10 (meter 0.55 to 0.56 at the release: "YOU LET GO TOO EARLY"); from the grab: 10 of 10 | 10 of 10 (0.22 to 0.51 s) |
+  | Second, after a won first | from the grab: 9 of 10 | 10 of 10 |
+  | Second, after a lost first (grip 0.66) | from the press: 0 of 10 (meter 0.34 to 0.43) | 7 of 10 (400 to 600 px/s win; 300 to 367 lose) |
+
+  `tugsteps STEP INTERVAL COUNT HOLD` and `tughuman SPEED [TIMEOUT] [SHOT]` replay the two patterns. The testers' input loses the first
+  contest when it starts at the press only because she grabs 0.45 s into it and the fixed script lets go 0.65 s later at 56%; a person who
+  sees the bar keeps pulling, and the label now says why it was lost.
+- **Night 1's blocked order (decision 4).** After the first lost tug of the conflict the order's hint becomes "It is holding the file. Pull
+  harder, or leave it: the file is not going anywhere." (`task.017.lost.hint`); the blocked rewrite still follows when the fight ends.
+- **Why the tester got KEEP (decision 5).** From their Editor.log: after the 7:00 and 7:02 forced opens Security kept restoring the Camera
+  Viewer on the figure (Ellen's close attempts were blocked while the tester's pointer sat on the viewer's close button), the figure went
+  Doorway, Middle, BehindChair while the Log Off confirm was open, and 1 to 2 s into the log off progress it reached the chair:
+  `Finale exit: Keep (seat)`. Not a Cancel, not 7:05. Now: Security does not force the feed open while a log off dialog is up (the 7:02
+  open waits); the confirm says `Still open on this workstation: sessions 017 and 209.` and, while the viewer is open, "The Camera Viewer is
+  watching Custodial. Close it first, or the log off may not finish."; a log off cut short says so at once (`logoff.cancelled.seat`,
+  `logoff.cancelled.time`, and another session's No, `logoff.cancelled.by`); every Night 3 card has a cause line
+  (`Night3Rules.EndingCauseKey`: shred / log off / "You told her to stay." / "The figure reached your chair while you watched the feed." or
+  "... before your log off finished." / "It was 7:05 AM and you were still logged on."). Night 2's card gets the same kind of line
+  ("You shredded employee_209.dat.", "You archived employee_209.dat, so the order was suspended.", "Nobody shredded employee_209.dat by 3:00
+  AM."); `EndCard` moves the thanks and endings lines down under it. The tester's exact path now ends in LOG OFF.
+- **Finale words (decision 6).** `ex3_final`: stay first (now also "wont let", "never let", "keep you"), then the player-leaving group
+  (log off, let me go, go home), then a letting-go group ("goodbye", "bye", "go", "leave", "let you go", ...) answered `THEN PUT ME IN THE
+  BIN / HOLD ON WHEN I PULL`, then her name (her name is remembered from any line now). From the second miss on she types `SAY STAY / OR PUT
+  ME IN THE BIN` (`fallbackRetries: 1`; a listening chain steers every later miss too).
+- **Clarity (decision 7).** Clicking any Work Queue line shows that task's instructions and hint and frames the line (a new current task
+  clears it). A drop that nothing took: `Drop missed. employee_209.dat is back on the Desktop.` / `... back in Intake.`, and a desktop icon
+  that flew back under a window is moved into view (`NightDirector.BringIntoView`, which also replaces Night 2's `Ensure209Visible` and
+  Night 3's `KeepFile017InView` bodies). Remote tasks' hints start "Optional." (Night 3's: "Optional: one way to end the night."); Night 2's
+  briefing says "you don't have to do it". The code prompt says "(4 digits)"; Ruth adds "Personnel still has the time." After the shelf
+  check, `Rounds until 3:30. Nothing to do. Stay seated.` (`t3_rounds_until`, a Wait task, done when the round ends). The pixel font's zero
+  is slashed (2:50 no longer reads 2:58). The "recovered from an unexpected pause" notice stays 20 s instead of until clicked. Files the
+  story sets down avoid the notices' column (`FindDropSpot` counts it as covered).
+- **Review fixes (ReviewPhaseI).** 1: a Backspace in session.cfg edits in place from then on (`NotepadApp`: no new line after one). 2:
+  a notice that waited for room longer than it would have shown is dropped, and waiting ones are released one per 1.1 s. 3: Continue from
+  "escalation" shows the 017 order blocked (or done, if it was shredded once). 4: the notices' column follows Reading text. 5: Night 3 boot
+  uses `Clock.Reset(1, 52)`. 6: a pause re-arms the read grace only inside the standoff. 7: KEEP confirmed withdraws `e3_letgo` as expired.
+  9: the shelf check's pad counter is reset before tidying, and its launch handler is unhooked with the round's. 10: dead members removed
+  (`ConflictSystem.InReadGrace`, `ReadGraceArmed`, `TugHud.ArrowShown`, `MoreBelow.IsShowing`, the `tug.lost` strings,
+  `GameClock.Regressions`). 12: the late-shred literal uses `LateShredMinute`; the hint bookkeeping adds a speaker once.
+- **Balance.** `_work/2026-09-29/balance/BalanceReport.md` section 9 (`run_phasej.py`, `out_phasej.md`): the simulation now models the
+  read grace and the rule. With the grace and the rule an average player won Night 2's first tug 96% and Night 3's 94%; the only value of
+  those nights that brings it back without hurting later contests is the tension limit: Night 2 `maxTension` 300 -> 315, Night 3 320 -> 330
+  (first tug, average: 88% and 86%; first-time Night 3 third try unchanged at 44 to 48%). Players who read the bar win almost every first
+  tug.
+- **Bridge** (`SecondCursorTestBridge.Balance.cs`): `tugsteps STEP INTERVAL COUNT HOLD` (the testers' jumps away from her pointer, a
+  still hold, then the button goes up; prints the meter at the release and the result, "kept by letting go ahead" when the rule decided)
+  and `tughuman SPEED [TIMEOUT] [SHOT]` (pull along the arrow until the bar is past its line, optionally a screenshot, then let go).
+  `clockcheck` no longer prints `regressions`.
+- **Checked through the bridge** (scripts and outputs in `_work/2026-09-29/phaseJ`, saves under `saves/phaseJ`, screenshots
+  `Library/SecondCursorBridge/shots/j_*.png`): the label, the green "THE BAR IS YOURS" state, the amber line, the arrow, both results and
+  their notices (kept, let go too early, pulled harder), the Disposal notice, the Night 1 hint after the first lost tug; the tester's KEEP
+  path replayed (kept Gary and archived 209 set, code and config set, a goodbye typed, three lost bin tugs, Log Off at 7:00, Yes): the confirm
+  warns about the viewer and it now ends in LOG OFF with "You logged off with session 017 still open."; a seat cleared during a log off
+  (stage 3, CAM 03 shown, the close button covered): "Log off cancelled: Custodial reached your chair on the Camera Viewer." and KEEP with
+  "The figure reached your chair before your log off finished."; KEEP by typing stay ("You told her to stay."), KEEP at 7:05, SHRED and a
+  plain LOG OFF, each with its cause line; the goodbye answer and the steer after two misses; "please don't go" is a stay; Work Queue line
+  clicks; missed drops (desktop and Intake); the code prompt; Ruth's mail; the rounds line; the slashed zero on the tray clock; the
+  recovered notice gone after 20 s.
+- **Regression from the title on a fresh save** (`reg_n1.cmd`, `reg_n2.cmd`, `reg_n3.cmd`, saves `saves/phaseJ/reg`): New Game, Normal,
+  Night 1 to its card (tug won, 017 shredded, "WS-04 went dark at 2:17 AM. The file came back."), Continue to Night 2 to its card
+  (finished, "You shredded employee_209.dat."), Title, Continue to Night 3 through the code, the config, the shelf check (the rounds line
+  shows), the lost hours and the finale to LOG OFF ("You logged off with session 017 still open."). 0 game errors, 0 compiler warnings.
+  The clock monitor saw one internal step of 0.007 min at Night 3's log on (the Review J5 `Reset(1, 52)`, while the tray reads 1:52
+  either way) and no other.
+- **Builds.** Fresh `Builds/Windows` 71.8 MB and `Builds/WindowsDemo` 71.6 MB on disk (Unity's report 76.5 and 76.3 MB counts the
+  `D3D12` folder moved out afterwards); Symbols and `NotShipped` in `Builds/Symbols/<build>`; SC_DEMO off; content folders restored.
+  Windowed smoke tests on D: (`_work/2026-09-29/phaseJ/smoke.ps1`): full, demo, and full with `-scnight 3 -scbeat finale` start, reach their
+  beat and log no exception. Demo data grep (`phaseJ/spoiler_grep.py`, Phase J terms added): none of the new Night 2 and 3 text; the hits
+  are Night 1's own content (the facilities mail's "Custodial rounds", the Restricted `session.cfg` and incident log) and code constants
+  in `SecondCursor.Core.dll` (`ALLOW_LOGOFF`, `e3_letgo`, `t3_rounds_until`, the `end.keep.cause` keys).
+- **Tests.** CoreTests 337 (13 new in `PhaseJTests.cs`: the keep line and every night's start below it, letting go past and before the
+  line, holding still through the grace, the testers' input from the grab, a bar reader's first and second contests, the Night 2/3
+  tension limits, the tug text and its Deck wording, the ending cause keys and strings, the finale's keyword groups, the remote hints, the
+  rounds line, the code prompt, the slashed zero). Updated with reasons: `DifficultyTests` (the first-raise toast is gone: "two lost tugs
+  raise the level one step"; `ConflictToastOnFirstLoss` removed), `PhaseHTests` (`tug.lost` removed, the Quick Start says "hold the button"),
+  `PhaseITests` (`GameClock.Regressions` removed; the let-go and letting-go lines reworded). CompileCheck: 8 configurations OK.
+- **Judgement calls.**
+  - The second-cursor-side knob for the brief's "too easy" check is the tension limit, not the grace: the grace is a Phase I decision and
+    the rule itself changed the archetypes' first-tug numbers little; what made Night 2 and 3 easy was the snap inside the grace.
+  - Security skips the 7:02 forced open while a log off dialog is up, rather than only warning: the tester did everything right for LOG
+    OFF and the forced open, not their own watching, cut it short. Watching the feed during the finale still clears the seat.
+  - Every tug result is a notice (won ones too), so the separate first-loss toast and the first-raise toast went; a release over the bin
+    keeps its own Disposal notice instead of a second one.
+  - "Leave" and "go" count as letting her go in the finale (the brief's list); "log off", "let me go" and "go home" stay the
+    player-leaving group, and "don't go" / "don't leave" ask her to stay.
+  - The label turns green and says so once the bar is past the line: the player learns the rule from the bar, not from Help.
+  - A notice that waited for room longer than its life is dropped unseen (Review J2), even a clickable one: stale by then.
+- **Not yet.** Real players should confirm the rule reads the way the bar says; the Steam Deck has not seen the new label or line; the
+  Night 2/3 tension values rest on the simulation's archetypes (their stroke length decides the snap), so watch those first tugs in the
+  next blind playtest.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -966,6 +1082,7 @@ title records | achievements next | haslog Achievement unlocked | deck on | stor
 dragtug 915 66 1.5 3 | tugplay 600 | tugplay 0 | waitaction Lurk | tugs      # Phase F: real tugs played by the scripted cursor
 savecheck | qaread on | settingsset frameRate 60 | buildguard | democrash | reload | steamcheck | storeart | storeshot 04_tug | storeshotafter 0.45 04_tug   # Phase G
 clockmon start | clockmon report | clockcheck | hint t_shred_017   # Phase I: the clock sampled every editor frame, its own counters, a task's hint toast now
+tugsteps 30 0.1 8 0.3 | tughuman 400 5 j_ahead   # Phase J: the blind testers' tug input, and a player who lets go once the bar is theirs
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

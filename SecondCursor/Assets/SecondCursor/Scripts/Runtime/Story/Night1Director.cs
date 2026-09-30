@@ -185,6 +185,9 @@ namespace SecondCursor.Story
             {
                 g.Flags.Set(Flags.ConflictStarted);
                 g.Shred.IsInUse = id => id == ContentIds.File017;
+                // Review J3: Continue shows the order the way the fight left it: done (the file came back), or blocked.
+                if (g.Flags.Has(Flags.File017ShreddedOnce)) g.Tasks.ForceComplete(ContentIds.TaskShred017);
+                else BlockTask017();
             }
             if (beatIndex > 5) g.Flags.Set(Flags.EntitySpoke);
             if (beatIndex > 6)
@@ -406,14 +409,13 @@ namespace SecondCursor.Story
             bool followedUp = false;
             int attemptsAtStart = _g.Memory.Count(MemoryKind.ShredAttempt, ContentIds.File017);
 
-            // After the first lost tug-of-war the OS explains the fight once, in its own dry voice.
-            bool explained = false;
+            // Phase J: after the first lost tug the order admits it may not work, so a player who keeps losing can leave it
+            // (every tug's result is its own notice, from the tug panel).
             RemoveConflictHint();
             _conflictHint = (p, outcome) =>
             {
-                if (explained || outcome != TugOutcome.EntityWins || CurrentBeat != "conflict") return;
-                explained = true;
-                if (_g.Difficulty.ConflictToastOnFirstLoss) ShowConflictToast();
+                if (outcome != TugOutcome.EntityWins || CurrentBeat != "conflict" || !_g.Tasks.IsActive(ContentIds.TaskShred017)) return;
+                _g.Tasks.Rewrite(ContentIds.TaskShred017, null, null, _g.Content.Text("task.017.lost.hint"));
             };
             _g.Conflict.TugEnded += _conflictHint;
             bool sessionNoted = false;

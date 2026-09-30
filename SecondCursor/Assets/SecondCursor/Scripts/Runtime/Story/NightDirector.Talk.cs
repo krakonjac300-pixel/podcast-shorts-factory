@@ -136,9 +136,8 @@ namespace SecondCursor.Story
                 // Typing back is the game's hook: say so in the OS's own voice, for the first talk of every remote session
                 // (Phase I: a second session that waits for a reply used to give no prompt at all).
                 string hintKey = !string.IsNullOrEmpty(turnHintKey) ? turnHintKey : "notify.jotter.reply";
-                if (first && (!string.IsNullOrEmpty(turnHintKey) || _hintedSpeakers.Add(s)))
+                if (first && (_hintedSpeakers.Add(s) || !string.IsNullOrEmpty(turnHintKey)))
                 {
-                    _hintedSpeakers.Add(s);
                     var pad = s;
                     _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text(hintKey), "icon_notepad",
                         a => { if (pad.Pad != null && pad.Pad.IsOpen) pad.Pad.Window.Focus(a); }, "ui_select");
@@ -175,8 +174,9 @@ namespace SecondCursor.Story
                     bool missed = said != null && reply.IsFallback;
                     if (missed) misses++;
                     // M8: after the allowed misses a chat that keeps typing junk is steered to the two words that work,
-                    // and gets one more turn to type them.
-                    bool steer = missed && fallbackRetries > 0 && misses == fallbackRetries + 1 && !string.IsNullOrEmpty(lastFallbackSet);
+                    // and gets one more turn to type them (Phase J: a listening chain steers every later miss too).
+                    bool steer = missed && fallbackRetries > 0 && !string.IsNullOrEmpty(lastFallbackSet)
+                                 && (misses == fallbackRetries + 1 || (keepListening != null && misses > fallbackRetries));
                     bool again = missed && (misses <= fallbackRetries || steer);
                     if (steer)
                     {

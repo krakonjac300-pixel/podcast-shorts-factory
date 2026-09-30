@@ -25,11 +25,11 @@
     { "key": "logoff.early", "value": "Log off is available at the end of your shift (7:00 AM)." },
     { "key": "logoff.available", "value": "Shift complete. Log off from the Nexus menu." },
     { "key": "logoff.disabled", "value": "Log off is disabled on WS-04.\nPolicy: Restricted\\session.cfg (ALLOW_LOGOFF=0)" },
-    { "key": "logoff.confirm", "value": "Log off CROURKE?\nOpen sessions on this workstation: 2" },
+    { "key": "logoff.confirm", "value": "Log off CROURKE?\nStill open on this workstation: sessions 017 and 209." },
     { "key": "logoff.progress", "value": "Logging off CROURKE...\nSaving your settings." },
     { "key": "logoff.done", "value": "Session closed.\nHave a good morning, Operator." },
     { "key": "auth.title", "value": "Restricted" },
-    { "key": "auth.body", "value": "This folder requires authorization.\nEnter the Office of Retention code:" },
+    { "key": "auth.body", "value": "This folder requires authorization.\nEnter the Office of Retention code (4 digits):" },
     { "key": "auth.failed", "value": "Authorization failed.\nThis attempt has been logged." },
     { "key": "auth.format", "value": "Code format: HHMM" },
     { "key": "auth.ok", "value": "Authorization accepted: Office of Retention." },
@@ -91,6 +91,18 @@
     { "key": "workorders.shelf.filed", "value": "Shelf check filed: {0} approved, {1} rejected" },
     { "key": "logoff.cancelled.by", "value": "Log off cancelled by {0}." },
     { "key": "camera.next", "value": "NEXT: {0}" },
-    { "key": "workqueue.withdrawn.expired", "value": "expired" }
+    { "key": "workqueue.withdrawn.expired", "value": "expired" },
+    { "key": "logoff.confirm.watched", "value": "The Camera Viewer is watching Custodial. Close it first, or the log off may not finish." },
+    { "key": "logoff.cancelled.seat", "value": "Log off cancelled: Custodial reached your chair on the Camera Viewer." },
+    { "key": "logoff.cancelled.time", "value": "Log off cancelled: it is past 7:05 AM." },
+    { "key": "end.n2.outcome.finished", "value": "You shredded employee_209.dat." },
+    { "key": "end.n2.outcome.archived", "value": "You archived employee_209.dat, so the order was suspended." },
+    { "key": "end.n2.outcome.missed", "value": "Nobody shredded employee_209.dat by 3:00 AM." },
+    { "key": "end.shred.cause", "value": "You put employee_017.dat in the bin and shredded it." },
+    { "key": "end.keep.cause.stay", "value": "You told her to stay." },
+    { "key": "end.keep.cause.time", "value": "It was 7:05 AM and you were still logged on." },
+    { "key": "end.keep.cause.seat", "value": "The figure reached your chair while you watched the feed." },
+    { "key": "end.keep.cause.seat.logoff", "value": "The figure reached your chair before your log off finished." },
+    { "key": "end.logoff.cause", "value": "You logged off with session 017 still open." }
   ]
 }

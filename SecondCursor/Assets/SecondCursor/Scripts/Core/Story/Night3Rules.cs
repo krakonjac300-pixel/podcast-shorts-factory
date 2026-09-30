@@ -150,6 +150,20 @@ namespace SecondCursor.Core.Story
         }
 
         /// <summary>
+        /// Phase J: the end card's cause line (a string key) for an exit; for KEEP, what brought it (<paramref name="keepCause"/>: "confirm"
+        /// when she was told to stay, "seat" when Custodial reached the chair, anything else is the clock), and whether a log off was
+        /// under way when it came.
+        /// </summary>
+        public static string EndingCauseKey(Night3Exit exit, string keepCause, bool logOffCut)
+        {
+            if (exit == Night3Exit.Shred) return "end.shred.cause";
+            if (exit == Night3Exit.LogOff) return "end.logoff.cause";
+            if (keepCause == "confirm") return "end.keep.cause.stay";
+            if (keepCause == "seat") return logOffCut ? "end.keep.cause.seat.logoff" : "end.keep.cause.seat";
+            return "end.keep.cause.time";
+        }
+
+        /// <summary>
         /// Whether time alone ends the night with KEEP: at the hard cap always; at 7:05 unless a shred or log off
         /// is running and has not used up its grace yet.
         /// </summary>

@@ -414,6 +414,8 @@ namespace SecondCursor.Apps
                 if (c == '\b')
                 {
                     if (_text.Length > (ConversationMode ? _inputStart : 0)) _text.Length -= 1;
+                    // Review J1: after a Backspace a page is edited in place (ALLOW_LOGOFF=0, Backspace, 1 stays one line).
+                    if (!ConversationMode) _inputStart = 0;
                 }
                 else if (c == '\n')
                 {

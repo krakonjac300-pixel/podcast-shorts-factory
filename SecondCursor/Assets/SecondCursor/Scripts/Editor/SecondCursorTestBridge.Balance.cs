@@ -20,7 +20,9 @@ namespace SecondCursor.EditorTools
         const string BalanceHelp =
             "Phase F: dragtug X Y DUR [HOLD] (drag toward X Y, wait there up to HOLD s, stop when a tug starts; prints the grab time) | tugplay SPEED [TIMEOUT] (yank away from her at SPEED px/s until the tug ends; 0 = hold still)\n" +
             "         waitaction NAME [TIMEOUT] (the second cursor's current behaviour, e.g. Lurk) | tugs (tug totals this shift)\n" +
-            "Phase I: clockmon start|report|stop (samples the taskbar clock every editor frame and counts steps back) | clockcheck (the clock's own counters)\n";
+            "Phase I: clockmon start|report|stop (samples the taskbar clock every editor frame and counts steps back) | clockcheck (the clock's own counters)\n" +
+            "Phase J: tugsteps STEP INTERVAL COUNT HOLD (button held: COUNT jumps of STEP px away from her every INTERVAL s, hold HOLD s, let go; prints the result)\n" +
+            "         tughuman SPEED [TIMEOUT] [SHOT] (in a tug: pull along the arrow at SPEED px/s until the bar is yours, then let go; prints the result)\n";
 
         static IEnumerator TryGameBalanceCommand(GameServices g, string cmd, string[] a, string rest)
         {
@@ -34,6 +36,14 @@ namespace SecondCursor.EditorTools
                     _scripted = true;
                     AttachInput();
                     return TugPlay(F(a, 1, 450f), F(a, 2, 8f));
+                case "tugsteps":
+                    _scripted = true;
+                    AttachInput();
+                    return TugSteps(F(a, 1, 30f), F(a, 2, 0.1f), (int)F(a, 3, 8f), F(a, 4, 0.3f));
+                case "tughuman":
+                    _scripted = true;
+                    AttachInput();
+                    return TugHuman(F(a, 1, 400f), F(a, 2, 8f), a.Length > 3 ? a[3] : null);
                 case "waitaction":
                 {
                     string name = a.Length > 1 ? a[1] : "Lurk";
@@ -49,7 +59,7 @@ namespace SecondCursor.EditorTools
                 case "clockcheck":
                     Say("clock " + g.Clock.Format12() + " (" + g.Clock.ExactMinutes.ToString("0.00", CultureInfo.InvariantCulture) + " min), high water "
                         + g.Clock.HighWater.ToString("0.00", CultureInfo.InvariantCulture) + ", rate " + g.Clock.Rate.ToString("0.000", CultureInfo.InvariantCulture)
-                        + (g.Clock.Frozen ? " (held)" : "") + ", refused back-sets " + g.Clock.RefusedBackSets + ", regressions " + g.Clock.Regressions);
+                        + (g.Clock.Frozen ? " (held)" : "") + ", refused back-sets " + g.Clock.RefusedBackSets);
                     return Done();
                 case "tugs":
                     Say("tug wins=" + g.Flags.Get(Core.Story.Flags.CounterPlayerWins) + " losses=" + g.Flags.Get(Core.Story.Flags.CounterTugLosses)
@@ -129,6 +139,82 @@ namespace SecondCursor.EditorTools
             string end = GameLog.Recent(60).Select(e => e.ToString()).LastOrDefault(e => e.Contains("Tug-of-war ended"));
             Say("tugplay " + speed.ToString("0", CultureInfo.InvariantCulture) + " px/s: " + (end ?? "no result")
                 + (g.Conflict.LastOutcomeForced ? " (FORCED)" : " (real)") + "; " + AssistLine(g));
+        }
+
+        // ------------------------------------------------------------------ Phase J tug patterns
+
+        /// <summary>
+        /// The blind testers' input (their bridge moves are jumps): with the button held, <paramref name="count"/> jumps of
+        /// <paramref name="step"/> px straight away from her pointer every <paramref name="interval"/> s, then <paramref name="hold"/> s
+        /// still, then the button goes up. Prints whether a tug happened, the meter when the button went up and the result.
+        /// </summary>
+        static IEnumerator TugSteps(float step, float interval, int count, float hold)
+        {
+            float t = 0f, meter = -1f;
+            int done = 0;
+            bool tug = false;
+            _input.Steer((pos, dt) =>
+            {
+                var gg = G;
+                if (gg == null) return null;
+                t += dt;
+                tug |= gg.Conflict.IsFighting;
+                if (done < count && t >= done * interval)
+                {
+                    done++;
+                    Vector2 away = pos - gg.EntityAgent.Position;
+                    return pos + RoomyDirection(pos, away.sqrMagnitude < 1f ? Vector2.left : away.normalized) * step;
+                }
+                return t < count * interval + hold ? pos : (Vector2?)null;
+            });
+            var drain = Drain();
+            while (drain.MoveNext()) yield return drain.Current;
+            var g = G;
+            if (g == null) yield break;
+            if (g.Conflict.IsFighting) meter = g.Conflict.PlayerLead;
+            var release = TugRelease(g, tug, meter, "tugsteps " + step.ToString("0", CultureInfo.InvariantCulture) + " px x" + count);
+            while (release.MoveNext()) yield return release.Current;
+        }
+
+        /// <summary>
+        /// A player who read the label: pulls along the arrow at <paramref name="speed"/> px/s until the bar is past its line (or the
+        /// fight ends), then lets go (<paramref name="shot"/>: a screenshot of the bar past its line first). Prints the meter at the
+        /// release and the result.
+        /// </summary>
+        static IEnumerator TugHuman(float speed, float timeout, string shot)
+        {
+            var wait = WaitFor(() => G != null && G.Conflict.IsFighting, timeout, "a tug");
+            while (wait.MoveNext()) yield return wait.Current;
+            var g = G;
+            if (g == null || !g.Conflict.IsFighting) yield break;
+            double start = EditorApplication.timeSinceStartup;
+            _input.Steer((pos, dt) =>
+            {
+                var gg = G;
+                if (gg == null || !gg.Conflict.IsFighting || gg.Conflict.PlayerKeepsOnRelease || EditorApplication.timeSinceStartup - start > timeout) return null;
+                return pos + RoomyDirection(pos, gg.Conflict.PullDirection.normalized) * speed * dt;
+            });
+            var drain = Drain();
+            while (drain.MoveNext()) yield return drain.Current;
+            float meter = g.Conflict.IsFighting ? g.Conflict.PlayerLead : -1f;
+            if (shot != null && g.Conflict.IsFighting) SaveScreen(g, shot);
+            var release = TugRelease(g, true, meter, "tughuman " + speed.ToString("0", CultureInfo.InvariantCulture) + " px/s, "
+                + (EditorApplication.timeSinceStartup - start).ToString("0.00", CultureInfo.InvariantCulture) + " s");
+            while (release.MoveNext()) yield return release.Current;
+        }
+
+        /// <summary>Lets go of the button, waits for the fight to be decided and prints how it ended.</summary>
+        static IEnumerator TugRelease(GameServices g, bool tug, float meter, string what)
+        {
+            _input.Release();
+            var drain = Drain();
+            while (drain.MoveNext()) yield return drain.Current;
+            float end = Time.realtimeSinceStartup + 1.5f;
+            while (g.Conflict.IsFighting && Time.realtimeSinceStartup < end) yield return null;
+            string result = GameLog.Recent(40).Select(e => e.ToString()).LastOrDefault(e => e.Contains("Tug-of-war ended"));
+            bool ahead = GameLog.Recent(40).Any(e => e.ToString().Contains("let go ahead"));
+            Say(what + ": " + (!tug ? "no tug" : (result ?? "no result")) + (meter >= 0f ? "; meter at release " + meter.ToString("0.00", CultureInfo.InvariantCulture) : "; fight already over")
+                + (ahead ? " (kept by letting go ahead)" : ""));
         }
 
         // ------------------------------------------------------------------ clock monitor (Phase I)

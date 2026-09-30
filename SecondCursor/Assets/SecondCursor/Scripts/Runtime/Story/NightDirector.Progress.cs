@@ -79,8 +79,6 @@ namespace SecondCursor.Story
             var profile = GameRoot.MakeDifficulty(g.Night, mode);
             var old = g.Assist;
             var assist = new AdaptiveAssist(Math.Max(profile.AssistFloor, old != null ? old.Level : 0), profile.AssistFloor, profile.MercyAfterLosses);
-            if (old != null) old.FirstRaise -= ShowConflictToast;
-            assist.FirstRaise += ShowConflictToast;
             g.Difficulty = profile;
             g.Assist = assist;
             // Phase I: a fight under Story's rules reads differently: the first one after choosing it has its standoff too.

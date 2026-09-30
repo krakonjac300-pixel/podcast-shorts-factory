@@ -69,8 +69,22 @@ namespace SecondCursor.OS
         /// Viewer and Personnel live there), unless a window is too wide to fit beside it.
         /// </summary>
         public const int IconColumnRight = 88;
-        /// <summary>Where the notices stack, above the Disposal bin (desktop px): reading windows keep clear of it.</summary>
-        static readonly Rect ToastColumn = new Rect(730f, 150f, 230f, 280f);
+        /// <summary>
+        /// Where the notices stack, above the Disposal bin (desktop px): reading windows keep clear of it. As wide and tall as the
+        /// notices are at the current Reading text size (Review J4).
+        /// </summary>
+        static Rect ToastColumn
+        {
+            get
+            {
+                int s = Mathf.Clamp(Game.DisplaySettings.ReadingScale, 1, 2);
+                float w = 230f * s, top = s > 1 ? 0f : 150f;
+                return new Rect(ScreenRig.Width - w, top, w, 430f - top);
+            }
+        }
+
+        /// <summary>Phase J: a point (virtual px, y up) where notices appear, so a file set down there could be hidden by one.</summary>
+        public static bool InToastColumn(Vector2 world) => ToastColumn.Contains(OSLayers.WorldToDesktop(world));
         /// <summary>Cost per covered pixel of a window's must-stay-visible part (the Work Orders' buttons).</summary>
         const float KeepVisibleWeight = 12f;
         const float ToastColumnWeight = 3f;

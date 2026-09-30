@@ -61,8 +61,6 @@ namespace SecondCursor.Core.Entity
         public float TaskHintRepeat = 40f;
         /// <summary>A company task is force-completed this long after its first hint.</summary>
         public float TaskForceAfterHint = 150f;
-        /// <summary>Night 1 style: the NEXUS conflict toast after the first lost tug (else only when the assist first rises).</summary>
-        public bool ConflictToastOnFirstLoss = true;
         public float EntityTaskNudge = 35f;
         public float EntityTaskWithdraw = 75f;
         public float CodeHint1Delay = 60f;
@@ -180,7 +178,9 @@ namespace SecondCursor.Core.Entity
             var t = p.Tug;
             t.startShare = 0.52f;
             t.pullSpeedForFullStrength = 440f;
-            t.maxTension = 300f;
+            // Phase J: 300 -> 315. With the read grace and the release rule an average player won the night's first tug 96% of the
+            // time (by the cursors coming apart inside the grace); 315 brings it back to about 90% (balance run_phasej.py).
+            t.maxTension = 315f;
             t.rampDelay = 2.5f;
             t.rampPerSecond = 0.18f;
             t.releaseGrace = 0.08f;
@@ -198,7 +198,6 @@ namespace SecondCursor.Core.Entity
             p.TaskHintFirst = 40f;
             p.BriefingHintFirst = 30f;
             p.TaskHintRepeat = 45f;
-            p.ConflictToastOnFirstLoss = true; // Phase G: a player resuming Night 2 in a new session is reminded too (text only)
         }
 
         static void Night3(DifficultyProfile p)
@@ -207,7 +206,7 @@ namespace SecondCursor.Core.Entity
             t.startShare = 0.55f;
             t.entityWinShare = 0.90f;
             t.pullSpeedForFullStrength = 460f;
-            t.maxTension = 320f;
+            t.maxTension = 330f;   // Phase J: 320 -> 330, the same reason as Night 2 (94% -> about 88%)
             t.rampDelay = 2.0f;
             t.rampPerSecond = 0.22f;
             t.releaseGrace = 0.08f;
@@ -232,7 +231,6 @@ namespace SecondCursor.Core.Entity
             p.TaskHintFirst = 45f;
             p.BriefingHintFirst = 30f;
             p.TaskHintRepeat = 50f;
-            p.ConflictToastOnFirstLoss = true; // Phase G: same for Night 3
         }
 
         /// <summary>
@@ -279,7 +277,6 @@ namespace SecondCursor.Core.Entity
             p.BriefingHintFirst = 15f;
             p.TaskHintRepeat = 25f;
             p.TaskForceAfterHint = 90f;
-            p.ConflictToastOnFirstLoss = true;
             p.EntityTaskNudge = 20f;
             p.CodeHint1Delay = 30f;
             p.CodeFormatAfterFailures = 1;
@@ -385,12 +382,9 @@ namespace SecondCursor.Core.Entity
         public bool MercyArmed { get; private set; }
         /// <summary>The contest in progress is a mercy contest.</summary>
         public bool InMercyContest { get; private set; }
-        public bool RaisedThisNight { get; private set; }
 
         /// <summary>(old level, new level).</summary>
         public event Action<int, int> LevelChanged;
-        /// <summary>The first time this night the level goes up (the conflict toast shows again).</summary>
-        public event Action FirstRaise;
 
         public AdaptiveAssist(int startLevel = 0, int floor = MinLevel, int mercyAfterLosses = 2)
         {
@@ -499,13 +493,7 @@ namespace SecondCursor.Core.Entity
             LossStreak += amount;
             if (LossStreak < LossStreakToRaise - 0.0001f) return;
             LossStreak = 0f;
-            int before = Level;
             SetLevelInternal(Math.Min(Level + 1, MaxLevel));
-            if (Level > before && !RaisedThisNight)
-            {
-                RaisedThisNight = true;
-                FirstRaise?.Invoke();
-            }
         }
 
         void SetLevelInternal(int level)

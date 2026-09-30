@@ -98,6 +98,12 @@ namespace SecondCursor.Core.Entity
     /// </summary>
     public sealed class TugOfWar
     {
+        /// <summary>
+        /// Phase J: the meter reading (<see cref="PlayerLead"/>) from which letting go keeps the file (the release is an ordinary
+        /// drop). Below it she takes the file once the button has been up for <see cref="TugOfWarSettings.releaseGrace"/>.
+        /// </summary>
+        public const float ReleaseKeepLead = 0.6f;
+
         readonly TugOfWarSettings _s;
         Vec2 _prevPlayer;
         bool _hasPrev;
@@ -135,6 +141,9 @@ namespace SecondCursor.Core.Entity
                 return 1f - MathUtil.Clamp01((EntityShare - _s.playerWinShare) / span);
             }
         }
+
+        /// <summary>Letting go now would keep the file (the meter is at <see cref="ReleaseKeepLead"/> or more).</summary>
+        public bool KeepsOnRelease => !IsOver && PlayerLead >= ReleaseKeepLead;
 
         /// <summary>
         /// How fast the entity drags its end of the file away during a fight (virtual px/s). Shared by the
@@ -186,6 +195,8 @@ namespace SecondCursor.Core.Entity
 
             if (!playerHolding)
             {
+                // Phase J: letting go while clearly ahead keeps the file (the runtime drops it where the pointer is).
+                if (KeepsOnRelease) return Finish(TugOutcome.PlayerWins, playerPos, entityPos);
                 _releasedFor += dt;
                 PlayerStrength = 0f;
                 if (_releasedFor >= _s.releaseGrace) return Finish(TugOutcome.EntityWins, playerPos, entityPos);

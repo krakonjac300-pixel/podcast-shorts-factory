@@ -42,6 +42,14 @@ namespace SecondCursor.Input
         /// <summary>A press was refused by <see cref="PressBlocked"/>.</summary>
         public event Action<CursorAgent, Interactable> PressRefused;
 
+        /// <summary>
+        /// Phase J: a cursor lets go (called before its release is handled). A tug-of-war the player is clearly ahead in ends
+        /// here in the player's favour, so the release below is an ordinary drop.
+        /// </summary>
+        public Action<CursorAgent> ContestRelease;
+        /// <summary>Phase J: letting go of this cursor's contested payload now would keep it (so drop targets light up for it).</summary>
+        public Func<CursorAgent, bool> ContestKeeps;
+
         public IReadOnlyList<CursorAgent> Agents => _agents;
 
         public void Register(CursorAgent agent)
@@ -138,8 +146,9 @@ namespace SecondCursor.Input
             // Drop-target highlighting while carrying something
             if (a.Payload != null)
             {
-                // A contested payload cannot be dropped anywhere, so nothing lights up under it.
-                var target = hit != null && !a.Payload.Contested && hit.Accepts(a, a.Payload) ? hit : null;
+                // A contested payload cannot be dropped anywhere, so nothing lights up under it (unless letting go would keep it).
+                bool droppable = !a.Payload.Contested || (ContestKeeps != null && ContestKeeps(a));
+                var target = hit != null && droppable && hit.Accepts(a, a.Payload) ? hit : null;
                 if (target != st.DropHover)
                 {
                     if (st.DropHover != null) st.DropHover.RaiseDropHover(a, a.Payload, false);
@@ -156,10 +165,15 @@ namespace SecondCursor.Input
             // Release
             if (a.ReleasedThisFrame)
             {
+                var before = a.Payload;
+                ContestRelease?.Invoke(a);
+                // A player who was the contender carries the file only now: look again as its carrier (ghost and toasts let through).
+                if (before == null && a.Payload != null) hit = HitTest(a.Position, a);
                 if (a.Payload != null)
                 {
                     var p = a.Payload;
-                    // Letting go during a tug-of-war is letting go, not a drop: the contest decides (Phase F).
+                    // Letting go during a tug-of-war is letting go, not a drop: the contest decides (Phase F), unless the
+                    // player was clearly ahead (Phase J: then the contest has just ended and this is an ordinary drop).
                     bool accepted = hit != null && !p.Contested && hit.Accepts(a, p);
                     if (st.DropHover != null)
                     {

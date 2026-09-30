@@ -16,10 +16,13 @@ namespace SecondCursor.Apps
     /// Phase I: a long task title wraps to a second line instead of running off the edge; the instructions and the hint
     /// scroll (with a "More below" button) instead of being cut off; the queue says so when it is clear; and a remote
     /// request that ran out stays listed as expired.
+    /// Phase J: clicking a line shows that task's instructions and hint (the tester could not read the hint of a second task).
     /// </summary>
     public sealed class WorkQueueApp : App
     {
         RectTransform _listRoot;
+        /// <summary>The line the player clicked, and the current task it was clicked under (a new current task clears it).</summary>
+        string _selectedId, _selectedUnder;
         /// <summary>M9: the remote rows' band and label, faded as their time runs out.</summary>
         readonly Dictionary<string, (UnityEngine.UI.Image band, PixelText label)> _remoteRows =
             new Dictionary<string, (UnityEngine.UI.Image band, PixelText label)>();
@@ -74,6 +77,14 @@ namespace SecondCursor.Apps
             }
         }
 
+        /// <summary>The task whose instructions show: the clicked line while the current task is the same, else the current task.</summary>
+        WorkTask Shown()
+        {
+            var current = Current;
+            if (_selectedId != null && current?.Id != _selectedUnder) _selectedId = null;
+            return _selectedId != null ? G.Tasks.Get(_selectedId) ?? current : current;
+        }
+
         float ListWidth => _listRoot != null && _listRoot.rect.width > 1f ? _listRoot.rect.width : Window.Size.x - 14f;
 
         /// <summary>Text width of a row (px): the list less the icon column and a right margin.</summary>
@@ -99,6 +110,7 @@ namespace SecondCursor.Apps
             for (int i = _listRoot.childCount - 1; i >= 0; i--) Object.Destroy(_listRoot.GetChild(i).gameObject);
             _remoteRows.Clear();
             var current = Current;
+            var shown = Shown();   // first: a new current task clears the clicked line before the frame is drawn
             string mail = G.Mail != null ? G.Mail.NewestUnreadLive : null;
             // Nothing left to do: say so under the ticked rows (Phase I: the queue used to just stop).
             bool clear = current == null && HasAnyRow();
@@ -124,7 +136,7 @@ namespace SecondCursor.Apps
                 y += RowH;
             }
             if (mail != null) AddMailRow(mail, y);
-            RefreshDetail(current, false);
+            RefreshDetail(shown, false);
         }
 
         bool HasAnyRow()
@@ -177,6 +189,14 @@ namespace SecondCursor.Apps
             var row = UIBuilder.Rect("Task " + t.Id, _listRoot).TopStrip(y, rowH);
             bool remote = t.IsEntityAuthored;
             bool withdrawn = WorkTaskManager.IsListedWithdrawn(t);
+            string id = t.Id;
+            UIBuilder.Hit(row.gameObject, "workqueue:task:" + id, CursorShape.Hand).Click += (a, n) =>
+            {
+                if (a == null || !a.IsPlayer) return;
+                _selectedId = id;
+                _selectedUnder = Current?.Id;
+                Refresh();
+            };
             UnityEngine.UI.Image band = null;
             if (remote && t.State == TaskState.Active)
             {
@@ -211,6 +231,12 @@ namespace SecondCursor.Apps
             }
             label.rectTransform.Stretch(TextLeft, 0, right, 0);
             if (band != null) _remoteRows[t.Id] = (band, label);
+            if (id == _selectedId)
+            {
+                // The clicked line is framed (a remote line's dark band would hide a background).
+                UIBuilder.Solid(row, Palette.Selection, "Selected Top").rectTransform.TopStrip(0, 1, 18, 0);
+                UIBuilder.Solid(row, Palette.Selection, "Selected Bottom").rectTransform.BottomStrip(0, 1, 18, 0);
+            }
         }
 
         void AddMailRow(string mailId, int y)
@@ -252,7 +278,7 @@ namespace SecondCursor.Apps
             {
                 string deadline = current.Data.deadline;
                 string due = "";
-                if (!string.IsNullOrEmpty(deadline))
+                if (!string.IsNullOrEmpty(deadline) && current.State == TaskState.Active)
                 {
                     int left = TaskDeadline.MinutesLeft(deadline, G.Clock.TotalMinutes);
                     due = (left >= 0 ? G.Content.Format("workqueue.deadline.left", deadline, left) : G.Content.Format("workqueue.deadline", deadline)) + "\n";
@@ -299,7 +325,7 @@ namespace SecondCursor.Apps
             if (_revision != G.Tasks.Revision || (G.Mail != null && _mailRevision != G.Mail.Revision)) Refresh();
             else if (_clockMinute != G.Clock.TotalMinutes)
             {
-                var current = Current;
+                var current = Shown();
                 if (current != null && !string.IsNullOrEmpty(current.Data.deadline)) RefreshDetail(current, false);
                 else _clockMinute = G.Clock.TotalMinutes;
             }

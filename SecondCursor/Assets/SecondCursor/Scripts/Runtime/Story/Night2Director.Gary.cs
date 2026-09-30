@@ -48,7 +48,6 @@ namespace SecondCursor.Story
         Action<string, ProgressDialog> _onProgressStarted;
         Action<VFile, string, string, Actor> _onFileMoved;
         Action<DragPayload> _onTugStarted;
-        Action<DragPayload, TugOutcome> _onTugEnded;
 
         // rounds beat state
         Action<int> _onForcedOpen;
@@ -273,7 +272,7 @@ namespace SecondCursor.Story
                 float elapsed = Time.time - orderAt;
                 if (file == null || file.Shredded) outcome = "finished";
                 else if (_archivedByPlayer) outcome = "archived";
-                else if (g.Clock.TotalMinutes >= 180 && !g.Conflict.IsFighting && !g.Shred.Busy) outcome = "deadline";
+                else if (g.Clock.TotalMinutes >= LateShredMinute && !g.Conflict.IsFighting && !g.Shred.Busy) outcome = "deadline";
                 else if (elapsed > FinishHardCap)
                 {
                     GameLog.Warn(LogChannel.Story, "Finish beat hit its hard cap");
@@ -339,20 +338,11 @@ namespace SecondCursor.Story
                 if (f.Id == ContentIds.File209 && to == ContentIds.FolderArchive && actor == Actor.Player) _archivedByPlayer = true;
             };
             _onTugStarted = p => { if (p.FileId == ContentIds.File209) _triedShred209 = true; };
-            bool explained = false;
-            _onTugEnded = (p, outcome) =>
-            {
-                // Story difficulty explains the fight after the first lost tug (Normal: when the assist first rises).
-                if (explained || outcome != TugOutcome.EntityWins || !g.Difficulty.ConflictToastOnFirstLoss) return;
-                explained = true;
-                ShowConflictToast();
-            };
             g.Shred.Requested += _onShredRequested;
             g.Shred.ConfirmShown += _onConfirmShown;
             g.Shred.ProgressStarted += _onProgressStarted;
             g.Files.FileMoved += _onFileMoved;
             g.Conflict.TugStarted += _onTugStarted;
-            g.Conflict.TugEnded += _onTugEnded;
         }
 
         void UnhookFinish()
@@ -363,13 +353,11 @@ namespace SecondCursor.Story
             if (_onProgressStarted != null) g.Shred.ProgressStarted -= _onProgressStarted;
             if (_onFileMoved != null) g.Files.FileMoved -= _onFileMoved;
             if (_onTugStarted != null) g.Conflict.TugStarted -= _onTugStarted;
-            if (_onTugEnded != null) g.Conflict.TugEnded -= _onTugEnded;
             _onShredRequested = null;
             _onConfirmShown = null;
             _onProgressStarted = null;
             _onFileMoved = null;
             _onTugStarted = null;
-            _onTugEnded = null;
         }
 
         /// <summary>
@@ -415,20 +403,7 @@ namespace SecondCursor.Story
         /// The order is about a file you must be able to see: if windows cover employee_209.dat, it is pulled
         /// out onto the nearest bare stretch of desktop (Gary's doing) and blinks.
         /// </summary>
-        IEnumerator Ensure209Visible()
-        {
-            var g = _g;
-            var icon = g.Desktop.IconForFile(ContentIds.File209);
-            if (icon == null || g.Router.HitTest(icon.Hit.Center) == icon.Hit) yield break;
-            if (g.Player.Payload != null || g.Shred.Busy) yield break;
-            yield return FindDropSpot(new Vector2(560f, 220f));
-            icon = g.Desktop.IconForFile(ContentIds.File209);
-            if (icon == null || g.Player.Payload != null) yield break;
-            g.Desktop.SetFilePosition(ContentIds.File209, OSLayers.WorldToDesktop(_dropSpot) - new Vector2(37f, 16f));
-            g.Desktop.Attention(ContentIds.File209, 1.6f);
-            g.Audio.Play("mouse_release", 0.4f, 0.8f, Audio.AudioManager.PanFor(_dropSpot.x));
-            GameLog.Info(LogChannel.Story, "employee_209.dat moved into view");
-        }
+        IEnumerator Ensure209Visible() => BringIntoView(ContentIds.File209, new Vector2(560f, 220f));
 
         bool CanGaryDrag()
         {
@@ -714,6 +689,9 @@ namespace SecondCursor.Story
                 GaryLines = finished ? null : Lines("g2_goodnight"),
                 TitleKey = "end.n2.title",
                 SubtitleKey = finished ? "end.n2.subtitle.finished" : "end.n2.subtitle.kept",
+                // Phase J: like Night 1's card, one line says what the player's choice about 209 was.
+                Outcome = g.Content.Text(finished ? "end.n2.outcome.finished"
+                    : g.Flags.Has(MemoryFlags.N2ArchivedGary) ? "end.n2.outcome.archived" : "end.n2.outcome.missed"),
                 DemoCard = false,
                 ContinueNight = 3,
             };

@@ -152,7 +152,9 @@ namespace SecondCursor.Story
 
         void OnEllenReply(DialogueReply r, string said)
         {
-            if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N3SaidName);
+            // Phase J: her name counts in any reply ("goodbye ellen, i will let you go" is answered as a goodbye).
+            string norm = DialogueEngine.Normalize(said);
+            if (r.Tag == "name" || DialogueEngine.Matches(norm, "=ellen") || DialogueEngine.Matches(norm, "=marsh")) _g.Flags.Set(MemoryFlags.N3SaidName);
         }
 
         bool CodeSolved => !_g.Files.IsInsideLocked(ContentIds.FolderRestricted) || _g.Flags.Has(MemoryFlags.N3RestrictedOpen);

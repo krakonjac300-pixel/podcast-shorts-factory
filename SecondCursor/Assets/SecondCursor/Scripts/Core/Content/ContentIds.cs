@@ -79,7 +79,7 @@ namespace SecondCursor.Core.Content
         public const string Order3330 = "wo_3330", Order3331 = "wo_3331", Order3340 = "wo_3340", Order3341 = "wo_3341", Order3342 = "wo_3342";
         public const string TaskN3Briefing = "t3_read_briefing", TaskN3Batch47 = "t3_archive_batch47", TaskN3Verify3330 = "t3_verify_3330",
             TaskN3Verify3331 = "t3_verify_3331", TaskN3Cache = "t3_shred_cache", TaskN3Batch48 = "t3_archive_batch48", TaskN3Shelf = "t3_shelf_check",
-            TaskN3WaitRounds = "t3_wait_rounds", TaskE3LetGo = "e3_letgo";
+            TaskN3WaitRounds = "t3_wait_rounds", TaskN3RoundsUntil = "t3_rounds_until", TaskE3LetGo = "e3_letgo";
         public const string ExchangeN3Ruth = "ex3_ruth", ExchangeN3Final = "ex3_final", ExchangeN3Confirm = "ex3_confirm";
         public const string Employee000 = "000", Employee001 = "001", Employee118 = "118", Employee209 = "209";
         public const string Batch47A = "batch47_a", Batch47C = "batch47_c", Batch48A = "batch48_a", Batch48B = "batch48_b";

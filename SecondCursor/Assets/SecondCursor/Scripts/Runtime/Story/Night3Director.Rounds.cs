@@ -26,6 +26,7 @@ namespace SecondCursor.Story
 
         Action<int> _onForcedOpen, _onStage;
         Action _onPlayerReopen, _onSeatCleared, _onTimeUp;
+        Action<string, CursorAgent> _onShelfLaunch;
 
         IEnumerator RoundsBeat()
         {
@@ -43,16 +44,17 @@ namespace SecondCursor.Story
             yield return Wait(2f);
             foreach (var id in ShelfOrders) g.Orders.SetHidden(id, false);
             GiveTask(ContentIds.TaskN3Shelf);
+            UnhookRounds();
             // Phase I: the viewer (top left) and the Work Orders (bottom right) get their own corners.
-            TidyShelfCheckWindows();
             _shelfPads = 0;
-            Action<string, CursorAgent> tidyOnLaunch = (appId, by) =>
+            TidyShelfCheckWindows();
+            _onShelfLaunch = (appId, by) =>
             {
                 if (appId == AppIds.WorkOrders) TidyShelfCheckWindows();
                 // The remote sessions' Jotters open where they like; here they go to the bottom left, clear of the top of the feed.
                 else if (appId == AppIds.Notepad && by != null && !by.IsPlayer) TuckAwayPad(g.Apps.Find<NotepadApp>());
             };
-            g.Apps.Launched += tidyOnLaunch;
+            g.Apps.Launched += _onShelfLaunch;
 
             // Ellen closes the viewer whenever it shows Custodial (and says why). She stops lurking first, so
             // the first forced open finds her hand free.
@@ -67,7 +69,6 @@ namespace SecondCursor.Story
             bool cleared = false, timeUp = false, teachSaid = false, personnelSaid = false, doorSaid = false;
             int advances = 0;
             var model = (CustodialRounds)null;
-            UnhookRounds();
             _onForcedOpen = i =>
             {
                 if (i == 0) SayLater(_ellen, "n3_rounds_start", 4.5f);
@@ -118,13 +119,15 @@ namespace SecondCursor.Story
             if (g.Difficulty.Mode == DifficultyMode.Normal) config.Hasten(0.4f);
             g.Rounds.Begin(config);
             model = g.Rounds.Model;
+            // Phase J: once the shelf check is filed the queue says there is nothing to do until the round ends.
+            RunSide(RoundsWaitLine(), "rounds-wait-line");
 
             float start = Time.time;
             while (!cleared && !timeUp && Time.time - start < RoundsCap) yield return null;
-            g.Apps.Launched -= tidyOnLaunch;
             int maxStage = model.MaxStage;
             g.Rounds.Stop();
             UnhookRounds();
+            if (g.Tasks.IsActive(ContentIds.TaskN3RoundsUntil)) g.Tasks.ForceComplete(ContentIds.TaskN3RoundsUntil);
             g.Rounds.ForcedOpenHandler = null;
             brain.AllowCloseCamera = false;
             brain.Enabled = false;
@@ -253,8 +256,17 @@ namespace SecondCursor.Story
             if (_onPlayerReopen != null) r.PlayerReopened -= _onPlayerReopen;
             if (_onSeatCleared != null) r.SeatCleared -= _onSeatCleared;
             if (_onTimeUp != null) r.TimeUp -= _onTimeUp;
+            if (_onShelfLaunch != null) _g.Apps.Launched -= _onShelfLaunch;
             _onForcedOpen = _onStage = null;
             _onPlayerReopen = _onSeatCleared = _onTimeUp = null;
+            _onShelfLaunch = null;
+        }
+
+        /// <summary>Phase J: the shelf check filed while the round goes on: a queue line says there is nothing to do but wait.</summary>
+        IEnumerator RoundsWaitLine()
+        {
+            yield return WaitUntil(() => Done(ContentIds.TaskN3Shelf) || !_g.Rounds.Running, RoundsCap);
+            if (_g.Rounds.Running && Done(ContentIds.TaskN3Shelf)) GiveTask(ContentIds.TaskN3RoundsUntil);
         }
 
         // ------------------------------------------------------------------ LOST
@@ -279,10 +291,13 @@ namespace SecondCursor.Story
             g.Audio.SetAmbience(true, 2f);
             g.Flags.Set(Flags.N3Lost);
             GameLog.Info(LogChannel.Story, "Lost time: the clock reads 6:41");
-            // The notice stays until clicked, and its duration line lands on its own beat.
+            // The notice stays for a while (Phase J: no longer until clicked, it covered the desktop for the whole finale), and
+            // its duration line lands on its own beat.
             string recover = g.Content.Text("lost.recover");
             int split = recover.IndexOf('\n');
-            var notice = g.Notifications.Show(g.Content.Text("os.name"), split > 0 ? recover.Substring(0, split) : recover, "icon_warning", null, "sys_warning", true);
+            float until = Time.time + RecoverNoticeSeconds;
+            var notice = g.Notifications.Show(g.Content.Text("os.name"), split > 0 ? recover.Substring(0, split) : recover, "icon_warning", null, "sys_warning",
+                true, () => Time.time < until);
             if (split > 0)
             {
                 yield return Wait(DurationLineDelay);
@@ -308,8 +323,8 @@ namespace SecondCursor.Story
             yield return Wait(6f);
         }
 
-        /// <summary>M15: seconds for the 3:31 to 6:41 roll, and the pause before the notice's duration line.</summary>
-        const float ClockRollSeconds = 1.2f, DurationLineDelay = 0.6f;
+        /// <summary>M15: seconds for the 3:31 to 6:41 roll, the pause before the notice's duration line, and how long the notice stays.</summary>
+        const float ClockRollSeconds = 1.2f, DurationLineDelay = 0.6f, RecoverNoticeSeconds = 20f;
 
         /// <summary>Runs the frozen clock forward to <paramref name="target"/> minutes over <paramref name="seconds"/>, with soft ticks.</summary>
         IEnumerator RollClock(int target, float seconds)

@@ -26,9 +26,6 @@ namespace SecondCursor.Core.Story
         /// <summary>Times <see cref="Set"/> was asked for an earlier time and refused (a story bug, counted so tests and the bridge can see it).</summary>
         public int RefusedBackSets { get; private set; }
 
-        /// <summary>Times the shown time was found lower than the highest one reached since the last <see cref="Reset"/>. Always 0.</summary>
-        public int Regressions { get; private set; }
-
         /// <summary>The latest time reached since the last <see cref="Reset"/> (minutes since midnight, with the fraction).</summary>
         public double HighWater => _highWater;
 
@@ -66,7 +63,6 @@ namespace SecondCursor.Core.Story
         {
             _minutes = (((hour24 % 24) * 60 + minute) % (24 * 60) + (24 * 60)) % (24 * 60);
             _highWater = _minutes;
-            Regressions = 0;
             RefusedBackSets = 0;
         }
 
@@ -80,8 +76,7 @@ namespace SecondCursor.Core.Story
         void NoteReached()
         {
             // The clock wraps at midnight (no night reaches it); a value far below the mark is that wrap, not a step back.
-            if (_minutes + 1e-6 < _highWater && _highWater - _minutes < 12 * 60) Regressions++;
-            else if (_minutes > _highWater || _highWater - _minutes >= 12 * 60) _highWater = _minutes;
+            if (_minutes > _highWater || _highWater - _minutes >= 12 * 60) _highWater = _minutes;
         }
 
         /// <summary>"2:47 AM" style.</summary>

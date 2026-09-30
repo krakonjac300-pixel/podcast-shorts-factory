@@ -186,7 +186,7 @@ namespace SecondCursor.Tests
         {
             if (!Present) return;
             var db = Demo();
-            foreach (var key in new[] { "tug.label", "tug.won", "tug.lost", "tug.refused", "tug.you", "tug.them", "shred.cancelled.by", "camera.closed.by",
+            foreach (var key in new[] { "tug.label", "tug.won", "tug.lost.release", "tug.refused", "tug.you", "tug.them", "shred.cancelled.by", "camera.closed.by",
                                         "window.closed.by", "file.moved.by", "session.entity", "notepad.status.typing", "notepad.status.away",
                                         "workqueue.mail", "workqueue.deadline.left", "taskbar.due", "taskbar.duenow", "mail.more",
                                         "end.n1.outcome.shredded", "end.n1.outcome.kept" })
@@ -194,7 +194,7 @@ namespace SecondCursor.Tests
             Assert.StartsWith("SESSION 017 IS PULLING", db.Text("tug.label"));
             Assert.Contains("DRAG AWAY", db.Text("tug.label"));
             Assert.Contains("session 017", db.Text("notify.conflict"));
-            Assert.Contains("keep the button held", db.Text("quickstart.body"));
+            Assert.Contains("hold the button", db.Text("quickstart.body"));   // Phase J: "... until the bar is yours"
             Assert.Contains("|| button", db.Text("quickstart.body"));
             Assert.Contains("Options", db.Text("quickstart.body"));
             Assert.Equal("Nexus", db.Text("start.button"));
@@ -202,7 +202,7 @@ namespace SecondCursor.Tests
             Assert.Contains("{0}", db.Text("end.n1.outcome.kept"));
             // Steam Deck wording names the trigger, not the mouse button.
             db.Variant = "deck";
-            foreach (var key in new[] { "tug.label", "tug.lost", "tug.refused", "notify.conflict" })
+            foreach (var key in new[] { "tug.label", "tug.lost.release", "tug.refused", "notify.conflict" })
                 Assert.Contains("R2", db.Text(key));
             Assert.Contains("R2", db.Text("quickstart.body"));
         }

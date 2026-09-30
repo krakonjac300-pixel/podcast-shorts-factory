@@ -49,10 +49,6 @@ namespace SecondCursor.Entity
         public TugOfWarSettings CurrentSettings { get; private set; } = new TugOfWarSettings();
         public bool IsFighting => _payload != null;
         public bool IsMercyContest => IsFighting && _mercy;
-        /// <summary>The contest in progress is still in its read grace (her pull and her drift wait).</summary>
-        public bool InReadGrace => IsFighting && _model != null && _model.InReadGrace;
-        /// <summary>The next contest will start with the read grace.</summary>
-        public bool ReadGraceArmed => _readGraceArmed;
         /// <summary>The explanation panel of the fight (label, meter, arrow).</summary>
         public TugHud Hud { get; private set; }
         /// <summary>The next contest starts with the read grace again (Story was chosen: its fights read differently).</summary>
@@ -64,6 +60,10 @@ namespace SecondCursor.Entity
         public float EntityShare => _model != null && IsFighting ? _model.EntityShare : 0f;
         /// <summary>The pull meter's value: 0 = the second cursor is about to take the file, 1 = the player is about to keep it.</summary>
         public float PlayerLead => _model != null ? _model.PlayerLead : 0.5f;
+        /// <summary>Phase J: letting go now would keep the file (the meter is past its line): the release is an ordinary drop.</summary>
+        public bool PlayerKeepsOnRelease => IsFighting && _model.KeepsOnRelease;
+        /// <summary>Phase J: the way the player should drag (away from her, turned toward open screen by <see cref="TugGeometry"/>).</summary>
+        public Vector2 PullDirection => -_escapeDir;
         /// <summary>Where the fought-over file sits between the two cursors (virtual px).</summary>
         public Vector2 ObjectPosition => _model != null && IsFighting ? _model.ObjectPosition.ToUnity() : _lastObject;
         /// <summary>The last contest was lost because the player let go of the button (not by being out-pulled).</summary>
@@ -94,6 +94,9 @@ namespace SecondCursor.Entity
                 c._band.Add(dot);
             }
             g.DragDrop.ContestStarted += c.OnContestStarted;
+            // Phase J: a player clearly ahead keeps the file on letting go, and drop targets light up for it.
+            g.Router.ContestRelease = c.OnPlayerRelease;
+            g.Router.ContestKeeps = a => a == g.Player && c.PlayerKeepsOnRelease;
             // Phase H: the fight explains itself above the file (label, pull meter, who kept it).
             c.Hud = TugHud.Create(g, c);
             g.DragDrop.PayloadFinished += (p, accepted, by) =>
@@ -195,6 +198,18 @@ namespace SecondCursor.Entity
         }
 
         /// <summary>
+        /// Phase J: the player lets go during a fight. Clearly ahead, the player keeps the file and the router drops it where
+        /// the pointer is (a folder, the desktop, the bin); otherwise the fight goes on and she takes it (<see cref="Tick"/>).
+        /// </summary>
+        void OnPlayerRelease(CursorAgent a)
+        {
+            var p = _payload;
+            if (p == null || a != _g.Player || (p.Holder != a && p.Contender != a) || !_model.KeepsOnRelease) return;
+            GameLog.Info(LogChannel.Entity, "Tug-of-war: let go ahead (meter " + _model.PlayerLead.ToString("0.00") + ")");
+            End(TugOutcome.PlayerWins, true, true);
+        }
+
+        /// <summary>
         /// Outcomes the model does not decide: in a mercy contest the entity lets go once the player has pulled
         /// for a moment, or has simply held on for a while; in development builds a forced outcome ends the
         /// contest early.
@@ -242,7 +257,8 @@ namespace SecondCursor.Entity
             var p = _payload;
             if (p == null) return;
             _payload = null;   // so the PayloadFinished handler does not score the cancelled drag
-            if (_graceContest) _readGraceArmed = true;   // the player never got to read it: the next fight has its standoff
+            // Paused inside the standoff, the player never got to read it: the next fight has its standoff.
+            if (_graceContest && _model.Elapsed < CurrentSettings.readGrace) _readGraceArmed = true;
             foreach (var d in _band) d.enabled = false;
             if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
             if (_g.EntityView != null) _g.EntityView.Jitter = 0f;
@@ -301,7 +317,8 @@ namespace SecondCursor.Entity
             if (view != null) view.VisualOffset = Vector2.zero;
         }
 
-        void End(TugOutcome outcome, bool transfer)
+        /// <param name="released">The player let go ahead: the file is theirs and the release in progress drops it.</param>
+        void End(TugOutcome outcome, bool transfer, bool released = false)
         {
             var p = _payload;
             LastLostByRelease = outcome == TugOutcome.EntityWins && !_playerGripsNow;
@@ -338,7 +355,7 @@ namespace SecondCursor.Entity
             {
                 var winner = outcome == TugOutcome.PlayerWins ? _g.Player : _g.EntityAgent;
                 _g.DragDrop.TransferTo(p, winner);
-                if (!winner.Held)
+                if (!winner.Held && !released)
                 {
                     // The winner isn't holding the button any more: the file just drops back where it came from.
                     _g.DragDrop.Cancel(p);

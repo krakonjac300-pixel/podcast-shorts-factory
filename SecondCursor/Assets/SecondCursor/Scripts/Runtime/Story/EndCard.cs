@@ -58,6 +58,8 @@ namespace SecondCursor.Story
                 GameLog.Info(LogChannel.Story, "End card outcome: " + spec.Outcome);
             }
             PixelText cta = null;
+            // Phase J: the last night's card has a cause line too, so the thanks and the endings count move down under it.
+            int below = string.IsNullOrEmpty(spec.Outcome) ? 0 : 18;
             if (spec.DemoCard)
             {
                 cta = UIBuilder.Text(parent, c.Text("end.card.cta"), new Color32(0xE8, 0xC4, 0x5A, 0xFF), true);
@@ -71,7 +73,7 @@ namespace SecondCursor.Story
             else if (!string.IsNullOrEmpty(spec.ThanksKey))
             {
                 var line = UIBuilder.Text(parent, c.Text(spec.ThanksKey), new Color32(0x8A, 0x8A, 0x84, 0xFF));
-                line.rectTransform.At(0, 250, ScreenRig.Width, 12);
+                line.rectTransform.At(0, 250 + below, ScreenRig.Width, 12);
                 line.Align = TextAlign.Center;
             }
             if (spec.FinalCard)
@@ -82,7 +84,7 @@ namespace SecondCursor.Story
                 foreach (var id in Core.Game.AchievementIds.Night3Endings)
                     if (Array.IndexOf(d.endingsSeen, id) >= 0) seen++;
                 var endings = UIBuilder.Text(parent, c.Format("select.endings", seen), new Color32(0x8A, 0x8A, 0x84, 0xFF));
-                endings.rectTransform.At(0, 268, ScreenRig.Width, 12);
+                endings.rectTransform.At(0, 268 + below, ScreenRig.Width, 12);
                 endings.Align = TextAlign.Center;
             }
 

@@ -35,7 +35,6 @@ namespace SecondCursor.Story
         readonly List<Speaker> _speakers = new List<Speaker>();
         /// <summary>Remote sessions whose first talk this night already came with the "type a reply" notice.</summary>
         readonly HashSet<Speaker> _hintedSpeakers = new HashSet<Speaker>();
-        float _lastConflictToast = -100f;
 
         /// <summary>Every line the player sent in an exchange this night, in order (saved at the end of Night 1).</summary>
         protected readonly List<string> PlayerLines = new List<string>();
@@ -98,19 +97,42 @@ namespace SecondCursor.Story
             var g = _g;
             g.Tasks.TaskCompleted += t => Sfx.Play("ui_select");
             g.Clock.Rate = ClockRate;
-            // When the adaptive assist first eases off, the OS explains the fight (again) in its own voice.
-            if (g.Assist != null) g.Assist.FirstRaise += ShowConflictToast;
+            g.DragDrop.PayloadFinished += OnDropMissed;
         }
 
         /// <summary>
-        /// The NEXUS "input conflict" toast (hold on and pull away). Shown at most once every few seconds,
-        /// so a lost tug that also raises the assist explains itself once.
+        /// Phase J (third blind playtest): a file the player let go of somewhere that did not take it flies back; say where it
+        /// is, and bring a desktop icon that flew back under a window out into view (the tester thought the file was gone).
         /// </summary>
-        protected void ShowConflictToast()
+        void OnDropMissed(DragPayload p, bool accepted, CursorAgent by)
         {
-            if (Time.time - _lastConflictToast < 5f) return;
-            _lastConflictToast = Time.time;
-            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.conflict"), "icon_info", null, "sys_warning");
+            if (accepted || by == null || !by.IsPlayer || p.Kind != PayloadKind.File || (p.GhostPosition - p.Origin).sqrMagnitude < 40f * 40f) return;
+            var g = _g;
+            string folder = g.Files.FolderOf(p.FileId);
+            if (folder == null) return;
+            bool desktop = folder == ContentIds.FolderDesktop;
+            string text = desktop ? g.Content.Format("drop.missed.desktop", p.Label) : g.Content.Format("drop.missed", p.Label, g.Files.GetFolder(folder)?.Name ?? folder);
+            g.Notifications.Show(g.Content.Text("os.name"), text, "icon_info", null, "ui_select");
+            GameLog.Info(LogChannel.OS, "Drop missed: " + p.Label + " back in " + folder);
+            if (desktop) RunSide(BringIntoView(p.FileId, p.GhostPosition + new Vector2(16f, -16f)), "drop-missed");
+        }
+
+        /// <summary>
+        /// A desktop file that something covers is moved out onto the nearest bare desktop from <paramref name="preferred"/> and
+        /// blinks. Nothing moves while the player carries something, a shred runs or a tug is on.
+        /// </summary>
+        protected IEnumerator BringIntoView(string fileId, Vector2 preferred)
+        {
+            var g = _g;
+            bool Busy() => g.Player.Payload != null || g.Shred.Busy || g.Conflict.IsFighting;
+            var icon = g.Desktop.IconForFile(fileId);
+            if (icon == null || Busy() || g.Router.HitTest(icon.Hit.Center) == icon.Hit) yield break;
+            yield return FindDropSpot(preferred);
+            if (g.Desktop.IconForFile(fileId) == null || Busy()) yield break;
+            g.Desktop.SetFilePosition(fileId, OSLayers.WorldToDesktop(_dropSpot) - new Vector2(37f, 16f));
+            g.Desktop.Attention(fileId, 1.6f);
+            g.Audio.Play("mouse_release", 0.4f, 0.8f, Audio.AudioManager.PanFor(_dropSpot.x));
+            GameLog.Info(LogChannel.Story, fileId + " moved into view");
         }
 
         /// <summary>Log Off from the NEXUS menu. By default the workstation refuses, like Shut Down.</summary>
@@ -488,15 +510,20 @@ namespace SecondCursor.Story
         /// <summary>
         /// Where a cursor lets go of a file so the player sees the icon arrive: the preferred spot if its whole
         /// icon cell is visible desktop, else the most visible cell on screen (ties go to the spot nearest the
-        /// preferred one). Toasts count as visible: they are gone in seconds. Result in <see cref="_dropSpot"/>.
+        /// preferred one). Toasts count as visible (they are gone in seconds), except in the notices' column. Result in
+        /// <see cref="_dropSpot"/>, set only when the search ends (two searches can run at once: each caller reads its own).
         /// </summary>
         protected Vector2 _dropSpot;
         readonly List<Interactable> _probeHits = new List<Interactable>();
 
         protected IEnumerator FindDropSpot(Vector2 preferred)
         {
-            _dropSpot = preferred;
-            if (VisibleProbes(preferred) == DropCellProbes.Length) yield break;
+            Vector2 best = preferred;
+            if (VisibleProbes(preferred) == DropCellProbes.Length)
+            {
+                _dropSpot = best;
+                yield break;
+            }
             // Nearest candidates first; the first fully visible cell wins. Spread over frames so the
             // search never hitches (each probe hit-tests every interactable).
             var candidates = new List<Vector2>();
@@ -512,8 +539,8 @@ namespace SecondCursor.Story
                 if (score > bestScore)
                 {
                     bestScore = score;
-                    _dropSpot = candidates[i];
-                    if (score == DropCellProbes.Length) yield break;
+                    best = candidates[i];
+                    if (score == DropCellProbes.Length) break;
                 }
                 // About 2 ms of hit-testing per frame, however crowded the desktop is.
                 if (Time.realtimeSinceStartup - frameStart > 0.002f)
@@ -522,11 +549,13 @@ namespace SecondCursor.Story
                     frameStart = Time.realtimeSinceStartup;
                 }
             }
+            _dropSpot = best;
         }
 
         /// <summary>
         /// How many points of the dropped icon's cell (74 px wide, 16 px above the tip down to its label) are
-        /// bare desktop. Toasts are ignored: they are gone in seconds.
+        /// bare desktop. The notices' column counts as covered (Phase J: a notice sat on the file a new task pointed at);
+        /// a toast anywhere else is ignored: it is gone in seconds.
         /// </summary>
         int VisibleProbes(Vector2 tip)
         {
@@ -535,6 +564,7 @@ namespace SecondCursor.Story
             {
                 Vector2 p = tip + o;
                 if (p.x < 8f || p.x > ScreenRig.Width - 60f || p.y < WindowManager.TaskbarHeight + 8f || p.y > ScreenRig.Height - 8f) continue;
+                if (WindowManager.InToastColumn(p)) continue;
                 Interactable hit = null;
                 foreach (var h in _g.Router.HitTestAll(p, _probeHits))
                     if (!h.elementId.StartsWith("toast:", StringComparison.Ordinal)) { hit = h; break; }

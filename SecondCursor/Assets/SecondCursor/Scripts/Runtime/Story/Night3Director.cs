@@ -367,7 +367,8 @@ namespace SecondCursor.Story
             _boot = new BootSequence(g);
             yield return _boot.Run(false, Night);
             _boot = null;
-            g.Clock.Set(1, 52);
+            // Review J5: a fresh shift's clock (Set refuses to go back if it ticked past 1:53 during a cold start).
+            g.Clock.Reset(1, 52);
             g.Clock.Frozen = false;
             g.Flags.Set(Flags.LoggedIn);
             g.Audio.Play("sys_startup");

@@ -18,7 +18,7 @@
 // '#' = ink, '.' = empty. Glyph strings carry no blank side-bearing columns
 // (apart from the space glyph); the renderer adds LetterSpacing between glyphs.
 // Digits are all 5 px wide for tabular numbers. '0' is a narrow oval with a
-// centre bar while 'O' is a wider octagon, so they never swap; 'I' (serifed) /
+// slash (never mistaken for '8') while 'O' is a wider octagon, so they never swap; 'I' (serifed) /
 // 'l' (plain) / '1' (flag + foot) / '|' (rows 0-9) are all distinct.
 //
 // Pure data + measuring helpers: no UnityEngine reference (SecondCursor.Core).
@@ -321,13 +321,14 @@ namespace SecondCursor.Core.Art
 
             // ---------------------------------------------------------------- digits (all 5 wide)
 
+            // Phase J: a slashed zero (two testers read the tray clock's 2:50 as 2:58 with the old centre bar).
             Add('0',
                 ".###.",
                 "#...#",
-                "#...#",
+                "#..##",
                 "#.#.#",
                 "#.#.#",
-                "#...#",
+                "##..#",
                 "#...#",
                 ".###.",
                 ".....",

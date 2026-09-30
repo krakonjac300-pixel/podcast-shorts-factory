@@ -39,9 +39,6 @@ namespace SecondCursor.UI
             return watcher;
         }
 
-        /// <summary>True while the chip is showing.</summary>
-        public bool IsShowing => _chip != null && _chip.gameObject.activeSelf;
-
         void Update()
         {
             if (_area == null || _chip == null) return;

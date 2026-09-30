@@ -41,7 +41,7 @@ namespace SecondCursor.Story
 
         Night3Exit _exit;
         string _keepCause = "time";
-        bool _confirmed, _fastForward, _tugLineSaid, _garyGuardSaid;
+        bool _confirmed, _fastForward, _tugLineSaid, _garyGuardSaid, _logOffCut;
         int _garyLogOffTries;
         MessageBox _logOffConfirm;
         ProgressDialog _logOffProgress;
@@ -59,7 +59,7 @@ namespace SecondCursor.Story
             _holdAt = -1;
             _exit = Night3Exit.None;
             _keepCause = "time";
-            _confirmed = _fastForward = _tugLineSaid = _garyGuardSaid = false;
+            _confirmed = _fastForward = _tugLineSaid = _garyGuardSaid = _logOffCut = false;
             _garyLogOffTries = 0;
             if (g.Clock.TotalMinutes < Night3Rules.FinaleStart) g.Clock.Set(6, 41);
             g.Clock.Frozen = false;
@@ -131,7 +131,8 @@ namespace SecondCursor.Story
                     RunSide(FeedFlicker(), "feed-flicker");
                 }
                 if (!open700 && clock >= Night3Rules.LogOffTime) { open700 = true; g.Rounds.OpenViewer(null); }
-                if (!open702 && clock >= Night3Rules.LogOffTime + 2) { open702 = true; g.Rounds.OpenViewer(null); }
+                // Phase J: Security does not open the feed on a log off that is under way (it cut the tester's log off short).
+                if (!open702 && clock >= Night3Rules.LogOffTime + 2 && !LogOffRunning) { open702 = true; g.Rounds.OpenViewer(null); }
 
                 // Gary by the clock: kept unlocks the log off at 6:48; finished says the one thing in capitals at 6:52.
                 if (!GaryFinished && clock >= Night3Rules.GaryLogOff && !g.Flags.Has(MemoryFlags.N3LogoffEnabled) && !Gary.Busy
@@ -176,7 +177,12 @@ namespace SecondCursor.Story
                 yield return null;
             }
             g.Taskbar.ClockAmber = false;
-            GameLog.Info(LogChannel.Story, "Finale exit: " + _exit + (_exit == Night3Exit.Keep ? " (" + _keepCause + ")" : ""));
+            // Phase J: a log off that the seat or the clock cut short says so at once (and the card names it).
+            _logOffCut = _exit == Night3Exit.Keep && LogOffRunning && _keepCause != "confirm";
+            if (_logOffCut)
+                g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text(_keepCause == "seat" ? "logoff.cancelled.seat" : "logoff.cancelled.time"),
+                    "icon_shutdown", null, "sys_warning");
+            GameLog.Info(LogChannel.Story, "Finale exit: " + _exit + (_exit == Night3Exit.Keep ? " (" + _keepCause + ")" : "") + (_logOffCut ? ", log off cut short" : ""));
         }
 
         bool LogOffRunning => (_logOffConfirm != null && _logOffConfirm.IsOpen) || (_logOffProgress != null && _logOffProgress.IsOpen);
@@ -270,19 +276,10 @@ namespace SecondCursor.Story
         /// </summary>
         IEnumerator KeepFile017InView()
         {
-            var g = _g;
             for (int i = 0; i < 15 && _exit == Night3Exit.None; i++)
             {
                 yield return Wait(2f);
-                var icon = g.Desktop.IconForFile(ContentIds.File017);
-                if (icon == null || g.Router.HitTest(icon.Hit.Center) == icon.Hit) continue;
-                if (g.Player.Payload != null || g.Shred.Busy || g.Conflict.IsFighting) continue;
-                yield return FindDropSpot(File017Spot);
-                icon = g.Desktop.IconForFile(ContentIds.File017);
-                if (icon == null || g.Player.Payload != null) continue;
-                g.Desktop.SetFilePosition(ContentIds.File017, OSLayers.WorldToDesktop(_dropSpot) - new Vector2(37f, 16f));
-                g.Desktop.Attention(ContentIds.File017, 1.6f);
-                GameLog.Info(LogChannel.Story, "employee_017.dat moved into view");
+                yield return BringIntoView(ContentIds.File017, File017Spot);
             }
         }
 
@@ -295,16 +292,17 @@ namespace SecondCursor.Story
         {
             yield return Wait(1.5f);
             var last = new DialogueReply[1];
-            // M8: two misses get another turn each; the third miss is steered to the two words that work.
+            // M8: a miss gets another turn; Phase J: from the second miss on she names the two ways out plainly.
             yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Final, OnFinalReply, last, 2.4f, 4f, 25f, "DONT",
-                fallbackRetries: 2, lastFallbackSet: "n3_final_third", keepListening: r => r.Tag != "stay" && _exit == Night3Exit.None);
+                fallbackRetries: 1, lastFallbackSet: "n3_final_third", keepListening: r => r.Tag != "stay" && _exit == Night3Exit.None);
             if (last[0] == null || last[0].Tag != "stay" || _exit != Night3Exit.None) yield break;
             var confirm = new DialogueReply[1];
             yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Confirm, OnFinalReply, confirm, 3f, 4f, 25f, "DONT",
                 keepListening: r => r.Tag != "confirm" && _exit == Night3Exit.None);
             if (confirm[0] == null || confirm[0].Tag != "confirm" || _exit != Night3Exit.None) yield break;
-            // She keeps the time: seven comes quickly.
+            // She keeps the time: seven comes quickly, and her request to be put in the bin is over (Review J7).
             _confirmed = true;
+            if (_g.Tasks.IsActive(ContentIds.TaskE3LetGo)) _g.Tasks.Withdraw(ContentIds.TaskE3LetGo, _g.Content.Text("workqueue.withdrawn.expired", "expired"));
             GameLog.Info(LogChannel.Story, "KEEP confirmed: the clock runs to 7:00");
             _fastForward = true;
             yield return EnsureClockAtLeast(7, 0, 25f);
@@ -464,7 +462,9 @@ namespace SecondCursor.Story
                 Dialogs.Message(g, title, c.Text("logoff.disabled"), "icon_lock", new[] { "OK" }, null);
                 return;
             }
-            _logOffConfirm = Dialogs.Message(g, title, c.Text("logoff.confirm"), "icon_question", new[] { "Yes", "No" }, OnLogOffAnswer, 1);
+            // Phase J: with the feed up, Custodial can reach the chair before the log off finishes (the tester's KEEP): say so here.
+            string body = c.Text("logoff.confirm") + (g.Rounds.ViewedCamera() != null ? "\n" + c.Text("logoff.confirm.watched") : "");
+            _logOffConfirm = Dialogs.Message(g, title, body, "icon_question", new[] { "Yes", "No" }, OnLogOffAnswer, 1);
             var box = _logOffConfirm;
             RunSide(Say(_ellen, Lines(Night3Rules.LogOffLineSet(g.Memory.Trust)), 4.5f), "logoff-line");
             if (GaryFinished) Gary.Run(GaryRacesToNo(box), "gary-race-no");
@@ -474,8 +474,12 @@ namespace SecondCursor.Story
         void OnLogOffAnswer(string result, CursorAgent by)
         {
             GameLog.Info(LogChannel.Story, "Log off confirm: " + result + " by " + (by?.Name ?? "System"));
-            if (result != "Yes" || _exit != Night3Exit.None) return;
             var c = _g.Content;
+            // Phase J: another session's No is named, like its Cancel below.
+            if (result == "No" && by != null && by.IsEntity && _exit == Night3Exit.None)
+                _g.Notifications.Show(c.Text("os.name"), c.Format("logoff.cancelled.by", SystemNotices.SessionOf(_g, by)), "icon_shutdown",
+                    x => _g.Taskbar.StartMenu.OpenFromElsewhere(x), "sys_warning");
+            if (result != "Yes" || _exit != Night3Exit.None) return;
             _logOffProgress = Dialogs.Progress(_g, c.Text("logoff.item").TrimEnd('.'), c.Text("logoff.progress"), "icon_shutdown");
             var progress = _logOffProgress;
             bool cancelled = false;
@@ -561,6 +565,8 @@ namespace SecondCursor.Story
                 Night3Rules.KeepLines(set?.lines, set?.speakers, name?.lines, name?.speakers, MemoryFlags.SaidNameAny(g.Flags), out var lines, out var speakers);
                 spec = FinalSpec(id, EndingKind.Keep, "end.keep.title", "end.keep.subtitle", lines, speakers);
             }
+            // Phase J: the card says what caused this ending (the tester logged off and read "You stayed").
+            spec.Outcome = g.Content.Text(Night3Rules.EndingCauseKey(exit, _keepCause, _logOffCut));
             _ending = new EndingSequence(g, spec);
             yield return _ending.Run();
         }
