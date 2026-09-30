@@ -96,6 +96,10 @@ namespace SecondCursor.Apps
             sb.Append(o.title).Append("\n\n");
             foreach (var f in o.fields) sb.Append(f.label).Append(": ").Append(f.value).Append('\n');
             if (!string.IsNullOrEmpty(o.instructions)) sb.Append('\n').Append(o.instructions);
+            // Phase L: an order decided either way says what the decision did (Refresh shows the order again after it is decided).
+            string decision = G.Orders.DecisionFor(o.id);
+            if (WorkOrderRules.IsChoice(o) && (decision == "approve" || decision == "reject"))
+                sb.Append("\n\n").Append(G.Content.Format("workorder.result", WorkOrderRules.ResultFor(o, decision)));
             _form.text = sb.ToString();
             UpdateButtons();
         }
@@ -146,6 +150,7 @@ namespace SecondCursor.Apps
             // help.body carries its own "NEXUS OS 4.1 -- QUICK HELP" heading.
             _text = UIBuilder.Text(_scroll.Content, G.Content.Text("help.body"), Palette.Text);
             _text.Wrap = true;
+            Window.Resized += _ => Layout();
             Layout();
         }
 

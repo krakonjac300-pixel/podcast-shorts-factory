@@ -160,6 +160,13 @@ namespace SecondCursor.Game
             return data.tugWinsTotal;
         }
 
+        /// <summary>Phase L: a one-time tip was shown; it never shows again on this save.</summary>
+        public static void MarkTipShown(string id)
+        {
+            var data = Load();
+            if (data.MarkTipShown(id)) Save(data);
+        }
+
         /// <summary>Night Select replaced the saved checkpoint: Continue no longer resumes it.</summary>
         public static void ClearCheckpoint()
         {

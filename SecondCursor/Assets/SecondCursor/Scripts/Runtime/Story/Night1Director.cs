@@ -549,7 +549,9 @@ namespace SecondCursor.Story
             E.Phase = EntityPhase.Escalation;
             E.State = EntityState.Curious;
             if (!E.IsVisible) yield return E.Appear(new Vector2(ScreenRig.Width * 0.5f, ScreenRig.Height * 0.5f), 0.5f, true);
-            yield return Wait(1.5f);
+            // Phase L (finding 15): her last line tells you to watch the screen; the replay starts a second later than it did,
+            // so you have looked up from the Jotter by then.
+            yield return Wait(2.5f);
 
             // It copies you: a replay of your own cursor from when you archived the ledger.
             CursorRecording rec = _ledgerClip;

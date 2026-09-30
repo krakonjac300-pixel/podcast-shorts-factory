@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SecondCursor
 {
-    /// <summary>Conversions between the engine-free Core types and Unity types.</summary>
+    /// <summary>Conversions between the engine-free Core types and Unity types, and rectangle helpers.</summary>
     public static class VecExt
     {
         public static Vector2 ToUnity(this Vec2 v) => new Vector2(v.x, v.y);
@@ -23,6 +23,14 @@ namespace SecondCursor
         }
 
         public static Vector2 WorldCenter(this RectTransform rt) => rt.WorldRect().center;
+
+        /// <summary>The area where two rectangles overlap (0 when they do not).</summary>
+        public static float OverlapArea(this Rect a, Rect b)
+        {
+            float w = Mathf.Min(a.xMax, b.xMax) - Mathf.Max(a.xMin, b.xMin);
+            float h = Mathf.Min(a.yMax, b.yMax) - Mathf.Max(a.yMin, b.yMin);
+            return w > 0f && h > 0f ? w * h : 0f;
+        }
 
         static readonly Vector3[] RectCorners = new Vector3[4];
     }

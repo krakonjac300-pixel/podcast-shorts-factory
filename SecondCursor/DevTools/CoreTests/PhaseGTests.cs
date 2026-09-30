@@ -113,7 +113,10 @@ namespace SecondCursor.Tests
             if (!Present) return;
             Assert.Contains("Workstation (File Manager)", Night(1).Task("t_archive_ledger").hint);
             Assert.Contains("Workstation (File Manager)", Night(2).Task("t2_archive_batch45").hint);
-            Assert.Contains("Workstation opens File Manager", Night(1).Text("quickstart.body"));
+            // Phase L: the Quick Start is short; a tip beside the Workstation icon says what it opens, when the file task needs it.
+            Assert.Contains("Workstation", Night(1).Text("tip.files"));
+            Assert.Contains("File Manager", Night(1).Text("tip.files"));
+            Assert.Contains("Workstation opens File Manager", Night(2).Text("welcome.body"));
             // Help explains every mechanic of the three nights in the UI's own words.
             foreach (var variant in new[] { null, "deck" })
             {

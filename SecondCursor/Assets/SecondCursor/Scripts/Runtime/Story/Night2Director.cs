@@ -32,12 +32,15 @@ namespace SecondCursor.Story
         static readonly string[] Checkpoints = { "work", "asks", "finish", "rounds" };
         /// <summary>The earliest clock each beat shows after a jump (only ever raised).</summary>
         static readonly int[] BeatClock = { 112, 112, 128, 138, 152, 169, 180, 185 };
-        const float Rate = 0.06f;
+        /// <summary>Phase L: 0.054 (was 0.06), so the two new work orders (about 100 s) do not bring 2:49 and the rest of the night's landmarks forward.</summary>
+        const float Rate = 0.054f;
         /// <summary>3:00 AM: the deadline of the order to shred employee_209.dat.</summary>
         const int LateShredMinute = 180;
         /// <summary>The clock minute employee_209.dat was shredded after its deadline (0 = it was not).</summary>
         const string LateShredFlag = "n2.late_shred_minute";
         const int FreezeMinute = 2 * 60 + 49;
+        /// <summary>Phase L: trust lost by approving the removal of Pointing Device 2 (a refusal costs 0.15).</summary>
+        const float TriedToUnplugCost = 0.10f;
         /// <summary>Seconds into the work beat before the second cursor looks in from the edge (Phase F).</summary>
         const float GlimpseAfter = 90f;
 
@@ -88,6 +91,12 @@ namespace SecondCursor.Story
             {
                 // Approving the wipe of Gary's drive (wrong: he is on leave) is remembered.
                 if (id == ContentIds.Order3321 && decision == "approve") g.Flags.Set(MemoryFlags.N2WipedGary);
+                // Phase L: approving IT's driver removal tries to unplug her hand. It fails, and she notices (a small trust cost).
+                if (id == ContentIds.Order3322 && decision == "approve" && by != null && by.IsPlayer && !IsPreparing)
+                {
+                    g.Memory.Record(MemoryKind.ResistedEntity, id, Time.time, TriedToUnplugCost);
+                    RunSide(DeviceFlicker(), "device-flicker");
+                }
             };
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
         }
@@ -169,6 +178,8 @@ namespace SecondCursor.Story
                     var order = g.Content.Order(id);
                     if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
                 }
+                RestoreChoice(ContentIds.TaskN2Verify3320, ContentIds.Order3320, ContentIds.MailN2CastellJoan);
+                RestoreChoice(ContentIds.TaskN2Verify3322, ContentIds.Order3322, ContentIds.MailN2PellPatch);
                 if (g.Apps.FindById(AppIds.WorkQueue) == null) g.Apps.Launch(AppIds.WorkQueue, null);
             }
             if (beatIndex > 2)
@@ -225,6 +236,19 @@ namespace SecondCursor.Story
             _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.pointer3.lost"), "icon_info", null, "sys_warning");
         }
 
+        /// <summary>Approved: Pointing Device 2 drops out of the tray for a moment and comes back (the change failed).</summary>
+        IEnumerator DeviceFlicker()
+        {
+            var g = _g;
+            int devices = g.Taskbar.PointingDevices;
+            yield return Wait(0.6f);
+            g.Taskbar.PointingDevices = 1;
+            yield return Wait(1.2f);
+            g.Taskbar.PointingDevices = devices;
+            g.Taskbar.BlinkDevice(2);
+            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("notify.pointer2.back"), "icon_info", null, "sys_warning");
+        }
+
         // ------------------------------------------------------------------ WORK
 
         IEnumerator Work()
@@ -246,8 +270,13 @@ namespace SecondCursor.Story
             yield return WaitTask(ContentIds.TaskN2Batch45);
             GiveTask(ContentIds.TaskN2Verify3319);
             yield return WaitTask(ContentIds.TaskN2Verify3319);
+            // Phase L: two orders the player may decide either way (a friend's plea; IT's offer to remove the second pointer).
+            RevealOrder(ContentIds.TaskN2Verify3320, ContentIds.Order3320, ContentIds.MailN2CastellJoan);
+            yield return WaitOrder(ContentIds.TaskN2Verify3320, ContentIds.Order3320);
             GiveTask(ContentIds.TaskN2Verify3321);
             yield return WaitTask(ContentIds.TaskN2Verify3321);
+            RevealOrder(ContentIds.TaskN2Verify3322, ContentIds.Order3322, ContentIds.MailN2PellPatch);
+            yield return WaitOrder(ContentIds.TaskN2Verify3322, ContentIds.Order3322);
             GiveTask(ContentIds.TaskN2Cache);
             RunSide(ReadItFirst(), "read-it-first");
             yield return WaitTask(ContentIds.TaskN2Cache);
@@ -357,6 +386,9 @@ namespace SecondCursor.Story
             yield return TypeLines(_ellen, Lines("n2_help_more"), 3.5f);
             yield return RunExchangeChain(_ellen, ContentIds.ExchangeN2Back, OnEllenReply, null, 2.6f, 4f, 25f, "DONT",
                 ex => ex.id == ContentIds.ExchangeN2Back ? MemoryLine() : null);
+            // Phase L: she answers the pointer patch, now that her first words are said.
+            var hand = _g.Flags.Has(MemoryFlags.N2TookHand) ? Lines("n2_hand_took") : _g.Flags.Has(MemoryFlags.N2LeftHand) ? Lines("n2_hand_left") : null;
+            if (hand != null) yield return TypeLines(_ellen, hand, 3.5f);
 
             // The batch is finished by the end of the beat, one way or another (cap 240 s).
             yield return WaitUntil(() => Done(ContentIds.TaskN2Batch46), Mathf.Max(0f, 240f - (Time.time - start)));

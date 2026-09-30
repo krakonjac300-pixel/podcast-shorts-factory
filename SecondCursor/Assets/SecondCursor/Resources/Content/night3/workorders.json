@@ -27,6 +27,40 @@
       "correct": "reject", "employeeRef": "175", "rule": ""
     },
     {
+      "id": "wo_3332", "title": "Effects Disposal Request #3332",
+      "fields": [
+        { "label": "Owner Emp. No.", "value": "209" },
+        { "label": "Owner Name", "value": "G. Pruitt" },
+        { "label": "Items", "value": "1 mug (ducks), 1 paperback, 1 pair reading glasses" },
+        { "label": "Location", "value": "B-Level stairwell (left by D. Castell 11/18)" },
+        { "label": "Requested By", "value": "Custodial Services (000)" },
+        { "label": "Reason", "value": "Unclaimed. Collected on rounds (3:00)" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the disposal ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "reject", "employeeRef": "209", "rule": "",
+      "resultApprove": "WO-3332 approved. Custodial Services will collect the box on rounds.",
+      "resultReject": "WO-3332 rejected. The box stays on B-Level for its owner.",
+      "noteApprove": "Personal effects collected by Custodial on rounds 11/20/98 (WO-3332).",
+      "noteReject": "Personal effects held on B-Level for the owner (WO-3332)."
+    },
+    {
+      "id": "wo_3333", "title": "Drive Wipe Request #3333",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW-2100 SN 0093333" },
+        { "label": "Owner Emp. No.", "value": "118" },
+        { "label": "Owner Name", "value": "R. Hale" },
+        { "label": "Batch", "value": "48" },
+        { "label": "Requested By", "value": "R. Hale, Night Operations" },
+        { "label": "Reason", "value": "Separation (requested by owner)" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the wipe ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "reject", "employeeRef": "118", "rule": "",
+      "resultApprove": "WO-3333 approved. Drive LW-2100 SN 0093333 released for wiping. The Office of Retention has been notified.",
+      "resultReject": "WO-3333 rejected. Drive returned to owner.",
+      "noteApprove": "Drive wiped 11/20/98 (WO-3333, approved by WS-04). Retention profile: not found.",
+      "noteReject": "Own wipe request rejected 11/20/98 (WO-3333)."
+    },
+    {
       "id": "wo_3340", "title": "Shelf Check #3340",
       "fields": [
         { "label": "Drive Serial", "value": "LW SN 0000142" },

@@ -56,7 +56,11 @@ namespace SecondCursor.Core.Entity
         /// <summary>Start from a remembered trust (a new night, a checkpoint, or the debug panel).</summary>
         public void Seed(float trust) => Trust = MathUtil.Clamp(trust, -1f, 1f);
 
-        public void Record(MemoryKind kind, string subject, float time)
+        /// <summary>Trust a <see cref="MemoryKind.ResistedEntity"/> costs by default.</summary>
+        public const float ResistCost = 0.15f;
+
+        /// <param name="resistCost">What a ResistedEntity costs in trust (a milder refusal, like trying to unplug her, costs less).</param>
+        public void Record(MemoryKind kind, string subject, float time, float resistCost = ResistCost)
         {
             var e = new MemoryEvent(time, kind, subject);
             _ring[_next] = e;
@@ -65,7 +69,7 @@ namespace SecondCursor.Core.Entity
             Bump(Key(kind, null));
             if (!string.IsNullOrEmpty(subject)) Bump(Key(kind, subject));
 
-            if (kind == MemoryKind.ResistedEntity) Trust = MathUtil.Clamp(Trust - 0.15f, -1f, 1f);
+            if (kind == MemoryKind.ResistedEntity) Trust = MathUtil.Clamp(Trust - resistCost, -1f, 1f);
             else if (kind == MemoryKind.ObeyedEntity) Trust = MathUtil.Clamp(Trust + 0.2f, -1f, 1f);
             Recorded?.Invoke(e);
         }

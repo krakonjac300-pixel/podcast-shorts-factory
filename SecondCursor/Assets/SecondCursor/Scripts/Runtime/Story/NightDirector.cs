@@ -98,7 +98,11 @@ namespace SecondCursor.Story
             g.Tasks.TaskCompleted += t => Sfx.Play("ui_select");
             g.Clock.Rate = ClockRate;
             g.DragDrop.PayloadFinished += OnDropMissed;
+            g.Orders.Decided += OnChoiceDecided;
+            _intro = new IntroTips(g, () => IsPreparing);
         }
+
+        IntroTips _intro;
 
         /// <summary>
         /// Phase J (third blind playtest): a file the player let go of somewhere that did not take it flies back; say where it
@@ -178,6 +182,7 @@ namespace SecondCursor.Story
 
         protected virtual void Update()
         {
+            _intro.Tick();
             for (int i = _side.Count - 1; i >= 0; i--)
             {
                 _side[i].Tick(Time.time);
@@ -309,14 +314,14 @@ namespace SecondCursor.Story
         /// its hint pops up as a toast, and again at the difficulty's repeat interval while the player is
         /// still stuck. Story difficulty caps every first hint at its own (short) delay.
         /// </summary>
-        protected IEnumerator WaitTask(string taskId, float hintAfter = -1f)
+        protected IEnumerator WaitTask(string taskId, float hintAfter = -1f, Action onTimeout = null)
         {
             var d = _g.Difficulty;
             if (hintAfter < 0f) hintAfter = d.TaskHintFirst;
             else if (d.Mode == DifficultyMode.Story) hintAfter = Mathf.Min(hintAfter, d.TaskHintFirst);
             float start = Time.time;
             float nextHint = start + hintAfter;
-            while (!_g.Tasks.IsCompleted(taskId))
+            while (!_g.Tasks.IsCompleted(taskId) && !_g.Tasks.IsWithdrawn(taskId))
             {
                 // Safety nets: a needed file must never be lost, and no task may block the shift forever.
                 var task = _g.Tasks.Get(taskId);
@@ -330,8 +335,13 @@ namespace SecondCursor.Story
                 }
                 if (Time.time - start > hintAfter + d.TaskForceAfterHint)
                 {
-                    GameLog.Warn(LogChannel.Story, "Task " + taskId + " force-completed after timeout");
-                    FileTheRest(taskId);
+                    // Phase L: an order the player may decide either way lapses instead of being completed for them.
+                    if (onTimeout != null) onTimeout();
+                    else
+                    {
+                        GameLog.Warn(LogChannel.Story, "Task " + taskId + " force-completed after timeout");
+                        FileTheRest(taskId);
+                    }
                     break;
                 }
                 if (Time.time > nextHint)

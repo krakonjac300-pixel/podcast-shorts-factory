@@ -6,7 +6,7 @@
       "to": "Casey Rourke <crourke@letheworth.corp>",
       "subject": "Night shift briefing: Fri 11/20",
       "date": "Fri 11/20/98 1:40 AM",
-      "body": "Casey,\n\nWork's in the queue. Batch 47, two work orders, the temp file. Same rules.\n\nCustodial is doing a full round tonight, 3:00 to 3:30. Security wants the Camera Viewer on for all of it.\n\nI'm sorry. I should have told you that on your first night. I should have told Gary.\n\nRuth",
+      "body": "Casey,\n\nWork's in the queue. Batch 47, three work orders, the temp file. Same rules.\n\nCustodial is doing a full round tonight, 3:00 to 3:30. Security wants the Camera Viewer on for all of it.\n\nI'm sorry. I should have told you that on your first night. I should have told Gary.\n\nRuth",
       "preload": true,
       "read": false
     },
@@ -47,6 +47,16 @@
       "subject": "(no subject)",
       "date": "Fri 11/20/98 3:31 AM",
       "body": "remain seated",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_n3_ruth_drive",
+      "from": "Ruth Hale <rhale@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "one more",
+      "date": "Fri 11/20/98 2:24 AM",
+      "body": "Casey,\n\nI'm asking you to break a rule for me.\n\nThere's a wipe order for my drive in Work Orders (3333). I put it there. Approve it.\n\nI know the rule. I've read it to every night operator since 1985, and I know I'm not TERMINATED. I've read what they keep. I don't want to be kept.\n\nIf you'd rather keep to the rule, reject it. I won't blame you. Nobody ever taught you anything else.\n\nRuth",
       "preload": false,
       "read": false
     }

@@ -321,6 +321,9 @@ namespace SecondCursor.Apps
         {
             ContentIds.TaskArchiveLedger, ContentIds.TaskShredCache, ContentIds.TaskArchiveBatch,
         };
+        /// <summary>Phase L: this task's file and folder blink (the move tip says so).</summary>
+        public static bool IsGuided(WorkTask t) => t != null && GuidedTasks.Contains(t.Id);
+
         static readonly Color32 GuideColor = new Color32(0xFF, 0xE9, 0x9A, 0xFF);
         readonly List<ListView.Row> _guided = new List<ListView.Row>();
 

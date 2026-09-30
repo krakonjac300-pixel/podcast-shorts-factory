@@ -169,7 +169,7 @@ namespace SecondCursor.Story
                 if (!gary700 && at700 > 0f && Time.time - at700 >= GaryAfter700)
                 {
                     gary700 = true;
-                    if (!GaryFinished) RunSide(GarySays("g3_finale"), "gary-finale");
+                    if (!GaryFinished) RunSide(GarySays(g.Flags.Has(MemoryFlags.N3Box209Kept) ? "g3_finale_box" : "g3_finale"), "gary-finale");
                 }
                 if (clock >= Night3Rules.LogOffTime && !_fastForward) g.Clock.Rate = RoundsRate;
                 // M8: the last five minutes before seven read amber on the tray clock.
@@ -574,7 +574,10 @@ namespace SecondCursor.Story
             {
                 var set = g.Content.LineSet(g.Flags.Has(MemoryFlags.N3SeatCleared) ? "n3_end_logoff_cleared" : "n3_end_logoff");
                 spec = FinalSpec(id, EndingKind.LogOff, "end.logoff.title", "end.logoff.subtitle", set?.lines, set?.speakers);
-                spec.SystemLines = Lines("n3_end_logoff_sys");
+                // Phase L: Gary's box, kept for him, leaves with you.
+                var log = new System.Collections.Generic.List<string>(Lines("n3_end_logoff_sys"));
+                if (g.Flags.Has(MemoryFlags.N3Box209Kept)) log.Insert(2, Lines("n3_end_logoff_box")[0]);
+                spec.SystemLines = log.ToArray();
             }
             else
             {

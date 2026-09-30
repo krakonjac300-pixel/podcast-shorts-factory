@@ -165,6 +165,7 @@ namespace SecondCursor.Game
             g.Apps = new AppManager(g);
             g.Desktop = Desktop.Create(g);
             g.Taskbar = Taskbar.Create(g);
+            g.Tips = Tips.Create(g);
             g.Files.FileMoved += (f, from, to, actor) => g.Tasks.Evaluate();
             g.Files.FileShredded += (f, actor) => g.Tasks.Evaluate();
 

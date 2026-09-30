@@ -239,6 +239,15 @@ namespace SecondCursor.Core.Content
         public string employeeRef = "";
         /// <summary>"" = Personnel rule (approve only if TERMINATED), "shelf" = the CAM 04 shelf rule.</summary>
         public string rule = "";
+        /// <summary>
+        /// Phase L: an order the player may decide either way, with a written result for each (both non-empty, see
+        /// <see cref="WorkOrderRules.IsChoice"/>). The result shows as a notice and under the order; the note is added to the owner's
+        /// Personnel notes.
+        /// </summary>
+        public string resultApprove = "";
+        public string resultReject = "";
+        public string noteApprove = "";
+        public string noteReject = "";
     }
 
     [Serializable]
@@ -265,6 +274,10 @@ namespace SecondCursor.Core.Content
                 o.correct = string.IsNullOrEmpty(o.correct) ? "approve" : o.correct;
                 o.employeeRef = o.employeeRef ?? "";
                 o.rule = o.rule ?? "";
+                o.resultApprove = o.resultApprove ?? "";
+                o.resultReject = o.resultReject ?? "";
+                o.noteApprove = o.noteApprove ?? "";
+                o.noteReject = o.noteReject ?? "";
             }
         }
     }

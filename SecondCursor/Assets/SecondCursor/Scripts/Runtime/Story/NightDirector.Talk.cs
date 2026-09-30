@@ -174,8 +174,13 @@ namespace SecondCursor.Story
                 if (first && (_hintedSpeakers.Add(s) || !string.IsNullOrEmpty(turnHintKey)))
                 {
                     var pad = s;
-                    _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text(hintKey), "icon_notepad",
-                        a => { if (pad.Pad != null && pad.Pad.IsOpen) pad.Pad.Window.Focus(a); }, "ui_select");
+                    // Phase L: the first remote session on this save gets a tip beside its Jotter (the notice says it instead when the tip
+                    // has not shown in 8 s: another tip in the way, no room beside the window); later sessions and runs that show no tips
+                    // get the notice, as before.
+                    bool tipped = _g.Tips.Offer("reply", () => pad.Pad != null && pad.Pad.IsOpen && !pad.Pad.Window.IsMinimized ? pad.Pad.Window.WorldRect : (Rect?)null,
+                        () => pad.Pad != null && pad.Pad.IsOpen && pad.Pad.LastPlayerKeyTime < 0f, 45f);
+                    if (!tipped) ShowReplyNotice(pad, hintKey);
+                    else RunSide(ReplyNoticeIfNoTip(pad, hintKey), "reply-notice");
                     GameLog.Info(LogChannel.Story, "Jotter reply hint shown");
                 }
                 first = false;
@@ -226,6 +231,16 @@ namespace SecondCursor.Story
                 }
                 exchange = string.IsNullOrEmpty(exchange.next) ? null : _g.Dialogue.Get(exchange.next);
             }
+        }
+
+        void ShowReplyNotice(Speaker pad, string hintKey) =>
+            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text(hintKey), "icon_notepad",
+                a => { if (pad.Pad != null && pad.Pad.IsOpen) pad.Pad.Window.Focus(a); }, "ui_select");
+
+        IEnumerator ReplyNoticeIfNoTip(Speaker pad, string hintKey)
+        {
+            yield return WaitUntil(() => _g.Tips.Seen("reply"), 8f);
+            if (!_g.Tips.Seen("reply")) ShowReplyNotice(pad, hintKey);
         }
 
         /// <summary>The player's turn: waits for a sent line (passed to <paramref name="onSaid"/>) or for silence.</summary>

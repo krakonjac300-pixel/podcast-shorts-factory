@@ -135,6 +135,16 @@
     { "id": "n3_end_keep_name", "voice": "", "lines": ["THANK YOU FOR MY NAME"], "speakers": ["entity"] },
     { "id": "n3_end_logoff_sys", "voice": "system", "lines": ["LOGOFF 214 ... OK", "DOOR B-7 ... OPENED 07:01 (214)", "LOBBY EXIT ... NO RECORD"], "speakers": ["system", "system", "system"] },
     { "id": "n3_end_logoff", "voice": "", "lines": ["YOU MADE IT", "SOMEONE DID", "SEE YOU TOMORROW NIGHT"], "speakers": ["entity", "entity", "entity"] },
-    { "id": "n3_end_logoff_cleared", "voice": "", "lines": ["YOU MADE IT", "THE COPY STAYED", "WITH ME"], "speakers": ["entity", "entity", "entity"] }
+    { "id": "n3_end_logoff_cleared", "voice": "", "lines": ["YOU MADE IT", "THE COPY STAYED", "WITH ME"], "speakers": ["entity", "entity", "entity"] },
+    { "id": "g3_box_view", "voice": "gary", "lines": ["denise brought my box", "let them take it", "i can't see anyway"], "speakers": [] },
+    { "id": "g3_box_kept", "voice": "gary", "lines": ["ok", "keep the glasses", "for whoever's next"], "speakers": [] },
+    { "id": "g3_box_gone", "voice": "gary", "lines": ["ok", "thanks casey"], "speakers": [] },
+    { "id": "g3c_box_view", "voice": "gary", "lines": ["approve it", "none of that is mine now"], "speakers": [] },
+    { "id": "g3c_box_kept", "voice": "gary", "lines": ["they'll take it anyway"], "speakers": [] },
+    { "id": "g3c_box_gone", "voice": "gary", "lines": ["good", "that's done"], "speakers": [] },
+    { "id": "g3_finale_box", "voice": "gary", "lines": ["take my glasses", "when you go", "somebody should"], "speakers": [] },
+    { "id": "n3_ruth_wiped", "voice": "", "lines": ["SHE WILL NOT BE KEPT"], "speakers": [] },
+    { "id": "n3_ruth_kept", "voice": "", "lines": ["THEY WILL KEEP HER TOO"], "speakers": [] },
+    { "id": "n3_end_logoff_box", "voice": "system", "lines": ["BOX 209 ... TAKEN 07:01 (214)"], "speakers": ["system"] }
   ]
 }

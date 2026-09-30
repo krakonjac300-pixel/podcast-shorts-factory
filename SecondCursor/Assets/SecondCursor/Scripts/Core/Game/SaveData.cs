@@ -96,6 +96,8 @@ namespace SecondCursor.Core.Game
         /// <summary>Unlocked achievement ids (mirrored to Steam when it is available).</summary>
         public string[] achievements = Array.Empty<string>();
         public string[] secrets = Array.Empty<string>();
+        /// <summary>Phase L: the one-time tips this save has shown (New Game keeps them: the player has been taught).</summary>
+        public string[] tipsShown = Array.Empty<string>();
         public int tugWinsTotal;
         public int tugLossesTotal;
         /// <summary>Total play time per night (all armed runs added up).</summary>
@@ -175,6 +177,7 @@ namespace SecondCursor.Core.Game
             endingsSeen = endingsSeen ?? Array.Empty<string>();
             achievements = achievements ?? Array.Empty<string>();
             secrets = secrets ?? Array.Empty<string>();
+            tipsShown = tipsShown ?? Array.Empty<string>();
             difficulty = string.IsNullOrEmpty(difficulty) ? "normal" : difficulty;
             nightUnlocked = Math.Max(1, Math.Min(Nights + 1, nightUnlocked));
             currentNight = Math.Max(1, Math.Min(Nights, currentNight));
@@ -295,6 +298,15 @@ namespace SecondCursor.Core.Game
             playerLineMinutes = Array.Empty<int>();
             entityTrust = 0f;
             assistCarry = 0;
+        }
+
+        /// <summary>A tip is remembered as shown (true = it was new).</summary>
+        public bool MarkTipShown(string id)
+        {
+            if (string.IsNullOrEmpty(id) || Array.IndexOf(tipsShown, id) >= 0) return false;
+            var list = new List<string>(tipsShown) { id };
+            tipsShown = list.ToArray();
+            return true;
         }
 
         /// <summary>Anything to continue: a night was started or unlocked, or a checkpoint exists.</summary>

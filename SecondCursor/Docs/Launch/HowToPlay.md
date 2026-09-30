@@ -22,7 +22,7 @@ Spoiler level: S0 (the premise and Night 1) everywhere. Block 1 names Custodial 
 [*]The job: read the briefing in [b]Mail[/b], move files in [b]File Manager[/b] (the [b]Workstation[/b] icon), and look up each work order's owner in [b]Personnel[/b] before you click [b]Approve[/b] or [b]Reject[/b].
 [*]If the second cursor grabs your file, keep the mouse button held and drag the way the arrow points until the bar above the file is yours, then let go on the folder or the bin. Let go too early, or hold still, and it keeps the file.
 [*]It types to you in the [b]Jotter[/b]. Type a reply and press [b]Enter[/b].
-[*]Stuck? Hints come back on their own, and [b]NEXUS Help[/b] on the desktop explains every action.
+[*]Small [b]tips[/b] beside icons and windows teach each action the first time you need it. Stuck? Hints come back on their own, and [b]NEXUS Help[/b] on the desktop explains every action.
 [*][b]Esc[/b] or the [b]||[/b] button on the taskbar pauses the shift and opens the options. [b]Ctrl+S[/b] saves a file you changed in the Jotter.
 [*][b]Normal[/b] or [b]Story[/b] difficulty. Story: the second cursor gives in sooner, Custodial is slower, and hints come early. Nothing is cut.
 [*]Each night saves at checkpoints. [b]Continue[/b] on the title picks up from the last one.
@@ -54,14 +54,14 @@ Spoiler level: S0 (the premise and Night 1) everywhere. Block 1 names Custodial 
 
 **Guide title:** Your first shift: a quick guide
 **Guide description (summary field):** Controls, the job, and where everything is on WS-04. Spoiler-free: nothing past the premise.
-**Length:** just under 700 words of visible text.
+**Length:** about 1,250 words of visible text.
 
 ```text
 [h1]Your first shift: a quick guide[/h1]
 It is 1:52 AM at Letheworth Data Reclamation. You are the night operator at workstation WS-04, and the whole game happens on that one screen. This guide covers the controls and the job, and nothing past the premise.
 
 [h2]Before the shift[/h2]
-On the very first launch, choose [b]Full effects[/b] or [b]Reduce flashing[/b]. On the title, pick [b]New Game[/b], then [b]Normal[/b] or [b]Story[/b], and click [b]Log On[/b]. The [b]NEXUS OS Quick Start[/b] window lists the basics. Click [b]Begin[/b] and your first task arrives. Headphones recommended.
+On the very first launch, choose [b]Full effects[/b] or [b]Reduce flashing[/b]. On the title, pick [b]New Game[/b], then [b]Normal[/b] or [b]Story[/b], and click [b]Log On[/b]. The [b]NEXUS OS Quick Start[/b] window is three lines: where your tasks are, how to pause, and where Help is. Click [b]Begin[/b] and your first task arrives. From then on, a small [b]tip[/b] beside an icon or window explains each new action the first time you need it (opening an icon, moving a file, a work order, shredding, the Nexus menu). Each tip shows once. Headphones recommended.
 
 [h2]What the screen shows[/h2]
 [list]
@@ -83,12 +83,13 @@ Click [b]Nexus[/b] (bottom left) for every program, plus [b]Documents[/b], [b]Sy
 [*][b]Work Orders:[/b] select an order and note the [b]Owner Emp. No.[/b]
 [*][b]Personnel:[/b] click that number in the list to see the owner's status. [b]Approve[/b] only if it says TERMINATED. Anything else, [b]Reject[/b].
 [*][b]Disposal:[/b] drag a file onto the bin, then click [b]Yes[/b]. Shredding is permanent.
+[*][b]Data Viewer:[/b] a [b].dat[/b] file opens as bytes. A damaged file also has a [b]Recovered text[/b] button that shows its readable words in the window's full width; [b]Hex view[/b] goes back.
 [*][b]Jotter:[/b] a plain text editor. It matters more than it looks.
 [/list]
 Drag a window by its title bar to the left or right edge of the screen and it fills that half, so two programs fit side by side (Work Orders next to Personnel, for example). Drag it away to get its own size back; double-click the title bar to fill the screen.
 
 [h2]Replying in the Jotter[/h2]
-When a remote session types to you in the Jotter, a notice says so. Each conversation's title bar names its session, in that pointer's colours. Type a reply and press [b]Enter[/b] when the line under the text says [b]Your turn[/b]. One line at a time, anything you like. What you type while it is still typing waits there and is sent when it stops; a reply nobody reads stays on the page in grey, marked [b](not sent)[/b], with the reason. Your typing goes to the Jotter that is waiting for you, even when another window is in front. Some files can be changed in the Jotter: typing starts a new line at the end, and [b]File > Save[/b] (or [b]Ctrl+S[/b]) keeps the change.
+When a remote session types to you in the Jotter, a tip beside the window says so the first time (a notice does later). Each conversation's title bar names its session, in that pointer's colours. Type a reply and press [b]Enter[/b] when the line under the text says [b]Your turn[/b]. One line at a time, anything you like. What you type while it is still typing waits there and is sent when it stops; a reply nobody reads stays on the page in grey, marked [b](not sent)[/b], with the reason. Your typing goes to the Jotter that is waiting for you, even when another window is in front. Some files can be changed in the Jotter: typing starts a new line at the end, and [b]File > Save[/b] (or [b]Ctrl+S[/b]) keeps the change.
 
 [h2]Camera Viewer[/h2]
 It shows the building's security cameras. The camera list is on the left: click a camera to switch to it. The viewer is meant for Security staff, so "Access Denied" is normal. Your work is in the Work Queue. If another session closes the viewer, a notice says so: double-click Camera Viewer to open it again.
@@ -208,11 +209,13 @@ Store copy = `MarketingPackFull.md` section 2 as it stands today. Items LaunchAu
 | Yes (shred confirm), Shredding is permanent | `Services.cs`; `shred.confirm.body`, briefing mail |
 | TERMINATED | `tasks.json` task description, briefing mail |
 | File > Save, Ctrl+S; "Typing starts a new line at the end" | `NotepadApp.cs` File menu; `notepad.editable.hint`, `help.body` |
-| Remote session typing notice; "Type a reply and press Enter" | `notify.jotter.reply` |
+| Remote session typing tip (first time) and notice; "Type a reply and press Enter" | `tip.reply`, `notify.jotter.reply` |
 | Drag the way the arrow points until the bar is yours; SESSION 017 IS PULLING. HOLD AND DRAG (direction) UNTIL THE BAR IS YOURS.; the big arrow at the pointer, the arrow and the bar (with its line) above the file; THE BAR IS YOURS. LET GO ON THE BIN OR A FOLDER.; YOU LET GO TOO EARLY; YOU HELD STILL; YOU PULLED (direction). THE ARROW POINTED (direction).; YOU STOPPED PULLING; YOU PULLED TOO SLOWLY; SESSION 017 PULLED HARDER; SESSION 017 TOOK THE FILE WHILE YOU WEREN'T HOLDING IT; Input conflict notices | `help.body`, `tug.label`, `tug.ahead`, `tug.lost.*`, `tug.snatch`, `notify.conflict*`; the big arrow in `TugHud.cs` |
 | Moved (file) to (folder).; the Work Queue's file list; Your turn: type a reply and press Enter.; (not sent); Session 017 title bars; programs side by side | `files.moved`, `workqueue.check.*`, `notepad.status.*`, `notepad.notsent`, `notepad.title.*`; snapping in `OSWindow.cs` |
-| If mail says to let the other pointer finish, let it; a task that says to shred a file means fight for it | `quickstart.body`, `help.body` |
-| YOUR TASKS appear in the Work Queue when you click Begin | `quickstart.body` |
+| If mail says to let the other pointer finish, let it; a task that says to shred a file means fight for it | `help.body`, the `t_shred_017` hint, `tug.label.first` |
+| The first task appears when you click Begin; each task has a hint under it | `quickstart.body` |
+| Tip beside an icon or window (opening, File Manager, moving a file, a work order, shredding, the Nexus menu) | `tip.open`, `tip.files`, `tip.move`, `tip.orders`, `tip.shred`, `tip.nexus` |
+| Recovered text, Hex view (Data Viewer buttons) | `DataViewerApp.cs`, `help.body` |
 | Queue clear. Await further assignments. (also after the last task is ticked) | `workqueue.empty`, `WorkQueueApp.cs` |
 | PRIORITY: Shred employee_017.dat (blocked: held by session 017); "Nobody can" | `task.blocked.017.*`, `Night1Director.cs` |
 | More below (a button that scrolls one page) | `mail.more`, `MoreBelow.cs` |

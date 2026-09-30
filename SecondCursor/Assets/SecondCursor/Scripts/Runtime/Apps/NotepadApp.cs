@@ -120,6 +120,10 @@ namespace SecondCursor.Apps
 
             if (file != null) SetText(file.Content);
             _inputStart = _text.Length;
+            // Phase L: a document opens at its beginning (typing and a conversation still follow the end), and its text follows the
+            // window's width when it is resized or snapped to a half.
+            _scroll.ScrollTo(0f);
+            Window.Resized += _ => Reflow();
 
             // Phase H: a conversation says when your typing waits (the other session is typing) or goes nowhere.
             _convStatus = UIBuilder.Rect("Conversation Status", client).BottomStrip(2, 15, 3, 19);
@@ -340,6 +344,13 @@ namespace SecondCursor.Apps
             _text.Append(text);
             _inputStart = _text.Length;
             Changed(true);
+        }
+
+        /// <summary>The window changed size: wrap the text to the new width (a conversation stays at its newest line).</summary>
+        void Reflow()
+        {
+            Canvas.ForceUpdateCanvases();
+            Changed(ConversationMode);
         }
 
         void Changed(bool scrollToEnd)

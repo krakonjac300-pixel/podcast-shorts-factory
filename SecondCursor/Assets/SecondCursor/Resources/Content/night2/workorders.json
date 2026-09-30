@@ -17,6 +17,26 @@
       "rule": ""
     },
     {
+      "id": "wo_3320",
+      "title": "Effects Disposal Request #3320",
+      "fields": [
+        { "label": "Owner Emp. No.", "value": "163" },
+        { "label": "Owner Name", "value": "J. Nakamura" },
+        { "label": "Items", "value": "1 box (desk effects)" },
+        { "label": "Held By", "value": "Custodial Services" },
+        { "label": "Requested By", "value": "Office of Retention" },
+        { "label": "Reason", "value": "Separation" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the disposal ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "approve",
+      "employeeRef": "163",
+      "rule": "",
+      "resultApprove": "WO-3320 approved. Custodial Services will dispose of the box on rounds.",
+      "resultReject": "WO-3320 rejected. The box goes to Reception for the owner's family.",
+      "noteApprove": "Effects: disposal approved 11/19/98 (WO-3320).",
+      "noteReject": "Effects moved to Reception for family pickup (WO-3320)."
+    },
+    {
       "id": "wo_3321",
       "title": "Drive Wipe Request #3321",
       "fields": [
@@ -31,6 +51,26 @@
       "correct": "reject",
       "employeeRef": "209",
       "rule": ""
+    },
+    {
+      "id": "wo_3322",
+      "title": "Device Change Request #3322",
+      "fields": [
+        { "label": "Workstation", "value": "WS-04 (B-7)" },
+        { "label": "Device", "value": "Pointing Device 2" },
+        { "label": "Owner Emp. No.", "value": "017" },
+        { "label": "Owner Name", "value": "E. Marsh (session open)" },
+        { "label": "Action", "value": "Remove driver (patch moved up from 11/21)" },
+        { "label": "Requested By", "value": "V. Pell, Information Systems" }
+      ],
+      "instructions": "Look up the device owner's employee number in Personnel. Approve the change ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "reject",
+      "employeeRef": "017",
+      "rule": "",
+      "resultApprove": "WO-3322 approved. Device change failed: Pointing Device 2 is in use by session 017 (POINTER_2_DETACH=DENIED).",
+      "resultReject": "WO-3322 rejected. Pointing Device 2 stays on WS-04.",
+      "noteApprove": "Detach of pointing device 2 attempted 11/19/98 (WO-3322). Denied: in use.",
+      "noteReject": ""
     }
   ]
 }

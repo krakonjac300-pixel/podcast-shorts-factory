@@ -195,7 +195,8 @@ namespace SecondCursor.Tests
             Assert.StartsWith("SESSION 017 IS PULLING", db.Text("tug.label"));
             Assert.Contains("HOLD AND DRAG {0}", db.Text("tug.label"));   // Phase K: the label names the arrow's direction
             Assert.Contains("session 017", db.Text("notify.conflict"));
-            Assert.Contains("hold the button", db.Text("quickstart.body"));   // Phase J: "... until the bar is yours"
+            Assert.Contains("HOLD THE BUTTON", db.Text("tug.label.first"));   // Phase L: the first fight carries the lesson; the Quick Start no longer does
+            Assert.Contains("hold the button", db.Text("welcome.body"));
             Assert.Contains("|| button", db.Text("quickstart.body"));
             Assert.Contains("Options", db.Text("quickstart.body"));
             Assert.Equal("Nexus", db.Text("start.button"));
@@ -205,7 +206,8 @@ namespace SecondCursor.Tests
             db.Variant = "deck";
             foreach (var key in new[] { "tug.label", "tug.lost.release", "tug.refused", "notify.conflict" })
                 Assert.Contains("R2", db.Text(key));
-            Assert.Contains("R2", db.Text("quickstart.body"));
+            Assert.Contains("R2", db.Text("tug.label.first"));
+            Assert.Contains("R2", db.Text("welcome.body"));
         }
 
         [Fact]

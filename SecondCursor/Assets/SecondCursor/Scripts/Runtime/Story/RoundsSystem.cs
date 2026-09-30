@@ -240,6 +240,9 @@ namespace SecondCursor.Story
                 {
                     ruth.status = "ON LEAVE";
                     ruth.notes = "Extended leave from 11/20/98. Do not forward calls. Personal effects held by Custodial.";
+                    // Phase L: what she asked for (or was refused) stays on her record.
+                    string drive = WorkOrderRules.NoteFor(c.Order(ContentIds.Order3333), WorkOrderRules.Remembered(_g.Flags, 3, ContentIds.Order3333));
+                    if (drive.Length > 0) ruth.notes += " " + drive;
                     GameLog.Info(LogChannel.Story, "Personnel: 118 on leave");
                 }
             }

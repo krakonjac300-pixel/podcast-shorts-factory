@@ -403,9 +403,10 @@ namespace SecondCursor.Tests
                 var db = Night(1);
                 db.Variant = variant;
                 string body = db.Text("quickstart.body");
-                Assert.Contains("if a task tells you to shred a file, hold on and fight for it", body);
+                // Phase L: the Quick Start is three lines; the advice lives in the task's hint, the first fight's label and Help.
                 Assert.Contains(variant == "deck" ? "when you choose Begin" : "when you click Begin", body);
                 Assert.Contains("fight for it", db.Text("help.body"));
+                Assert.Contains(variant == "deck" ? "hold R2" : "hold the button", db.Task("t_shred_017").hint);
             }
         }
 

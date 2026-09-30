@@ -186,8 +186,12 @@ namespace SecondCursor.Entity
 
         string T(string key, string fallback) => _g.Content != null ? _g.Content.Text(key, fallback) : fallback;
 
+        /// <summary>Phase L: the first fight on a save carries the whole lesson in its label (the Quick Start no longer does).</summary>
+        bool _first;
+
         void OnStarted(DragPayload p)
         {
+            if (p != null) _first = _g.Tips.Claim("tug");
             _refusedShown = false;
             _resultUntil = -1f;
             ShowFightText(false);
@@ -202,7 +206,7 @@ namespace SecondCursor.Entity
             _ahead = ahead;
             // Phase K: the label names the arrow's direction ("HOLD AND DRAG DOWN-LEFT UNTIL THE BAR IS YOURS.").
             SetText(ahead ? T("tug.ahead", "THE BAR IS YOURS.\nLET GO ON THE BIN OR A FOLDER.")
-                : F("tug.label", _g.Conflict.ArrowDirection), ahead ? Palette.Green : Palette.Text, true);
+                : F(_first ? "tug.label.first" : "tug.label", _g.Conflict.ArrowDirection), ahead ? Palette.Green : Palette.Text, true);
         }
 
         string F(string key, params object[] args) => _g.Content != null ? _g.Content.Format(key, args) : key;
@@ -224,6 +228,7 @@ namespace SecondCursor.Entity
         void OnEnded(DragPayload p, TugOutcome outcome)
         {
             var c = _g.Conflict;
+            _first = false;
             bool won = outcome == TugOutcome.PlayerWins;
             bool letGo = !won && c.LastLostByRelease;
             // Phase I: a lost fight says why. Phase K: from what the pointer really did, with the arrow's direction by name ("YOU

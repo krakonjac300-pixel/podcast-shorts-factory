@@ -4,6 +4,7 @@
     { "key": "login.progress", "value": "Restoring your personal settings from a copy..." },
     { "key": "camera.denied.body", "value": "Camera Viewer access has been restored to Security staff only.\nThis attempt has been logged.\n\nNight Operators: your work is in the Work Queue." },
     { "key": "shred.confirm.note.employee_209", "value": "Record owner: 209 (held)." },
-    { "key": "shred.confirm.late", "value": "Too late. Reclamation already started.\nShredding now releases only part of the record." }
+    { "key": "shred.confirm.late", "value": "Too late. Reclamation already started.\nShredding now releases only part of the record." },
+    { "key": "notify.pointer2.back", "value": "Pointing device 2 connected." }
   ]
 }

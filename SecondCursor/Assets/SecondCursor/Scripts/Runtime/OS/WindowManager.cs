@@ -83,6 +83,16 @@ namespace SecondCursor.OS
             }
         }
 
+        /// <summary>The notices' column in world coordinates (y up); a tip keeps clear of it.</summary>
+        public static Rect NoticeColumnWorld
+        {
+            get
+            {
+                var d = ToastColumn;
+                return new Rect(d.x, ScreenRig.Height - d.yMax, d.width, d.height);
+            }
+        }
+
         /// <summary>Phase J: a point (virtual px, y up) where notices appear, so a file set down there could be hidden by one.</summary>
         public static bool InToastColumn(Vector2 world) => ToastColumn.Contains(OSLayers.WorldToDesktop(world));
         /// <summary>Cost per covered pixel of a window's must-stay-visible part (the Work Orders' buttons).</summary>
@@ -120,12 +130,7 @@ namespace SecondCursor.OS
             return best;
         }
 
-        static float Overlap(int x, int y, int w, int h, Rect k)
-        {
-            float kx = Mathf.Min(x + w, k.xMax) - Mathf.Max(x, k.xMin);
-            float ky = Mathf.Min(y + h, k.yMax) - Mathf.Max(y, k.yMin);
-            return kx > 0f && ky > 0f ? kx * ky : 0f;
-        }
+        static float Overlap(int x, int y, int w, int h, Rect k) => new Rect(x, y, w, h).OverlapArea(k);
 
         float CoveredArea(int x, int y, int w, int h, bool avoidToasts)
         {

@@ -71,7 +71,12 @@ namespace SecondCursor.Story
             g.Apps.CanLaunch = CanLaunch;
             g.Apps.FileSaved += OnFileSaved;
             g.Flags.FlagSet += OnFlagSet;
-            g.Mail.Read += id => { if (id == ContentIds.MailN3RuthComment) g.Flags.Set(Flags.N3RuthRead); };
+            g.Mail.Read += id =>
+            {
+                if (id != ContentIds.MailN3RuthComment) return;
+                g.Flags.Set(Flags.N3RuthRead);
+                _ruthReadAt = Time.time;
+            };
             g.Orders.Decided += (id, decision, by) =>
             {
                 // Refusing to confirm your own shelf (Not On My Shelf, achievement hook).
@@ -80,6 +85,10 @@ namespace SecondCursor.Story
                     g.Flags.Set(MemoryFlags.N3OwnShelfRejected);
                 }
                 if (Array.IndexOf(ShelfOrders, id) >= 0) ShelfResultLine(id, decision);
+                // Phase L: Gary answers what happens to his box; Ruth answers what happens to her drive.
+                if (by == null || !by.IsPlayer || IsPreparing) return;
+                if (id == ContentIds.Order3332) RunSide(GarySays(GaryBoxSet(decision == "approve" ? "gone" : "kept")), "gary-box-reply");
+                else if (id == ContentIds.Order3333) SayLater(_ellen, decision == "approve" ? "n3_ruth_wiped" : "n3_ruth_kept");
             };
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
             g.Rounds.PatchPersonnel = true;
@@ -89,7 +98,13 @@ namespace SecondCursor.Story
             g.Tasks.TaskCompleted += t => { if (t.Id == ContentIds.TaskN3Shelf) FileShelfResult(); };
             g.Orders.Viewed += (id, by) =>
             {
-                if (id != ContentIds.Order3342 || by == null || !by.IsPlayer || _saidShelfYou || CurrentBeat != "rounds" || g.Orders.DecisionFor(id) != null) return;
+                if (by == null || !by.IsPlayer || g.Orders.DecisionFor(id) != null) return;
+                if (id == ContentIds.Order3332 && !_saidBox)
+                {
+                    _saidBox = true;
+                    RunSide(GarySays(GaryBoxSet("view")), "gary-box");
+                }
+                if (id != ContentIds.Order3342 || _saidShelfYou || CurrentBeat != "rounds") return;
                 _saidShelfYou = true;
                 SayLater(_ellen, "n3_shelf_you", 4f);
             };
@@ -133,6 +148,8 @@ namespace SecondCursor.Story
             _holdAt = -1;
             _g.Clock.Frozen = false;
             _saidShelfYou = false;
+            _saidBox = false;
+            _ruthReadAt = -1f;
             _ellen.Direct = false;
             _gary.Direct = false;
             _g.Rounds.ForcedOpenHandler = null;
@@ -213,12 +230,14 @@ namespace SecondCursor.Story
                 var order = g.Content.Order(id);
                 if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
             }
+            RestoreChoice(ContentIds.TaskN3Verify3332, ContentIds.Order3332, null);
             if (g.Apps.FindById(AppIds.WorkQueue) == null) g.Apps.Launch(AppIds.WorkQueue, null);
         }
 
         void PrepareRuthDone()
         {
             var g = _g;
+            RestoreChoice(ContentIds.TaskN3Verify3333, ContentIds.Order3333, ContentIds.MailN3RuthDrive);
             g.Mail.Deliver(ContentIds.MailN3RuthComment, false);
             g.Mail.MarkRead(ContentIds.MailN3RuthComment, null);
             foreach (var f in Batch48) MoveIfIn(f, ContentIds.FolderIntake, ContentIds.FolderArchive);
@@ -289,7 +308,14 @@ namespace SecondCursor.Story
             yield return TypeLines(s, lines, cps);
         }
 
-        void SayLater(Speaker s, string lineSet, float cps = 4f, string name = "say") => RunSide(Say(s, Lines(lineSet), cps), name + ":" + lineSet);
+        void SayLater(Speaker s, string lineSet, float cps = 4f, string name = "say") => RunSide(SayWhenFree(s, Lines(lineSet), cps), name + ":" + lineSet);
+
+        /// <summary>Phase L: a reaction waits for what the speaker is typing (Ruth's exchange can go on for a minute; TypeLines gives up after 20 s), so two sets never interleave.</summary>
+        IEnumerator SayWhenFree(Speaker s, string[] lines, float cps)
+        {
+            yield return WaitUntil(() => !s.Typing, 90f);
+            yield return Say(s, lines, cps);
+        }
 
         /// <summary>A lost close-the-viewer fight: CLOSE IT, at most every 20 s.</summary>
         void OnCloseCameraBlocked()
@@ -308,7 +334,12 @@ namespace SecondCursor.Story
             }
         }
 
-        bool _saidShelfYou;
+        bool _saidShelfYou, _saidBox;
+        /// <summary>The moment Ruth's mail was read (Phase L: her order for her own drive comes a while after).</summary>
+        float _ruthReadAt = -1f;
+
+        /// <summary>Gary's lines about his box for what just happened: view, kept or gone (the finished Gary speaks flatly).</summary>
+        string GaryBoxSet(string what) => (GaryFinished ? "g3c_box_" : "g3_box_") + what;
 
         /// <summary>The line the "saved" notice adds for a config file: what it decides now (the last KEY= line counts).</summary>
         string PolicyNote(string fileId, string text)
@@ -436,6 +467,9 @@ namespace SecondCursor.Story
             yield return WaitTask(ContentIds.TaskN3Verify3330);
             GiveTask(ContentIds.TaskN3Verify3331);
             yield return WaitTask(ContentIds.TaskN3Verify3331);
+            // Phase L: Gary's box (the rule and the owner disagree).
+            RevealOrder(ContentIds.TaskN3Verify3332, ContentIds.Order3332, null);
+            yield return WaitOrder(ContentIds.TaskN3Verify3332, ContentIds.Order3332);
             GiveTask(ContentIds.TaskN3Cache);
             yield return WaitTask(ContentIds.TaskN3Cache);
             g.Flags.Set(Flags.TutorialDone);

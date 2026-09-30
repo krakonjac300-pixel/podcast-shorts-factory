@@ -1198,8 +1198,136 @@ a 0.3 s grab hitch (below).
   - Notices avoid the focused window and the window under the pointer, not every window; with a maximized window at least one notice still
     shows on the right.
   - The end card's input delay (1.5 s) covers keys and clicks alike; the KEEP card itself was never skipped, only left.
-- **Not yet.** Findings 13 to 15 (Quick Start lines, the Night 2 playback) and suggestions 2, 4 and 6 are Phase L. Real hands should confirm
+- **Not yet.** Findings 13 to 15 (Quick Start lines, the Night 2 playback) and suggestions 2, 4 and 6 were left for Phase L (done below). Real hands should confirm
   the grab hitch and the big arrow; the Steam Deck has not seen the snap halves or the grey replies.
+
+### Phase L (playable introduction, readable text, new decisions)
+
+Input: the owner's suggestions 2, 4 and 6 (`_work/2026-09-29/launch/OwnerSuggestions_2026-09-30.md`), the fourth blind playtest's findings 13
+to 15 (`BlindPlaytest4.md`) and `EscalationDraft.md`. The owner's rule: an average human has to play this and understand how it works using
+only the information the game provides; the ordinary computer has to be dependable enough that the deliberate interference is unmistakable.
+Difficulty, the tug and every Phase F/J/K number are unchanged.
+
+- **Playable introduction (suggestion 2, findings 13 and 14).** The Night 1 Quick Start is three lines (`quickstart.body`): where the tasks are
+  (in order, a hint under each, the first appears on Begin), Esc or the || button for Options, NEXUS Help for everything else. Each action is
+  taught the first time the shift needs it by a one-time tip beside the thing it describes:
+  `Runtime/OS/Tips.cs` shows one tip at a time in a small pale note with a pointer at what it explains; it takes no clicks (whatever is under
+  it stays usable), it never sits on the rectangle it points at, it stays off open windows, the desktop icons and the notices' column (a
+  place that hides more than 20% of its own area is refused, so a crowded screen makes it wait, then give up after 4 s), it goes as soon as
+  the player has done what it says, and it shows once per save. `Runtime/Story/IntroTips.cs` decides when, from the task the shift gives:
+
+  | Tip | When | Points at | Goes when |
+  |---|---|---|---|
+  | `open` | the first task is in Mail | the Mail desktop icon | any program is opened |
+  | `files` | a file task is given and File Manager is not open | the Workstation icon | File Manager opens |
+  | `move` | File Manager is open with a file task (Night 1's blinking rows are named) | the File Manager window | the player moves a file |
+  | `orders` | Work Orders is opened with an order to decide | the Work Orders window | the player decides an order |
+  | `shred` | a shred task is given | the Disposal bin | the task is done or the confirm is open |
+  | `nexus` | four programs open, two desktop icons under windows, or Night 1's first chores done (`tutorial_done`), after log-on and when no other tip waits | the Nexus button | the Nexus menu opens |
+  | `reply` | the first remote session types on this save | its Jotter window | the player types |
+  | tug | the first fight on this save | (the fight's own label, `tug.label.first`) | the fight ends |
+
+  The tug lesson is the first fight's label (`ANOTHER POINTER GRABBED THE FILE. HOLD THE BUTTON AND DRAG {0}, THE WAY THE ARROW POINTS, UNTIL
+  THE BAR IS YOURS. THEN LET GO.`); later fights keep the short label. The first remote Jotter of a save gets the `reply` tip instead of the
+  Phase G notice (later sessions and runs that show no tips keep the notice; if the tip has not shown within 8 s the notice does). Shown ids are saved in `progress.json` (`SaveData.tipsShown`,
+  `SaveSystem.MarkTipShown`); New Game keeps them, like records. Tips show only in runs that count (`RecordsArmed`), so a debug jump shows
+  none and remembers none. Every tip that names an input has `.deck` wording (`tip.open.deck`, `tip.move.deck`, ...), and the Quick Start
+  has its own Deck text. The Welcome back refresher (Nights 2 and 3) keeps the Nexus line and has the tug line in the one wording everywhere
+  ("hold the button and drag the way the arrow points until the bar is yours, then let go"). Help is complete and gains DAMAGED FILES.
+- **Reading (suggestion 4).** Documents open at their beginning: Jotter pages used to open scrolled to the end (`SetText` scrolled to the
+  bottom); Mail already reset when the message changed. Mail, Jotter pages, Help, the Work Queue and the recovered text follow the window's
+  width when it is resized, maximized or snapped to a half (`OSWindow.Resized`). The Data Viewer keeps its hex dump and shimmer as the
+  default; damaged, protected and story files also have a `Recovered text` button (and `Hex view` to go back) that shows
+  `Core/Content/RecoveredText.From`: the fragments the glitch left, in order, without the glitch characters (`d0wn` becomes `down`),
+  repeats and cut-off echoes collapsed ("REMAIN SEATED..REMAIN SEATED..REMA" becomes one "REMAIN SEATED."), header and footer lines kept, an
+  ordinary document untouched. The wheel scrolls every scroll area (checked in Mail, Jotter, Help, the Work Queue and the recovered text).
+- **Finding 15.** Every reply of `ex_three` that led to the replay ends `WATCH THE SCREEN` (`THEN WATCH THE SCREEN` for yes and look), and the
+  Escalation beat waits 2.5 s (was 1.5 s) before it replays the player's own cursor.
+- **Decisions (suggestion 6): D1, D2, D4, D5 built, D3 held back.** New `WorkOrderData` fields `resultApprove`, `resultReject`,
+  `noteApprove`, `noteReject`; an order with both results is a choice (`Core/Content/WorkOrderRules.cs`, with the per-night memory key
+  `m.nN.woXXXX.approve|reject`, also as `MemoryFlags` aliases). `Runtime/Story/NightDirector.Orders.cs` (shared by every night):
+  `RevealOrder` (the order stays hidden in Work Orders until its task is given, then the mail that pulls the other way arrives),
+  `WaitOrder` (task hints like any task; after the usual patience the order lapses), `LapseOrder` (the task is withdrawn first with `NO
+  DECISION`, then the order is Cancelled, then a notice; never decided or completed for the player), `OnChoiceDecided` (a decision by the
+  player sets the key, appends the note to the owner's Personnel record, shows the result as a notice and puts `WO-3320 filed: approved` on
+  the queue line) and `RestoreChoice` (a jump or checkpoint past the order: decided as the key says, note and queue line back; no key
+  means cancelled and never listed). `WorkOrdersApp` shows `Result: ...` under the order. Content only in `night2/`, `night3/` and
+  `full/strings.json`.
+
+  | # | Night, where | Order | The rule says | The other voice | Approve | Reject | Payoff |
+  |---|---|---|---|---|---|---|---|
+  | D1 | 2, after 3319 | WO-3320 Joan Nakamura's desk box | approve (163 is TERMINATED) | Denise's mail asks for a reject | Custodial disposes of the box; note on 163 | the box goes to Reception for her family; note on 163 | Night 3 Personnel 163 (`163fx`) says which |
+  | D2 | 2, after 3321 | WO-3322 remove Pointing Device 2 (owner 017) | reject (017 is DECEASED) | Pell's mail asks for an approve | the change fails (`POINTER_2_DETACH=DENIED`), the tray drops to one device for 1.2 s and comes back, trust -0.10, note on 017 | nothing changes | Ellen after her first exchange (`YOU TRIED TO TAKE MY HAND / WHO WOULD HOLD YOURS`, `YOU LEFT ME MY HAND`); Night 3 Personnel 127 (`n2patch`) |
+  | D4 | 3, after 3331 | WO-3332 Gary's box (owner 209) | reject (ON LEAVE or RETAINED, never TERMINATED) | Gary asks to let it go (in his kept or finished voice) | Custodial collects it; note on 209; `ok / thanks casey` or `good / that's done` | the box stays for its owner; note on 209; `keep the glasses` or `they'll take it anyway` | LOG OFF's system log gains `BOX 209 ... TAKEN 07:01 (214)` and kept Gary adds `take my glasses / when you go` at 7:00 after a reject |
+  | D5 | 3, Ruth beat | WO-3333 wipe Ruth's own drive | reject (118 is ACTIVE) | Ruth's mail asks for an approve | note on 118 (`Retention profile: not found`); Ellen `SHE WILL NOT BE KEPT` | note on 118; Ellen `THEY WILL KEEP HER TOO` | the note survives her going ON LEAVE at the hall (`RoundsSystem.PatchPersonnelFor`) |
+
+  Fairness: the rule is in the order and the task; the evidence is in Personnel (and the mail); each task's hint names where to look and
+  ends `Either decision is filed.`; the result shows at once and again later; a plain rule order keeps its `click Reject` hint. A choice
+  is not counted as a wrong order (the log says `(choice)`).
+- **Time added.** Night 2 about 110 s for a first-time player (two mails of 83 and 75 words at 230 wpm, two Personnel checks and two
+  decisions at about 55 s each, the hand line 5 to 14 s mostly under the Batch 46 wait); a scripted floor is 26 s (the bridge runs
+  read nothing). More than the draft's 90 s, so `Night2Director.Rate` is 0.054 (was 0.06): the 2:49 hold, the mail stamps and the finish
+  land at the same story points as before. Night 3 about 35 s for D4 (the clock holds at 2:16) and 0 to 45 s for D5, which sits inside the
+  Ruth beat's 150 s minimum after her comment (a player who reads at a normal pace decides it before then): 35 to 80 s.
+
+- **Tests.** CoreTests 372 (15 new in `PhaseLTests.cs`: the three-line Quick Start and its Deck text, the Welcome back lines, tip text and
+  `.deck` wording for every tip, tips remembered once per save and kept by New Game, the 0.10 trust cost against the 0.15 of a plain refusal,
+  `WATCH THE SCREEN` on every way into the replay, `RecoveredText` on a glitched file and on an ordinary document, the decisions living only
+  in their nights' overlays and none in the demo, every choice order fair in its night, the memory key, only orders with both results being
+  choices, Night 3's Personnel reading what Night 2 did, Night 3's consistency with the new orders). Updated with reasons: `PhaseGTests`,
+  `PhaseHTests`, `PhaseITests` (they quoted the old Quick Start paragraph; they now check the tips, `tug.label.first`, `welcome.body` and
+  the help and hint text). CompileCheck: 8 configurations OK.
+- **Checked through the bridge** (scripts and outputs in `_work/2026-09-29/phaseL`, saves under `saves/phaseL*`, screenshots
+  `Library/SecondCursorBridge/shots/l_*.png`): Night 1 from the title on a fresh save, welcome and every tip looked at, none on the target
+  (`l_tip_open`, `l_tip_files`, `l_tip_move`, `l_tip_orders`, `l_tip_shred`, `l_tip_nexus`, `l_tug_first`, `l_tip_reply`), and a second run on the
+  same save shows the welcome and no tip (`f_again_*`); the calm-moment Nexus tip (`l_nexus2.cmd`: no crowding, tip after the shred, pointing
+  at the Nexus button, clear of the Help icon's label); reading (`l_read.cmd`, `l_read2.cmd`: a long mail and Jotter pages open at the top,
+  switching mails resets, wheel in Mail, Jotter, Help, the Work Queue and the recovered text, snap to a half reflows each, the Recovered text
+  toggle appears on `employee_017.dat` and not on `batch_a.dat`, `l_toggle.cmd`); both choices of D1, D2, D4 and D5 (`l_n2_A/B.cmd`,
+  `l_n3_KA/KB.cmd`: the notice, the `Result:` line, the queue line, the Personnel note, the payoff and the flags in `save`), the lapse of
+  WO-3320 and WO-3333 (`l_lapse2.cmd`: `NO DECISION` on the task, Cancelled in Work Orders, the notice) and checkpoint restore of all
+  four (`l_restore.cmd`: flags set, `beat third`, results, queue lines, Personnel notes and mails back).
+- **Regression from the title on a fresh save** (`f_n1.cmd`, `f_n2.cmd`, `f_n3.cmd`, `f_again.cmd`, save `saves/phaseL_final`, run after
+  the last code change): Night 1 from New Game to its card (`The file came back.`), Night 2 from Continue with D1 approved and D2 rejected to
+  its card (`You shredded employee_209.dat.`), Night 3 from Continue with D4 approved and D5 rejected through Ruth's leave note to LOG OFF
+  (`You logged off with session 017 still open.`). 0 game errors on every night; the clock monitor saw no step back on Nights 1 and 2 and
+  one of 0.011 min on Night 3 (the log-on reset to 1:52 inside Night 3's boot, as in Phases J and K). The `waitlog` TIMEOUT lines in the
+  outputs are waits for a line that was already in the log.
+- **Builds.** Full `Builds/Windows/SecondCursor.exe` 76.6 MB and demo `Builds/WindowsDemo/SecondCursorDemo.exe` 76.3 MB by the engine's
+  report (71.9 and 71.7 MB on disk with Symbols and D3D12 moved out to `Builds/Symbols/...`), 0 errors (the engine's usual 2 build
+  warnings), 0 compiler warnings in the game's scripts, content folders back in Resources, `SC_DEMO` off. Windowed smoke tests
+  (`phaseL/smoke.ps1`: full, demo, full with `-scnight 3 -scbeat finale`): each reaches its title or the finale and logs no exception. Demo
+  data grep (`phaseL/spoiler_grep.py`, Phase L terms added): none of the new Night 2 and 3 text; the hits are Night 1's own text ("Custodial
+  rounds" mail, the handover notes' "for whoever's next", the generic "Drive released for wiping."), `session.cfg` and the incident log,
+  and code constants and string keys in `SecondCursor.Core.dll` and `SecondCursor.Runtime.dll` (`resultApprove`, `workorder.result`,
+  `notify.order.lapsed`, the ids `mail_n2_pell_patch` and `mail_n3_ruth_drive`, the template tokens `163fx` and `n2patch`), no player-visible text.
+- **Review.** A code review found nothing critical or high; fixed: a choice order with no decision read a null note (`ResultFor` and `NoteFor`
+  return "" for no decision), the reply tip could leave the first remote Jotter with no hint if it never showed (the 8 s notice fallback),
+  and `WaitTask` now takes an `onTimeout` action and leaves when its task is withdrawn (`WaitOrder` uses it for the lapse).
+
+- **Built against the draft (judgement calls).**
+  - D3 (WO-3324) is not built, so there is no `118n2` or `ruthask` token: Ruth's mail says `I'm asking you to break a rule for me.` and
+    Night 3's 118 record has no Night 2 line.
+  - D2's trust cost is 0.10 (`EntityMemory.Record(kind, subject, time, resistCost)`; a plain refusal still costs 0.15). It is still recorded
+    as `ResistedEntity`.
+  - The draft's `stated` rule, the `AchievementRules` entries and the optional shelf result lines are not built (Phase K already gives each
+    shelf decision its line; the Records total stays 19).
+  - Phase K's shelf-check lines, notices and `Location now:` were left as they are; choice orders use the single-target task's
+    `ResultNote` (the queue shows `WO-3320 filed: rejected` after completion, the way the shelf check shows its own filed line).
+  - `SayLater` (Night 3) now waits for the speaker to finish typing (up to 90 s) before it types a reaction, so D5's answer cannot land inside
+    Ruth's exchange (a run showed it interleaved).
+  - Gary's D4 view line waits for Gary to be present (`GaryPresentFor`) like his other lines; the D1 mail is dated 1:58 AM and D2's 2:04 AM
+    (mail that arrives earlier keeps its stamp; later mail is stamped with the clock).
+  - The `nexus` tip fires on the count of open programs (four) or two covered icons, not on a task: no task needs a program that is not on
+    the desktop, and finding 13 was a player who lost the icons under windows. Because a player who never crowds the desktop would never
+    hear of the menu, it is also said once when Night 1's `tutorial_done` flag is set (the shred is done, the story is about to turn), for
+    12 s and only when no other tip waits, so it never holds back a task's tip.
+  - A tip waits (up to 60 s) for a place that hides under 20% of its area; the Nexus tip may stand over part of a window (up to 70%) because
+    its target is always in view and the room beside it usually is not.
+  - Notices and tips: a tip goes over a notice only when nothing else fits; `Tips` uses the notices' column as a place to avoid.
+- **Not yet.** D3 (WO-3324, Ruth's Night 2 request) is held back in `EscalationDraft.md`. The time figures for Nights 2 and 3 are reading-speed
+  estimates plus the scripted floors, not a measured human run; real hands (and the Steam Deck) should confirm the tips' placement on a
+  crowded screen (a tip that finds no place gives up rather than cover a window) and how the new mails feel at a normal reading pace.
 
 ## 6. Editor test bridge (drive the game from outside the Editor)
 

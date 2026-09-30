@@ -58,6 +58,8 @@ namespace SecondCursor.Apps
             _detail.Wrap = true;
             _detail.Scale = scale;
             MoreBelow.Create(detailFrame.rectTransform, _detailScroll, G.Content.Text("mail.more", "More below"), "morebelow:workqueue");
+            // Phase L: the list's titles and the instructions follow the window's width when it is resized or snapped to a half.
+            Window.Resized += _ => { Canvas.ForceUpdateCanvases(); Refresh(); };
             Refresh();
         }
 

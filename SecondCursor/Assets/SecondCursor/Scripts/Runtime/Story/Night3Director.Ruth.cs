@@ -75,15 +75,19 @@ namespace SecondCursor.Story
             RunSide(RuthExchange(), "ruth-exchange");
             RunSide(CodeHints(), "code-hints");
             RunSide(WaitForRoundsLine(), "wait-rounds");
+            RunSide(RuthDriveOrder(mailAt), "ruth-3333");
 
-            // At least 150 s after the mail (or the wait line's cap), and the batch done; at 300 s the batch is done for you.
+            // At least 150 s after the mail (or the wait line's cap), the batch done and her order settled; at 300 s the batch is
+            // done for you and an order nobody decided lapses.
             _waitRoundsSince = -1f;
-            while (!(Done(ContentIds.TaskN3Batch48) && (Time.time - mailAt >= RuthMinSeconds || (_waitRoundsSince > 0f && Time.time - _waitRoundsSince >= WaitRoundsCap))))
+            while (!(Done(ContentIds.TaskN3Batch48) && Settled(ContentIds.Order3333)
+                     && (Time.time - mailAt >= RuthMinSeconds || (_waitRoundsSince > 0f && Time.time - _waitRoundsSince >= WaitRoundsCap))))
             {
                 if (Time.time - mailAt >= RuthMaxSeconds)
                 {
                     GameLog.Warn(LogChannel.Story, "Batch 48 archived by the safety net");
                     FileTheRest(ContentIds.TaskN3Batch48);
+                    if (!Settled(ContentIds.Order3333)) LapseOrder(ContentIds.TaskN3Verify3333, ContentIds.Order3333);
                     break;
                 }
                 yield return null;
@@ -101,12 +105,27 @@ namespace SecondCursor.Story
         /// </summary>
         IEnumerator WaitForRoundsLine()
         {
-            yield return WaitUntil(() => Done(ContentIds.TaskN3Batch48), 900f);
-            if (!Done(ContentIds.TaskN3Batch48) || CurrentBeat != "ruth") yield break;
+            yield return WaitUntil(() => Done(ContentIds.TaskN3Batch48) && Settled(ContentIds.Order3333), 900f);
+            if (!Done(ContentIds.TaskN3Batch48) || !Settled(ContentIds.Order3333) || CurrentBeat != "ruth") yield break;
             yield return Wait(1.5f);
             if (CurrentBeat != "ruth") yield break;
             GiveTask(ContentIds.TaskN3WaitRounds);
             _waitRoundsSince = Time.time;
+        }
+
+        bool Settled(string orderId) => _g.Orders.DecisionFor(orderId) != null;
+
+        /// <summary>
+        /// Phase L: Ruth's order to wipe her own drive comes once Batch 48 is done (or 150 s in) and 40 s after her comment was read (or
+        /// 120 s after it arrived), so the comment has been read before she asks for anything. The beat waits until it is settled.
+        /// </summary>
+        IEnumerator RuthDriveOrder(float mailAt)
+        {
+            yield return WaitUntil(() => (Done(ContentIds.TaskN3Batch48) || Time.time - mailAt >= 150f)
+                && ((_ruthReadAt > 0f && Time.time - _ruthReadAt >= 40f) || Time.time - mailAt >= 120f), RuthMaxSeconds);
+            if (CurrentBeat != "ruth" || Settled(ContentIds.Order3333)) yield break;
+            RevealOrder(ContentIds.TaskN3Verify3333, ContentIds.Order3333, ContentIds.MailN3RuthDrive);
+            RunSide(BatchHints(ContentIds.TaskN3Verify3333), "hints-3333");
         }
 
         /// <summary>Every .dat in Intake is called 0217.dat for 2.5 s (a glitch and a click you did not make).</summary>

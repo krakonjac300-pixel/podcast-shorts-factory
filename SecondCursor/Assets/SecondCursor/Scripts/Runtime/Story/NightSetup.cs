@@ -88,7 +88,16 @@ namespace SecondCursor.Story
                 var order = g.Content.Order(id);
                 if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
             }
-            foreach (var id in new[] { ContentIds.Order3340, ContentIds.Order3341, ContentIds.Order3342 }) g.Orders.SetHidden(id, true);
+            // Night 2's choice orders are history too, as the player decided them (an order nobody decided stays cancelled).
+            foreach (var id in new[] { ContentIds.Order3320, ContentIds.Order3322 })
+            {
+                if (g.Orders.DecisionFor(id) != null) continue;
+                string decision = WorkOrderRules.Remembered(g.Flags, 2, id);
+                if (decision == null) g.Orders.Cancel(id);
+                else g.Orders.Decide(id, decision, null);
+            }
+            // The shelf checks arrive with the round; tonight's choice orders with their tasks.
+            foreach (var id in new[] { ContentIds.Order3340, ContentIds.Order3341, ContentIds.Order3342, ContentIds.Order3332, ContentIds.Order3333 }) g.Orders.SetHidden(id, true);
 
             // 3. Her record has been open since Night 1; employee_017.dat is "in use" until the finale.
             g.Flags.Set(Flags.Staff017Revealed);
@@ -119,6 +128,9 @@ namespace SecondCursor.Story
                 var order = g.Content.Order(id);
                 if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
             }
+            // Tonight's choice orders stay out of Work Orders until their tasks are given.
+            g.Orders.SetHidden(ContentIds.Order3320, true);
+            g.Orders.SetHidden(ContentIds.Order3322, true);
             // 3. Her record has been open since Night 1. The cameras and Restricted stay locked; the bin is empty.
             g.Flags.Set(Flags.Staff017Revealed);
             // 4. employee_017.dat is "in use" all night.
@@ -128,10 +140,12 @@ namespace SecondCursor.Story
             GameLog.Info(LogChannel.Story, "Night 2 set up (" + g.Save.playerLines.Length + " remembered line(s))");
         }
 
-        /// <summary>Fill the {tokens} of every file tagged "template" (spec 2.4).</summary>
+        /// <summary>Fill the {tokens} of every file tagged "template" (spec 2.4) and of the Personnel notes (Phase L).</summary>
         public static void FillTemplates(GameServices g)
         {
             var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
+            foreach (var e in g.Content.Employees.employees)
+                if (e != null && e.notes.IndexOf('{') >= 0) e.notes = NightTemplates.Fill(e.notes, tokens);
             foreach (var f in g.Files.AllFiles)
             {
                 if (!f.HasTag("template")) continue;

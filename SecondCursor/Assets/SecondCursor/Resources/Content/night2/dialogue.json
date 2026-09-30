@@ -6,6 +6,7 @@
       "entityLines": ["YOU CAME BACK"],
       "responses": [
         { "keywords": ["=ellen", "=ellens", "=marsh", "ellen marsh"], "reply": ["WHO TOLD YOU THAT"], "tag": "name" },
+        { "keywords": ["unplug", "=patch", "=pell", "driver", "device", "=hand"], "reply": ["HE PATCHES IT EVERY YEAR", "MY HAND STAYS"], "tag": "" },
         { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["YOU CAME BACK ANYWAY"], "tag": "" },
         { "keywords": ["fuck", "shit", "wtf", "the hell", "damn", "jesus", "christ", "omg", "oh my god", "crap", "bitch"], "reply": ["KEEP YOUR VOICE DOWN"], "tag": "" },
         { "keywords": ["stop", "leave", "go away", "get out", "quit", "enough", "let me go", "go home", "log off", "logoff", "alone"], "reply": ["YOU TRIED", "THE DOOR SAYS OTHERWISE"], "tag": "" },
@@ -139,6 +140,8 @@
     { "id": "g2_archived", "voice": "gary", "lines": ["archive", "ok", "where they put the quiet ones"], "speakers": [] },
     { "id": "g2_goodnight", "voice": "gary", "lines": ["night casey"], "speakers": [] },
     { "id": "n2_end_finished", "voice": "", "lines": ["HE IS FINISHED", "THEY HAVE ALL OF HIM", "TOMORROW THEY WANT YOU", "SEE YOU TOMORROW NIGHT"], "speakers": [] },
-    { "id": "n2_end_kept", "voice": "", "lines": ["HE STAYS", "HALF IS ENOUGH", "FOR NOW", "TOMORROW THEY WANT YOU", "SEE YOU TOMORROW NIGHT"], "speakers": [] }
+    { "id": "n2_end_kept", "voice": "", "lines": ["HE STAYS", "HALF IS ENOUGH", "FOR NOW", "TOMORROW THEY WANT YOU", "SEE YOU TOMORROW NIGHT"], "speakers": [] },
+    { "id": "n2_hand_took", "voice": "", "lines": ["YOU TRIED TO TAKE MY HAND", "WHO WOULD HOLD YOURS"], "speakers": [] },
+    { "id": "n2_hand_left", "voice": "", "lines": ["YOU LEFT ME MY HAND"], "speakers": [] }
   ]
 }

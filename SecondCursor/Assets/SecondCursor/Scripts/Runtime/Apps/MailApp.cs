@@ -56,6 +56,8 @@ namespace SecondCursor.Apps
             _status.rectTransform.Stretch(4, 0, 4, 0);
             _status.VAlign = TextVAlign.Middle;
 
+            // Phase L: the message follows the window's width when it is resized or snapped to a half.
+            Window.Resized += _ => { if (_showing != null) Layout(); };
             Refresh();
             // Open straight onto the newest unread message.
             string newest = null;

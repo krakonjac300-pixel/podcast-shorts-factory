@@ -116,6 +116,11 @@
     { "key": "end.n2.outcome.late", "value": "You shredded employee_209.dat at {0}, {1} min late. Half of him is still held." },
     { "key": "camera.closed.finale", "value": "Camera Viewer closed by {0}: it showed Custodial coming for your chair." },
     { "key": "finale.notonit", "value": "Custodial is not on this camera yet. If it appears, close the viewer." },
-    { "key": "end.n2.outcome.late0", "value": "You shredded employee_209.dat at {0}, just after the deadline. Half of him is still held." }
+    { "key": "end.n2.outcome.late0", "value": "You shredded employee_209.dat at {0}, just after the deadline. Half of him is still held." },
+    { "key": "workorder.result", "value": "Result: {0}" },
+    { "key": "workqueue.order.approved", "value": "{0} filed: approved" },
+    { "key": "workqueue.order.rejected", "value": "{0} filed: rejected" },
+    { "key": "notify.order.lapsed", "value": "{0} lapsed. No decision was filed." },
+    { "key": "workqueue.withdrawn.nodecision", "value": "no decision" }
   ]
 }

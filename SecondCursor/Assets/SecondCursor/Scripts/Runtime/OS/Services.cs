@@ -391,10 +391,12 @@ namespace SecondCursor.OS
             Revision++;
             var order = _g.Content.Order(orderId);
             bool correct = order != null && string.Equals(order.correct, decision, StringComparison.OrdinalIgnoreCase);
-            if (!correct) _g.Flags.Increment(Core.Story.Flags.CounterWrongOrders);
+            // Phase L: an order the player may decide either way has no wrong answer.
+            bool choice = Core.Content.WorkOrderRules.IsChoice(order);
+            if (!correct && !choice) _g.Flags.Increment(Core.Story.Flags.CounterWrongOrders);
             if (by != null && by.IsPlayer) _g.Memory.Record(MemoryKind.DecidedOrder, orderId, _g.Now);
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.Player,
-                (by?.Name ?? "System") + " " + (decision.EndsWith("e") ? decision + "d " : decision + "ed ") + orderId + (correct ? " (correct)" : " (WRONG)"));
+                (by?.Name ?? "System") + " " + (decision.EndsWith("e") ? decision + "d " : decision + "ed ") + orderId + (choice ? " (choice)" : correct ? " (correct)" : " (WRONG)"));
             Decided?.Invoke(orderId, decision, by);
             _g.Tasks.Evaluate();
         }

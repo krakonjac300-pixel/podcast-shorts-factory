@@ -17,7 +17,7 @@ namespace SecondCursor.Core.Story
         /// <summary>Every token content may use (plus {0}-style format slots in strings).</summary>
         public static readonly string[] Known =
         {
-            "line1", "line2", "line3", "log1", "log2", "log3", "p3", "n2_209", "209row", "pct", "214note", "heldrow", "209", "n2door",
+            "line1", "line2", "line3", "log1", "log2", "log3", "p3", "n2_209", "209row", "pct", "214note", "heldrow", "209", "n2door", "163fx", "n2patch",
         };
 
         /// <summary>The token values for a night, from the memory flags and the saved Night 1 replies.</summary>
@@ -52,6 +52,13 @@ namespace SecondCursor.Core.Story
             t["heldrow"] = finished ? "HELD:    none (209 COMPLETE, C/16)" : "HELD:    209 PRUITT G.  INCOMPLETE";
             t["209"] = finished ? "209 PRUITT G." : "209 PRUITT G. (RESERVED)";
             t["n2door"] = flags.Has(MemoryFlags.N2WatchedToDoor) ? "n/a     03:04   000" : "n/a     n/a     n/a";
+            // Phase L: what Night 2's two decisions did, as Night 3's Personnel says it (163's box, Pell's patch).
+            t["163fx"] = flags.Has(MemoryFlags.N2Box163Held) ? " Personal effects released to family at Reception 11/19/98 (WO-3320)."
+                : flags.Has(MemoryFlags.N2Box163Released) ? " Personal effects disposed by Custodial 11/19/98 (WO-3320)."
+                : " Personal effects disposed by Custodial 11/19/98.";
+            t["n2patch"] = flags.Has(MemoryFlags.N2TookHand) ? "attempted 11/19/98 (WO-3322). Device 2 would not detach. Patch withdrawn."
+                : flags.Has(MemoryFlags.N2LeftHand) ? "rejected by the WS-04 operator 11/19/98 (WO-3322). Back on the schedule for 11/21/98."
+                : "scheduled 11/21/98.";
 #endif
             return t;
         }

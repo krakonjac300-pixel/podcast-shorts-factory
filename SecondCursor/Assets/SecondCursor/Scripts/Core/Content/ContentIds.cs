@@ -63,6 +63,11 @@ namespace SecondCursor.Core.Content
         public const string MailN2RuthWarning = "mail_n2_ruth_warning", MailN2Urgent209 = "mail_n2_urgent_209", MailN2SecurityRounds = "mail_n2_security_rounds";
         public const string File209 = "employee_209", File214 = "employee_214", FileCacheN2 = "cache_tmp_n2", FileDoorLog = "b7_door_log";
         public const string Order3319 = "wo_3319", Order3321 = "wo_3321";
+        // Phase L: decisions the player can make either way (orders with written results).
+        public const string Order3320 = "wo_3320", Order3322 = "wo_3322", Order3332 = "wo_3332", Order3333 = "wo_3333";
+        public const string TaskN2Verify3320 = "t2_verify_3320", TaskN2Verify3322 = "t2_verify_3322";
+        public const string TaskN3Verify3332 = "t3_verify_3332", TaskN3Verify3333 = "t3_verify_3333";
+        public const string MailN2CastellJoan = "mail_n2_castell_joan", MailN2PellPatch = "mail_n2_pell_patch", MailN3RuthDrive = "mail_n3_ruth_drive";
         public const string TaskN2Briefing = "t2_read_briefing", TaskN2Batch45 = "t2_archive_batch45", TaskN2Verify3319 = "t2_verify_3319",
             TaskN2Verify3321 = "t2_verify_3321", TaskN2Cache = "t2_shred_cache", TaskN2Batch46 = "t2_archive_batch46",
             TaskE2DoorLog = "e2_door_log", TaskE2Lookup163 = "e2_lookup_163", TaskE2Hide214 = "e2_hide_214",

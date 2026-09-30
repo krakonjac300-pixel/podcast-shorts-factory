@@ -56,6 +56,8 @@ namespace SecondCursor.Game
         public Desktop Desktop;
         public Taskbar Taskbar;
         public Notifications Notifications;
+        /// <summary>Phase L: one-time tips beside the thing they explain.</summary>
+        public Tips Tips;
         public AppManager Apps;
         public ShredService Shred;
         public MailService Mail;

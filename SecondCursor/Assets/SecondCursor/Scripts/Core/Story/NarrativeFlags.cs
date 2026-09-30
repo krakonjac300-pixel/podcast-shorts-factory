@@ -222,6 +222,12 @@ namespace SecondCursor.Core.Story
         public const string N2ArchivedGary = "m.n2.archived_gary";
         public const string N2WatchedToDoor = "m.n2.watched_to_door";
 
+        // Phase L: decisions the player made either way (WorkOrderRules.MemoryKey names the same keys).
+        public const string N2Box163Released = "m.n2.wo3320.approve";
+        public const string N2Box163Held = "m.n2.wo3320.reject";
+        public const string N2TookHand = "m.n2.wo3322.approve";
+        public const string N2LeftHand = "m.n2.wo3322.reject";
+
         // Night 3
         public const string N3RestrictedOpen = "m.n3.restricted_open";
         public const string N3LogoffEnabled = "m.n3.logoff_enabled";
@@ -231,6 +237,7 @@ namespace SecondCursor.Core.Story
         public const string N3MaxStage = "m.n3.max_stage";   // counter
         public const string N3OwnShelfRejected = "m.n3.own_shelf_rejected";
         public const string N3SaidStay = "m.n3.said_stay";
+        public const string N3Box209Kept = "m.n3.wo3332.reject";
 
         public const string N2SaidName = "m.n2.said_name";
         public const string N3SaidName = "m.n3.said_name";

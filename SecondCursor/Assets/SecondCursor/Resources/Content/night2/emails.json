@@ -59,6 +59,26 @@
       "body": "Effective tonight, B-Level operators have Camera Viewer access during Custodial rounds.\n\nWhen rounds begin, Security opens the viewer. Keep it open until rounds are complete. Do not close or minimize the viewer.\n\nThis is for your safety.\n\nLeonard Brandt\nSecurity Supervisor",
       "preload": false,
       "read": false
+    },
+    {
+      "id": "mail_n2_castell_joan",
+      "from": "Denise Castell <dcastell@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "Joan's things",
+      "date": "Thu 11/19/98 1:58 AM",
+      "body": "Casey,\n\nSorry, me again. Can't sleep.\n\nJoan Nakamura didn't come in yesterday, and now Personnel says terminated. Custodial has her desk things in a box: her cardigan, the photo of her girls, the plant she talks to.\n\nThere's a disposal order on the box tonight (3320) and it comes through your queue. Her sister can pick it up at Reception tomorrow. Could you reject it? Just this one. I'll square it with Marion in the morning.\n\nI know what the rule says.\n\nDenise",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_n2_pell_patch",
+      "from": "Victor Pell <vpell@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "WS-04 pointer patch (moved up)",
+      "date": "Thu 11/19/98 2:04 AM",
+      "body": "Casey,\n\nI've moved the WS-04 pointer patch up from Saturday. It removes the driver for Pointing Device 2, the device behind your input irregularities.\n\nA change to a workstation needs its operator's approval. It's in Work Orders as #3322. Approve it and the second pointer should stop.\n\nRetention says the device has an owner on file. Check it if you have to. I just do drivers.\n\nPlease don't call about it.\n\nVictor Pell\nInformation Systems",
+      "preload": false,
+      "read": false
     }
   ]
 }
