@@ -2624,6 +2624,17 @@ stays until she is pulled" (the arrow stays for the whole fight since P-b), CH1,
   - The Night 3 end card's three slots after one, two and three endings; the title's art at 4K and 1080p.
   - Blind playtest 6: does the red stripe mean "a deadline" and the black pointer "her" without being told; is the chip read as the clock.
 
+### Lean verification (after Q4 and the audit fixes, commit 5ccc387, scripts in `_work/2026-10-01/phaseQ5`)
+
+All pass, no code change was needed, 0 game errors in every run, 0 compiler warnings.
+- Nights 1, 2 and 3 from the title on a fresh Normal save: Night 1 and Night 2 reach their end cards, Night 3 reaches the 6:41 finale (its cards are the endings below). The `TIMEOUT` lines are the same script waits as before.
+- Night 3 endings from the finale checkpoint: LOG OFF ("You logged off with session 017 still open."), SHRED let-go ("You put employee_017.dat in the bin and shredded it."), KEEP by doing nothing ("It was 7:05 AM and you were still logged on."), KEEP by saying stay ("You told her to stay."). The Retention Record page needs a click on Continue before the card; the scripts now click it.
+- No-input Night 1: all six offers appear (65 s stuck each), nothing completes on its own, end card reached.
+- Story mode: Night 1 opening plays, and the Night 2 priority shred runs at 0.036 min/s (twice the real time of Normal's 0.072), Relaxed setting off.
+- Saves: the ending is on disk within 0.4 s of the night completing; Continue shows the next night after a stop and play. (A real process kill needs a built player, which the bridge cannot drive; the unit tests cover the writer.)
+- CoreTests 673 pass. Builds: full 76.8 MB and demo 76.6 MB by the engine's report (73 MB each on disk), Symbols and `NotShipped/D3D12` moved to `Builds/Symbols/<build>`, windowed smoke runs clean, demo data holds no Night 2 or 3 text (Gary, Pruitt, Retention Record, WHO ELSE IS WATCHING, empty chair, employee_209), `SC_DEMO` off.
+- Tooling note: the bridge only answers while the editor is updating; after a final `stop` it sleeps until the Unity window is brought forward, so always end a batch in Play mode or start the next one with `stop`, `play`.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
