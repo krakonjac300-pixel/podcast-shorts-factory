@@ -124,15 +124,7 @@ namespace SecondCursor.Story
 
         bool _saidAudit;
 
-        bool CanLaunch(string appId, CursorAgent by)
-        {
-            if (appId != AppIds.Camera || _g.Flags.Has(Flags.CameraUnlocked)) return true;
-            if (by == null || by.IsEntity) return true;
-            _g.Flags.Set(Flags.CameraDeniedSeen);
-            var c = _g.Content;
-            Dialogs.Message(_g, c.Text("camera.denied.title"), c.Text("camera.denied.body"), "icon_lock", new[] { "OK" }, null);
-            return false;
-        }
+        bool CanLaunch(string appId, CursorAgent by) => CameraGate(appId, by, true);
 
         protected override void Update()
         {
@@ -197,11 +189,7 @@ namespace SecondCursor.Story
                 g.Mail.MarkRead(ContentIds.MailN2Briefing, null);
                 foreach (var f in Batch45) MoveIfIn(f, ContentIds.FolderIntake, ContentIds.FolderArchive);
                 if (g.Files.Exists(ContentIds.FileCacheN2) && g.Files.Shred(ContentIds.FileCacheN2, Actor.System)) g.Shred.MarkShredded();
-                foreach (var id in new[] { ContentIds.Order3319, ContentIds.Order3321 })
-                {
-                    var order = g.Content.Order(id);
-                    if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
-                }
+                DecideByRule(ContentIds.Order3319, ContentIds.Order3321);
                 RestoreChoice(ContentIds.TaskN2Verify3320, ContentIds.Order3320, ContentIds.MailN2CastellJoan);
                 RestoreChoice(ContentIds.TaskN2Verify3322, ContentIds.Order3322, ContentIds.MailN2PellPatch);
                 if (g.Apps.FindById(AppIds.WorkQueue) == null) g.Apps.Launch(AppIds.WorkQueue, null);
@@ -234,11 +222,6 @@ namespace SecondCursor.Story
             g.Mail.Deliver(ContentIds.MailN2RuthWarning, false);
         }
 
-        void MoveIfIn(string fileId, string fromFolder, string toFolder)
-        {
-            if (_g.Files.Exists(fileId) && _g.Files.FolderOf(fileId) == fromFolder) _g.Files.Move(fileId, toFolder, Actor.System);
-        }
-
         // ------------------------------------------------------------------ BOOT
 
         IEnumerator Boot()
@@ -258,7 +241,7 @@ namespace SecondCursor.Story
         IEnumerator Pointer3Lost()
         {
             yield return Wait(4f);
-            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.pointer3.lost"), "icon_info", null, "sys_warning");
+            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.pointer3.lost"), "icon_info", null, "sys_warning", false, null, Core.Game.NoticeKind.Gary);
         }
 
         /// <summary>Approved: Pointing Device 2 drops out of the tray for a moment and comes back (the change failed).</summary>
@@ -271,7 +254,7 @@ namespace SecondCursor.Story
             yield return Wait(1.2f);
             g.Taskbar.PointingDevices = devices;
             g.Taskbar.BlinkDevice(2);
-            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("notify.pointer2.back"), "icon_info", null, "sys_warning");
+            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("notify.pointer2.back"), "icon_info", null, "sys_warning", false, null, Core.Game.NoticeKind.Entity);
         }
 
         // ------------------------------------------------------------------ WORK
@@ -390,7 +373,7 @@ namespace SecondCursor.Story
             string was = _g.Files.GetFile(ContentIds.Batch45C)?.Name ?? "batch45_c.dat";
             _g.Files.Rename(ContentIds.Batch45C, "b7_seat.dat");
             // Phase I: it names the file, what it is called now, and that it still counts.
-            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Format("notify.renamed", was, "b7_seat.dat"), "icon_info", null, "ui_select");
+            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Format("notify.renamed", was, "b7_seat.dat"), "icon_info", null, "ui_select", false, null, Core.Game.NoticeKind.Entity);
             var fm = _g.Apps.Find<FilesApp>();
             var row = fm != null && !fm.Window.IsMinimized ? fm.RowFor(ContentIds.Batch45C) : null;
             PhantomClick(row != null ? row.Hit.Center : new Vector2(ScreenRig.Width * 0.5f, ScreenRig.Height * 0.5f));
@@ -635,7 +618,7 @@ namespace SecondCursor.Story
             {
                 _g.Files.SetHidden(ContentIds.File214, false);
                 _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.intake.remote"), "icon_info",
-                    a => _g.Apps.OpenFolder(ContentIds.FolderIntake, a), "ui_select");
+                    a => _g.Apps.OpenFolder(ContentIds.FolderIntake, a), "ui_select", false, null, Core.Game.NoticeKind.Entity);
                 yield return Wait(1.5f);
             }
             yield return WriteIntoQueue(task);
@@ -691,7 +674,7 @@ namespace SecondCursor.Story
             else
             {
                 _g.Tasks.Withdraw(taskId, Expired);
-                _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Content.Text("notify.queue.withdrawn"), "icon_task_pending", null, "sys_warning");
+                _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Content.Text("notify.queue.withdrawn"), "icon_task_pending", null, "sys_warning", false, null, Core.Game.NoticeKind.Entity);
                 _g.Memory.Record(MemoryKind.ResistedEntity, taskId, Time.time);
                 yield return TypeLines(_ellen, Lines("n2_withdrawn"), 4f);
             }

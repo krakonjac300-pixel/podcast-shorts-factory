@@ -48,6 +48,12 @@ namespace SecondCursor.Entity
         public int DeviceIndex = 2;
         /// <summary>Opacity when fully present (Gary is faint while he is held).</summary>
         public float MaxAlpha = 1f;
+        /// <summary>
+        /// Phase Q4 (R5): while this pointer is holding a control (it guards a button), it is drawn at full strength with no flicker, so it
+        /// reads as a hand on that button (Gary is otherwise faint and flickering, grey on a grey button).
+        /// </summary>
+        public bool SolidWhileGuarding;
+        float _solidFlicker = -1f;
         /// <summary>Flicker when calm (Gary flickers a little all the time).</summary>
         public float BaseFlicker;
         /// <summary>Chance per word of one wrong letter, then a backspace, when it types (Gary's typos).</summary>
@@ -150,8 +156,19 @@ namespace SecondCursor.Entity
             float dt = Time.deltaTime;
             if (_view != null)
             {
-                _view.Alpha = Mathf.MoveTowards(_view.Alpha, _targetAlpha, dt * _alphaSpeed);
+                bool solid = SolidWhileGuarding && Guarding != null && _targetAlpha > 0f;
+                _view.Alpha = Mathf.MoveTowards(_view.Alpha, solid ? 1f : _targetAlpha, dt * (solid ? 8f : _alphaSpeed));
                 _agent.Visible = _view.Alpha > 0.01f;
+                if (solid && _solidFlicker < 0f)
+                {
+                    _solidFlicker = _view.Flicker;
+                    _view.Flicker = 0f;
+                }
+                else if (!solid && _solidFlicker >= 0f)
+                {
+                    _view.Flicker = _solidFlicker;
+                    _solidFlicker = -1f;
+                }
             }
             _agent.UpdateVelocity(dt);
             UpdateStaticSound();
@@ -434,6 +451,9 @@ namespace SecondCursor.Entity
             yield return Waits.Seconds(0.08f);
             yield return Click();
         }
+
+        /// <summary>This pointer when it is guarding <paramref name="element"/> and is on screen (Phase Q4: the button draws itself covered), else null.</summary>
+        public CursorAgent GuardAgentOf(Interactable element) => element != null && Guarding == element && IsVisible ? _agent : null;
 
         /// <summary>Router hook: the entity's cursor sitting on a guarded element blocks the player's press on it.</summary>
         bool BlocksPress(CursorAgent a, Interactable hit)

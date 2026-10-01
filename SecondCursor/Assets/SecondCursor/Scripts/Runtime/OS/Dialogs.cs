@@ -90,10 +90,13 @@ namespace SecondCursor.OS
             Action<string, CursorAgent> onResult, int defaultIndex = 0, Vector2? desktopTopLeft = null, int statusHeight = 0)
         {
             buttons = buttons == null || buttons.Length == 0 ? new[] { "OK" } : buttons;
-            int textMax = 280;
-            var size = PixelFont.Measure(text, textMax, false, 1);
+            // Phase Q4 (A5): the body and the race line follow the Reading text size; the box grows with them.
+            float f = DisplaySettings.ReadingFactor;
+            int textMax = Mathf.RoundToInt(280 * f);
+            var size = PixelFont.Measure(text, textMax, false, f);
+            statusHeight = Mathf.RoundToInt(statusHeight * f);
             // A status line needs room for "Session 209 is holding No for you. Click Yes." in bold.
-            int clientW = Mathf.Max(size.x + 62, buttons.Length * (ButtonW + 6) + 20, statusHeight > 0 ? 380 : 200);
+            int clientW = Mathf.Max(size.x + 62, buttons.Length * (ButtonW + 6) + 20, statusHeight > 0 ? Mathf.RoundToInt(380 * f) : 200);
             int clientH = Mathf.Max(size.y, 32) + 22 + ButtonH + 14 + (statusHeight > 0 ? statusHeight + 6 : 0);
             int w = clientW + 8;
             int h = clientH + OSWindow.CaptionHeight + 9;
@@ -111,6 +114,7 @@ namespace SecondCursor.OS
             }
             var t = UIBuilder.Text(win.Client, text, Palette.Text);
             t.Wrap = true;
+            t.Factor = f;
             t.rectTransform.At(52, 12, clientW - 60, Mathf.Max(size.y, 32) + 4);
             if (size.y < 32) t.VAlign = TextVAlign.Middle;
             if (statusHeight > 0) box.Status = UIBuilder.Rect("Status", win.Client).At(52, 12 + Mathf.Max(size.y, 32) + 10, clientW - 60, statusHeight);

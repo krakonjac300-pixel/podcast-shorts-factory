@@ -7,6 +7,7 @@ using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Input;
 using SecondCursor.OS;
@@ -329,7 +330,7 @@ namespace SecondCursor.Story
                 Gary.Teleport(from);
                 yield return Gary.Appear(from, 0.15f, false);
             }
-            float delay = _g.Difficulty.RaceToNoDelay(UnityEngine.Random.value, _g.Assist);
+            float delay = _g.Difficulty.RaceToNoDelay(UnityEngine.Random.value, _g.Assist) + RelaxedTiming.RaceDelayAdd(_g.TimeScale);
             var result = new bool[1];
             yield return RaceTo(Gary, no.Hit, delay, result, 1.5f);
             GameLog.Info(LogChannel.Entity, "Gary raced to No: " + (result[0] ? "clicked" : "blocked"));

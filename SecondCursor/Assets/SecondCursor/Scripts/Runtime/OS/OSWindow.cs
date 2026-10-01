@@ -314,6 +314,8 @@ namespace SecondCursor.OS
 
         bool _ownCaption;
         Color32 _captionA, _captionB, _captionText;
+        /// <summary>Phase Q4 (R2): the session this window belongs to (a remote Jotter), for its taskbar button and the way it zooms away.</summary>
+        public Core.Game.NoticeKind Actor;
 
         /// <summary>Phase K: the caption's own gradient and title colour (the colours of the cursor whose Jotter this is).</summary>
         public void SetCaptionColors(Color32 a, Color32 b, Color32 text)

@@ -23,6 +23,9 @@ namespace SecondCursor.UI
             public Interactable Hit;
             public object Tag;
             public bool Bold;
+            /// <summary>Phase Q4 (R7): the whole text of each column and the pixels it may use (0 = the last column, which takes the rest), so a long text ends in "..." before the next column.</summary>
+            public string[] Full;
+            public int[] Room;
         }
 
         public readonly RectTransform Root;
@@ -89,6 +92,8 @@ namespace SecondCursor.UI
                 }
                 x = 21;
             }
+            row.Full = (string[])columns.Clone();
+            row.Room = new int[columns.Length];
             for (int i = 0; i < columns.Length; i++)
             {
                 var t = UIBuilder.Text(rt, columns[i], Palette.Text);
@@ -96,7 +101,12 @@ namespace SecondCursor.UI
                 if (i == 0) w -= x - 2;
                 bool last = i == columns.Length - 1;
                 if (last) t.rectTransform.Stretch(x, 0, 2, 0);
-                else t.rectTransform.At(x, 0, w - 4, RowHeight);
+                else
+                {
+                    t.rectTransform.At(x, 0, w - 4, RowHeight);
+                    row.Room[i] = Mathf.Max(8, w - 8);
+                    t.text = Ellipsize(columns[i], row.Room[i], false);
+                }
                 t.VAlign = TextVAlign.Middle;
                 row.Columns.Add(t);
                 x += w;
@@ -107,7 +117,7 @@ namespace SecondCursor.UI
             row.Hit.Click += (a, n) =>
             {
                 Select(row.Index, a);
-                if (n == 2) RowActivated?.Invoke(row, a);
+                if (ClickRules.Opens(n, a)) RowActivated?.Invoke(row, a);
             };
             row.Hit.RightClick += a =>
             {
@@ -124,6 +134,12 @@ namespace SecondCursor.UI
             return row;
         }
 
+        /// <summary>Phase Q4 (A7): opens a row as a double-click would (the Enter key).</summary>
+        public void Activate(Row row, CursorAgent by)
+        {
+            if (row != null) RowActivated?.Invoke(row, by);
+        }
+
         public void SetDraggable(bool draggable)
         {
             foreach (var r in _rows) r.Hit.draggable = draggable;
@@ -132,7 +148,21 @@ namespace SecondCursor.UI
         public void SetBold(Row row, bool bold)
         {
             row.Bold = bold;
-            foreach (var c in row.Columns) c.Bold = bold;
+            for (int i = 0; i < row.Columns.Count; i++)
+            {
+                row.Columns[i].Bold = bold;
+                // Bold is wider: the text is cut again to the room its column has.
+                if (row.Full != null && i < row.Full.Length && row.Room[i] > 0) row.Columns[i].text = Ellipsize(row.Full[i], row.Room[i], bold);
+            }
+        }
+
+        /// <summary>Phase Q4 (R7): <paramref name="text"/> cut to <paramref name="room"/> px with "..." (unchanged when it fits).</summary>
+        static string Ellipsize(string text, int room, bool bold)
+        {
+            if (string.IsNullOrEmpty(text) || PixelFont.MeasureLine(text, bold) <= room) return text;
+            string s = text;
+            while (s.Length > 1 && PixelFont.MeasureLine(s + "...", bold) > room) s = s.Substring(0, s.Length - 1);
+            return s.TrimEnd() + "...";
         }
 
         public void Clear()

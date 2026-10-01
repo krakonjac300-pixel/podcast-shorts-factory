@@ -76,7 +76,8 @@ namespace SecondCursor.Story
         protected IEnumerator Hit(float volume, float glitch, float shakePx, float flash, params string[] aftermath)
         {
             bool reduced = _g.Fx.ReduceFlashing;
-            _g.Audio.PlayStinger(volume, reduced, aftermath);
+            // Phase Q4 (A10): the softer stinger is its own option (it follows Reduce flashing until it is set).
+            _g.Audio.PlayStinger(volume, Game.AccessSettings.SoftSounds(reduced), aftermath);
             yield return Wait(StingerPreRoll);
             GameLog.Info(LogChannel.Story, "Climax: hit" + (reduced ? " (reduced)" : ""));
             if (reduced)

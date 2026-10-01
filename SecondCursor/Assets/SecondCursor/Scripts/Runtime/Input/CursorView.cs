@@ -1,4 +1,5 @@
 using SecondCursor.Core;
+using SecondCursor.Core.Game;
 using SecondCursor.Rendering;
 using SecondCursor.UI;
 using UnityEngine;
@@ -14,6 +15,8 @@ namespace SecondCursor.Input
     public sealed class CursorView : MonoBehaviour
     {
         const int TrailLength = 3;
+        /// <summary>Pointer speed (px/s) from which session 017 leaves its smear (was 500).</summary>
+        const float TrailSpeed = 250f;
 
         CursorAgent _agent;
         bool _entityStyle;
@@ -29,6 +32,10 @@ namespace SecondCursor.Input
         StepTimer _flickerTimer, _jitterTimer, _trailTimer;
         bool _flickerHidden;
         Vector2 _jitterOffset;
+        /// <summary>Phase Q4 (A9): the pointers are drawn at this whole-number size (2 with the large cursor option).</summary>
+        int _size = 1;
+        /// <summary>Phase Q4 (R5): session 017 is drawn with a 1 px dark halo, so its pale rim reads on cream windows as well as on the teal desktop (Gary's amber hand reads on its own).</summary>
+        static readonly Color32 HaloColor = new Color32(0x0B, 0x0E, 0x0D, 0xB2);
 
         /// <summary>0..1 visibility multiplier (fade in/out).</summary>
         public float Alpha = 1f;
@@ -69,6 +76,8 @@ namespace SecondCursor.Input
             rt.anchorMin = rt.anchorMax = Vector2.zero;
             rt.pivot = new Vector2(0f, 1f);
             var view = rt.gameObject.AddComponent<CursorView>();
+            view._size = AccessOptions.CursorScale(Game.AccessSettings.LargeCursor);
+            Game.AccessSettings.Changed += view.OnAccessChanged;
             view._agent = agent;
             view._entityStyle = entityStyle;
             view._variant = variant;
@@ -113,8 +122,22 @@ namespace SecondCursor.Input
 
         public const string GaryVariant = "gary";
 
+        void OnAccessChanged()
+        {
+            int size = AccessOptions.CursorScale(Game.AccessSettings.LargeCursor);
+            if (size == _size) return;
+            _size = size;
+            _shownSprite = null;   // redrawn at the new size next frame
+        }
+
+        void OnDestroy() => Game.AccessSettings.Changed -= OnAccessChanged;
+
+        /// <summary>True when the sprite shown is the haloed one (one pixel larger on every side).</summary>
+        bool _haloed;
+
         Sprite Resolve(string spriteName)
         {
+            _haloed = false;
             if (_variant == GaryVariant)
             {
                 return SpriteLibrary.GetVariant(spriteName, GaryVariant, c =>
@@ -125,12 +148,14 @@ namespace SecondCursor.Input
                 });
             }
             if (!_entityStyle && !ShowEntityPalette) return SpriteLibrary.Get(spriteName);
-            return SpriteLibrary.GetVariant(spriteName, "entity", c =>
+            // Phase Q4 (R5): session 017 reads as a black arrow with a pale rim and a dark halo on every background.
+            _haloed = true;
+            return SpriteLibrary.GetHalo(spriteName, "entity", c =>
             {
                 if (c == 'K') return Palette.EntityOutline;
                 if (c == 'W') return Palette.EntityFill;
                 return null;
-            });
+            }, HaloColor);
         }
 
         void Apply(CursorShape shape)
@@ -143,7 +168,8 @@ namespace SecondCursor.Input
             var sprite = Resolve(spriteName);
             _image.sprite = sprite;
             var size = SpriteLibrary.Size(spriteName);
-            _rt.sizeDelta = new Vector2(size.x, size.y);
+            int grow = _haloed ? 2 : 0;
+            _rt.sizeDelta = new Vector2((size.x + grow) * _size, (size.y + grow) * _size);
             for (int i = 0; i < TrailLength; i++)
             {
                 if (_trail[i] == null) continue;
@@ -158,6 +184,9 @@ namespace SecondCursor.Input
             Apply(ForcedShape ?? _agent.Shape);
 
             var hot = SpriteLibrary.Hotspot(_shownSprite);
+            // The halo shifts the hotspot one pixel in; a larger cursor scales both (the click point stays on the tip).
+            if (_haloed) hot += Vector2Int.one;
+            hot *= _size;
             Vector2 p = _agent.Position + VisualOffset;
             if (_flinchTime > 0f)
             {
@@ -186,7 +215,8 @@ namespace SecondCursor.Input
                 _historyIndex = (_historyIndex + 1) % _history.Length;
             }
             float speed = _agent.Velocity.magnitude;
-            bool trail = visible && speed > 500f;
+            // Phase Q4 (R5): her ordinary moves smear a little from 250 px/s (the player never does): the motion signature of "not me".
+            bool trail = visible && speed > TrailSpeed;
             for (int i = 0; i < TrailLength; i++)
             {
                 var img = _trail[i];
@@ -197,7 +227,7 @@ namespace SecondCursor.Input
                 int back = i + 1;
                 var pos = _history[(_historyIndex - 1 - back + _history.Length * 4) % _history.Length];
                 img.rectTransform.anchoredPosition = pos;
-                img.color = new Color(1f, 1f, 1f, Alpha * (0.22f - i * 0.07f) * Mathf.Clamp01((speed - 500f) / 700f));
+                img.color = new Color(1f, 1f, 1f, Alpha * (0.22f - i * 0.07f) * Mathf.Clamp01((speed - TrailSpeed) / 700f));
             }
         }
     }

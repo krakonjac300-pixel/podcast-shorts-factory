@@ -23,12 +23,14 @@ namespace SecondCursor.Game
     {
         GameServices _g;
         bool _open;
+#if UNITY_EDITOR || DEBUG
         Vector2 _scroll;
-        int _speedIndex;
-        static readonly float[] Speeds = { 1f, 2f, 4f, 0.5f };
         GUIStyle _box;
         GUIStyle _label;
         GUIStyle _hint;
+#endif
+        int _speedIndex;
+        static readonly float[] Speeds = { 1f, 2f, 4f, 0.5f };
         float _fps;
 
         /// <summary>Test bridge (store screenshots): no developer hint on screen.</summary>
@@ -36,7 +38,9 @@ namespace SecondCursor.Game
         // Button actions run in the next Update, never in the middle of an OnGUI pass: changing game state
         // (which also writes log lines) between IMGUI's Layout and input events breaks GUILayout.
         readonly System.Collections.Generic.List<System.Action> _pending = new System.Collections.Generic.List<System.Action>();
+#if UNITY_EDITOR || DEBUG
         System.Collections.Generic.List<LogEntry> _logSnapshot;
+#endif
 
         /// <summary>A panel action runs next Update; anything done from the panel stops the run counting for records.</summary>
         void Defer(System.Action action)
@@ -75,7 +79,9 @@ namespace SecondCursor.Game
             // Developer keys exist only in the Editor and development builds; players never see the panel.
             if (Debug.isDebugBuild)
             {
-                if (input.KeyDown(GameKey.F1)) _open = !_open;
+#if UNITY_EDITOR || DEBUG
+                if (input.KeyDown(GameKey.F1)) _open = !_open;   // the panel itself is only compiled in these builds
+#endif
                 if (input.KeyDown(GameKey.F2))
                 {
                     _g.Disarm("F2 skip beat");
@@ -122,6 +128,9 @@ namespace SecondCursor.Game
             e.SetPresent(!e.IsVisible || e.View.Alpha < 0.5f, 0.2f);
         }
 
+        // Phase Q4 (CH7): IMGUI exists only in the Editor and development builds. A release player never runs OnGUI for a panel nobody can open
+        // (it cost a layout and a repaint pass every frame); the debug keys and the pointer rule live in Update and GameRoot as before.
+#if UNITY_EDITOR || DEBUG
         void OnGUI()
         {
             var e = _g.Entity;
@@ -299,6 +308,7 @@ namespace SecondCursor.Game
             GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
+#endif
 
         /// <summary>Phase P: the reel's state in one line ("s 34/140 bin pull 38 reel 210 SURGE").</summary>
         public static string ReelLine(TugReel r) =>

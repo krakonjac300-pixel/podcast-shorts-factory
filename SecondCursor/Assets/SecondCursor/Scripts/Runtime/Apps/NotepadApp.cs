@@ -189,15 +189,37 @@ namespace SecondCursor.Apps
                 _held.Remove(0, enter + 1);
                 if (line.Length > 0) SendHeld(line);
             }
-            string text = null;
             // Phase K (finding 4): what you type while it is not your turn is echoed here at once, with why it waits.
-            if (ConversationMode && _held.Length > 0)
-                text = G.Content.Format(NobodyListening ? "notepad.status.held" : "notepad.status.typing", SessionLabel, PendingHeld());
-            else if (WaitsForPlayer && PendingInput.Length == 0) text = G.Content.Text("notepad.status.turn");
-            if (text != null && text.Length > 0) text = char.ToUpperInvariant(text[0]) + text.Substring(1);
+            // Phase Q4 (CH7): the text and its height are rebuilt only when what they say changed (they used to be formatted and measured every
+            // frame while a reply was awaited).
+            bool convHeld = ConversationMode && _held.Length > 0;
+            bool nobody = NobodyListening;
+            bool turn = !convHeld && WaitsForPlayer && PendingInput.Length == 0;
+            int hash = 0;
+            if (convHeld)
+            {
+                hash = _held.Length;
+                for (int i = 0; i < _held.Length; i++) hash = hash * 31 + _held[i];
+            }
+            hash = hash * 31 + (SessionLabel != null ? SessionLabel.GetHashCode() : 0);
+            int key = (convHeld ? 1 : 0) | (nobody ? 2 : 0) | (turn ? 4 : 0);
+            float statusWidth = _convStatus.rect.width;
+            if (key != _statusKey || hash != _statusHash || !Mathf.Approximately(statusWidth, _statusWidth))
+            {
+                string made = null;
+                if (convHeld) made = G.Content.Format(nobody ? "notepad.status.held" : "notepad.status.typing", SessionLabel, PendingHeld());
+                else if (turn) made = G.Content.Text("notepad.status.turn");
+                if (made != null && made.Length > 0) made = char.ToUpperInvariant(made[0]) + made.Substring(1);
+                _statusText = made;
+                // Phase K: the strip grows to a second line for the longer reasons (it used to be cut at the window's edge).
+                _statusHeight = made != null ? Mathf.Max(15, PixelFont.Measure(made, Mathf.FloorToInt(statusWidth) - 9, false, 1).y + 4) : 0;
+                _statusKey = key;
+                _statusHash = hash;
+                _statusWidth = statusWidth;
+            }
+            string text = _statusText;
             bool show = text != null;
-            // Phase K: the strip grows to a second line for the longer reasons (it used to be cut at the window's edge).
-            int height = show ? Mathf.Max(15, PixelFont.Measure(text, Mathf.FloorToInt(_convStatus.rect.width) - 9, false, 1).y + 4) : 0;
+            int height = _statusHeight;
             if (show) _convStatusText.text = text;
             if (_convStatus.gameObject.activeSelf == show && height == _convStatusHeight) return;
             _convStatusHeight = height;
@@ -212,6 +234,9 @@ namespace SecondCursor.Apps
         }
 
         int _convStatusHeight;
+        int _statusKey = -1, _statusHash, _statusHeight;
+        float _statusWidth = -1f;
+        string _statusText;
 
         PixelText _status;
         string _baseTitle;
@@ -317,7 +342,7 @@ namespace SecondCursor.Apps
                 : G.Content.Format("file.saved.remote", file.Name);
             string note = G.Apps.SavedNote?.Invoke(_fileId, text);
             if (!string.IsNullOrEmpty(note)) msg += "\n" + note;
-            G.Notifications.Show(G.Content.Text("os.name"), msg, "icon_notepad", null, "ui_select");
+            G.Notifications.Show(G.Content.Text("os.name"), msg, "icon_notepad", null, "ui_select", false, null, remote ? by.Actor : Core.Game.NoticeKind.Plain);
             G.Apps.RaiseFileSaved(_fileId, text, by);
             return true;
         }

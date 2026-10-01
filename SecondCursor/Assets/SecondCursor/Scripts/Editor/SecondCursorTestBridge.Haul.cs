@@ -66,7 +66,7 @@ namespace SecondCursor.EditorTools
                     _input.MoveTo(g.Player.Position + new Vector2(14f, -10f), 0.5f);
                     _input.Release();
                     return LockPick();
-                default: return null;
+                default: return TryGameQ4Command(g, cmd, a, rest);
             }
         }
 

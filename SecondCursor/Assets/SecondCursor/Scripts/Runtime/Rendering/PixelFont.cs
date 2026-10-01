@@ -81,53 +81,20 @@ namespace SecondCursor.Rendering
         public static List<string> Wrap(string text, int maxWidth, bool bold, int scale, List<string> into = null) =>
             Wrap(text, maxWidth, bold, (float)scale, into);
 
+        // Phase Q4 (CH7): one cached delegate per weight (no closure per call); the algorithm is Core.Art.TextWrap, one pass.
+        static readonly System.Func<char, int> AdvanceRegular = c => Advance(c, false), AdvanceBold = c => Advance(c, true);
+
         public static List<string> Wrap(string text, int maxWidth, bool bold, float scale, List<string> into = null)
-        {
-            var lines = into ?? new List<string>();
-            lines.Clear();
-            if (text == null) return lines;
-            scale = Mathf.Max(1f, scale);
-            var paragraphs = text.Replace("\r", "").Split('\n');
-            foreach (var para in paragraphs)
-            {
-                if (maxWidth <= 0 || MeasureLine(para, bold, scale) <= maxWidth)
-                {
-                    lines.Add(para);
-                    continue;
-                }
-                var words = para.Split(' ');
-                string cur = "";
-                foreach (var word in words)
-                {
-                    string candidate = cur.Length == 0 ? word : cur + " " + word;
-                    if (MeasureLine(candidate, bold, scale) <= maxWidth)
-                    {
-                        cur = candidate;
-                        continue;
-                    }
-                    if (cur.Length > 0) lines.Add(cur);
-                    // Break words longer than a whole line.
-                    string rest = word;
-                    while (MeasureLine(rest, bold, scale) > maxWidth && rest.Length > 1)
-                    {
-                        int n = rest.Length - 1;
-                        while (n > 1 && MeasureLine(rest.Substring(0, n), bold, scale) > maxWidth) n--;
-                        lines.Add(rest.Substring(0, n));
-                        rest = rest.Substring(n);
-                    }
-                    cur = rest;
-                }
-                lines.Add(cur);
-            }
-            return lines;
-        }
+            => Core.Art.TextWrap.Wrap(text, maxWidth, scale, bold ? AdvanceBold : AdvanceRegular, into);
+
+        static readonly List<string> _measureScratch = new List<string>(32);
 
         public static Vector2Int Measure(string text, int maxWidth, bool bold, int scale) => Measure(text, maxWidth, bold, (float)scale);
 
         public static Vector2Int Measure(string text, int maxWidth, bool bold, float scale)
         {
             scale = Mathf.Max(1f, scale);
-            var lines = Wrap(text, maxWidth, bold, scale);
+            var lines = Wrap(text, maxWidth, bold, scale, _measureScratch);   // measuring only: no list per call
             int w = 0;
             foreach (var l in lines) w = Mathf.Max(w, MeasureLine(l, bold, scale));
             int h = lines.Count == 0 ? 0 : Mathf.CeilToInt(((lines.Count - 1) * PixelFontData.LineHeight + PixelFontData.GlyphHeight) * scale - 0.001f);

@@ -41,7 +41,7 @@ namespace SecondCursor.OS
                 string key = (g.Shred.CancelledAtConfirm ? "shred.cancelled.no" : "shred.cancelled.cancel") + (other ? "" : ".you");
                 float until = Time.time + RaceNoticeSeconds;
                 g.Notifications.Show(g.Content.Text("app.disposal"), g.Content.Format(key, name, SessionOf(g, by)), "icon_error", null, "sys_warning",
-                    true, () => Time.time < until);
+                    true, () => Time.time < until, other ? by.Actor : Core.Game.NoticeKind.Plain);
                 GameLog.Info(LogChannel.OS, "Notice: shred of " + name + " cancelled by " + (other ? SessionOf(g, by) : "the player") + (g.Shred.CancelledAtConfirm ? " at the confirm" : " during the shred"));
             };
             g.Windows.ClosedEvent += (w, by) =>
@@ -59,7 +59,7 @@ namespace SecondCursor.OS
                     : !custodial ? g.Content.Format("camera.closed.by", SessionOf(g, by))
                     : g.Content.Format(rounds.ClosedNoticeKey ?? "camera.closed.custodial", SessionOf(g, by),
                         Story.RoundsSystem.CameraName(g, rounds.Model.FigureCamera), Story.RoundsSystem.CameraName(g, Apps.CameraApp.CameraOnOpen(g)));
-                g.Notifications.Show(app, body, camera ? "icon_camera" : "icon_info", null, "ui_select");
+                g.Notifications.Show(app, body, camera ? "icon_camera" : "icon_info", null, "ui_select", false, null, by.Actor);
                 GameLog.Info(LogChannel.OS, "Notice: " + app + " closed by " + SessionOf(g, by));
             };
             g.Files.FileMoved += (file, from, to, actor) =>
@@ -81,8 +81,9 @@ namespace SecondCursor.OS
                 // The last file of a batch completes the task at once: that help counts too. Taking one out only matters while it is open.
                 if (!into && (from != task.Data.param || task.State != Core.Tasks.TaskState.Active)) return;
                 string key = into ? "files.help.by" : "files.unhelp.by";
+                var helper = file.MovedBy == SessionOf(g, g.GaryAgent) ? Core.Game.NoticeKind.Gary : Core.Game.NoticeKind.Entity;
                 g.Notifications.Show(c.Text("app.workqueue"), c.Format(key, file.Name, to == task.Data.param ? toName : fromName, file.MovedBy, task.Title, task.ProgressText),
-                    "icon_task_active", a => g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
+                    "icon_task_active", a => g.Apps.Launch(AppIds.WorkQueue, a), "ui_select", false, null, helper);
                 GameLog.Info(LogChannel.OS, "Notice: " + file.Name + " moved " + from + " -> " + to + " by " + file.MovedBy + " (" + task.Id + " " + task.ProgressText + ")");
             };
             if (g.Entity != null && g.Entity.Brain != null)
@@ -93,7 +94,7 @@ namespace SecondCursor.OS
                     if (how != "keepaway" || !Due("keepaway")) return;
                     var file = g.Files.GetFile(g.Entity.Brain.ProtectedFileId);
                     if (file == null) return;
-                    g.Notifications.Show(g.Content.Text("os.name"), g.Content.Format("file.moved.by", file.Name, SessionOf(g, g.EntityAgent)), "icon_info", null, "ui_select");
+                    g.Notifications.Show(g.Content.Text("os.name"), g.Content.Format("file.moved.by", file.Name, SessionOf(g, g.EntityAgent)), "icon_info", null, "ui_select", false, null, Core.Game.NoticeKind.Entity);
                     GameLog.Info(LogChannel.OS, "Notice: " + file.Name + " moved by session 017");
                     // Phase I: beside the file itself, in the fight's own panel: it was taken while nobody was holding it.
                     var icon = g.Desktop != null ? g.Desktop.IconForFile(file.Id) : null;

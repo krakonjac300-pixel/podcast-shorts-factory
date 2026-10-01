@@ -1,4 +1,5 @@
 using System;
+using SecondCursor.Core.Game;
 using SecondCursor.Input;
 using SecondCursor.Rendering;
 using UnityEngine;
@@ -18,6 +19,15 @@ namespace SecondCursor.UI
         public Interactable Hit { get; private set; }
         RectTransform _content;
         BevelGraphic _defaultRing;
+        /// <summary>Phase Q4 (R5): a 1 px inner outline in the colour of the session whose pointer holds this button down (017 or 209).</summary>
+        BevelGraphic _holderRing;
+        NoticeKind _holder;
+
+        /// <summary>
+        /// Phase Q4 (R5): which pointer, if any, is covering this control to keep the player off it (set by the game root: session 017 or Gary
+        /// guarding Yes or No). A covered button is drawn sunken with that session's outline, so the control itself says whose hand is on it.
+        /// </summary>
+        public static Func<Interactable, CursorAgent> GuardOf;
 
         bool _enabled = true;
         bool _toggled;
@@ -131,13 +141,28 @@ namespace SecondCursor.UI
         {
             if (Hit == null) return;
             bool down = _toggled;
+            var holder = NoticeKind.Plain;
             if (!down && _enabled)
             {
                 foreach (var a in Hit.HoveredBy)
                 {
-                    if (Hit.IsPressedBy(a)) { down = true; break; }
+                    if (!Hit.IsPressedBy(a)) continue;
+                    down = true;
+                    // Held by another session's pointer: the control says whose hand it is (R5).
+                    if (a.IsEntity) holder = a.Actor;
+                    break;
                 }
             }
+            if (GuardOf != null && _enabled)
+            {
+                var guard = GuardOf(Hit);
+                if (guard != null)
+                {
+                    down = true;
+                    holder = guard.Actor;
+                }
+            }
+            if (holder != _holder) SetHolder(holder);
             if (down == _pressedLook && Face.enabled == (!_flat || down || Hit.IsHovered)) return;
             _pressedLook = down;
             Face.Style = down ? BevelStyle.Pressed : BevelStyle.Raised;
@@ -148,6 +173,25 @@ namespace SecondCursor.UI
                 _content.offsetMin = new Vector2(2 + o, 2 - o);
                 _content.offsetMax = new Vector2(-2 + o, -2 - o);
             }
+        }
+
+        void SetHolder(NoticeKind holder)
+        {
+            _holder = holder;
+            uint rgb = ActorStyle.ZoomFrame(holder);
+            if (rgb == 0u)
+            {
+                if (_holderRing != null) _holderRing.enabled = false;
+                return;
+            }
+            if (_holderRing == null)
+            {
+                _holderRing = UIBuilder.Bevel(transform, BevelStyle.Outline, "Holder Ring");
+                _holderRing.rectTransform.Stretch(1, 1, 1, 1);
+            }
+            _holderRing.Fill = Palette.FromRgb(rgb);
+            _holderRing.transform.SetAsLastSibling();
+            _holderRing.enabled = true;
         }
 
         public void SetLabel(string text)

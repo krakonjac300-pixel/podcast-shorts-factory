@@ -55,6 +55,12 @@ namespace SecondCursor.Input
         public bool IsPlayer => Kind == AgentKind.Player;
         public bool IsEntity => Kind == AgentKind.Entity;
 
+        /// <summary>The third pointer's name (Gary, session 209).</summary>
+        const string ThirdPointer = "Gary";
+
+        /// <summary>Phase Q4 (R2): whose colours this pointer wears in notices and on windows it closes: 017, 209 or nobody (the player).</summary>
+        public Core.Game.NoticeKind Actor => Core.Game.ActorStyle.Of(IsEntity, Name == ThirdPointer);
+
         public void SetButton(bool down)
         {
             if (down == Held) return;

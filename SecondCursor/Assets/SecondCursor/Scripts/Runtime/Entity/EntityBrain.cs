@@ -199,16 +199,22 @@ namespace SecondCursor.Entity
             Vector2 disposal = _g.Desktop.DisposalIcon.Hit.Center;
             Vector2 best = new Vector2(480f, 400f);
             float bestScore = float.MinValue;
-            for (float x = 110f; x <= ScreenRig.Width - 90f; x += 50f)
+            // Phase Q4 (CH6): about 150 probes in one frame: the elements' rects are computed once for all of them.
+            _g.Router.BeginBatch();
+            try
             {
-                for (float y = WindowManager.TaskbarHeight + 70f; y <= ScreenRig.Height - 40f; y += 45f)
+                for (float x = 110f; x <= ScreenRig.Width - 90f; x += 50f)
                 {
-                    var c = new Vector2(x, y);
-                    float s = Vector2.Distance(c, Player.Position) + Vector2.Distance(c, disposal) * 0.7f + UnityEngine.Random.Range(0f, 30f);
-                    if (!_c.IsBareDesktop(c)) s -= 2000f;
-                    if (s > bestScore) { bestScore = s; best = c; }
+                    for (float y = WindowManager.TaskbarHeight + 70f; y <= ScreenRig.Height - 40f; y += 45f)
+                    {
+                        var c = new Vector2(x, y);
+                        float s = Vector2.Distance(c, Player.Position) + Vector2.Distance(c, disposal) * 0.7f + UnityEngine.Random.Range(0f, 30f);
+                        if (!_c.IsBareDesktop(c)) s -= 2000f;
+                        if (s > bestScore) { bestScore = s; best = c; }
+                    }
                 }
             }
+            finally { _g.Router.EndBatch(); }
             return best;
         }
 
@@ -222,16 +228,22 @@ namespace SecondCursor.Entity
             Vector2 bin = _g.Desktop.DisposalIcon.Hit.Center;
             Vector2 best = Vector2.zero;
             float bestScore = float.MaxValue;
-            for (float dx = -240f; dx <= 240f; dx += 30f)
+            // Phase Q4 (CH6): up to 221 probes in one frame, right when she sets a won file down: one batch of cached rects.
+            _g.Router.BeginBatch();
+            try
             {
-                for (float dy = -180f; dy <= 180f; dy += 30f)
+                for (float dx = -240f; dx <= 240f; dx += 30f)
                 {
-                    var c = ScreenRig.ClampToScreen(target + new Vector2(dx, dy));
-                    if (Vector2.Distance(c, bin) < 110f || Vector2.Distance(c, Player.Position) < 60f || WindowManager.InToastColumn(c) || !_c.IsBareDesktop(c)) continue;
-                    float score = Vector2.Distance(c, target);
-                    if (score < bestScore) { bestScore = score; best = c; }
+                    for (float dy = -180f; dy <= 180f; dy += 30f)
+                    {
+                        var c = ScreenRig.ClampToScreen(target + new Vector2(dx, dy));
+                        if (Vector2.Distance(c, bin) < 110f || Vector2.Distance(c, Player.Position) < 60f || WindowManager.InToastColumn(c) || !_c.IsBareDesktop(c)) continue;
+                        float score = Vector2.Distance(c, target);
+                        if (score < bestScore) { bestScore = score; best = c; }
+                    }
                 }
             }
+            finally { _g.Router.EndBatch(); }
             return bestScore < float.MaxValue ? best : SafeSpot();
         }
 
@@ -386,7 +398,8 @@ namespace SecondCursor.Entity
             yield return EnsurePresent(EntryPointNear(no.Hit.Center));
             _c.State = Core.Entity.EntityState.Aggressive;
             // A beat of reaction time: the player gets a real chance to click Yes first.
-            yield return Waits.Seconds(Profile.RaceToNoDelay(UnityEngine.Random.value, Assist));
+            // Phase Q4 (A4): Story mode and Relaxed timing give the player a longer head start.
+            yield return Waits.Seconds(Profile.RaceToNoDelay(UnityEngine.Random.value, Assist) + Core.Game.RelaxedTiming.RaceDelayAdd(_g.TimeScale));
             var result = new bool[1];
             yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 1.5f);
             if (result[0] && box.Result == "No") RegisterDefense("no");

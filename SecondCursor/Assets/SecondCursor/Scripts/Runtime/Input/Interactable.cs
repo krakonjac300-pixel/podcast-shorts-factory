@@ -16,6 +16,13 @@ namespace SecondCursor.Input
         static readonly HashSet<Interactable> Registry = new HashSet<Interactable>();
         public static IReadOnlyCollection<Interactable> All => Registry;
 
+        /// <summary>
+        /// Phase Q4 (CH6): the same elements as a list the pointer router walks with a plain loop (the set's enumerator is boxed through
+        /// <see cref="All"/> on every hit test, and the entity probes a hundred spots in one frame). Order does not matter: draw order decides.
+        /// </summary>
+        internal static readonly List<Interactable> Items = new List<Interactable>(256);
+        int _itemIndex = -1;
+
         [Tooltip("When false the element is invisible to cursors (clicks go to whatever is underneath).")]
         public bool interactable = true;
         [Tooltip("Cursor shown while hovering.")]
@@ -69,12 +76,24 @@ namespace SecondCursor.Input
         void OnEnable()
         {
             Serial = ++_nextSerial;
-            Registry.Add(this);
+            if (Registry.Add(this))
+            {
+                _itemIndex = Items.Count;
+                Items.Add(this);
+            }
         }
 
         void OnDisable()
         {
-            Registry.Remove(this);
+            if (Registry.Remove(this) && _itemIndex >= 0 && _itemIndex < Items.Count && Items[_itemIndex] == this)
+            {
+                // Swap with the last element: O(1), and the moved element learns its new index.
+                var last = Items[Items.Count - 1];
+                Items[_itemIndex] = last;
+                last._itemIndex = _itemIndex;
+                Items.RemoveAt(Items.Count - 1);
+                _itemIndex = -1;
+            }
             // Release anyone still hovering/pressing so no agent keeps a dangling reference.
             for (int i = _hoveredBy.Count - 1; i >= 0; i--) RaiseHoverExit(_hoveredBy[i]);
             _pressedBy.Clear();

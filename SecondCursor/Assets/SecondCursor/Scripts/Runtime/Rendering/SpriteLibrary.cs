@@ -59,6 +59,69 @@ namespace SecondCursor.Rendering
             return sprite;
         }
 
+        /// <summary>
+        /// Phase Q4 (R5): a recoloured copy with a 1 px halo of <paramref name="halo"/> around every opaque cell, in the empty cells beside it.
+        /// The sprite is two pixels wider and taller than the original and its content starts one pixel in (the caller shifts the hotspot by one).
+        /// </summary>
+        public static Sprite GetHalo(string name, string variantKey, Func<char, Color32?> remap, Color32 halo)
+        {
+            string key = name + "#" + variantKey + "+halo";
+            if (Cache.TryGetValue(key, out var cached) && cached != null) return cached;
+            var src = Find(name);
+            if (src == null) return GetVariant(name, variantKey, remap);
+            var tex = BuildHalo(src, remap, halo);
+            var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0f, 1f), 1f, 0, SpriteMeshType.FullRect);
+            sprite.name = key;
+            Cache[key] = sprite;
+            return sprite;
+        }
+
+        static Texture2D BuildHalo(PixelSprite sprite, Func<char, Color32?> remap, Color32 halo)
+        {
+            int w = sprite.Width + 2, h = sprite.Height + 2;
+            var px = new Color32[w * h];
+            var solid = new bool[w * h];
+            for (int y = 0; y < sprite.Height; y++)
+            {
+                string row = sprite.Rows[y];
+                for (int x = 0; x < sprite.Width; x++)
+                {
+                    char ch = row[x];
+                    Color32 c = PaletteColor(ch);
+                    var m = remap != null ? remap(ch) : null;
+                    if (m.HasValue) c = m.Value;
+                    if (c.a == 0) continue;
+                    int i = (h - 1 - (y + 1)) * w + (x + 1);   // texture rows start at the bottom
+                    px[i] = c;
+                    solid[i] = true;
+                }
+            }
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int i = y * w + x;
+                    if (solid[i]) continue;
+                    bool near = false;
+                    for (int dy = -1; dy <= 1 && !near; dy++)
+                        for (int dx = -1; dx <= 1 && !near; dx++)
+                        {
+                            int nx = x + dx, ny = y + dy;
+                            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                            if (solid[ny * w + nx]) near = true;
+                        }
+                    if (near) px[i] = halo;
+                }
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                name = sprite.Name + " halo",
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            tex.SetPixels32(px);
+            tex.Apply(false, true);
+            return tex;
+        }
+
         public static Vector2Int Size(string name)
         {
             var s = Find(name);

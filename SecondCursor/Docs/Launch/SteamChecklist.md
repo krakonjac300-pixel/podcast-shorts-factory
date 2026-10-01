@@ -151,8 +151,10 @@ Fix:
 
 **Status: done for display, VSync and frame cap** (Phase E): Display (borderless fullscreen / largest whole-number window,
 applied at start), Frame rate (VSync default, 30, 60, 120, 144, Unlimited: `DisplaySettings`), Reading text (Normal / Large),
-volume, CRT, flashing and difficulty, all saved to `settings.json` at once. Still open: a separate screen-shake setting,
-window sizes to pick from, Click lock (built in Phase P).
+volume, CRT, flashing and difficulty, all saved to `settings.json` at once. Click lock (built in Phase P). Phase Q4: Reading text
+(Normal / Medium / Large), CRT (Off / Low / Full), and an Accessibility page (notice time, relaxed timing, sound captions, sudden sounds,
+screen shake Full / Reduced / Off, mono audio, large cursor, double-click Normal / Slow / Single click); the first-launch screen offers
+captions and works from the keyboard. Still open: window sizes to pick from.
 
 Evidence: `PauseMenu.ToggleDisplay` does `Screen.fullScreenMode = FullScreenMode.FullScreenWindow` when returning to fullscreen, which keeps the current 1280x720 render size, so the game is upscaled and blurry until restart; windowed is always 1280x720 (non-integer 1.333x of 960x540); `SaveData.fullscreen` is written but never read in `GameRoot.Build`; VSync and frame cap are hard-coded in `GameRoot.Awake`; only master volume exists.
 
@@ -166,7 +168,7 @@ Fix (Esc menu, plus the title "Options"):
 | Frame cap (when VSync off) | 60 / 120 / 144 / Unlimited | `Application.targetFrameRate = cap` (-1 for unlimited) |
 | Volume | Master (exists); add SFX and Ambience if you want the Steam "Custom Volume Controls" tag | `AudioManager` |
 | Flashing | Full / Reduced (exists) | `VisualFx.ReduceFlashing` |
-| Screen shake | On / Reduced / Off | split from ReduceFlashing so it can go to zero (Steam "Camera Comfort" tag) |
+| Screen shake | Full / Reduced / Off (built, Phase Q4: Options > Accessibility; follows Reduce flashing until set) | `AccessSettings.Shake`, `VisualFx.Shake` (Steam "Camera Comfort" tag) |
 | CRT effects | On / Off (exists) | `VisualFx.CrtEnabled` |
 | Click lock (built, Phase P; accessibility, Deck) | Off / On (click to pick up, click to drop); also Tug assist: Off / Hold | `ClickLock`, `AccessSettings`, `PauseMenu` |
 
@@ -495,9 +497,13 @@ The survey has three parts: General Content (generates ratings for several regio
 Photosensitivity: Steam has no dedicated survey checkbox or accessibility tag for flashing (the accessibility tag list has none, https://partner.steamgames.com/doc/accessibility_features). Cover it three ways: the in-game warning plus first-launch choice (2.2), one line at the top of About This Game ("Contains flickering, screen glitches and sudden loud sounds; a Reduced Flashing option is available from the first screen"), and the Mature Content description above.
 
 Accessibility wizard (Steamworks, optional but shown on the store page): claim only what is true after the fixes.
-- "Camera Comfort": yes once screen shake can be reduced or turned off (2.3).
+- "Camera Comfort": yes (Phase Q4: Screen shake Full / Reduced / Off, 2.3; the window shake of a refused click is a small motion cue and stays).
 - "Mouse Only Option": yes once there is an on-screen pause/menu button (2.2); typing is optional thanks to the silence fallback.
-- "Custom Volume Controls": only if you add per-channel sliders.
+- "Custom Volume Controls": only if you add per-channel sliders (master volume only today; Phase Q4 added Mono audio).
+- "Stereo Sound" / "Mono audio option": Mono audio exists (Options > Accessibility, Phase Q4). No story rule depends on sound alone, and Sound captions (off by default) name the story and scare sounds.
+- "Subtitle Options": the game has no spoken dialogue; do not claim it. Say "Sound captions" in the description instead.
+- "Adjustable Difficulty": Normal and Story, plus Tug assist, Click lock and Relaxed timing (Phase Q4: the timed moments last twice as long).
+- "Control remapping": not claimed. Phase Q4 added a slower or single-click double-click and Enter to open the selected icon or row.
 - Do not claim "Adjustable Text Size" (Valve wants text scalable to at least 38 px tall at 1080p), "Save Anytime" or "Playable without Quick Time Events" (tug-of-war and the race to "No" are timed).
 
 ---

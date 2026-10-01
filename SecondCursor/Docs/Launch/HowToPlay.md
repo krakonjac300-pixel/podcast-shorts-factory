@@ -107,7 +107,11 @@ Its pointer grabs the file and a rope pulls taut from your pointer through the f
 [/list]
 
 [h2]Options[/h2]
-Press [b]Esc[/b] or click [b]||[/b] to pause. The menu holds [b]CRT effects[/b], [b]Flashing[/b] (Full or Reduced), [b]Display[/b], [b]Frame rate[/b] (VSync, 30, 60, 120, 144 or 240), [b]Reading text[/b] (Large doubles Mail, Jotter pages, Help and notices), [b]Volume[/b], [b]Difficulty[/b], [b]Tug assist[/b] (Off or Hold: holding the button wins a tug-of-war; pulling makes it faster), [b]Click lock[/b] (click once to pick up, again to drop), [b]Restart from checkpoint[/b], [b]Quit to Title[/b] and [b]Quit[/b]. The shift also pauses when you switch to another program or open the Steam overlay.
+Press [b]Esc[/b] or click [b]||[/b] to pause. The menu holds [b]CRT effects[/b], [b]Flashing[/b] (Full or Reduced), [b]Display[/b], [b]Frame rate[/b] (VSync, 30, 60, 120, 144 or 240), [b]Reading text[/b] (Normal, Medium or Large: Large doubles Mail, Jotter pages, Help, notices, Personnel and Work Orders details and message boxes), [b]CRT effects[/b] (Off, Low or Full), [b]Volume[/b], [b]Difficulty[/b], [b]Tug assist[/b] (Off or Hold: holding the button wins a tug-of-war; pulling makes it faster), [b]Click lock[/b] (click once to pick up, again to drop), [b]Accessibility...[/b], [b]Restart from checkpoint[/b], [b]Quit to Title[/b] and [b]Quit[/b]. The shift also pauses when you switch to another program or open the Steam overlay.
+
+[b]Accessibility...[/b] opens a page with: [b]Notice time[/b] (Normal: a notice stays about as long as it takes to read it; Long: half as long again; Until clicked), [b]Relaxed timing[/b] (the timed moments last twice as long: the shred order on Night 2, the last five minutes before 7:05 on Night 3, the grace after a log off or a shred has begun, and the head start you get in the race to No; always on in Story mode), [b]Sound captions[/b] (a short line such as [b][knock at a door][/b] for the story and scare sounds, with a [b]<[/b] or [b]>[/b] for the side it came from; off by default and offered on the very first screen), [b]Sudden sounds[/b] (Softened plays the quieter hit without turning on Reduce flashing), [b]Screen shake[/b] (Full, Reduced or Off), [b]Mono audio[/b], [b]Large cursor[/b] (the three pointers at twice the size) and [b]Double-click[/b] (Normal, Slow, or Single click: one click opens an icon or a file).
+
+Notices: the last twenty are kept. Open [b]Recent notices[/b] from the Nexus menu (or click the [b]+N more[/b] tab above the notices) to read one again. At most three notices show at once; the rest wait their turn. Notices from another session wear that session's pointer and a stripe in its colours (black with a pale edge: session 017; amber: session 209); a deadline notice has a red stripe. Keyboard: the first screen works with the arrow keys and Enter, and Enter opens the selected desktop icon or file row.
 
 [h2]Saving[/h2]
 Each night saves at a few checkpoints. [b]Continue[/b] on the title picks up from the last one.
@@ -136,7 +140,7 @@ Each night saves at a few checkpoints. [b]Continue[/b] on the title picks up fro
 A first run takes about an hour across three nights. Seeing all three endings takes around two hours. The free demo is Night 1 and takes about 12 to 15 minutes.
 
 [b]Is it scary?[/b]
-It is quiet psychological horror: slow dread, with a few jump scares. There is no gore, and death is implied, never shown. Expect a mouse pointer that is not yours, messages typed to you, a figure on a security camera, long silences and a few sudden loud sounds (the loudest in one of the endings). Headphones recommended, at a comfortable level. Reduce flashing (first screen or Options) also softens the sudden loud sounds.
+It is quiet psychological horror: slow dread, with a few jump scares. There is no gore, and death is implied, never shown. Expect a mouse pointer that is not yours, messages typed to you, a figure on a security camera, long silences and a few sudden loud sounds (the loudest in one of the endings). Headphones recommended, at a comfortable level. Reduce flashing (first screen or Options) also softens the sudden loud sounds; you can soften those alone with Sudden sounds, and Screen shake has its own setting.
 
 [b]Is it safe to stream or record?[/b]
 Yes. The game does not read or change your files (anything you save in the Jotter goes to the game's own pretend disk). It does not use your webcam or microphone, never moves your real mouse, and makes no internet connection of its own; Steam handles achievements the way it does for any game. Anything the fake computer says about cameras, recording or other users is part of the story. One practical note: while a shift is running, your pointer stays inside the game window, so a hard drag cannot land on another monitor. Pausing frees it.
@@ -156,8 +160,14 @@ Yes. The right trackpad moves the pointer, A clicks, R2 drags, L2 shows what you
 [b]Which languages?[/b]
 English only, for text and for typing. There is no voice acting. You can type in any language, but replies are matched to English words.
 
+[b]Can I play without sound?[/b]
+Yes. Turn on Sound captions (the first screen offers it, or Options, Accessibility): the story and scare sounds appear as a short bracketed line with a side mark. No task or rule depends on sound alone. Notices, the camera feed and the files say everything the sounds hint at.
+
+[b]The timed parts are too fast for me.[/b]
+Turn on Relaxed timing (Options, Accessibility). It doubles the real time of the shred order on Night 2, the last five minutes on Night 3 and the grace after you start a log off or a shred, and gives you a longer head start in the race to No. Story mode has it on already.
+
 [b]Are there photosensitivity options?[/b]
-Yes. The game contains screen glitches and tearing, screen shake, film grain, CRT flicker, bursts of static, a flickering light in the camera feeds and a bright flash when the monitor powers off. You can choose Reduce flashing on the very first screen, or set Flashing to Reduced in Options at any time. It tones down glitches, flashes, shake and flicker spikes, and softens the sudden loud sounds. CRT effects can be switched off too.
+Yes. The game contains screen glitches and tearing, screen shake, film grain, CRT flicker, bursts of static, a flickering light in the camera feeds and a bright flash when the monitor powers off. You can choose Reduce flashing on the very first screen, or set Flashing to Reduced in Options at any time. It tones down glitches, flashes, shake and flicker spikes, and softens the sudden loud sounds. CRT effects can be Low or Off, Screen shake can be Reduced or Off, and Sudden sounds can be Softened on their own (Options, Accessibility).
 
 [b]Do I have to type?[/b]
 No. The work itself is all mouse. Typing is how you talk back in the Jotter, and it is the heart of the game, but the night carries on if you stay quiet.

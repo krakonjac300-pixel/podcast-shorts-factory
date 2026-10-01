@@ -73,6 +73,8 @@ namespace SecondCursor.Core.Tasks
         public string Title => TitleOverride ?? Data.title;
         public string Description => DescriptionOverride ?? Data.description;
         public string Hint => HintOverride ?? Data.hint;
+        /// <summary>Phase Q4 (R3): bold scan lines for the top of the instructions (none for most tasks).</summary>
+        public string[] Summary => Data.summary ?? System.Array.Empty<string>();
         /// <summary>"3/4" or "3/4, 1 by session 017" (see <see cref="TaskProgress.Format"/>).</summary>
         public string ProgressText => TaskProgress.Format(Progress, Goal, HelpedBy);
         /// <summary>Phase Q1: who else did the work, for the queue line of any task ("finished by Night Operations", "1 of 4 by session 017"); null = the player.</summary>
@@ -140,6 +142,20 @@ namespace SecondCursor.Core.Tasks
         public static int Minutes(string deadline)
         {
             if (string.IsNullOrEmpty(deadline)) return -1;
+            // Phase Q4 (CH7): a handful of deadline strings are read every frame (the taskbar, the queue, its chips): each is parsed once.
+            lock (MinutesCache)
+            {
+                if (MinutesCache.TryGetValue(deadline, out int known)) return known;
+                int parsed = ParseMinutes(deadline);
+                MinutesCache[deadline] = parsed;
+                return parsed;
+            }
+        }
+
+        static readonly System.Collections.Generic.Dictionary<string, int> MinutesCache = new System.Collections.Generic.Dictionary<string, int>(8);
+
+        static int ParseMinutes(string deadline)
+        {
             string s = deadline.Trim().ToUpperInvariant();
             bool pm = s.EndsWith("PM", StringComparison.Ordinal);
             bool am = s.EndsWith("AM", StringComparison.Ordinal);

@@ -92,7 +92,11 @@ namespace SecondCursor.Story
         public bool ShownCameraSpared => PreferredCamera != null && ViewedCamera() != null && PreferredCamera() == ViewedCamera();
 
         /// <summary>How long the second cursor waits before closing a viewer that shows the figure.</summary>
-        public float CloseReaction() => Model != null ? Model.Config.CloseReaction(UnityEngine.Random.value) : 1.5f;
+        public float CloseReaction()
+        {
+            float seconds = Model != null ? Model.Config.CloseReaction(UnityEngine.Random.value) : 1.5f;
+            return Core.Game.RelaxedTiming.CloseReaction(seconds, _g.TimeScale);   // Phase Q4 (A4)
+        }
 
         public void Begin(RoundsConfig config)
         {

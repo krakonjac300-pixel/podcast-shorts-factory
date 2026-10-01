@@ -176,9 +176,15 @@ namespace SecondCursor.Game
             g.Tasks = new WorkTaskManager(g.Content.Tasks.tasks, new TaskWorld(g));
             g.Shred = new ShredService(g);
             g.Apps = new AppManager(g);
+            // Phase Q4 (A3): every notice is kept for Recent notices, stamped with the shift clock; the "+N more" chip opens the list.
+            g.Notifications.Stamp = () => g.Clock != null ? g.Clock.Format12() : "";
+            g.Notifications.OpenRecent = a => g.Apps.Launch(RecentNoticesApp.Id, a);
             g.Desktop = Desktop.Create(g);
+            g.Windows.Focused += (w, by) => g.Desktop.ForgetSelection();
             g.Taskbar = Taskbar.Create(g);
             g.Tips = Tips.Create(g);
+            // Phase Q4 (A6): sound captions (off by default); they listen to the audio manager.
+            Captions.Create(g, g.Layers.Fullscreen);
             g.Files.FileMoved += (f, from, to, actor) => g.Tasks.Evaluate();
             g.Files.FileShredded += (f, actor) => g.Tasks.Evaluate();
 
@@ -190,9 +196,12 @@ namespace SecondCursor.Game
             g.Gary = EntityController.Create(g, transform, g.GaryAgent, g.GaryView, false, null);
             g.Gary.DeviceIndex = 3;
             g.Gary.MaxAlpha = 0.75f;
+            g.Gary.SolidWhileGuarding = true;   // Phase Q4 (R5): his hand on a control is drawn solid
             g.Gary.BaseFlicker = 0.08f;
             g.Gary.TypoRate = 0.08f;
             g.GaryView.Flicker = 0.08f;
+            _guardOf = el => g.Entity?.GuardAgentOf(el) ?? g.Gary?.GuardAgentOf(el);
+            UiButton.GuardOf = _guardOf;
             g.Conflict = ConflictSystem.Create(g, transform);
             g.Rounds = RoundsSystem.Create(g, transform);
             NightSetup.ForNight(g);
@@ -276,6 +285,7 @@ namespace SecondCursor.Game
             var g = G;
             float dt = Time.deltaTime;
             float unscaledDt = Time.unscaledDeltaTime;
+            SaveSystem.Pump();   // Phase Q4 (CH8): what the background writer could not do is logged here
 
             // One failing stage must not stop the rest of the frame (or fill Player.log): each is caught and reported once (FaultLog).
             // 1. Real input -> the player's cursor.
@@ -312,6 +322,9 @@ namespace SecondCursor.Game
             catch (Exception e) { FaultLog.Report("input", e); }
 
             // 2. Pointer routing for both cursors (entity state was set by its coroutines last frame).
+            // Phase Q4 (A7): the double-click's window and reach are an option (Normal 0.45 s and 5 px, Slow 0.9 s and 12 px).
+            g.Router.DoubleClickTime = AccessOptions.DoubleClickSeconds(AccessSettings.ClickSpeed);
+            g.Router.DoubleClickDistance = AccessOptions.DoubleClickDistance(AccessSettings.ClickSpeed);
             try { g.Router.Process(Time.unscaledTime); }
             catch (Exception e) { FaultLog.Report("pointer routing", e); }
 
@@ -359,9 +372,18 @@ namespace SecondCursor.Game
             g.Tips?.Offer("clicklock", () => new Rect(g.Player.Position.x - 8f, g.Player.Position.y - 8f, 16f, 16f), () => AccessSettings.Lock.Locked, 12f);
         }
 
+        System.Func<Input.Interactable, Input.CursorAgent> _guardOf;
+
+        /// <summary>Phase Q4 (CH8): the saves are written by a background thread; quitting waits for it.</summary>
+        void OnApplicationQuit() => SaveSystem.Flush();
+
         void OnApplicationFocus(bool focus)
         {
-            if (!focus) Cursor.visible = true;
+            if (!focus)
+            {
+                Cursor.visible = true;
+                SaveSystem.Flush();   // Phase Q4 (CH8): the background writer is empty before the window can be killed
+            }
         }
 
         void LateUpdate()

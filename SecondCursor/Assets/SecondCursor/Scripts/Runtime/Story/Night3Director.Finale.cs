@@ -189,7 +189,7 @@ namespace SecondCursor.Story
                     at700 = Time.time;
                     // Where to log off: a click on the notice opens the Nexus menu. Phase K: the Work Queue and the taskbar count down to
                     // 7:05 and name what doing nothing means and the ways out (suggestion 5, finding 1).
-                    g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("logoff.available"), "icon_info", a => g.Taskbar.StartMenu.OpenFromElsewhere(a), "ui_select");
+                    g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("logoff.available"), "icon_info", a => g.Taskbar.StartMenu.OpenFromElsewhere(a), "ui_select", true, () => _exit == Night3Exit.None, Core.Game.NoticeKind.Deadline);
                     // Phase N: the task given at 6:41 now says what to do.
                     g.Tasks.Rewrite(ContentIds.TaskN3LogOffBy, g.Content.Text("task.logoff.now.title"), null, g.Content.Text("task.logoff.now.hint"));
                     GameLog.Info(LogChannel.Story, "7:00: log off available");
@@ -199,7 +199,7 @@ namespace SecondCursor.Story
                     gary700 = true;
                     if (!GaryFinished) RunSide(GarySays(g.Flags.Has(MemoryFlags.N3Box209Kept) ? "g3_finale_box" : "g3_finale"), "gary-finale");
                 }
-                if (clock >= Night3Rules.LogOffTime && !_fastForward) g.Clock.Rate = RoundsRate;
+                if (clock >= Night3Rules.LogOffTime && !_fastForward) g.Clock.Rate = PostSevenRate;
                 // M8: the last five minutes before seven read amber on the tray clock.
                 g.Taskbar.ClockAmber = clock >= Night3Rules.LogOffTime - AmberMinutes && clock < Night3Rules.LogOffTime;
 
@@ -213,8 +213,9 @@ namespace SecondCursor.Story
                 if (_confirmed && clock >= Night3Rules.LogOffTime && !g.Shred.Busy) { _exit = Night3Exit.Keep; _keepCause = "confirm"; break; }
                 if (clock >= Night3Rules.KeepTime && keepSince < 0f) keepSince = Time.time;
                 // Phase N (finding 3): time's KEEP names what the player was trying to do when it came.
-                if (Night3Rules.KeepByTime(clock, running, keepSince < 0f ? 0f : Time.time - keepSince)) { _exit = Night3Exit.Keep; _keepCause = _lastTry ?? "time"; break; }
-                if (Time.time - start > FinaleSafetyCap)
+                // Phase Q4 (A4): the grace after a log off or shred has started is as long again when relaxed (the time since is divided by the scale).
+                if (Night3Rules.KeepByTime(clock, running, keepSince < 0f ? 0f : (Time.time - keepSince) / Mathf.Max(1f, g.TimeScale))) { _exit = Night3Exit.Keep; _keepCause = _lastTry ?? "time"; break; }
+                if (Time.time - start > FinaleSafetyCap * Mathf.Max(1f, g.TimeScale))
                 {
                     GameLog.Warn(LogChannel.Story, "Finale hit its safety cap");
                     _exit = Night3Exit.Keep;
@@ -281,7 +282,7 @@ namespace SecondCursor.Story
             if (clock.ExactMinutes < target) clock.Rate = FinaleRate;
             else
             {
-                clock.Rate = RoundsRate;
+                clock.Rate = PostSevenRate;
                 GameLog.Info(LogChannel.Story, "Finale: idle fast-forward reached 7:00");
             }
             _fastForward = false;
@@ -576,7 +577,7 @@ namespace SecondCursor.Story
             if (_fastForward)
             {
                 _fastForward = false;
-                g.Clock.Rate = RoundsRate;
+                g.Clock.Rate = PostSevenRate;
             }
             UnhookFinale();
             g.Tasks.Withdraw(ContentIds.TaskN3LogOffBy);
@@ -663,7 +664,7 @@ namespace SecondCursor.Story
         IEnumerator ShredAftermath()
         {
             var g = _g;
-            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("shred.closed017"), "icon_info", null, "sys_warning");
+            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("shred.closed017"), "icon_info", null, "sys_warning", false, null, Core.Game.NoticeKind.Entity);
             g.Taskbar.PointingDevices = Mathf.Max(1, g.Taskbar.PointingDevices - 1);
             E.SetPresent(false, 0.2f);
             g.Audio.StopAllLoops(0.3f);

@@ -132,8 +132,10 @@ namespace SecondCursor.EditorTools
             var d = SaveSystem.Load();
             d.tugWinsTotal = 7;
             SaveSystem.Save(d);
+            SaveSystem.Flush();   // Phase Q4 (CH8): two saves in a row are one write; this test needs both versions on disk
             d.tugWinsTotal = 8;
             SaveSystem.Save(d); // progress.json = 8, .bak = 7
+            SaveSystem.ClearCache();   // Phase Q4 (CH8): this test is about the disk: wait for the writer and forget the cached text
 
             // 1. A short exclusive lock (antivirus, cloud sync).
             var locked = new ManualResetEventSlim(false);
@@ -167,6 +169,7 @@ namespace SecondCursor.EditorTools
             });
             longHolder.Start();
             longLock.Wait(2000);
+            SaveSystem.ClearCache();
             var stale = SaveSystem.Load();
             stale.tugWinsTotal = 99;
             SaveSystem.Save(stale);
@@ -178,6 +181,7 @@ namespace SecondCursor.EditorTools
 
             // 2. A damaged file.
             File.WriteAllText(path, "{ this is not json");
+            SaveSystem.ClearCache();
             var fallback = SaveSystem.Load();
             bool ok = File.Exists(bad) && fallback.tugWinsTotal == 7 && SaveSystem.CorruptThisLaunch;
             Say("damaged read: tugWinsTotal=" + fallback.tugWinsTotal + " (from .bak), corrupt file=" + File.Exists(bad) + ", notice=" + SaveSystem.CorruptThisLaunch
@@ -215,6 +219,15 @@ namespace SecondCursor.EditorTools
                 // Phase P (A2): saved, and applied to a running game from its next contest (or drag).
                 case "tugassist": s.tugAssist = value == "hold" ? "hold" : "off"; AccessSettings.SetTugAssist(value == "hold"); break;
                 case "clicklock": s.clickLock = value == "on" || value == "true"; AccessSettings.SetClickLock(s.clickLock); break;
+                // Phase Q4: the access options (saved; applied to the running game).
+                case "noticetime": s.noticeTime = value; AccessSettings.SetNoticeTime(Core.Game.NoticeRules.Parse(value)); break;
+                case "relaxed": s.relaxedTiming = value == "on" || value == "true"; AccessSettings.SetRelaxedTiming(s.relaxedTiming); break;
+                case "captions": s.captions = value == "on" || value == "true"; AccessSettings.SetCaptions(s.captions); break;
+                case "sudden": s.suddenSounds = value == "soft" ? 1 : value == "normal" ? 0 : -1; AccessSettings.SuddenSoundsStored = s.suddenSounds; break;
+                case "shake": s.shake = value == "off" ? 2 : value == "reduced" ? 1 : value == "full" ? 0 : -1; AccessSettings.ShakeStored = s.shake; break;
+                case "mono": s.monoAudio = value == "on" || value == "true"; AccessSettings.SetMonoAudio(s.monoAudio); break;
+                case "bigcursor": s.largeCursor = value == "on" || value == "true"; AccessSettings.SetLargeCursor(s.largeCursor); break;
+                case "clickspeed": s.clickSpeed = value == "single" ? 2 : value == "slow" ? 1 : 0; AccessSettings.SetClickSpeed((Core.Game.ClickSpeed)s.clickSpeed); break;
                 default: Say("ERROR: unknown settings field '" + a[1] + "'"); return;
             }
             SaveSystem.SaveSettings(s);

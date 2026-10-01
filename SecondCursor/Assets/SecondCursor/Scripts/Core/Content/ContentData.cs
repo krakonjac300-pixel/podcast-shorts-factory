@@ -300,6 +300,8 @@ namespace SecondCursor.Core.Content
         public float timeout;
         /// <summary>Shown in the Work Queue, e.g. "3:00 AM".</summary>
         public string deadline = "";
+        /// <summary>Phase Q4 (R3): short lines (under 40 characters) the Work Queue shows in bold at the top of the task's instructions, before the paragraph.</summary>
+        public string[] summary = Array.Empty<string>();
     }
 
     [Serializable]
@@ -323,6 +325,7 @@ namespace SecondCursor.Core.Content
                 t.param = t.param ?? "";
                 t.author = t.author ?? "";
                 t.deadline = t.deadline ?? "";
+                t.summary = StoryData.Clean(t.summary);
             }
         }
     }

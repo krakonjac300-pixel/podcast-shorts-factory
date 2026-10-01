@@ -10,6 +10,7 @@ using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Entity;
 using SecondCursor.Input;
@@ -140,7 +141,7 @@ namespace SecondCursor.Story
             GaryHeldLook();
             g.Taskbar.PointingDevices = 3;
             g.Taskbar.BlinkDevice(3, 2.5f);
-            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("notify.pointer3"), "icon_info", null, "ui_select");
+            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("notify.pointer3"), "icon_info", null, "ui_select", false, null, Core.Game.NoticeKind.Gary);
             g.Flags.Set(Flags.N2GaryArrived);
             var bottom = new Vector2(ScreenRig.Width * 0.5f, WindowManager.TaskbarHeight + 6f);
             Gary.Teleport(bottom);
@@ -246,7 +247,8 @@ namespace SecondCursor.Story
             yield return Wait(1f);
             float orderAt = Time.time;
             // 3:00 lands on the deadline.
-            g.Clock.Rate = Mathf.Max(0.01f, (float)((180.0 - g.Clock.ExactMinutes) / FinishDeadline));
+            // Phase Q4 (A4): Story mode and Relaxed timing give the priority shred twice the real time (the 3:00 deadline is the same).
+            g.Clock.Rate = Mathf.Max(0.01f, (float)((180.0 - g.Clock.ExactMinutes) / RelaxedTiming.Seconds(FinishDeadline, g.TimeScale)));
             GiveTask(ContentIds.TaskN2Shred209);
             RunSide(TaskHints(ContentIds.TaskN2Shred209), "hints-209");
             HookFinish();
@@ -276,7 +278,7 @@ namespace SecondCursor.Story
                 if (file == null || file.Shredded) outcome = "finished";
                 else if (_archivedByPlayer) outcome = "archived";
                 else if (g.Clock.TotalMinutes >= LateShredMinute && !g.Conflict.IsFighting && !g.Shred.Busy) outcome = "deadline";
-                else if (elapsed > FinishHardCap)
+                else if (elapsed > RelaxedTiming.Seconds(FinishHardCap, g.TimeScale))
                 {
                     GameLog.Warn(LogChannel.Story, "Finish beat hit its hard cap");
                     g.Conflict.Interrupt();

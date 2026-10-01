@@ -38,6 +38,23 @@ namespace SecondCursor.Story
             return b;
         }
 
+        /// <summary>The three Night 3 endings as slots: the ones seen by name in bright, the others as "???" (an empty slot is a reason to play again).</summary>
+        static void EndingSlots(RectTransform parent, Core.Content.ContentDatabase c, string[] seenIds, int y)
+        {
+            var ids = Core.Game.AchievementIds.Night3Endings;
+            string[] keys = { "end.shred.title", "end.keep.title", "end.logoff.title" };
+            const int slotW = 140, gap = 14;
+            int x = (ScreenRig.Width - (ids.Length * slotW + (ids.Length - 1) * gap)) / 2;
+            for (int i = 0; i < ids.Length; i++)
+            {
+                bool seen = seenIds != null && Array.IndexOf(seenIds, ids[i]) >= 0;
+                string label = seen ? "[x] " + c.Text(keys[i]) : "[ ] " + c.Text("end.slot.empty", "???");
+                var slot = UIBuilder.Text(parent, label, seen ? Palette.BiosBright : new Color32(0x6A, 0x6A, 0x66, 0xFF), seen, "Ending Slot " + i);
+                slot.rectTransform.At(x + i * (slotW + gap), y, slotW, 12);
+                slot.Align = TextAlign.Center;
+            }
+        }
+
         public static IEnumerator Run(GameServices g, EndingSpec spec, RectTransform parent)
         {
             var c = g.Content;
@@ -54,7 +71,8 @@ namespace SecondCursor.Story
             if (!string.IsNullOrEmpty(spec.Outcome))
             {
                 // How the night ended for you, under the subtitle (the demo card too: above WISHLIST NOW).
-                var outcome = UIBuilder.Text(parent, spec.Outcome, new Color32(0x8A, 0x8A, 0x84, 0xFF));
+                // Phase Q4 (R8): the cause line is the one line that explains the ending, so it is bright and bold (it was #8A8A84, dimmer than the thanks).
+                var outcome = UIBuilder.Text(parent, spec.Outcome, Palette.BiosBright, true);
                 outcome.rectTransform.At(0, 244, ScreenRig.Width, 12);
                 outcome.Align = TextAlign.Center;
                 GameLog.Info(LogChannel.Story, "End card outcome: " + spec.Outcome);
@@ -92,14 +110,8 @@ namespace SecondCursor.Story
             }
             if (spec.FinalCard)
             {
-                // The endings seen so far, under the thanks line: an invitation to Night Select.
-                var d = SaveSystem.Load();
-                int seen = 0;
-                foreach (var id in Core.Game.AchievementIds.Night3Endings)
-                    if (Array.IndexOf(d.endingsSeen, id) >= 0) seen++;
-                var endings = UIBuilder.Text(parent, c.Format("select.endings", seen), new Color32(0x8A, 0x8A, 0x84, 0xFF));
-                endings.rectTransform.At(0, 268 + below, ScreenRig.Width, 12);
-                endings.Align = TextAlign.Center;
+                // The endings seen so far, under the thanks line: an invitation to Night Select. Phase Q4 (R8): three slots, not a count.
+                EndingSlots(parent, c, SaveSystem.Load().endingsSeen, 270 + below);
             }
 
             g.Player.Enabled = true;

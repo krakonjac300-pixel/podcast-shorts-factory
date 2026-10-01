@@ -9,6 +9,7 @@ using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Entity;
 using SecondCursor.Input;
@@ -34,6 +35,8 @@ namespace SecondCursor.Story
         const float Rate = 0.113f;
         const float RoundsRate = 1f / 12f;
         const float FinaleRate = 0.09f;
+        /// <summary>Phase Q4 (A4): the clock's rate from 7:00 to 7:05: 1/12 game minute a second (60 s), half that when relaxed (120 s).</summary>
+        float PostSevenRate => RelaxedTiming.Rate(RoundsRate, _g.TimeScale);
         /// <summary>During work the clock waits at 2:16: the phone rings at 2:17.</summary>
         const int WorkHold = 2 * 60 + 16;
         /// <summary>During the Ruth beat it waits at 2:57 until the round.</summary>
@@ -133,15 +136,7 @@ namespace SecondCursor.Story
             else GaryHeldLook();
         }
 
-        bool CanLaunch(string appId, CursorAgent by)
-        {
-            if (appId != AppIds.Camera || _g.Flags.Has(Flags.CameraUnlocked)) return true;
-            if (by == null || by.IsEntity) return true;
-            _g.Flags.Set(Flags.CameraDeniedSeen);
-            var c = _g.Content;
-            Dialogs.Message(_g, c.Text("camera.denied.title"), c.Text("camera.denied.body"), "icon_lock", new[] { "OK" }, null);
-            return false;
-        }
+        bool CanLaunch(string appId, CursorAgent by) => CameraGate(appId, by, true);
 
         protected override void Update()
         {
@@ -244,11 +239,7 @@ namespace SecondCursor.Story
             g.Files.SetContent(ContentIds.FileBatch47B, string.Join("\n", Lines("n3_corrupt_content")));
             foreach (var f in Batch47) MoveIfIn(f, ContentIds.FolderIntake, ContentIds.FolderArchive);
             if (g.Files.Exists(ContentIds.FileCacheN3) && g.Files.Shred(ContentIds.FileCacheN3, Actor.System)) g.Shred.MarkShredded();
-            foreach (var id in new[] { ContentIds.Order3330, ContentIds.Order3331 })
-            {
-                var order = g.Content.Order(id);
-                if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
-            }
+            DecideByRule(ContentIds.Order3330, ContentIds.Order3331);
             RestoreChoice(ContentIds.TaskN3Verify3332, ContentIds.Order3332, null);
             if (g.Apps.FindById(AppIds.WorkQueue) == null) g.Apps.Launch(AppIds.WorkQueue, null);
         }
@@ -307,11 +298,6 @@ namespace SecondCursor.Story
             for (int i = 0; i < lines.Length; i++)
                 if (lines[i].StartsWith(key + "=", StringComparison.OrdinalIgnoreCase)) lines[i] = key + "=" + value;
             _g.Files.SetContent(fileId, string.Join("\n", lines));
-        }
-
-        void MoveIfIn(string fileId, string fromFolder, string toFolder)
-        {
-            if (_g.Files.Exists(fileId) && _g.Files.FolderOf(fileId) == fromFolder) _g.Files.Move(fileId, toFolder, Actor.System);
         }
 
         // ------------------------------------------------------------------ talking
@@ -399,7 +385,7 @@ namespace SecondCursor.Story
                 c.Text(decision == "approve" ? "workqueue.check.approved" : "workqueue.check.rejected"), Night3Rules.ShelfNumber(listed), reads,
                 c.Text(rule == "approve" ? "shelf.rule.approve" : "shelf.rule.reject"));
             _g.Tasks.SetTargetNote(ContentIds.TaskN3Shelf, orderId, line);
-            _g.Notifications.Show(c.Text("app.workorders"), line, "icon_info", null, "ui_select");
+            _g.Notifications.Show(c.Text("app.workorders"), line, "icon_info", null, "ui_select").Important = true;
             GameLog.Info(LogChannel.Story, "Shelf result: " + line);
         }
 
@@ -551,7 +537,7 @@ namespace SecondCursor.Story
             _g.Files.SetContent(ContentIds.FileBatch47B, string.Join("\n", Lines("n3_corrupt_content")));
             // Phase N (finding 15): it names the file and what it means for the task.
             _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Format("notify.damaged", _g.Files.GetFile(ContentIds.FileBatch47B)?.Name ?? "batch47_b.dat"),
-                "icon_info", null, "sys_warning");
+                "icon_info", null, "sys_warning", false, null, Core.Game.NoticeKind.Entity);
             _g.Fx.Glitch(0.12f, 0.5f);
             // Phase M (N3-1): the file was typed over by someone, backwards (heard where you hold it).
             Scare("key_tap_rev", 0.6f, Audio.AudioManager.PanFor(_g.Player.Position.x), 0.4f, ScareRules.StoryEventWindow, ScareRules.IgnoreAllButStory);

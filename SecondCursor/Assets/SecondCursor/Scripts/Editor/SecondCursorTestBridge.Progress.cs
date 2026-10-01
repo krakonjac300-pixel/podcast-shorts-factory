@@ -146,6 +146,8 @@ namespace SecondCursor.EditorTools
                 + " largeTextChosen=" + s.largeTextChosen + " textSize=" + s.textSize + " crtLevel=" + s.crtLevel);
             Say("live frameRate=" + DisplaySettings.FrameRate + " vSyncCount=" + QualitySettings.vSyncCount + " targetFrameRate=" + Application.targetFrameRate
                 + " readingScale=" + DisplaySettings.ReadingScale + " folder=" + SaveSystem.Folder);
+            Say("access noticeTime=" + s.noticeTime + " relaxed=" + s.relaxedTiming + " captions=" + s.captions + " sudden=" + s.suddenSounds + " shake=" + s.shake
+                + " mono=" + s.monoAudio + " largeCursor=" + s.largeCursor + " clickSpeed=" + s.clickSpeed);
         }
 
         /// <summary>Adds or removes a Standalone scripting define and waits for the recompile (the domain reload resumes the script).</summary>

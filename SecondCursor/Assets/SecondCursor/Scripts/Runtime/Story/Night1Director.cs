@@ -115,15 +115,8 @@ namespace SecondCursor.Story
             _g.Tasks.Rewrite(ContentIds.TaskShred017, c.Text("task.blocked.017.title"), c.Text("task.blocked.017.description"), c.Text("task.blocked.017.hint"));
         }
 
-        bool CanLaunch(string appId, CursorAgent by)
-        {
-            if (appId != AppIds.Camera || _g.Flags.Has(Flags.CameraUnlocked)) return true;
-            if (by != null && by.IsEntity) return true;
-            _g.Flags.Set(Flags.CameraDeniedSeen);
-            var c = _g.Content;
-            Dialogs.Message(_g, c.Text("camera.denied.title"), c.Text("camera.denied.body"), "icon_lock", new[] { "OK" }, null);
-            return false;
-        }
+        // Night 1: a launch with no pointer behind it is denied too (the shift's own world has no reason to open the viewer).
+        bool CanLaunch(string appId, CursorAgent by) => CameraGate(appId, by, false);
 
         protected override void CleanUpForJump()
         {
@@ -226,11 +219,7 @@ namespace SecondCursor.Story
                 g.Mail.MarkRead(ContentIds.MailWelcome, null);
                 MoveIfIn(ContentIds.FileLedger, ContentIds.FolderIntake, ContentIds.FolderArchive);
                 if (g.Files.Exists(ContentIds.FileCache) && g.Files.Shred(ContentIds.FileCache, Actor.System)) g.Shred.MarkShredded();
-                foreach (var id in new[] { ContentIds.Order3317, ContentIds.Order3318 })
-                {
-                    var order = g.Content.Order(id);
-                    if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
-                }
+                DecideByRule(ContentIds.Order3317, ContentIds.Order3318);
                 Note163(g.Orders.DecisionFor(ContentIds.Order3318), false);
                 if (g.Apps.FindById(AppIds.WorkQueue) == null) g.Apps.Launch(AppIds.WorkQueue, null);
             }
@@ -268,11 +257,6 @@ namespace SecondCursor.Story
                 g.Mail.Deliver(ContentIds.MailNoSender, false);
                 g.Files.SetFolderLocked(ContentIds.FolderRestricted, false);
             }
-        }
-
-        void MoveIfIn(string fileId, string fromFolder, string toFolder)
-        {
-            if (_g.Files.Exists(fileId) && _g.Files.FolderOf(fileId) == fromFolder) _g.Files.Move(fileId, toFolder, Actor.System);
         }
 
         void ShowDesktop()
@@ -429,7 +413,7 @@ namespace SecondCursor.Story
             yield return E.Appear(start, 0.1f, true);
             _g.Taskbar.PointingDevices = 2;
             _g.Taskbar.FlashDevices();
-            _g.Notifications.Show(_g.Content.Text("os.name"), "New pointing device detected.", "icon_info", null, "ui_select");
+            _g.Notifications.Show(_g.Content.Text("os.name"), "New pointing device detected.", "icon_info", null, "ui_select", false, null, Core.Game.NoticeKind.Entity);
             _g.Flags.Set(Flags.EntitySeen);
 
             yield return CarryFileIn(E, ContentIds.File017, spot, MovementProfiles.Hesitant);
@@ -660,9 +644,9 @@ namespace SecondCursor.Story
 
             // It opens what you were not allowed to open: the Restricted folder, then the cameras.
             _g.Files.SetFolderLocked(ContentIds.FolderRestricted, false);
-            _g.Notifications.Show(_g.Content.Text("os.name"), "Permissions on Restricted changed by a remote session.", "icon_lock", a => _g.Apps.OpenFolder(ContentIds.FolderRestricted, a), "ui_select");
+            _g.Notifications.Show(_g.Content.Text("os.name"), "Permissions on Restricted changed by a remote session.", "icon_lock", a => _g.Apps.OpenFolder(ContentIds.FolderRestricted, a), "ui_select", false, null, Core.Game.NoticeKind.Entity);
             _g.Flags.Set(Flags.CameraUnlocked);
-            _g.Notifications.Show(_g.Content.Text("app.camera"), "Clearance override accepted: remote session.", "icon_lock", null, "sys_warning");
+            _g.Notifications.Show(_g.Content.Text("app.camera"), "Clearance override accepted: remote session.", "icon_lock", null, "sys_warning", false, null, Core.Game.NoticeKind.Entity);
             yield return Wait(0.8f);
             yield return E.OpenApp(AppIds.Camera, MovementProfiles.HumanLike);
             yield return Wait(0.8f);

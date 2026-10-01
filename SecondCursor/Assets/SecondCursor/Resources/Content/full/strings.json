@@ -154,6 +154,12 @@
     { "key": "records.profile.n3_shred", "value": "HOLDER (B-7)" },
     { "key": "records.profile.n3_keep", "value": "KEPT (017)" },
     { "key": "records.profile.n3_logoff", "value": "NOT FOUND" },
-    { "key": "title.tagline.214", "value": "Someone else is logged in. (214)" }
+    { "key": "title.tagline.214", "value": "Someone else is logged in. (214)" },
+    { "key": "caption.phone_ring", "value": "[a phone rings]" },
+    { "key": "caption.breath_near", "value": "[breathing, close]" },
+    { "key": "caption.whisper_burst", "value": "[a whisper]" },
+    { "key": "caption.metal_scrape", "value": "[metal scraping]" },
+    { "key": "caption.sub_swell", "value": "[a low rumble swells]" },
+    { "key": "caption.footstep_distant", "value": "[footsteps, far off]" }
   ]
 }

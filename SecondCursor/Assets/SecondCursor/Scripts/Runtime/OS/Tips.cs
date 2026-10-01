@@ -63,7 +63,7 @@ namespace SecondCursor.OS
             face.Style = BevelStyle.Window;
             face.Fill = Palette.Tooltip;
             face.raycastTarget = false;
-            _title = UIBuilder.Text(_panel, "", Palette.Shadow, true, "Title");
+            _title = UIBuilder.Text(_panel, "", Palette.TextMuted, true, "Title");
             _body = UIBuilder.Text(_panel, "", Palette.Text, false, "Body");
             _body.Wrap = true;
             for (int i = 0; i <= PointerDepth; i++) _pointerRim[i] = UIBuilder.Solid(root, Palette.Dark, "Pointer Rim " + i);

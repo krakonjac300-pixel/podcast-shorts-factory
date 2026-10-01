@@ -36,6 +36,13 @@ namespace SecondCursor.OS
         readonly List<ZoomAnim> _anims = new List<ZoomAnim>();
 
         public OSWindow Active { get; private set; }
+
+        /// <summary>A dialog (an always-on-top window) is open: keys belong to it.</summary>
+        public bool AnyAlwaysOnTop()
+        {
+            foreach (var w in _windows) if (w != null && !w.IsClosed && !w.IsMinimized && w.AlwaysOnTop) return true;
+            return false;
+        }
         public IReadOnlyList<OSWindow> Windows => _windows;
 
         public event Action<OSWindow> Opened;
@@ -311,6 +318,10 @@ namespace SecondCursor.OS
 
         internal void OnClosed(OSWindow w, CursorAgent by)
         {
+            // Phase Q4 (R2): a window closed by a session collapses into that session's pointer, in its colours; the player's own close is plain.
+            var actor = by != null ? by.Actor : Core.Game.NoticeKind.Plain;
+            if (Core.Game.ActorStyle.IsSession(actor) && w != null && w.AppId != "dialog" && w.AppId != "progress")
+                Zoom(w.WorldRect, new Rect(by.Position.x - 4f, by.Position.y - 4f, 8f, 8f), actor);
             _windows.Remove(w);
             if (Active == w)
             {
@@ -324,7 +335,10 @@ namespace SecondCursor.OS
         internal void OnMinimized(OSWindow w, CursorAgent by)
         {
             var target = TaskbarRectOf?.Invoke(w);
-            if (target.HasValue) Zoom(w.WorldRect, target.Value);
+            // Phase Q4 (R2): minimized by a session: it goes into that session's pointer instead (in its colours).
+            var actor = by != null ? by.Actor : Core.Game.NoticeKind.Plain;
+            if (Core.Game.ActorStyle.IsSession(actor)) Zoom(w.WorldRect, new Rect(by.Position.x - 4f, by.Position.y - 4f, 8f, 8f), actor);
+            else if (target.HasValue) Zoom(w.WorldRect, target.Value);
             if (Active == w)
             {
                 w.SetActive(false);
@@ -389,13 +403,14 @@ namespace SecondCursor.OS
 
         // ------------------------------------------------------------ zoom rectangles
 
-        public void Zoom(Rect from, Rect to)
+        public void Zoom(Rect from, Rect to, Core.Game.NoticeKind actor = Core.Game.NoticeKind.Plain)
         {
             var anim = new ZoomAnim { From = from, To = to };
+            uint frame = Core.Game.ActorStyle.ZoomFrame(actor);
             for (int i = 0; i < 3; i++)
             {
                 var g = UIBuilder.Bevel(_fxLayer, BevelStyle.Outline, "Zoom");
-                g.Fill = Palette.Shadow;
+                g.Fill = frame != 0u ? Palette.FromRgb(frame) : Palette.Shadow;
                 var rt = g.rectTransform;
                 rt.anchorMin = rt.anchorMax = Vector2.zero;
                 rt.pivot = Vector2.zero;

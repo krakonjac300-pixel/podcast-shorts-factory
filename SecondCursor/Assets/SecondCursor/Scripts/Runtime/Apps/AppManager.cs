@@ -82,6 +82,7 @@ namespace SecondCursor.Apps
             Register(AppIds.Help, () => new HelpApp());
             Register(AppIds.Disposal, () => new DisposalApp());
             Register(SystemMonitorApp.Id, () => new SystemMonitorApp());
+            Register(RecentNoticesApp.Id, () => new RecentNoticesApp());
         }
 
         public void Register(string appId, Func<App> factory) => _factories[appId] = factory;
@@ -280,7 +281,14 @@ namespace SecondCursor.Apps
                     GameLog.Info(LogChannel.Player, "Typing went to the Jotter that is waiting for a reply (another window had the focus)");
                 }
             }
-            if (target == null) return;
+            if (target == null)
+            {
+                // Phase Q4 (A7): with no window taking keys, Enter opens the selected desktop icon (never while a dialog is up).
+                if (input.KeyDown(GameKey.Enter) && _g.Desktop != null && player.Enabled && player.Visible && _g.Flags.Has(Core.Story.Flags.LoggedIn)
+                    && _g.Director != null && _g.Director.CurrentBeat != "ending" && !_g.Windows.AnyAlwaysOnTop())
+                    _g.Desktop.OpenSelected(player);
+                return;
+            }
             if (!string.IsNullOrEmpty(input.TypedText)) target.OnTyped(input.TypedText, player);
             foreach (GameKey k in RoutedKeys)
                 if (input.KeyDown(k)) target.OnKey(k, player);
@@ -305,6 +313,6 @@ namespace SecondCursor.Apps
             return null;
         }
 
-        static readonly GameKey[] RoutedKeys = { GameKey.Delete, GameKey.Up, GameKey.Down, GameKey.Left, GameKey.Right, GameKey.Tab, GameKey.Escape };
+        static readonly GameKey[] RoutedKeys = { GameKey.Delete, GameKey.Up, GameKey.Down, GameKey.Left, GameKey.Right, GameKey.Tab, GameKey.Escape, GameKey.Enter };
     }
 }

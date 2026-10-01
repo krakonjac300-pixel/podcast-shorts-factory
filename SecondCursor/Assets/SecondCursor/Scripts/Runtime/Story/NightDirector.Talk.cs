@@ -83,6 +83,8 @@ namespace SecondCursor.Story
             if (pad.Window.Title.StartsWith(title, StringComparison.Ordinal)) return;
             if (gary) pad.SetConversation(SystemNotices.SessionOf(_g, cursor.Agent), title, Palette.GaryFill, GaryCaptionB, Palette.GaryOutline);
             else pad.SetConversation(SystemNotices.SessionOf(_g, cursor.Agent), title, Palette.EntityFill, EllenCaptionB, Palette.EntityOutline);
+            pad.Window.Actor = gary ? Core.Game.NoticeKind.Gary : Core.Game.NoticeKind.Entity;
+            _g.Windows.NotifyChanged(pad.Window);
         }
 
         static readonly Color32 GaryCaptionB = new Color32(0x7A, 0x5A, 0x1E, 0xFF), EllenCaptionB = new Color32(0x3A, 0x44, 0x42, 0xFF);

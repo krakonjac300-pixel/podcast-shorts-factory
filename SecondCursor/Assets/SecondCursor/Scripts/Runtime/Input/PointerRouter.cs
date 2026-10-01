@@ -288,6 +288,22 @@ namespace SecondCursor.Input
 
         // ------------------------------------------------------------------ hit testing
 
+        // Phase Q4 (CH6): while a probe batch is open, every element's world rect is computed once (a hundred probes in one frame would
+        // otherwise compute them a hundred times); nothing moves during a batch, so the answers are the same as without it.
+        Rect[] _rects = new Rect[256];
+        bool _batch;
+
+        /// <summary>Opens a probe batch: from now until <see cref="EndBatch"/> hit tests read each element's rect from a cache made now. Call only around code that does not move anything.</summary>
+        public void BeginBatch()
+        {
+            var items = Interactable.Items;
+            if (_rects.Length < items.Count) _rects = new Rect[Mathf.NextPowerOfTwo(items.Count)];
+            for (int i = 0; i < items.Count; i++) _rects[i] = items[i] != null ? items[i].WorldRect : default;
+            _batch = true;
+        }
+
+        public void EndBatch() => _batch = false;
+
         readonly List<Interactable> _candidates = new List<Interactable>(16);
         readonly List<int> _pathA = new List<int>(24);
         readonly List<int> _pathB = new List<int>(24);
@@ -299,13 +315,16 @@ namespace SecondCursor.Input
         public Interactable HitTest(Vector2 point, CursorAgent forAgent = null)
         {
             _candidates.Clear();
-            foreach (var it in Interactable.All)
+            var items = Interactable.Items;
+            bool cached = _batch && items.Count <= _rects.Length;
+            for (int i = 0; i < items.Count; i++)
             {
+                var it = items[i];
                 if (it == null || !it.interactable) continue;
                 if (forAgent != null && it.Tag is DragPayload dp && (dp.Holder == forAgent || dp.Contender == forAgent)) continue;
                 // The icon a file is being dragged FROM is transparent to its carrier (so short moves can land on the desktop).
                 if (forAgent != null && forAgent.Payload != null && (forAgent.Payload.Source == it || it.passThroughWhileCarrying)) continue;
-                if (!it.WorldRect.Contains(point)) continue;
+                if (!(cached ? _rects[i] : it.WorldRect).Contains(point)) continue;
                 if (IsClipped(it.transform, point)) continue;
                 _candidates.Add(it);
             }
@@ -320,10 +339,13 @@ namespace SecondCursor.Input
         public List<Interactable> HitTestAll(Vector2 point, List<Interactable> into)
         {
             into.Clear();
-            foreach (var it in Interactable.All)
+            var items = Interactable.Items;
+            bool cached = _batch && items.Count <= _rects.Length;
+            for (int i = 0; i < items.Count; i++)
             {
+                var it = items[i];
                 if (it == null || !it.interactable) continue;
-                if (!it.WorldRect.Contains(point) || IsClipped(it.transform, point)) continue;
+                if (!(cached ? _rects[i] : it.WorldRect).Contains(point) || IsClipped(it.transform, point)) continue;
                 into.Add(it);
             }
             into.Sort((x, y) => x == y ? 0 : (DrawnAfter(x, y) ? -1 : 1));

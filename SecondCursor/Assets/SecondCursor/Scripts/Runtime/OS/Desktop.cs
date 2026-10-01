@@ -215,7 +215,7 @@ namespace SecondCursor.OS
             icon.Hit.Click += (a, n) =>
             {
                 SelectOnly(icon);
-                if (n == 2) Open(icon, a);
+                if (ClickRules.Opens(n, a)) Open(icon, a);
             };
             icon.Hit.RightClick += a =>
             {
@@ -238,8 +238,23 @@ namespace SecondCursor.OS
             else _g.Apps.Launch(icon.AppId, a, icon.GlyphWorldRect);
         }
 
+        /// <summary>The icon the player last clicked on the desktop (not the blink of an attention icon): what Enter opens, until a window takes the focus.</summary>
+        DesktopIcon _userSelected;
+
+        /// <summary>Phase Q4 (A7): Enter opens the icon the player last clicked (once).</summary>
+        public void OpenSelected(CursorAgent by)
+        {
+            var icon = _userSelected;
+            _userSelected = null;
+            if (icon != null && icon.isActiveAndEnabled) Open(icon, by);
+        }
+
+        /// <summary>A window took the focus (the player clicked in it, or the story brought one up): the desktop icon is no longer what Enter means.</summary>
+        internal void ForgetSelection() => _userSelected = null;
+
         public void SelectOnly(DesktopIcon icon)
         {
+            _userSelected = icon;
             foreach (var i in _icons) if (i != null) i.Selected = i == icon;
         }
 

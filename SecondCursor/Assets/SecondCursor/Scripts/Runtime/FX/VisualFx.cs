@@ -94,11 +94,9 @@ namespace SecondCursor.FX
                 _fringes.Add(fringe);
             }
 
-            _scanTex = SpriteLibrary.MakeTexture(1, 2, (x, y) => y == 0 ? new Color32(0, 0, 0, 58) : new Color32(0, 0, 0, 0), FilterMode.Point, TextureWrapMode.Repeat);
-            _ownedTextures.Add(_scanTex);
-            _scanlines = UIBuilder.Raw(parent, _scanTex, "Scanlines");
+            _scanlines = UIBuilder.Raw(parent, null, "Scanlines");
             _scanlines.rectTransform.Stretch();
-            _scanlines.uvRect = new Rect(0f, 0f, 1f, ScreenRig.Height);
+            RefreshScanlines(true);
 
             var grain = SpriteLibrary.MakeTexture(128, 128, (x, y) =>
             {
@@ -132,6 +130,36 @@ namespace SecondCursor.FX
             _black = UIBuilder.Solid(parent, Color.black, "Black");
             _black.rectTransform.Stretch();
             _black.enabled = false;
+        }
+
+        int _scanPeriod;
+        float _scanHeight = -1f;
+
+        /// <summary>
+        /// Phase Q4 (R6): the scanlines repeat every whole number of REAL pixels (<see cref="ScanlinePlan"/>), so at a non-integer display scale
+        /// (the Steam Deck's 1.333x) they cannot beat against the 10 px glyphs; at 2x and 4x they are the picture they always were. The texture is
+        /// one period tall and sampled point-for-point, repeated over the display's real height.
+        /// </summary>
+        void RefreshScanlines(bool force)
+        {
+            int period = ScanlinePlan.Period(_rig.Scale);
+            float height = _rig.DisplayPixelRect.height;
+            if (!force && period == _scanPeriod && Mathf.Approximately(height, _scanHeight)) return;
+            if (period != _scanPeriod || _scanTex == null)
+            {
+                int dark = ScanlinePlan.DarkRows(period);
+                if (_scanTex != null)
+                {
+                    _ownedTextures.Remove(_scanTex);
+                    Destroy(_scanTex);
+                }
+                _scanTex = SpriteLibrary.MakeTexture(1, period, (x, y) => y < dark ? new Color32(0, 0, 0, 58) : new Color32(0, 0, 0, 0), FilterMode.Point, TextureWrapMode.Repeat);
+                _ownedTextures.Add(_scanTex);
+                _scanlines.texture = _scanTex;
+            }
+            _scanPeriod = period;
+            _scanHeight = height;
+            _scanlines.uvRect = new Rect(0f, 0f, 1f, ScanlinePlan.Repeats(height, period));
         }
 
         /// <summary>GLSL-style smoothstep: 0 below e0, 1 above e1 (Mathf.SmoothStep interpolates instead).</summary>
@@ -214,7 +242,9 @@ namespace SecondCursor.FX
 
         public void Shake(float duration, float amplitudePx)
         {
-            if (ReduceFlashing) amplitudePx *= 0.3f;
+            // Phase Q4 (A10): its own option (Full, Reduced 0.3x, Off); with none set it follows Reduce flashing as before.
+            amplitudePx *= AccessOptions.ShakeFactor(Game.AccessSettings.Shake(ReduceFlashing));
+            if (amplitudePx <= 0f) return;
             _shakeTime = Mathf.Max(_shakeTime, duration);
             _shakeAmp = Mathf.Max(_shakeAmp, amplitudePx);
         }
@@ -298,7 +328,7 @@ namespace SecondCursor.FX
                 float n = Mathf.PerlinNoise(Time.unscaledTime * 7f, 0.3f);
                 float spike = _spike && !ReduceFlashing ? 0.08f : 0f;
                 _flicker.color = new Color(0f, 0f, 0f, (FlickerAmount * 0.035f * n + spike) * _crtStrength);
-                _scanTex.filterMode = Mathf.Approximately(_rig.Scale, Mathf.Round(_rig.Scale)) ? FilterMode.Point : FilterMode.Bilinear;
+                RefreshScanlines(false);
             }
 
             _flashAlpha = Mathf.MoveTowards(_flashAlpha, 0f, dt * 2.5f);

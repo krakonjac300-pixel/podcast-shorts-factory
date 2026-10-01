@@ -13,7 +13,7 @@ namespace SecondCursor.Apps
     public sealed class WorkOrdersApp : App
     {
         ListView _list;
-        PixelText _form;
+        ReadingPane _form;
         PixelText _stamp;
         UiButton _approve;
         UiButton _reject;
@@ -29,10 +29,13 @@ namespace SecondCursor.Apps
 
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
-            CreateWindow(G.Content.Text("app.workorders"), "icon_workorders", 120, 110, WindowW, WindowH, WindowFlags.Standard, zoomFrom);
+            // Phase Q4 (A5): the form follows the Reading text size, so the window opens larger with Medium and Large.
+            float factor = Game.DisplaySettings.ReadingFactor;
+            int w = factor >= 2f ? 760 : factor > 1f ? 640 : WindowW, h = factor >= 2f ? 470 : factor > 1f ? 390 : WindowH;
+            CreateWindow(G.Content.Text("app.workorders"), "icon_workorders", 120, 110, w, h, WindowFlags.Standard, zoomFrom);
             // Phase H: Personnel (opened next, to check the owner) must never land on Approve and Reject. Phase I: the buttons
             // are at the top of the form (a window that opens below cannot cover them), and the window keeps clear of notices.
-            Window.KeepVisible = new Rect(WindowW - 190f, 24f, 186f, 30f);
+            Window.KeepVisible = new Rect(w - 190f, 24f, 186f, 30f);
             var client = Window.Client;
 
             // Phase Q1: the status column is wide enough to say who decided an order that the player did not ("Approved (Night Ops)").
@@ -51,9 +54,8 @@ namespace SecondCursor.Apps
 
             var paper = UIBuilder.Bevel(client, BevelStyle.Sunken, "Form");
             paper.rectTransform.Stretch((int)ListW + 4, 32, 2, 2);
-            _form = UIBuilder.Text(paper.rectTransform, "Select a work order.", Palette.Text);
-            _form.Wrap = true;
-            _form.rectTransform.Stretch(8, 8, 8, 8);
+            _form = ReadingPane.Create(paper.rectTransform, "Form Scroll", Palette.Text);
+            _form.SetText("Select a work order.", true);
             _stamp = UIBuilder.Text(paper.rectTransform, "", Palette.Red, true);
             _stamp.Scale = 2;
             _stamp.rectTransform.BottomRight(8, 8, 150, 20);
@@ -104,7 +106,7 @@ namespace SecondCursor.Apps
             // Phase Q1: an order the player did not decide says who did.
             string by = decision != null ? G.Orders.DecidedBy(o.id) : null;
             if (!string.IsNullOrEmpty(by)) sb.Append("\n\n").Append(G.Content.Format("workorder.decidedby", by));
-            _form.text = sb.ToString();
+            _form.SetText(sb.ToString(), true);
             UpdateButtons();
         }
 
@@ -146,6 +148,7 @@ namespace SecondCursor.Apps
         public override void Tick(float dt)
         {
             if (_revision != G.Orders.Revision) Refresh();
+            _form.Tick();
         }
     }
 

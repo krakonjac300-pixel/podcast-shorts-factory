@@ -6,6 +6,7 @@ using SecondCursor.Core;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
+using SecondCursor.Core.Util;
 using UnityEngine;
 
 namespace SecondCursor.Game
@@ -35,6 +36,22 @@ namespace SecondCursor.Game
         public string tugAssist = "off";
         /// <summary>Phase P (A2): a drag stays held after the button comes up; the next press drops it.</summary>
         public bool clickLock;
+        /// <summary>Phase Q4 (A3): how long a notice stays: "normal" (by its length), "long" (half as long again) or "clicked".</summary>
+        public string noticeTime = "normal";
+        /// <summary>Phase Q4 (A4): the real-time windows (Night 2's priority shred, Night 3's last five minutes, the exit grace, the race) are twice as long. Story mode has it on anyway.</summary>
+        public bool relaxedTiming;
+        /// <summary>Phase Q4 (A6): short bracketed captions for story and scare sounds, with a left or right mark.</summary>
+        public bool captions;
+        /// <summary>Phase Q4 (A4): -1 follows Reduce flashing, 0 loud, 1 softened sudden sounds (the hit's softer stinger).</summary>
+        public int suddenSounds = -1;
+        /// <summary>Phase Q4 (A10): -1 follows Reduce flashing, else 0 Full, 1 Reduced, 2 Off.</summary>
+        public int shake = -1;
+        /// <summary>Phase Q4 (A10): everything plays in the middle of the stereo field.</summary>
+        public bool monoAudio;
+        /// <summary>Phase Q4 (A9): the three pointers are drawn twice the size.</summary>
+        public bool largeCursor;
+        /// <summary>Phase Q4 (A7): 0 normal double-click, 1 slow (0.9 s), 2 a single click opens.</summary>
+        public int clickSpeed;
     }
 
     /// <summary>
@@ -44,6 +61,35 @@ namespace SecondCursor.Game
     /// </summary>
     public static class SaveSystem
     {
+        // Phase Q4 (CH8): the last text of each file this launch read or wrote is kept in memory, so a load never touches the disk again (a read
+        // of a file an antivirus was still scanning slept up to 240 ms on the main thread, at a tug's hit-stop), and every write goes to one
+        // background thread (coalesced, atomic as before). Only this class reads these files, so the cache is the truth; it is dropped at the
+        // start of every launch and by the test bridge when it edits the files itself. Quit, pause and focus loss flush the writer.
+        static readonly BackgroundFileWriter Writer = new BackgroundFileWriter();
+        static readonly Dictionary<string, string> Cache = new Dictionary<string, string>();
+
+        /// <summary>Waits for every save asked so far to be on disk (quit, pause, a tool that reads the files itself), then logs any problem.</summary>
+        public static void Flush()
+        {
+            if (!Writer.Flush()) GameLog.Warn(LogChannel.System, "Saves were still being written after 3 s");
+            Pump();
+        }
+
+        /// <summary>Logs, on the main thread, what the writer thread could not do (called every frame; cheap).</summary>
+        public static void Pump()
+        {
+            var messages = Writer.TakeMessages();
+            if (messages == null) return;
+            foreach (var m in messages) GameLog.Warn(LogChannel.System, m);
+        }
+
+        /// <summary>Forgets the cached file texts (after waiting for pending writes): the next load reads the disk. For a test tool that edits the files.</summary>
+        internal static void ClearCache()
+        {
+            Writer.Flush();
+            Cache.Clear();
+        }
+
         const string ProgressFile = "progress.json";
         const string SettingsFile = "settings.json";
         const string LegacyFile = "second_cursor_save.json";
@@ -87,6 +133,7 @@ namespace SecondCursor.Game
         /// <summary>A new launch (every Play press in the Editor, where statics survive): forget the last launch's notice.</summary>
         internal static void ResetLaunchState()
         {
+            ClearCache();
             CorruptThisLaunch = false;
             LockedFiles.Clear();
             ProgressReadOnly = false;
@@ -98,6 +145,7 @@ namespace SecondCursor.Game
         internal static bool DeleteAllInOverride()
         {
             if (string.IsNullOrEmpty(DirOverride)) return false;
+            ClearCache();
             foreach (var name in new[] { ProgressFile, SettingsFile })
                 foreach (var suffix in new[] { "", ".bak", ".tmp", ".corrupt" })
                 {
@@ -304,6 +352,19 @@ namespace SecondCursor.Game
         static T Read<T>(string name) where T : class
         {
             string path = PathOf(name);
+            if (Cache.TryGetValue(path, out var known))
+            {
+                try
+                {
+                    var fromMemory = JsonUtility.FromJson<T>(known);
+                    if (fromMemory != null) return fromMemory;
+                }
+                catch (Exception e)
+                {
+                    GameLog.Warn(LogChannel.System, "Cached " + name + " is unreadable (" + e.Message + "): reading the file");
+                }
+                Cache.Remove(path);
+            }
             // A main file that exists but stays locked is never overwritten (not even with its older .bak) until it can
             // be read again: the next write would otherwise replace the newest progress.
             bool mainLocked = false;
@@ -322,6 +383,7 @@ namespace SecondCursor.Game
                     if (data != null)
                     {
                         MarkLocked(name, mainLocked);
+                        if (candidate == path) Cache[path] = text;   // a backup read while the main file is locked is not the truth
                         return data;
                     }
                 }
@@ -380,13 +442,12 @@ namespace SecondCursor.Game
                 GameLog.Warn(LogChannel.System, "Not writing " + name + ": the file on disk could not be read");
                 return;
             }
-            string path = PathOf(name), tmp = path + ".tmp";
+            string path = PathOf(name);
             try
             {
-                Directory.CreateDirectory(Dir);
-                File.WriteAllText(tmp, JsonUtility.ToJson(data, true));
-                if (File.Exists(path)) File.Replace(tmp, path, path + ".bak");
-                else File.Move(tmp, path);
+                string json = JsonUtility.ToJson(data, true);
+                Cache[path] = json;
+                Writer.Enqueue(path, json);
             }
             catch (Exception e)
             {

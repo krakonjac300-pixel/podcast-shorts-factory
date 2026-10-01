@@ -140,14 +140,38 @@ namespace SecondCursor.Story
                 var note = UIBuilder.Text(p, _g.Content.Text("disclaimer.choice.note"), Palette.BiosText);
                 note.rectTransform.At(0, 432, ScreenRig.Width, 12);
                 note.Align = TextAlign.Center;
-                while (!chosen) yield return null;
+                // Phase Q4 (A6): sound captions are offered here too (off unless chosen), and the whole screen works from the keyboard (A7).
+                UiButton captions = null;
+                captions = UiButton.Create(p, CaptionsLabel(), a =>
+                {
+                    Game.AccessSettings.SetCaptions(!Game.AccessSettings.Captions);
+                    captions.SetLabel(CaptionsLabel());
+                }, "button:Captions");
+                ((RectTransform)captions.transform).At(ScreenRig.Width / 2 - 120, 452, 240, 24);
+                var keys = UIBuilder.Text(p, _g.Content.Text("disclaimer.keys", "Keyboard: arrow keys to move, Enter to choose."), Palette.BiosText);
+                keys.rectTransform.At(0, 486, ScreenRig.Width, 12);
+                keys.Align = TextAlign.Center;
+                var nav = new MenuNav(_g) { RingColor = Palette.BiosBright };
+                nav.Add(full);
+                nav.Add(reduced);
+                nav.Add(captions);
+                nav.Focus(reduced);   // the safer choice is the one a key press reaches first
+                while (!chosen)
+                {
+                    nav.Tick();
+                    yield return null;
+                }
+                nav.Clear();
                 // Options may have saved other settings while the choice was open (Esc): write back a fresh copy.
                 settings = Game.SaveSystem.LoadSettings();
                 settings.reduceFlashing = _g.Fx.ReduceFlashing;
                 settings.flashingChosen = true;
+                Game.AccessSettings.Save(settings);
                 Game.SaveSystem.SaveSettings(settings);
                 full.gameObject.SetActive(false);
                 reduced.gameObject.SetActive(false);
+                captions.gameObject.SetActive(false);
+                keys.gameObject.SetActive(false);
                 note.gameObject.SetActive(false);
                 _clicked = false;
             }
@@ -168,6 +192,8 @@ namespace SecondCursor.Story
                 yield return null;
             }
         }
+
+        string CaptionsLabel() => _g.Content.Format("pause.captions", _g.Content.Text(Game.AccessSettings.Captions ? "pause.on" : "pause.off", Game.AccessSettings.Captions ? "On" : "Off"));
 
         IEnumerator Bios(bool quick)
         {

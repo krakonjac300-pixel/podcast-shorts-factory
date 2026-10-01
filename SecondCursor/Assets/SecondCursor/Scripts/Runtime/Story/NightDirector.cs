@@ -426,15 +426,20 @@ namespace SecondCursor.Story
             _g.Tasks.Activate(taskId);
             if (!_g.Tasks.IsCompleted(taskId))
                 _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Content.Text("notify.queue.remote") + "\n" + t.Title, "icon_task_active",
-                    a => _g.Apps.Launch(AppIds.WorkQueue, a), "sys_warning");
+                    a => _g.Apps.Launch(AppIds.WorkQueue, a), "sys_warning", false, null, Core.Game.NoticeKind.Entity);
         }
 
         protected void GiveTask(string taskId)
         {
             _g.Tasks.Activate(taskId);
-            if (!_g.Tasks.IsCompleted(taskId))
-                _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Tasks.Get(taskId)?.Title ?? "", "icon_task_active",
-                    a => _g.Apps.Launch(AppIds.WorkQueue, a), "notify_task");
+            if (_g.Tasks.IsCompleted(taskId)) return;
+            // Phase Q4 (R2): a PRIORITY or timed task gets the red deadline stripe and stays until the task changes; the rest are plain.
+            var given = _g.Tasks.Get(taskId);
+            bool deadline = given != null && (!string.IsNullOrEmpty(given.Data.deadline) || given.Title.StartsWith("PRIORITY", StringComparison.Ordinal));
+            var tasks = _g.Tasks;
+            _g.Notifications.Show(_g.Content.Text("app.workqueue"), given?.Title ?? "", "icon_task_active",
+                a => _g.Apps.Launch(AppIds.WorkQueue, a), "notify_task", deadline, deadline ? (Func<bool>)(() => tasks.IsActive(taskId)) : null,
+                deadline ? Core.Game.NoticeKind.Deadline : Core.Game.NoticeKind.Plain);
         }
 
         protected void PhantomClick(Vector2 at)

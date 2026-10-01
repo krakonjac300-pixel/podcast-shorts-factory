@@ -53,7 +53,7 @@ namespace SecondCursor.Story
             yield return Wait(1f);
             var g = _g;
             g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("notify.endofshift"), "icon_shutdown", a => g.Apps.Launch(AppIds.WorkQueue, a),
-                "sys_warning", true, () => _exit == Night3Exit.None && g.Clock.TotalMinutes < Night3Rules.LogOffTime);
+                "sys_warning", true, () => _exit == Night3Exit.None && g.Clock.TotalMinutes < Night3Rules.LogOffTime, Core.Game.NoticeKind.Deadline);
             GameLog.Info(LogChannel.Story, "6:41: end-of-shift rule given");
         }
 
@@ -134,7 +134,7 @@ namespace SecondCursor.Story
         {
             float until = Time.time + SystemNotices.RaceNoticeSeconds;
             _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Format("logoff.cancelled.by", SystemNotices.SessionOf(_g, by)),
-                "icon_shutdown", x => _g.Taskbar.StartMenu.OpenFromElsewhere(x), "sys_warning", true, () => Time.time < until);
+                "icon_shutdown", x => _g.Taskbar.StartMenu.OpenFromElsewhere(x), "sys_warning", true, () => Time.time < until, by != null ? by.Actor : Core.Game.NoticeKind.Plain);
             GameLog.Info(LogChannel.Story, "Notice: log off cancelled by " + SystemNotices.SessionOf(_g, by));
         }
 

@@ -25,7 +25,7 @@ namespace SecondCursor.Story
             g.Flags.Set(WorkOrderRules.MemoryKey(g.Night, id, decision));
             AppendNote(order.employeeRef, WorkOrderRules.NoteFor(order, decision));
             g.Notifications.Show(g.Content.Text("app.workorders"), WorkOrderRules.ResultFor(order, decision), "icon_info",
-                a => g.Apps.Launch(AppIds.WorkOrders, a), "ui_select");
+                a => g.Apps.Launch(AppIds.WorkOrders, a), "ui_select").Important = true;
             SetFiledLine(id, decision);
         }
 
@@ -81,7 +81,7 @@ namespace SecondCursor.Story
             g.Orders.Cancel(orderId);
             if (!shown) return;
             g.Notifications.Show(g.Content.Text("app.workorders"), g.Content.Format("notify.order.lapsed", OrderLabel(orderId)), "icon_info",
-                a => g.Apps.Launch(AppIds.WorkOrders, a), "ui_select");
+                a => g.Apps.Launch(AppIds.WorkOrders, a), "ui_select").Important = true;
             GameLog.Info(LogChannel.Story, "Order " + orderId + " lapsed: no decision");
         }
 
@@ -110,6 +110,38 @@ namespace SecondCursor.Story
             AppendNote(order.employeeRef, WorkOrderRules.NoteFor(order, decision));
             SetFiledLine(orderId, decision);
             g.Tasks.ForceComplete(taskId);
+        }
+
+        // ------------------------------------------------------------------ Phase Q4 (CH9): helpers the three nights each had a copy of
+
+        /// <summary>Moves a file from one folder to another as the system, only if it exists and is in <paramref name="fromFolder"/> (a jump or Continue sets the world up this way).</summary>
+        protected void MoveIfIn(string fileId, string fromFolder, string toFolder)
+        {
+            if (_g.Files.Exists(fileId) && _g.Files.FolderOf(fileId) == fromFolder) _g.Files.Move(fileId, toFolder, Core.FileSystem.Actor.System);
+        }
+
+        /// <summary>Decides each undecided order by its own rule, as the system (a jump or Continue past the order: the world as it would have been).</summary>
+        protected void DecideByRule(params string[] orderIds)
+        {
+            foreach (var id in orderIds)
+            {
+                var order = _g.Content.Order(id);
+                if (order != null && _g.Orders.DecisionFor(id) == null) _g.Orders.Decide(id, order.correct, null);
+            }
+        }
+
+        /// <summary>
+        /// The Camera Viewer is clearance-locked until the story opens it: another session may still open it; the player gets the denied
+        /// dialog (once flagged). <paramref name="systemMayOpen"/>: a launch with no pointer behind it (the story's own) is let through.
+        /// </summary>
+        protected bool CameraGate(string appId, CursorAgent by, bool systemMayOpen)
+        {
+            if (appId != AppIds.Camera || _g.Flags.Has(Core.Story.Flags.CameraUnlocked)) return true;
+            if (by == null ? systemMayOpen : by.IsEntity) return true;
+            _g.Flags.Set(Core.Story.Flags.CameraDeniedSeen);
+            var c = _g.Content;
+            Dialogs.Message(_g, c.Text("camera.denied.title"), c.Text("camera.denied.body"), "icon_lock", new[] { "OK" }, null);
+            return false;
         }
     }
 }

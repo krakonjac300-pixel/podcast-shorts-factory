@@ -29,6 +29,9 @@ namespace SecondCursor.Game
         /// <summary>A Yes/No question replaces the menu: Quit to Title, or Quit.</summary>
         enum Confirm { None, Title, Quit }
         Confirm _confirm;
+        /// <summary>Phase Q4 (A10): the Accessibility page replaces the main rows (Back returns to them).</summary>
+        enum Page { Main, Access }
+        Page _page;
         bool _fullscreen = true;
         PixelText _volume;
         float _savedScale = 1f;
@@ -81,6 +84,11 @@ namespace SecondCursor.Game
                     _confirm = Confirm.None;
                     Rebuild();
                 }
+                else if (_page != Page.Main)
+                {
+                    _page = Page.Main;
+                    Rebuild();
+                }
                 else Resume();
                 return;
             }
@@ -112,6 +120,7 @@ namespace SecondCursor.Game
             StateChangeFrame = Time.frameCount;
             _settingsOnly = settingsOnly;
             _confirm = Confirm.None;
+            _page = Page.Main;
             // Letting go of the mouse to use the menu must not decide a tug-of-war: call it off instead.
             if (_g.Conflict != null) _g.Conflict.Interrupt();
             // Phase P (A2): a click-locked drag ends here (it is dropped where it is when the game goes on).
@@ -147,6 +156,7 @@ namespace SecondCursor.Game
             dim.raycastTarget = false;
             UIBuilder.Hit(_panel.gameObject, "pause");
             if (_confirm != Confirm.None) BuildConfirm();
+            else if (_page == Page.Access) BuildAccess();
             else BuildMenu();
         }
 
@@ -175,7 +185,7 @@ namespace SecondCursor.Game
         {
             var c = _g.Content;
             bool pending = PendingDifficulty(out var saved);
-            int rows = _settingsOnly ? 10 : 13;
+            int rows = _settingsOnly ? 11 : 14;
             var box = Box(rows, pending || _settingsOnly ? 14 : 0, _settingsOnly ? c.Text("title.settings") : c.Text("pause.title"));
             int y = 32;
             UiButton first;
@@ -202,7 +212,7 @@ namespace SecondCursor.Game
             Button(box, c.Format("pause.difficulty", mode), "pause:difficulty", a => ToggleDifficulty(), ref y);
             if (pending || _settingsOnly)
             {
-                var note = UIBuilder.Text(box, c.Text(_settingsOnly ? "pause.difficulty.next" : "pause.difficulty.note"), Palette.Shadow);
+                var note = UIBuilder.Text(box, c.Text(_settingsOnly ? "pause.difficulty.next" : "pause.difficulty.note"), Palette.TextMuted);
                 note.rectTransform.At(20, y - 4, BoxWidth - 40, 12);
                 note.Align = TextAlign.Center;
                 y += 14;
@@ -217,6 +227,12 @@ namespace SecondCursor.Game
             {
                 AccessSettings.SetClickLock(!AccessSettings.ClickLockOn);
                 Changed();
+            }, ref y);
+            // Phase Q4 (A10): the rest of the access options live on their own page.
+            Button(box, c.Text("pause.access", "Accessibility..."), "pause:access", a =>
+            {
+                _page = Page.Access;
+                Rebuild();
             }, ref y);
             if (!_settingsOnly)
             {
@@ -242,6 +258,67 @@ namespace SecondCursor.Game
             }, ref y);
             _nav.Focus(first);
         }
+
+        /// <summary>
+        /// Phase Q4 (review board A3, A4, A6, A7, A9, A10): the access options, separate from Reduce flashing and from each other. Everything is
+        /// off or as before by default; each change applies at once and is saved.
+        /// </summary>
+        void BuildAccess()
+        {
+            var c = _g.Content;
+            var box = Box(9, 0, c.Text("pause.access.title", "ACCESSIBILITY"));
+            int y = 32;
+            var back = Button(box, c.Text("pause.back"), "pause:accessback", a =>
+            {
+                _page = Page.Main;
+                Rebuild();
+            }, ref y);
+            Button(box, c.Format("pause.noticetime", c.Text("pause.noticetime." + NoticeRules.Id(AccessSettings.NoticeTime))), "pause:noticetime", a =>
+            {
+                AccessSettings.SetNoticeTime(NoticeRules.Next(AccessSettings.NoticeTime));
+                Changed();
+            }, ref y);
+            Button(box, c.Format("pause.relaxed", OnOff(AccessSettings.RelaxedTimingOn)), "pause:relaxed", a =>
+            {
+                AccessSettings.SetRelaxedTiming(!AccessSettings.RelaxedTimingOn);
+                Changed();
+            }, ref y);
+            Button(box, c.Format("pause.captions", OnOff(AccessSettings.Captions)), "pause:captions", a =>
+            {
+                AccessSettings.SetCaptions(!AccessSettings.Captions);
+                Changed();
+            }, ref y);
+            bool soft = AccessSettings.SoftSounds(_g.Fx.ReduceFlashing);
+            Button(box, c.Format("pause.sudden", c.Text(soft ? "pause.sudden.soft" : "pause.sudden.normal")), "pause:sudden", a =>
+            {
+                AccessSettings.SetSuddenSoft(!soft);
+                Changed();
+            }, ref y);
+            var shake = AccessSettings.Shake(_g.Fx.ReduceFlashing);
+            Button(box, c.Format("pause.shake", c.Text("pause.shake." + shake.ToString().ToLowerInvariant())), "pause:shake", a =>
+            {
+                AccessSettings.SetShake(AccessOptions.Next(shake));
+                Changed();
+            }, ref y);
+            Button(box, c.Format("pause.mono", OnOff(AccessSettings.MonoAudio)), "pause:mono", a =>
+            {
+                AccessSettings.SetMonoAudio(!AccessSettings.MonoAudio);
+                Changed();
+            }, ref y);
+            Button(box, c.Format("pause.bigcursor", OnOff(AccessSettings.LargeCursor)), "pause:bigcursor", a =>
+            {
+                AccessSettings.SetLargeCursor(!AccessSettings.LargeCursor);
+                Changed();
+            }, ref y);
+            Button(box, c.Format("pause.clickspeed", c.Text("pause.clickspeed." + AccessSettings.ClickSpeed.ToString().ToLowerInvariant())), "pause:clickspeed", a =>
+            {
+                AccessSettings.SetClickSpeed(AccessOptions.Next(AccessSettings.ClickSpeed));
+                Changed();
+            }, ref y);
+            _nav.Focus(back);
+        }
+
+        string OnOff(bool on) => _g.Content.Text(on ? "pause.on" : "pause.off", on ? "On" : "Off");
 
         void BuildConfirm()
         {

@@ -13,6 +13,9 @@ namespace SecondCursor.UI
     {
         ScrollArea _area;
         RectTransform _chip;
+        /// <summary>Phase Q4 (R7): while the chip shows, a strip at the bottom of the area is reserved for it, so it never lies over the last visible line.</summary>
+        bool _reserved;
+        const float Strip = 16f;
 
         /// <param name="frame">The frame around the scroll area (the chip sits at its bottom right, left of the scroll bar).</param>
         /// <param name="elementId">Logical id for the pointer system and the test bridge, e.g. "morebelow:mail".</param>
@@ -42,7 +45,15 @@ namespace SecondCursor.UI
         void Update()
         {
             if (_area == null || _chip == null) return;
-            bool more = _area.MaxOffset > 2f && _area.Offset < _area.MaxOffset - 2f;
+            // The end is judged against the whole viewport (with the strip given back), so reserving the strip cannot flip the answer.
+            float full = _area.Viewport.rect.height + (_reserved ? Strip : 0f);
+            float fullMax = Mathf.Max(0f, _area.ContentHeight - full);
+            bool more = fullMax > 2f && _area.Offset < fullMax - 2f;
+            if (more != _reserved)
+            {
+                _reserved = more;
+                _area.Viewport.offsetMin = new Vector2(_area.Viewport.offsetMin.x, more ? Strip : 0f);
+            }
             if (_chip.gameObject.activeSelf != more) _chip.gameObject.SetActive(more);
         }
     }

@@ -22,7 +22,8 @@ namespace SecondCursor.Apps
         PixelText _photoCaption;
         PixelText _fields;
         PixelText _status;
-        PixelText _notes;
+        ReadingPane _notes;
+        float _factor = -1f;
         EmployeeData _shown;
         Texture2D _photoTex;
         float _staticTimer;
@@ -31,7 +32,10 @@ namespace SecondCursor.Apps
 
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
-            CreateWindow(G.Content.Text("app.staff"), "icon_staff", 250, 60, 540, 340, WindowFlags.Standard, zoomFrom);
+            // Phase Q4 (A5): the record's text follows the Reading text size; the window opens larger with Medium and Large.
+            float factor = Game.DisplaySettings.ReadingFactor;
+            int w = factor >= 2f ? 860 : factor > 1f ? 700 : 540, h = factor >= 2f ? 510 : factor > 1f ? 440 : 340;
+            CreateWindow(G.Content.Text("app.staff"), "icon_staff", 250, 60, w, h, WindowFlags.Standard, zoomFrom);
             var client = Window.Client;
 
             _list = new ListView(client, "Employees", new[] { 50, 150 }, new[] { "No.", "Name" }, false);
@@ -66,13 +70,33 @@ namespace SecondCursor.Apps
             _photoCaption.VAlign = TextVAlign.Middle;
 
             _fields = UIBuilder.Text(_card, "Select an employee.", Palette.Text);
-            _fields.rectTransform.At(88, 10, 220, 110);
             _status = UIBuilder.Text(_card, "", Palette.Text, true);
-            _status.rectTransform.At(88, 124, 220, 12);
-            _notes = UIBuilder.Text(_card, "", Palette.Text);
-            _notes.Wrap = true;
-            _notes.rectTransform.Stretch(10, 144, 10, 8);
+            var notesFrame = UIBuilder.Rect("Notes", _card);
+            _notes = ReadingPane.Create(notesFrame, "Notes Scroll", Palette.Text);
+            _notesFrame = notesFrame;
+            LayoutCard();
+            Window.Resized += _ => LayoutCard();
             DrawPhoto("none");
+        }
+
+        RectTransform _notesFrame;
+
+        /// <summary>
+        /// Places the fields, the status line and the notes for the Reading text size: at 1x exactly where they always were (fields 110 px
+        /// tall, the status at 124, the notes from 144); larger text gives the fields and the status more room and the notes the rest.
+        /// </summary>
+        void LayoutCard()
+        {
+            if (_card == null) return;
+            float f = Game.DisplaySettings.ReadingFactor;
+            _factor = f;
+            float cardW = _card.rect.width > 1f ? _card.rect.width : 322f;
+            float fieldsH = Mathf.Round(110f * f), statusY = 10f + fieldsH + 4f, notesTop = statusY + Mathf.Round(12f * f) + 8f;
+            _fields.Factor = f;
+            _status.Factor = f;
+            _fields.rectTransform.At(88, 10, cardW - 96f, fieldsH);
+            _status.rectTransform.At(88, statusY, cardW - 96f, Mathf.Round(12f * f));
+            _notesFrame.Stretch(6, notesTop - 6f, 6, 4);
         }
 
         public void Show(EmployeeData e, CursorAgent by)
@@ -84,7 +108,7 @@ namespace SecondCursor.Apps
             {
                 _fields.text = "Employee No.  " + e.number + "\n\nACCESS RESTRICTED\nClearance level 3 required.";
                 _status.text = "";
-                _notes.text = "";
+                _notes.SetText("", true);
                 DrawPhoto("redacted");
                 return;
             }
@@ -94,7 +118,7 @@ namespace SecondCursor.Apps
                            office + e.office + "\nHired:       " + e.hired + "\nLast login:  " + e.lastLogin + "\nSupervisor:  " + e.supervisor;
             _status.text = "Status: " + e.status;
             _status.color = StatusColor(e.status);
-            _notes.text = string.IsNullOrEmpty(e.notes) ? "" : "Notes:\n" + e.notes;
+            _notes.SetText(string.IsNullOrEmpty(e.notes) ? "" : "Notes:\n" + e.notes, true);
             DrawPhoto(e.photo);
             if (e.id == ContentIds.Employee017) G.Flags.Increment("viewed:employee017");
             if (by != null && by.IsPlayer)
@@ -177,6 +201,8 @@ namespace SecondCursor.Apps
 
         public override void Tick(float dt)
         {
+            if (_factor != Game.DisplaySettings.ReadingFactor) LayoutCard();
+            _notes.Tick();
             if (_shown == null || _shown.photo != "static" || (_shown.restricted && !G.Flags.Has(Flags.Staff017Revealed))) return;
             _staticTimer -= dt;
             if (_staticTimer > 0f) return;

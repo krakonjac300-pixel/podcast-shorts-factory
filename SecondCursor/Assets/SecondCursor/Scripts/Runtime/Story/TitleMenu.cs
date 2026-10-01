@@ -109,6 +109,7 @@ namespace SecondCursor.Story
         {
             Begin(Screen.Main);
             var c = _g.Content;
+            TitleKeyArt.Create(_content);   // Phase Q4 (R9): the capsule's two pointers, the file and the red line, on a dark teal desktop
             _ghost = Label("SECOND CURSOR", GhostRed, 0, 206, ScreenRig.Width, 40, TextAlign.Center, true, 4);
             Label("SECOND CURSOR", Palette.BiosBright, 0, 204, ScreenRig.Width, 40, TextAlign.Center, true, 4);
             var d = SaveSystem.Load();

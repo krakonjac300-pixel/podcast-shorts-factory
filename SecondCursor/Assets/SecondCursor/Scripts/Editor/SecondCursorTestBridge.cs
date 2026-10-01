@@ -46,6 +46,7 @@ namespace SecondCursor.EditorTools
             PhaseGHelp +
             AudioHelp +
             PhaseOHelp +
+            PhaseQ4Help +
             HaulHelp +
             "Coordinates are virtual pixels (960x540, origin bottom-left).";
 
@@ -574,6 +575,7 @@ namespace SecondCursor.EditorTools
                 yield break;
             }
             Persist();
+            if (!play) SaveSystem.Flush();   // Phase Q4 (CH8): the writer is empty before a tool reads the files
             EditorApplication.isPlaying = play;
             // Entering play mode reloads the domain; the script continues from TryResume.
             double end = EditorApplication.timeSinceStartup + 60;

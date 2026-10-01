@@ -233,7 +233,7 @@ namespace SecondCursor.Apps
                 foreach (var sub in G.Files.SubFolders(folder.Id))
                 {
                     var row = _files.AddRow(FileIcons.SpriteFor(sub, G.Files), "folder:" + sub.Id, "folder:" + sub.Id, sub.Name, "", "Folder");
-                    row.Hit.Click += (a, n) => { if (n == 2) Navigate(sub.Id, a); };
+                    row.Hit.Click += (a, n) => { if (ClickRules.Opens(n, a)) Navigate(sub.Id, a); };
                     row.Hit.AcceptsDrop = (a, p) => p.Kind == PayloadKind.File && CanDropInto(p.FileId, sub.Id);
                     row.Hit.Drop += (a, p) => DropInto(p.FileId, sub.Id, a);
                     count++;
@@ -360,7 +360,13 @@ namespace SecondCursor.Apps
         public void OnKey(GameKey key, CursorAgent by)
         {
             string sel = SelectedFileId;
-            if (key == GameKey.Delete && sel != null && !sel.StartsWith("folder:")) G.Shred.Request(sel, by);
+            // Phase Q4 (A7): Enter opens the selected row: a folder row goes into the folder, a file row opens the file.
+            if (key == GameKey.Enter && _files.Selected != null)
+            {
+                if (_files.Selected.Tag is string rowId && rowId.StartsWith("folder:", System.StringComparison.Ordinal)) Navigate(rowId.Substring("folder:".Length), by);
+                else _files.Activate(_files.Selected, by);
+            }
+            else if (key == GameKey.Delete && sel != null && !sel.StartsWith("folder:")) G.Shred.Request(sel, by);
             else if (key == GameKey.Up && _files.Selected != null) _files.Select(Mathf.Max(0, _files.Selected.Index - 1), by);
             else if (key == GameKey.Down && _files.Selected != null) _files.Select(Mathf.Min(_files.Rows.Count - 1, _files.Selected.Index + 1), by);
         }

@@ -64,6 +64,11 @@ namespace SecondCursor.Audio
         /// </summary>
         public Func<bool> ClickAnswerAllowed;
         public event Action ClickAnswered;
+        /// <summary>
+        /// Phase Q4 (A6): a one-shot was actually played (id, the volume it was asked at, its pan before any mono mix-down). Sound captions
+        /// listen here, so a caption shows on the frame its sound starts and never for a sound that was muted.
+        /// </summary>
+        public event Action<string, float, float> SoundPlayed;
         float _answerUntil = -1f;
 
         public void ArmClickAnswer(float seconds) => _answerUntil = seconds > 0f ? Time.time + seconds : -1f;
@@ -206,12 +211,15 @@ namespace SecondCursor.Audio
             if (Variants.TryGetValue(id, out var set)) clip = set[Random.Range(0, set.Length)];
             var src = AudioListener.pause ? PauseVoice() : Voice(id);
             src.pitch = pitch;
+            float heardPan = pan;
+            if (Game.AccessSettings.MonoAudio) pan = 0f;   // Phase Q4 (A10): mono audio keeps everything in the middle
             src.panStereo = Mathf.Clamp(pan, -1f, 1f);
             src.volume = v;
             src.clip = startOffset > 0.001f ? FromOffset(clip, Mathf.Min(startOffset, Mathf.Max(0f, clip.length - 0.05f))) : clip;
             src.time = 0f;
             src.Play();
             Record('P', id, v, pitch, pan);
+            SoundPlayed?.Invoke(id, volume * DefaultVolume(id), heardPan);
             if (id.StartsWith("key_", StringComparison.Ordinal)) LastKeyAt = Time.time;
             if (volume >= ScareRules.EventMinVolume && EventIds.Contains(id)) LastEventAt = Time.time;
         }
@@ -412,7 +420,7 @@ namespace SecondCursor.Audio
 
         public void SetLoopPan(string id, float pan)
         {
-            if (_loops.TryGetValue(id, out var loop)) loop.Source.panStereo = Mathf.Clamp(pan, -1f, 1f);
+            if (_loops.TryGetValue(id, out var loop)) loop.Source.panStereo = Game.AccessSettings.MonoAudio ? 0f : Mathf.Clamp(pan, -1f, 1f);   // Phase Q4: mono keeps loops in the middle too
         }
 
         /// <summary>The office bed: room tone, fluorescent buzz, CRT hum. Turning it on also brings the room back to full level.</summary>

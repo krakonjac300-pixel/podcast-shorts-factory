@@ -25,6 +25,11 @@ namespace SecondCursor.Entity
     {
         const int MinWidth = 150, MaxWidth = 284, MeterW = 140, MeterH = 8, Pad = 6, TagW = 22;
         const float ResultSeconds = 3.2f, NoticeDelay = 0.6f, LatchFlash = 0.12f, LatchRing = 0.2f, Margin = 12f;
+        /// <summary>Phase Q4 (A3): the result stays about 16 characters a second (at least <see cref="ResultSeconds"/>), so it can be read.</summary>
+        const float ResultSecondsPerChar = 0.06f;
+        /// <summary>Phase Q4 (A3): the result notice is only kept in Recent notices when the player stands this close to the panel that says the same thing.</summary>
+        const float WatchRadius = 260f;
+        float _resultSeconds = ResultSeconds;
         static readonly Color PanelFill = new Color(Palette.EntityFill.r / 255f, Palette.EntityFill.g / 255f, Palette.EntityFill.b / 255f, 0.92f);
 
         GameServices _g;
@@ -33,7 +38,7 @@ namespace SecondCursor.Entity
         readonly Image[] _border = new Image[4], _ring = new Image[4];
         PixelText _word, _lines, _youText, _themText;
         RectTransform _meter;
-        Image _you, _them, _keep;
+        Image _you, _them, _keep, _keepEdge;
         TugArrow _small, _big, _bigReady;
         float _resultUntil = -1f, _latchAt = -10f;
         Vector2 _anchor;
@@ -78,6 +83,8 @@ namespace SecondCursor.Entity
             _you = UIBuilder.Solid(_meter, Palette.Highlight, "You");
             _them = UIBuilder.Solid(_meter, Palette.Red, "Them");
             // Phase J: the line past which letting go keeps the file, standing 3 px proud above and below the bar.
+            // Phase Q4 (A8): the amber line is edged in dark so it reads on both fills (2.4:1 on the red alone).
+            _keepEdge = UIBuilder.Solid(_meter, Palette.Dark, "Keep Edge");
             _keep = UIBuilder.Solid(_meter, Palette.Amber, "Keep Line");
             _youText = UIBuilder.Text(_panel, "", Palette.Highlight, true, "You Label");
             _themText = UIBuilder.Text(_panel, "", Palette.Red, true, "Them Label");
@@ -88,7 +95,7 @@ namespace SecondCursor.Entity
             _bigReady = new TugArrow(layer, 3, "Tug Ready Arrow");
             for (int i = 0; i < 4; i++)
             {
-                _ring[i] = UIBuilder.Solid(layer, Palette.Green, "Latch Ring " + i);
+                _ring[i] = UIBuilder.Solid(layer, Palette.GreenOnDark, "Latch Ring " + i);
                 _ring[i].rectTransform.anchorMin = _ring[i].rectTransform.anchorMax = Vector2.zero;
                 _ring[i].rectTransform.pivot = Vector2.zero;
                 _ring[i].enabled = false;
@@ -154,7 +161,7 @@ namespace SecondCursor.Entity
                     SetText(word, _shownBlink ? Palette.Red : Palette.EntityFill, F(Key("regrip"), way), Palette.EntityText, true);
                     break;
                 case FightText.Ahead:
-                    SetText(word, Palette.Green, F(Key("ahead"), way), Palette.EntityText, true);
+                    SetText(word, Palette.GreenOnDark, F(Key("ahead"), way), Palette.EntityText, true);
                     break;
                 default:
                     string part = _first && Variant == TugVariant.Fight ? "label.first" : "label";
@@ -182,7 +189,8 @@ namespace SecondCursor.Entity
             var c = C;
             _first = false;
             _shown = FightText.None;
-            _resultUntil = Time.unscaledTime + ResultSeconds;
+            _resultSeconds = ResultSeconds;
+            _resultUntil = Time.unscaledTime + _resultSeconds;
             _bigReady.Hide();
             string name = p != null && !string.IsNullOrEmpty(p.Label) ? p.Label : "the file";
             if (outcome == TugOutcome.Released)
@@ -194,7 +202,7 @@ namespace SecondCursor.Entity
                 _winner = null;
                 _anchor = c.ObjectPosition;
                 GameLog.Info(LogChannel.Entity, "Tug HUD: released");
-                PostLater(T("os.name", "NEXUS OS"), F("notify.haul.letgo.released", name), "icon_info", "ui_select");
+                PostLater(T("os.name", "NEXUS OS"), F("notify.haul.letgo.released", name), "icon_info", "ui_select", true);
                 return;
             }
             bool won = outcome == TugOutcome.PlayerWins;
@@ -205,7 +213,10 @@ namespace SecondCursor.Entity
             string reason = !won ? ReasonKey(c.LastLossReason) : Model == TugModel.Speed || c.LastWonIntoBin ? "won" : kept ? "kept" : "won.tear";
             string word = !won ? T("haul.word.lost", "017 HAS IT") : c.LastWonIntoBin ? T("haul.word.won", "IN THE BIN") : T("haul.word.kept", "YOURS");
             string lines = won ? F(Key(reason)) : F(Key("lost." + reason), c.LastArrowDirection, c.LastPlayerDirection);
-            SetText(word, won ? Palette.Green : Palette.Red, lines, Palette.EntityText, true);
+            SetText(word, won ? Palette.GreenOnDark : Palette.Red, lines, Palette.EntityText, true);
+            // Phase Q4 (A3): about 16 characters a second (the usual 65 characters stay about 4 s, not 3.2).
+            _resultSeconds = Mathf.Max(ResultSeconds, ResultSecondsPerChar * lines.Length);
+            _resultUntil = Time.unscaledTime + _resultSeconds;
             SetMeter(won && !kept ? 1f : c.LastFinalLead, false);
             // The arrows stay where the fight left them, dimmed (the speed model's small arrow comes back on the file).
             if (_big.Shown) _big.Draw(_big.From, _big.Direction, 14f, 0.35f, false);
@@ -228,21 +239,26 @@ namespace SecondCursor.Entity
             }
             // Phase J: the result is also a notice, for a player who was looking somewhere else when the fight ended.
             string key = TugText.NoticeKey(Model, reason == "pulled" ? "" : reason);
-            PostLater(T("os.name", "NEXUS OS"), F(key, name, c.LastArrowDirection, c.LastPlayerDirection), won ? "icon_info" : "icon_error", won ? "ui_select" : "sys_warning");
+            PostLater(T("os.name", "NEXUS OS"), F(key, name, c.LastArrowDirection, c.LastPlayerDirection), won ? "icon_info" : "icon_error", won ? "ui_select" : "sys_warning", true);
         }
 
         /// <summary>Phase P (R1 item 5): the result's notice comes 0.6 s after the result, once the dim is going (notices wait during a fight).</summary>
-        void PostLater(string title, string body, string icon, string sound)
+        void PostLater(string title, string body, string icon, string sound, bool sameAsPanel = false)
         {
             if (_notice != null) StopCoroutine(_notice);
-            _notice = StartCoroutine(Post(title, body, icon, sound));
+            _notice = StartCoroutine(Post(title, body, icon, sound, sameAsPanel));
         }
 
-        IEnumerator Post(string title, string body, string icon, string sound)
+        IEnumerator Post(string title, string body, string icon, string sound, bool sameAsPanel)
         {
             yield return new WaitForSecondsRealtime(NoticeDelay);
             _notice = null;
-            _g.Notifications.Show(title, body, icon, null, sound);
+            // Phase Q4 (A3): a result the panel beside the player's pointer already says is kept in Recent notices only (it is not said twice);
+            // a player who looked away (the pointer is far from the panel) gets the notice. Session 017 is the one who acted.
+            bool watching = sameAsPanel && _panel != null && _panel.gameObject.activeSelf
+                            && Vector2.Distance(_g.Player.Position, _panel.WorldRect().center) < WatchRadius;
+            if (watching) _g.Notifications.Record(title, body, Core.Game.NoticeKind.Entity);
+            else _g.Notifications.Show(title, body, icon, null, sound, false, null, Core.Game.NoticeKind.Entity);
         }
 
         /// <summary>
@@ -277,11 +293,15 @@ namespace SecondCursor.Entity
             _word.color = wordColor;
             _lines.text = lines ?? "";
             _lines.color = linesColor;
+            // Phase Q4 (A5): the reason lines follow the Reading text size (the panel grows to at most 424 px; the word is already 2x).
+            float f = Game.DisplaySettings.ReadingFactor;
+            _lines.Factor = f;
+            int maxWidth = f > 1f ? Mathf.Min(424, Mathf.RoundToInt(MaxWidth * f)) : MaxWidth;
             var wordSize = _word.text.Length > 0 ? PixelFont.Measure(_word.text, 0, true, 2) : Vector2Int.zero;
-            int linesW = _lines.text.Length > 0 ? PixelFont.Measure(_lines.text, 0, true, 1).x : 0;
-            int width = Mathf.Clamp(Mathf.Max(wordSize.x, Mathf.Max(linesW, meter ? MeterW + TagW * 2 + 8 : 0)) + Pad * 2, MinWidth, MaxWidth);
+            int linesW = _lines.text.Length > 0 ? PixelFont.Measure(_lines.text, 0, true, f).x : 0;
+            int width = Mathf.Clamp(Mathf.Max(wordSize.x, Mathf.Max(linesW, meter ? MeterW + TagW * 2 + 8 : 0)) + Pad * 2, MinWidth, maxWidth);
             int inner = width - Pad * 2;
-            int linesH = _lines.text.Length > 0 ? PixelFont.Measure(_lines.text, inner, true, 1).y : 0;
+            int linesH = _lines.text.Length > 0 ? PixelFont.Measure(_lines.text, inner, true, f).y : 0;
             int y = Pad;
             if (wordSize.y > 0)
             {
@@ -303,6 +323,7 @@ namespace SecondCursor.Entity
                 _themText.rectTransform.At(x + MeterW + 4, y - 2, TagW, 12);
                 _meter.At(x, y, MeterW, MeterH);
                 _keep.rectTransform.At(Mathf.Round(C.KeepLead * MeterW) - 1, -3, 2, MeterH + 6);
+                _keepEdge.rectTransform.At(Mathf.Round(C.KeepLead * MeterW) - 2, -4, 4, MeterH + 8);
                 y += MeterH;
             }
             int h = y + Pad;
@@ -324,7 +345,7 @@ namespace SecondCursor.Entity
             _you.rectTransform.At(0, 0, you, MeterH);
             _them.rectTransform.At(you, 0, MeterW - you, MeterH);
             // The latch: for 120 ms past the keep line the YOU fill flashes green.
-            _you.color = latch ? (Color)Palette.Green : (Color)Palette.Highlight;
+            _you.color = latch ? (Color)Palette.GreenOnDark : (Color)Palette.Highlight;
         }
 
         // ------------------------------------------------------------------ placement

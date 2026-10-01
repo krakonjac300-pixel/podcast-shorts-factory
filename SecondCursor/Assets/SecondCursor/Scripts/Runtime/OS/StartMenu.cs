@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SecondCursor.Apps;
 using SecondCursor.Core.Content;
 using SecondCursor.Game;
 using SecondCursor.Input;
@@ -54,6 +55,7 @@ namespace SecondCursor.OS
                 MenuItem.Sep(),
                 MenuItem.Of(c.Text("start.documents"), x => _g.Apps.OpenFolder(ContentIds.FolderDocuments, x), "icon_folder_open", elementId: "start:documents"),
                 MenuItem.Of("System Monitor", x => _g.Apps.Launch(SecondCursor.Apps.SystemMonitorApp.Id, x), "icon_system", elementId: "start:sysmon"),
+                MenuItem.Of(c.Text("start.recent", "Recent notices"), x => _g.Apps.Launch(RecentNoticesApp.Id, x), "icon_info", elementId: "start:recent"),
                 MenuItem.Of(c.Text("start.help"), x => _g.Apps.Launch(AppIds.Help, x), "icon_help", elementId: "start:help"),
                 MenuItem.Sep(),
             };

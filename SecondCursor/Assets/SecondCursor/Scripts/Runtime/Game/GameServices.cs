@@ -23,6 +23,12 @@ namespace SecondCursor.Game
     /// </summary>
     public sealed class GameServices
     {
+        /// <summary>
+        /// Phase Q4 (A4): the factor on the story's real-time windows (Night 2's priority shred, the last five minutes on Night 3, the exit
+        /// grace, the confirm race's head start): 2 in Story mode or with Relaxed timing on, else 1. Read where each window starts.
+        /// </summary>
+        public float TimeScale => AccessSettings.TimeScale(Difficulty != null && Difficulty.Mode == DifficultyMode.Story);
+
         // Presentation
         public ScreenRig Screen;
         public OSLayers Layers;

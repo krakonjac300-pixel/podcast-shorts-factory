@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SecondCursor.Core.Game;
 using SecondCursor.Input;
 using SecondCursor.Rendering;
 using SecondCursor.UI;
@@ -14,12 +15,16 @@ namespace SecondCursor.OS
     /// Phase H: toasts that arrive together come in one after another (<see cref="Stagger"/>), slide in and out
     /// sideways so they never pass over the bin, and a toast about something already done (a task's hint once the
     /// task is ticked) goes away by itself.
+    /// Phase Q4 (review board R2, A3): a notice that belongs to a session wears its pointer and a stripe in that session's colours (017 black
+    /// with a pale rim, 209 amber), a deadline notice a red stripe; a notice stays as long as it takes to read (<see cref="NoticeRules"/>), at
+    /// most three show at once with a "+N more" chip, an important one is never dropped unseen, and the last twenty are kept for Recent notices.
     /// </summary>
     public sealed class Notifications : MonoBehaviour
     {
         const int W = 220;
         const int H = 58;
-        const float Life = 7f;
+        /// <summary>A notice that waited for room longer than it would have shown, and was not important, goes unseen (at least this long).</summary>
+        const float StaleFloor = NoticeRules.MinSeconds;
         /// <summary>Seconds between two toasts that were asked for at the same moment.</summary>
         public const float Stagger = 1.1f;
         float _nextShowAt = -100f, _nextRelease = -100f;
@@ -46,12 +51,28 @@ namespace SecondCursor.OS
         const float HeldAlpha = 0.4f;
         float _alpha = 1f;
 
+        /// <summary>The last notices, newest first (the Recent notices window reads it).</summary>
+        public readonly NoticeHistory History = new NoticeHistory();
+        /// <summary>The shift clock's time as text, stamped on each history entry.</summary>
+        public Func<string> Stamp;
+        /// <summary>The "+N more" chip was clicked (opens Recent notices).</summary>
+        public Action<CursorAgent> OpenRecent;
+        RectTransform _more;
+        PixelText _moreText;
+        int _moreCount, _moreShown = -1;
+        const int MoreWidth = 64, MoreHeight = 16;
+
         /// <summary>A shown toast: its body can change after it appears (a line that lands on its own beat).</summary>
         public sealed class Toast
         {
             internal RectTransform Rect;
             internal CanvasGroup Group;
             internal float Age;
+            /// <summary>Seconds it stays once shown (by its length: Phase Q4).</summary>
+            internal float Life = NoticeRules.MinSeconds;
+            /// <summary>Phase Q4: never dropped unseen (a task, deadline, camera or order notice, a sticky one, one with its own condition).</summary>
+            public bool Important;
+            public NoticeKind Kind;
             /// <summary>Seconds its turn has come but there was no room for it (Review J2).</summary>
             internal float Waited;
             internal float Slot;
@@ -108,10 +129,13 @@ namespace SecondCursor.OS
 
         /// <summary>
         /// Like the others; <paramref name="keepWhile"/> (optional) is checked every frame and the toast goes as soon as it
-        /// returns false (a task hint once the task is done), even before its turn came.
+        /// returns false (a task hint once the task is done), even before its turn came. Phase Q4: <paramref name="kind"/> says whose
+        /// notice it is (session 017, session 209, a deadline), which sets its pointer icon and stripe.
         /// </summary>
-        public Toast Show(string title, string body, string icon, Action<CursorAgent> onClick, string sound, bool sticky, Func<bool> keepWhile)
+        public Toast Show(string title, string body, string icon, Action<CursorAgent> onClick, string sound, bool sticky, Func<bool> keepWhile,
+            NoticeKind kind = NoticeKind.Plain)
         {
+            History.Add(Stamp != null ? Stamp() : "", title, body, kind);
             int s = Mathf.Clamp(Game.DisplaySettings.ReadingScale, 1, 2);
             int w = W * s, h = H * s;
             var rt = UIBuilder.Rect("Toast " + title, _layer);
@@ -125,11 +149,18 @@ namespace SecondCursor.OS
             var group = rt.gameObject.AddComponent<CanvasGroup>();
             group.alpha = _alpha;
 
-            if (!string.IsNullOrEmpty(icon))
+            // Phase Q4 (R2): a session's notice shows its pointer in its colours instead of the info icon, and a stripe; a deadline gets a red stripe.
+            if (ActorStyle.IsSession(kind))
+            {
+                var pointer = ActorSprites.Icon(rt, kind, s);
+                pointer.rectTransform.anchoredPosition = new Vector2(8f * s, -8f * s);
+            }
+            else if (!string.IsNullOrEmpty(icon))
             {
                 var ic = UIBuilder.Icon(rt, icon, s);
                 ic.rectTransform.anchoredPosition = new Vector2(8f, -8f);
             }
+            if (kind != NoticeKind.Plain) AddStripe(rt, kind, w, s);
             int textLeft = 14 + 16 * s;
             var t = UIBuilder.Text(rt, title, Palette.Text, true);
             t.Scale = s;
@@ -144,7 +175,12 @@ namespace SecondCursor.OS
             _nextShowAt = Time.time + delay + Stagger;
             int visible = 0;
             foreach (var other in _toasts) if (!other.Waiting) visible++;
-            var toast = new Toast { Group = group, Rect = rt, Slot = visible, Sticky = sticky, Height = h, Body = b, Scale = s, Age = -delay, Sound = sound, KeepWhile = keepWhile };
+            var toast = new Toast
+            {
+                Group = group, Rect = rt, Slot = visible, Sticky = sticky, Height = h, Body = b, Scale = s, Age = -delay, Sound = sound, KeepWhile = keepWhile,
+                Kind = kind, Life = NoticeRules.Duration((body ?? "").Length, Game.AccessSettings.NoticeTime),
+                Important = NoticeRules.IsImportant(icon, sticky, keepWhile != null, kind),
+            };
             toast.Fit();
             var hit = UIBuilder.Hit(rt.gameObject, "toast:" + title, onClick != null ? CursorShape.Hand : CursorShape.Arrow);
             hit.passThroughWhileCarrying = true;
@@ -160,6 +196,13 @@ namespace SecondCursor.OS
             return toast;
         }
 
+        /// <summary>
+        /// Phase Q4 (A3): a line for Recent notices only (the tug's result, when its panel already says it beside the pointer the player is
+        /// watching): it is not shown as a toast.
+        /// </summary>
+        public void Record(string title, string body, NoticeKind kind = NoticeKind.Plain)
+            => History.Add(Stamp != null ? Stamp() : "", title, body, kind);
+
         void Update() => Layout(Time.deltaTime);   // game time: toasts wait behind the pause menu
 
         void Layout(float dt)
@@ -169,9 +212,9 @@ namespace SecondCursor.OS
             {
                 var t = _toasts[i];
                 if (t.Shown || t.Age < 0f) t.Age += dt;
-                if (t.Sticky && t.Age > Life - 0.01f) t.Age = Life - 0.01f;
+                if (t.Sticky && t.Age > t.Life - 0.01f) t.Age = t.Life - 0.01f;
                 if (t.KeepWhile != null && !SafeKeep(t)) t.Dismissed = true;
-                if (t.Rect == null || t.Dismissed || t.Age > Life + 0.3f)
+                if (t.Rect == null || t.Dismissed || t.Age > t.Life + 0.3f)
                 {
                     if (t.Rect != null) Destroy(t.Rect.gameObject);
                     _toasts.RemoveAt(i);
@@ -186,19 +229,27 @@ namespace SecondCursor.OS
             float baseY = WindowManager.TaskbarHeight + 84;
             float ceiling = PickColumn(baseY);
             float used = 0f;
-            foreach (var t in _toasts) if (t.Shown) used += t.Height + 4;
+            int shown = 0;
+            foreach (var t in _toasts) if (t.Shown) { used += t.Height + 4; shown++; }
+            _moreCount = 0;
             foreach (var t in _toasts)
             {
                 if (t.Shown || t.Age < 0f) continue;
                 t.Age = 0f;   // its time only starts when it is on screen
                 if (held) continue;   // a fight holds it back (not counted as waiting for room)
                 // Review J2: a notice that waited for room longer than it would have shown is stale: it goes unseen.
+                // Phase Q4 (A3): unless it is important (a task, deadline, camera or order notice waits as long as it takes).
                 t.Waited += dt;
-                if (t.Waited > Life && !t.Sticky && t.KeepWhile == null) { t.Dismissed = true; continue; }
+                if (t.Waited > Mathf.Max(StaleFloor, t.Life) && !t.Important) { t.Dismissed = true; continue; }
                 bool room = used == 0f || baseY + used + t.Height <= ceiling;
-                if (!room) GiveWay();
+                if (!room || shown >= NoticeRules.VisibleCap)
+                {
+                    GiveWay();
+                    _moreCount++;
+                    continue;
+                }
                 // When room comes back, the ones that waited come in one after another, not in a burst.
-                if (!room || Time.time < _nextRelease) continue;
+                if (Time.time < _nextRelease) continue;
                 _nextRelease = Time.time + Stagger;
                 t.Shown = true;
                 t.Rect.gameObject.SetActive(true);
@@ -206,6 +257,7 @@ namespace SecondCursor.OS
                 t.Sound = null;
                 t.Slot = -1f;   // takes the slot it lands in (below), instead of the one it was queued behind
                 used += t.Height + 4;
+                shown++;
             }
 
             float y = baseY;
@@ -216,7 +268,7 @@ namespace SecondCursor.OS
                 if (!t.Shown) continue;
                 t.Slot = t.Slot < 0f ? slot : Mathf.MoveTowards(t.Slot, slot, dt * 6f);
                 float slideIn = Mathf.Clamp01(t.Age / 0.2f);
-                float slideOut = Mathf.Clamp01((t.Age - Life) / 0.3f);
+                float slideOut = Mathf.Clamp01((t.Age - t.Life) / 0.3f);
                 // Stack above the Disposal bin (or right of the icon column); in and out sideways, never across the drop target.
                 float ty = y + (t.Slot - slot) * (t.Height + 4);
                 float w = t.Rect.sizeDelta.x;
@@ -226,6 +278,53 @@ namespace SecondCursor.OS
                 y += t.Height + 4;
                 slot++;
             }
+            UpdateMoreChip(y);
+        }
+
+        /// <summary>The "+N more" chip over the stack: how many notices are waiting for a place (click: Recent notices).</summary>
+        void UpdateMoreChip(float y)
+        {
+            bool show = _moreCount > 0 && !SafeHold();
+            if (_more == null)
+            {
+                if (!show) return;
+                _more = UIBuilder.Rect("More Notices", _layer);
+                _more.anchorMin = _more.anchorMax = new Vector2(1f, 0f);
+                _more.pivot = new Vector2(1f, 0f);
+                var face = _more.gameObject.AddComponent<BevelGraphic>();
+                face.Style = BevelStyle.Window;
+                face.Fill = Palette.Tooltip;
+                face.raycastTarget = false;
+                _moreText = UIBuilder.Text(_more, "", Palette.Text, true);
+                _moreText.Align = TextAlign.Center;
+                _moreText.VAlign = TextVAlign.Middle;
+                _moreText.rectTransform.Stretch(2, 0, 2, 0);
+                var hit = UIBuilder.Hit(_more.gameObject, "notices:more", CursorShape.Hand);
+                hit.passThroughWhileCarrying = true;
+                hit.Click += (a, n) => OpenRecent?.Invoke(a);
+                _more.sizeDelta = new Vector2(MoreWidth, MoreHeight);
+            }
+            _more.gameObject.SetActive(show);
+            if (!show) return;
+            if (_moreShown != _moreCount)
+            {
+                _moreShown = _moreCount;
+                _moreText.text = "+" + _moreCount + " more";
+            }
+            float x = _left ? -(ScreenRig.Width - LeftColumnX - MoreWidth) : -4f;
+            _more.anchoredPosition = new Vector2(Mathf.Round(x), Mathf.Round(y));
+        }
+
+        /// <summary>A stripe down the left inside of the notice in the actor's colour; session 017's has a pale line beside it.</summary>
+        static void AddStripe(RectTransform rt, NoticeKind kind, int width, int scale)
+        {
+            int stripeW = ActorStyle.StripeWidth * scale;
+            var stripe = UIBuilder.Solid(rt, Palette.StripeOf(kind), "Stripe");
+            stripe.rectTransform.Stretch(2, 2, width - 2 - stripeW, 2);
+            uint line = ActorStyle.StripeLine(kind);
+            if (line == 0u) return;
+            var edge = UIBuilder.Solid(rt, Palette.FromRgb(line), "Stripe Edge");
+            edge.rectTransform.Stretch(2 + stripeW, 2, width - 2 - stripeW - scale, 2);
         }
 
         /// <summary>
@@ -235,7 +334,7 @@ namespace SecondCursor.OS
         void GiveWay()
         {
             foreach (var t in _toasts)
-                if (t.Shown && !t.Dismissed && t.Sticky && t.Age >= Life - 0.01f) { t.Dismissed = true; return; }
+                if (t.Shown && !t.Dismissed && t.Sticky && t.Age >= t.Life - 0.01f && Game.AccessSettings.NoticeTime != NoticeTime.UntilClicked) { t.Dismissed = true; return; }
         }
 
         /// <summary>Where the left-hand stack starts (just right of the desktop icon column).</summary>

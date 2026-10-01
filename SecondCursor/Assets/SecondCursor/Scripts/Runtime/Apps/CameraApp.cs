@@ -27,6 +27,11 @@ namespace SecondCursor.Apps
         PixelText _label;
         PixelText _time;
         Image _rec;
+        /// <summary>Phase Q4 (R4): the amber MOTION tag, a 1 px amber frame inside the feed, and a dot on the camera button, while Custodial is in the shown feed.</summary>
+        PixelText _motion;
+        BevelGraphic _motionFrame;
+        Image _motionDot;
+        string _motionDotCam;
         PixelText _noSignal;
         PixelText _caption;
         PixelText _next;
@@ -93,9 +98,11 @@ namespace SecondCursor.Apps
             // cannot hide it), and the label that comes next, so waiting for one shelf has a visible end.
             _caption = UIBuilder.Text(screen.rectTransform, "", Palette.BiosBright, true);
             _caption.Shadow = true;
+            _caption.Wrap = true;
             _caption.rectTransform.TopStrip(24, 12, 10, 10);
             _next = UIBuilder.Text(screen.rectTransform, "", Palette.BiosText);
             _next.Shadow = true;
+            _next.Wrap = true;
             _next.rectTransform.TopStrip(38, 12, 10, 10);
             // M1: the workstation's own tag over the seated operator on CAM 03 (it is you).
             _nameTag = UIBuilder.Text(_feed.rectTransform, G.Content.Text("camera.operatortag", "CROURKE / WS-04"), new Color32(0xD8, 0xDC, 0xD2, 0xFF));
@@ -123,6 +130,15 @@ namespace SecondCursor.Apps
             var recText = UIBuilder.Text(recHolder, "REC", Palette.BiosBright, true);
             recText.Shadow = true;
             recText.rectTransform.Stretch(9, 0, 0, 0);
+            _motionFrame = UIBuilder.Bevel(screen.rectTransform, BevelStyle.Outline, "Motion Frame");
+            _motionFrame.Fill = Palette.Amber;
+            _motionFrame.rectTransform.Stretch(2, 2, 2, 2);
+            _motionFrame.enabled = false;
+            _motion = UIBuilder.Text(screen.rectTransform, G.Content.Text("camera.motion", "MOTION"), Palette.Amber, true, "Motion Tag");
+            _motion.Shadow = true;
+            _motion.Align = TextAlign.Right;
+            _motion.rectTransform.TopRight(10, 22, 56, 12);
+            _motion.enabled = false;
 
             Select(CameraOnOpen(G), by);
             if (G.CameraRig != null) G.CameraRig.SetViewing(true);
@@ -292,13 +308,22 @@ namespace SecondCursor.Apps
             _t += dt;
             if (_hiddenShown != G.Flags.Has(Core.Story.MemoryFlags.N3Cam00)) BuildButtons();
             string caption = G.CameraRig != null ? G.CameraRig.CaptionFor(_current) : "";
-            if (_caption.text != caption)
+            // Phase Q4 (A5): the shelf labels follow the Reading text size (they wrap to two lines in the 320 px feed); the NEXT line follows them.
+            if (_captionFactor != Game.DisplaySettings.ReadingFactor)
+            {
+                _captionFactor = Game.DisplaySettings.ReadingFactor;
+                _caption.Factor = _captionFactor;
+                _next.Factor = _captionFactor;
+                _layoutCaption = true;
+            }
+            if (_layoutCaption || _caption.text != caption)
             {
                 // M10: a shelf label swap is a one-step (1/60 s) static flicker.
                 if (caption.Length > 0 && _caption.text.Length > 0) _captionFlicker = true;
                 _caption.text = caption;
                 string next = caption.Length > 0 && G.CameraRig != null ? G.CameraRig.NextShelfFor(_current) : "";
                 _next.text = next.Length > 0 ? string.Format(G.Content.Text("camera.next", "NEXT: {0}"), next) : "";
+                LayoutCaption();
             }
             _switchNoise = Mathf.Max(0f, _switchNoise - dt);
             bool signal = G.CameraRig != null && G.CameraRig.HasSignal(_current);
@@ -310,13 +335,20 @@ namespace SecondCursor.Apps
             UpdateHum(signal);
             if (rig != null && !Window.IsMinimized && !rig.FreezeFeed)
             {
-                if (rig.FeedMinutes < 0) rig.FeedMinutes = G.Clock.ExactMinutes;
-                else rig.FeedMinutes += dt * G.Clock.Rate;
-                _time.text = Core.Story.GameClock.FormatCamera(rig.FeedMinutes);
+                // Phase Q4 (R4): the timestamp stays in step with the shift clock (it used to run only while the viewer was watched, so after a
+                // time skip it read 03:21 at 7:05); only a deliberately frozen frame stops it, and it catches up when the frame goes on.
+                rig.FeedMinutes = G.Clock.ExactMinutes;
+                int feedSecond = (int)(rig.FeedMinutes * 60.0);
+                if (feedSecond != _feedSecond)
+                {
+                    _feedSecond = feedSecond;
+                    _time.text = Core.Story.GameClock.FormatCamera(rig.FeedMinutes);   // Phase Q4 (CH7): the text changes once a second, so it is made once a second
+                }
             }
             else if (rig == null) _time.text = G.Clock.FormatCamera();
             EchoClicks();
             _rec.enabled = signal && (_t % 1.2f) < 0.7f;
+            UpdateMotion(signal);
 
             // A minimized viewer neither renders the 3D set nor animates its grain.
             bool visible = !Window.IsMinimized;
@@ -352,6 +384,54 @@ namespace SecondCursor.Apps
             }
             _noiseTex.SetPixels32(px);
             _noiseTex.Apply(false, false);
+        }
+
+        /// <summary>
+        /// Phase Q4 (R4): while Custodial is in the shown feed (a round is running and this camera is the one it is on) the feed says so in amber:
+        /// MOTION blinking 0.45 s on, 0.2 s off (steady with Reduce flashing), a 1 px frame, and a dot on this camera's button. Nothing on the other
+        /// cameras' buttons, so Personnel 000 still answers where it is now.
+        /// </summary>
+        void UpdateMotion(bool signal)
+        {
+            var rounds = G.Rounds;
+            bool motion = signal && !Window.IsMinimized && rounds != null && rounds.Running && rounds.Model != null && !rounds.Model.Finished
+                          && rounds.Model.FigureCamera == _current;
+            bool blinkOn = motion && (G.Fx != null && G.Fx.ReduceFlashing || (_t % MotionPeriod) < MotionOn);
+            if (_motion != null && _motion.enabled != blinkOn) _motion.enabled = blinkOn;
+            if (_motionFrame != null && _motionFrame.enabled != motion) _motionFrame.enabled = motion;
+            string dotCam = motion ? _current : null;
+            if (dotCam == _motionDotCam && (dotCam == null || _motionDot != null)) return;
+            _motionDotCam = dotCam;
+            if (_motionDot != null) _motionDot.enabled = false;
+            if (dotCam == null || !_buttons.TryGetValue(dotCam, out var button)) return;
+            if (_motionDot != null && _motionDot.transform.parent != button.transform) _motionDot.transform.SetParent(button.transform, false);
+            if (_motionDot == null)
+            {
+                _motionDot = UIBuilder.Solid(button.transform, Palette.Amber, "Motion Dot");
+                _motionDot.rectTransform.anchorMin = _motionDot.rectTransform.anchorMax = new Vector2(1f, 0.5f);
+                _motionDot.rectTransform.pivot = new Vector2(1f, 0.5f);
+                _motionDot.rectTransform.sizeDelta = new Vector2(4f, 4f);
+                _motionDot.rectTransform.anchoredPosition = new Vector2(-5f, 0f);
+            }
+            _motionDot.enabled = true;
+        }
+
+        const float MotionPeriod = 0.65f, MotionOn = 0.45f;
+
+        float _captionFactor = -1f;
+        bool _layoutCaption;
+        int _feedSecond = -1;
+
+        /// <summary>The shelf caption and the NEXT line under it, one under the other at the Reading text size (both wrap inside the feed).</summary>
+        void LayoutCaption()
+        {
+            _layoutCaption = false;
+            float f = _captionFactor < 1f ? 1f : _captionFactor;
+            int width = FeedW - 20;
+            int capH = _caption.text.Length > 0 ? PixelFont.Measure(_caption.text, width, true, f).y : 0;
+            int nextH = _next.text.Length > 0 ? PixelFont.Measure(_next.text, width, false, f).y : 0;
+            _caption.rectTransform.TopStrip(24, capH + 2, 10, 10);
+            _next.rectTransform.TopStrip(24 + capH + 2, nextH + 2, 10, 10);
         }
 
         /// <summary>Phase M: the viewer's own sound, a faint CCTV hiss while a feed shows (louder on a dead channel); none on a quiet or frozen feed.</summary>
