@@ -73,7 +73,7 @@ namespace SecondCursor.Tests
                 db.Variant = variant;
                 string body = db.Text("welcome.body");
                 Assert.Contains("The Nexus button (bottom left) lists every program and Help", body);
-                Assert.Contains("the way the arrow points until the bar is yours, then", body);
+                Assert.Contains(variant == "deck" ? "swipe it into the bin" : "yank it into the bin", body);
                 Assert.Contains(variant == "deck" ? "hold R2" : "hold the button", body);
             }
         }

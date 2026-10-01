@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using SecondCursor.Core;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.Story;
+using SecondCursor.FX;
 using SecondCursor.Game;
 using SecondCursor.Input;
 using SecondCursor.OS;
@@ -112,6 +113,25 @@ namespace SecondCursor.Entity
 
         public event Action<DragPayload> TugStarted;
         public event Action<DragPayload, TugOutcome> TugEnded;
+        /// <summary>Phase P, the reel: her pointer twitches back (a surge comes in 0.15 s), and the surge itself.</summary>
+        public event Action SurgeWarned, Surged;
+
+        /// <summary>Phase P (T1): changes a contest's settings as it starts (the Night 3 finale's LetGo hold over 017). Null = as the night says.</summary>
+        public Func<DragPayload, TugOfWarSettings, TugOfWarSettings> Customize;
+        /// <summary>Phase P (T6): the cap on contests over one file in a beat is off (the Night 3 finale, where T1 decides instead).</summary>
+        public bool ContestCapOff;
+        /// <summary>Phase P (T6): contests over each file since the beat began (<see cref="ResetBeat"/>).</summary>
+        readonly Dictionary<string, int> _contestsThisBeat = new Dictionary<string, int>();
+        /// <summary>Phase P: the contest in progress (or the last one) is the hold assist's (its wins never lower the assist level).</summary>
+        public bool IsAssisted { get; private set; }
+        /// <summary>Phase P: how the last contest ended (<see cref="TugOutcome.Released"/> for the finale's hold let go early).</summary>
+        public TugOutcome LastOutcome { get; private set; }
+        /// <summary>Phase P (R1 item 4): the rest of the screen dims while a fight runs.</summary>
+        public FocusDim Dim { get; private set; }
+        HaulView _haul;
+
+        /// <summary>Phase P (T6): a new story beat: the contests counted per file start again.</summary>
+        public void ResetBeat() => _contestsThisBeat.Clear();
 
         public static ConflictSystem Create(GameServices g, Transform parent)
         {
@@ -120,6 +140,9 @@ namespace SecondCursor.Entity
             var c = go.AddComponent<ConflictSystem>();
             c._g = g;
             c._model = new TugOfWar(c.CurrentSettings);
+            // Phase P: the focus dim sits under everything on the Effects layer; the rope and track under the panel and arrows.
+            c.Dim = FocusDim.Create(g.Layers.Effects);
+            c._haul = HaulView.Create(g);
             for (int i = 0; i < BandDots; i++)
             {
                 var dot = UIBuilder.Solid(g.Layers.Effects, new Color(0.95f, 0.95f, 0.9f, 0f), "Tension " + i);
@@ -138,6 +161,8 @@ namespace SecondCursor.Entity
             g.Router.ContestRegrip = a => a == g.Player && c.InRegrip;
             // Phase H: the fight explains itself above the file (label, pull meter, who kept it).
             c.Hud = TugHud.Create(g, c);
+            // Phase P (R1 item 5): no new notice appears during a fight; the ones up draw faint.
+            g.Notifications.Hold = () => c.IsFighting;
             g.DragDrop.PayloadFinished += (p, accepted, by) =>
             {
                 if (p != c._payload) return;
@@ -159,14 +184,29 @@ namespace SecondCursor.Entity
             _mercyRelease = _mercy ? new MercyRelease() : null;
             _graceContest = _readGraceArmed;
             _readGraceArmed = false;
+            // Phase P (T6): the fourth contest over one file in a beat is a mercy contest (Nights 2 and 3 before the finale).
+            int before = p.FileId != null && _contestsThisBeat.TryGetValue(p.FileId, out int n) ? n : 0;
+            if (p.FileId != null) _contestsThisBeat[p.FileId] = before + 1;
+            if (!_mercy && !ContestCapOff && _g.Difficulty != null && _g.Difficulty.MercyByCap(before))
+            {
+                _mercy = true;
+                _mercyRelease = new MercyRelease();
+                GameLog.Info(LogChannel.Entity, "Contest cap: contest " + (before + 1) + " over " + p.FileId + " this beat is a mercy contest");
+            }
             CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy, _graceContest) : new TugOfWarSettings();
             CurrentSettings.readySeconds = ReadySeconds;
+            // Phase P (A2): Tug assist: Hold, read at every contest so Options can switch it mid-night.
+            IsAssisted = Game.AccessSettings.TugAssistHold && !_mercy;
+            if (IsAssisted) DifficultyTable.HoldAssist(CurrentSettings);
+            if (Customize != null) CurrentSettings = Customize(p, CurrentSettings) ?? CurrentSettings;
+            if (CurrentSettings.reel.holdSeconds > 0f && CurrentSettings.reel.releaseNeverLoses) IsAssisted = false;
             LastGrabPoint = p.GhostPosition + new Vector2(16f, -14f);
             if (CurrentSettings.model == TugModel.Reel) BeginReel(p);
             else BeginSpeed(p);
 
             _g.Flags.Set(Flags.ConflictStarted);
             _g.Audio?.Play("grab_snap", 0.7f, 0.8f, Audio.AudioManager.PanFor(_g.EntityAgent.Position.x));
+            if (IsAssisted) GameLog.Info(LogChannel.Entity, "Tug assist: Hold");
             _g.Audio?.PlayLoop("tug_strain", 0.2f, 0.1f);
             _g.Fx?.Glitch(0.12f, 0.6f);
             GameLog.Info(LogChannel.Entity, "Tug-of-war started over " + p.FileId);
@@ -285,12 +325,38 @@ namespace SecondCursor.Entity
             var p = _payload;
             if (p == null) return;
             _payload = null;   // so the PayloadFinished handler does not score the cancelled drag
+            LastOutcome = TugOutcome.None;
             // Paused inside the standoff, the player never got to read it: the next fight has its standoff.
             if (_graceContest && _model.InReadGrace) _readGraceArmed = true;
+            _haul.Hide();
+            Dim.Hide();
             ClearFeel();
             _g.Audio?.StopLoop("tug_strain", 0.08f);
             _g.DragDrop.Cancel(p);
             GameLog.Info(LogChannel.Entity, "Tug-of-war interrupted: no winner");
+        }
+
+        /// <summary>Phase P (R1): the dim fades once the result has been seen (the result's notice posts 0.6 s after it).</summary>
+        System.Collections.IEnumerator DimAfterResult()
+        {
+            float until = Time.unscaledTime + ResultDimSeconds;
+            while (Time.unscaledTime < until)
+            {
+                if (IsFighting) yield break;
+                yield return null;
+            }
+            if (!IsFighting) Dim.Hide();
+        }
+
+        /// <summary>The dim holds this long after a result, then fades out over 0.2 s.</summary>
+        public const float ResultDimSeconds = 0.4f;
+
+        static System.Collections.IEnumerator FlickerFor(CursorView view, float amount, float seconds)
+        {
+            float before = view.Flicker;
+            view.Flicker = Mathf.Max(before, amount);
+            yield return new WaitForSecondsRealtime(seconds);
+            if (view != null) view.Flicker = before;
         }
 
         void ClearFeel()
@@ -372,7 +438,12 @@ namespace SecondCursor.Entity
             }
             _playerGripsNow = true;
             _payload = null;
+            LastOutcome = outcome;
+            // Phase P, the reel: a lost fight's rope whips out of the player's hand; any other end takes the rope away at once.
+            if (reel != null && outcome == TugOutcome.EntityWins) _haul.Whip(LastEndPlayerPosition, reel.ObjectPosition.ToUnity(), reel.Strain);
+            else _haul.Hide();
             ClearFeel();
+            StartCoroutine(DimAfterResult());
             if (outcome == TugOutcome.EntityWins && _g.Audio != null)
             {
                 // M5: a loss sounds like a punchline: the strain sags two semitones as it dies away.
@@ -393,6 +464,7 @@ namespace SecondCursor.Entity
                 TugEnded?.Invoke(p, outcome);
                 return;
             }
+            if (reel != null) EndBeatsReel(p, outcome, transfer, released);
             _g.Audio?.Play("grab_snap", 1f, outcome == TugOutcome.PlayerWins ? 1.3f : 0.9f);
             // M5: the second cursor wins politely: one small nod before it leaves with the file.
             if (outcome == TugOutcome.EntityWins && transfer && _g.EntityView != null) StartCoroutine(Nod(_g.EntityView));
@@ -402,6 +474,7 @@ namespace SecondCursor.Entity
                 StartCoroutine(HitStop());
                 Vector2 back = reel != null ? -PullDirection : (_g.EntityAgent.Position - _g.Player.Position).normalized;
                 if (_g.EntityView != null) _g.EntityView.Flinch(back * 40f, 0.45f);
+                if (reel != null && _g.EntityView != null) StartCoroutine(FlickerFor(_g.EntityView, 0.5f, 0.3f));
             }
             if (_g.Fx != null) _g.Fx.Glitch(0.1f, 0.8f);
             if (p == null) return;
@@ -435,8 +508,7 @@ namespace SecondCursor.Entity
             _forcedNow = false;
             if (LastOutcomeForced) _g.Disarm("forced tug outcome");
             GameLog.Info(LogChannel.Entity, "Tug-of-war ended: " + outcome);
-            _g.Assist?.ReportTug(outcome == TugOutcome.PlayerWins, _model.ActiveElapsed, _model.PeakEffort, CurrentSettings.model,
-                reel != null && reel.Variant == TugVariant.Hold);
+            _g.Assist?.ReportTug(outcome == TugOutcome.PlayerWins, _model.ActiveElapsed, _model.PeakEffort, CurrentSettings.model, IsAssisted);
             _graceContest = false;
             _mercy = false;
             TugEnded?.Invoke(p, outcome);
@@ -444,6 +516,7 @@ namespace SecondCursor.Entity
             {
                 // Phase P: hauled all the way: once the fight is recorded, the file drops into the bin as the player's own drop (Confirm Shred follows).
                 GameLog.Info(LogChannel.Entity, "Tug-of-war: hauled into the bin");
+                StartCoroutine(JoltBin());
                 _g.DragDrop.DropInto(p, _g.Player, _g.Desktop.DisposalIcon.Hit);
             }
         }

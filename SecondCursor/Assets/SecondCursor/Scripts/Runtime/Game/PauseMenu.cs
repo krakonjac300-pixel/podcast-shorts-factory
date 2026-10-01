@@ -113,6 +113,8 @@ namespace SecondCursor.Game
             _confirm = Confirm.None;
             // Letting go of the mouse to use the menu must not decide a tug-of-war: call it off instead.
             if (_g.Conflict != null) _g.Conflict.Interrupt();
+            // Phase P (A2): a click-locked drag ends here (it is dropped where it is when the game goes on).
+            AccessSettings.Lock.Clear();
             // Inside a tug win's hit-stop the scale is a 0.03 freeze: keep the speed it will return to.
             float beforeHitStop = _g.Conflict != null ? _g.Conflict.ScaleBeforeHitStop : -1f;
             _savedScale = beforeHitStop > 0f ? beforeHitStop : Time.timeScale;
@@ -172,7 +174,7 @@ namespace SecondCursor.Game
         {
             var c = _g.Content;
             bool pending = PendingDifficulty(out var saved);
-            int rows = _settingsOnly ? 8 : 11;
+            int rows = _settingsOnly ? 10 : 13;
             var box = Box(rows, pending || _settingsOnly ? 14 : 0, _settingsOnly ? c.Text("title.settings") : c.Text("pause.title"));
             int y = 32;
             UiButton first;
@@ -202,6 +204,17 @@ namespace SecondCursor.Game
                 note.Align = TextAlign.Center;
                 y += 14;
             }
+            // Phase P (A2): the motor-access options, right after Difficulty.
+            Button(box, c.Format("pause.tugassist", c.Text(AccessSettings.TugAssistHold ? "pause.tugassist.hold" : "pause.tugassist.off")), "pause:tugassist", a =>
+            {
+                AccessSettings.SetTugAssist(!AccessSettings.TugAssistHold);
+                Changed();
+            }, ref y);
+            Button(box, c.Format("pause.clicklock", c.Text(AccessSettings.ClickLockOn ? "pause.clicklock.on" : "pause.clicklock.off")), "pause:clicklock", a =>
+            {
+                AccessSettings.SetClickLock(!AccessSettings.ClickLockOn);
+                Changed();
+            }, ref y);
             if (!_settingsOnly)
             {
                 bool hasCheckpoint = SaveSystem.Load().CheckpointFor(_g.Night) != null;

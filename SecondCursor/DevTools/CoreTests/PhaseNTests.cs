@@ -260,7 +260,7 @@ namespace SecondCursor.Tests
             Assert.Contains("waiting for your reply", db.Text("notify.jotter.waiting"));
             string help = db.Text("help.body");
             Assert.Contains("GET READY", help);
-            Assert.Contains("the same way", help);
+            Assert.Contains("Disposal bin", help);
             Assert.Contains("on the camera you picked last", help);
             Assert.DoesNotContain("(not sent)", help);
             var n3 = Night(3);

@@ -365,12 +365,22 @@ namespace SecondCursor.Apps
         /// </summary>
         public IEnumerator TypeAsEntity(string text, float charsPerSecond, CursorAgent entity, float typoRate)
         {
+            // A routine stopped in the middle of an interjection never cleared the flag; a new line always can cut in again.
+            _interjecting = false;
             EntityTyping = true;
             bool previous = PlayerCanType;
             PlayerCanType = false;
             int typoAt = PickTypo(text, 0, typoRate);
             for (int i = 0; i < text.Length; i++)
             {
+                if (_interjections.Count > 0 && !_interjecting)
+                {
+                    // Phase P (T1): a line that cannot wait cuts in: the line being typed breaks off and goes on below it.
+                    var cut = Interjections(entity);
+                    while (cut.MoveNext()) yield return cut.Current;
+                    while (i < text.Length && text[i] == ' ') i++;
+                    if (i >= text.Length) break;
+                }
                 char c = text[i];
                 if (!IsOpen) break;
                 if (c == '\b')
@@ -409,6 +419,43 @@ namespace SecondCursor.Apps
             _inputStart = _text.Length;
             PlayerCanType = previous;
             EntityTyping = false;
+        }
+
+        readonly System.Collections.Generic.Queue<(string line, float cps)> _interjections = new System.Collections.Generic.Queue<(string, float)>();
+        bool _interjecting;
+
+        /// <summary>
+        /// Phase P (T1): types <paramref name="line"/> as soon as possible: a line being typed breaks off for it (and goes on below it). For
+        /// lines that belong to a moment (her hold lines in the finale) while a long conversation line is still being typed.
+        /// </summary>
+        public void Interject(string line, float charsPerSecond) => _interjections.Enqueue((line, charsPerSecond));
+
+        /// <summary>Lines waiting to cut in.</summary>
+        public int PendingInterjections => _interjections.Count;
+
+        /// <summary>Lines that could not cut in in time are dropped (they belonged to a moment that has passed).</summary>
+        public void CancelInterjections() => _interjections.Clear();
+
+        IEnumerator Interjections(CursorAgent entity)
+        {
+            _interjecting = true;
+            while (_interjections.Count > 0 && IsOpen)
+            {
+                var (line, cps) = _interjections.Dequeue();
+                if (_text.Length > 0 && _text[_text.Length - 1] != '\n') _text.Append('\n');
+                foreach (char c in line)
+                {
+                    if (!IsOpen) break;
+                    _text.Append(c);
+                    Changed(true);
+                    Sfx.Play(c == ' ' ? "key_space" : "key_tap", entity);
+                    yield return Waits.Seconds((c == ' ' ? 1.6f : 1f) / Mathf.Max(1f, cps));
+                }
+                _text.Append('\n');
+                Changed(true);
+                yield return Waits.Seconds(0.3f);
+            }
+            _interjecting = false;
         }
 
         /// <summary>Index of the letter in the word starting at <paramref name="start"/> that gets a typo, or -1.</summary>

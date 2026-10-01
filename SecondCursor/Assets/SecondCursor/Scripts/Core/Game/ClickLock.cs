@@ -35,6 +35,13 @@ namespace SecondCursor.Core.Game
             }
             if (Locked)
             {
+                // The drag ended without a press (a tug lost, a file hauled into the bin): the lock lets go of nothing more.
+                if (!dragging)
+                {
+                    Locked = false;
+                    _swallow = rawHeld;
+                    return (false, false, true);
+                }
                 if (!rawDown) return (true, false, false);
                 Locked = false;
                 _swallow = true;

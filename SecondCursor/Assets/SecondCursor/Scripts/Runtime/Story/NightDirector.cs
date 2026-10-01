@@ -103,6 +103,7 @@ namespace SecondCursor.Story
             g.Clock.Rate = ClockRate;
             g.DragDrop.PayloadFinished += OnDropMissed;
             g.Orders.Decided += OnChoiceDecided;
+            g.Conflict.TugEnded += OnTugEndedForMine;
             _intro = new IntroTips(g, () => IsPreparing);
         }
 
@@ -180,6 +181,7 @@ namespace SecondCursor.Story
             foreach (var r in _side) r.Stop();
             _side.Clear();
             CleanUpForJump();
+            ResetMine();
             _beatIndex = index;
             _flow = new Routine(Flow(index), "story");
             _flow.Tick(Time.time);
@@ -247,6 +249,13 @@ namespace SecondCursor.Story
             g.Entity.Brain.AllowCloseCamera = false;
             g.Entity.Brain.InterceptRadius = 0f;
             g.Entity.Brain.InterceptRadiusHeading = 0f;
+            // Phase P (T1): the finale's hold and its unraced confirm end with the beat that set them.
+            g.Entity.Brain.LetsGo = false;
+            if (g.Conflict != null)
+            {
+                g.Conflict.Customize = null;
+                g.Conflict.ContestCapOff = false;
+            }
             g.Entity.Urgency = 1f;
             g.Gary?.Interrupt();
             g.Rounds?.Stop();
@@ -310,6 +319,8 @@ namespace SecondCursor.Story
                 _beatIndex = i;
                 CurrentBeat = beats[i];
                 BeatStartedAt = Time.time;
+                // Phase P (T6): the contests over each file are counted per beat.
+                _g.Conflict?.ResetBeat();
                 GameLog.Info(LogChannel.Story, "Beat: " + CurrentBeat);
                 if (Array.IndexOf(CheckpointBeats, CurrentBeat) >= 0)
                 {

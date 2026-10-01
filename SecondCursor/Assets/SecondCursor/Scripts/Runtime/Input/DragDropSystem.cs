@@ -133,7 +133,9 @@ namespace SecondCursor.Input
 
         static void Place(RectTransform rt, Vector2 topLeft)
         {
-            rt.anchoredPosition = new Vector2(Mathf.Floor(topLeft.x + 0.5f), Mathf.Floor(topLeft.y + 0.5f));
+            // A ghost pulsing about its centre has a centred pivot (16 px right and down of its top-left).
+            Vector2 at = rt.pivot.x > 0.25f ? topLeft + new Vector2(16f, -16f) : topLeft;
+            rt.anchoredPosition = new Vector2(Mathf.Floor(at.x + 0.5f), Mathf.Floor(at.y + 0.5f));
         }
 
         /// <summary>Per-frame: ghosts follow holders (contested ghosts are positioned by the conflict system).</summary>
@@ -154,6 +156,12 @@ namespace SecondCursor.Input
                     p.GhostPosition = hand;
                 }
                 Place(g, p.GhostPosition);
+                if (p.PulseLeft > 0f)
+                {
+                    p.PulseLeft = Mathf.Max(0f, p.PulseLeft - dt);
+                    float k = Mathf.Sin(Mathf.PI * (1f - p.PulseLeft / p.PulseSeconds));
+                    g.localScale = Vector3.one * Mathf.Lerp(1f, p.PulseScale, k);
+                }
             }
 
             for (int i = _returning.Count - 1; i >= 0; i--)
@@ -188,6 +196,17 @@ namespace SecondCursor.Input
         {
             p.SnapFrom = from;
             p.SnapSeconds = p.SnapLeft = seconds;
+        }
+
+        /// <summary>Phase P: the ghost scales to <paramref name="scale"/> and back over <paramref name="seconds"/>, about its centre.</summary>
+        public void PulseGhost(DragPayload p, float scale, float seconds)
+        {
+            if (!_ghosts.TryGetValue(p, out var g) || g == null || seconds <= 0f) return;
+            // About the icon's centre (the ghost's pivot is its top-left): the offset is put back by Place every frame.
+            g.pivot = new Vector2(0.5f, 0.5f);
+            Place(g, p.GhostPosition);
+            p.PulseScale = scale;
+            p.PulseSeconds = p.PulseLeft = seconds;
         }
 
         /// <summary>

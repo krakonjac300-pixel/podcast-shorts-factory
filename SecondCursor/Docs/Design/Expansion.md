@@ -1646,6 +1646,52 @@ Read across: Night 2's third tug (170) needs about what Night 1's first needed (
 
 `DifficultyCurveTests` (Section 12.1) simulates `TugOfWar` at 60 Hz with this drift model and asserts each value within 15% (first grip) or 5% (the path). Tune the table, not the test, if playtests disagree.
 
+#### 7.7.1 The reel ("haul it to the bin", Phase P; the game's default tug)
+
+Model (`Core/Entity/TugReel.cs`, values in `Difficulty.cs` and BalanceReport section 10): the file runs on a straight track from the grab to
+the Disposal bin. After a 0.4 s GET READY, each frame the file moves `s += (reel - pull) * dt`, with
+
+```
+reel = min(stroke, reelCap) * reelGain          stroke = the forward part of the pointer's motion toward the bin, smoothed over 0.10 s
+pull = herPull * grip / GripBase * k + max(0, since - fade - rampDelay) * ramp + (surge * k during a surge)
+k    = min(1, since / fade)                      fade = 1.2 s on the night's first fight, 0.5 s later
+```
+
+The file at the finish (the bin, or a tear line at `finishMax`) is the player's; at her line (90 px behind the grab, at least 50) it is hers.
+Surges come every 0.9 to 1.4 s (the first 0.6 to 1.0 s after GET READY), last 0.25 s and are warned 0.15 s ahead. Letting go past half way
+keeps the file; below it, a press within the re-grip window (0.5 s plus the assist's add) goes on.
+
+Holding still loses (seconds from the grab, the median of 20 surge seeds; `ReelTests.HoldingStillLosesOnTime`):
+
+| | Night 1 | Night 2 | Night 3 |
+|---|---|---|---|
+| first fight of the night | 3.47 | 2.48 | 2.18 |
+| a later fight | 3.05 | 2.33 | 1.73 |
+
+The slowest hand-over-hand pattern that wins all 20 seeds (120 px strokes toward the bin, a swing back at 0.8x the speed with the button
+held, from 0.5 s after the grab; px/s of the stroke), first fight of the night, per assist level (`run_reel_section10.py`):
+
+| Level | Night 1 | Night 2 | Night 3 |
+|---|---|---|---|
+| L-1 | 83 | 134 | 170 |
+| L0 | 72 | 103 | 149 |
+| L1 | 53 | 77 | 100 |
+| L2 | 31 | 55 | 74 |
+| L3 | 21 | 34 | 47 |
+
+Along the assist path (contest k at the level after k-1 straight losses, with k-1 losses of grip growth):
+
+| Night | #1 L0 | #2 L0 | #3 L1 | #4 L1 | #5 L2 | #6 L2 | #7 L3 | #8 L3 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 72 | 80 | 58 | 58 | 37 | 38 | 22 | 22 |
+| 2 | 103 | 122 | 84 | 86 | 61 | 61 | 36 | 36 |
+| 3 | 149 | 170 | 116 | 118 | 82 | 82 | 49 | 49 |
+
+Read across, as for the speed model: Night 2's third fight (84) asks about what Night 1's first asks (72), and Night 3's third (116) about
+Night 2's first (103). A steady stream toward the bin needs much less (Night 1 42, Night 2 60, Night 3 78 px/s at L0) but is not how hands
+move: the strokes are the honest threshold. Story: holding still wins in 18.5 s; the hold assist wins by holding in 3.9 s on every night;
+the finale's LetGo hold in 3.4 s from the grab (1.9 s after an early release). Bridge numbers: HANDOFF Phase P-b.
+
 ---
 
 ## 8. Progression and saving

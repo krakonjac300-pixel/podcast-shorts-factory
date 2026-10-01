@@ -107,7 +107,7 @@
     { "id": "n3_shelf_you", "voice": "", "lines": ["THAT ONE IS YOU", "YOU DONT HAVE TO SIGN IT"], "speakers": [] },
     { "id": "n3_lost", "voice": "", "lines": ["YOU LOST TIME", "THEY DO THAT"], "speakers": [] },
     { "id": "n3_finale_feed", "voice": "", "lines": ["DONT TURN AROUND"], "speakers": [] },
-    { "id": "n3_tug_letgo", "voice": "", "lines": ["I CANT STOP MY HAND", "PULL HARDER"], "speakers": [] },
+    { "id": "n3_tug_letgo", "voice": "", "lines": ["I CANT STOP MY HAND", "HOLD ON", "DONT LET GO"], "speakers": [] },
     { "id": "n3_tug_refuse", "voice": "", "lines": ["NOT LIKE THIS", "DONT"], "speakers": [] },
     { "id": "n3_shred_last_a", "voice": "", "lines": ["THANK YOU"], "speakers": [] },
     { "id": "n3_shred_last_b", "voice": "", "lines": ["NOT YOU TOO"], "speakers": [] },
@@ -145,6 +145,9 @@
     { "id": "g3_finale_box", "voice": "gary", "lines": ["take my glasses", "when you go", "somebody should"], "speakers": [] },
     { "id": "n3_ruth_wiped", "voice": "", "lines": ["SHE WILL NOT BE KEPT"], "speakers": [] },
     { "id": "n3_ruth_kept", "voice": "", "lines": ["THEY WILL KEEP HER TOO"], "speakers": [] },
-    { "id": "n3_end_logoff_box", "voice": "system", "lines": ["BOX 209 ... TAKEN 07:01 (214)"], "speakers": ["system"] }
+    { "id": "n3_end_logoff_box", "voice": "system", "lines": ["BOX 209 ... TAKEN 07:01 (214)"], "speakers": ["system"] },
+    { "id": "n3_tug_again", "voice": "", "lines": ["AGAIN"], "speakers": [] },
+    { "id": "n3_tug_giveup", "voice": "", "lines": ["I CANT STOP MY HAND"], "speakers": [] },
+    { "id": "g3_letgo_go", "voice": "gary", "lines": ["go on casey"], "speakers": [] }
   ]
 }

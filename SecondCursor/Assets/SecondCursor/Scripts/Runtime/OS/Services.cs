@@ -121,7 +121,8 @@ namespace SecondCursor.OS
             if (!string.IsNullOrEmpty(late)) body += "\n" + late;
             // Phase N: a file another session defends is a race to No, and the dialog shows it.
             var brain = _g.Entity != null ? _g.Entity.Brain : null;
-            Raced = brain != null && brain.Enabled && brain.ProtectedFileId == fileId;
+            // Phase P (T1): not when she lets it go (the finale's LetGo): she rests on Yes instead.
+            Raced = brain != null && brain.Enabled && brain.ProtectedFileId == fileId && !brain.LetsGo;
             Confirm = Dialogs.Message(_g, c.Text("shred.confirm.title"), body, "icon_question",
                 new[] { "Yes", "No" }, OnConfirm, 0, null, Raced ? RaceStatusHeight : 0);
             if (Raced) ConfirmRace.Attach(_g, Confirm, _g.Entity, () => true, "race.idle.shred");

@@ -79,9 +79,6 @@ namespace SecondCursor.Core.Story
             return 1f;
         }
 
-        /// <summary>Her line when the first tug over 017 starts in the finale.</summary>
-        public static string TugLineSet(float trust) => trust >= TrustLetGo ? "n3_tug_letgo" : "n3_tug_refuse";
-
         /// <summary>Phase P (T1): Fight-mode finale contests she wins before her hand gives up and the mode turns to LetGo.</summary>
         public const int FightContestsBeforeLetGo = 2;
         /// <summary>Phase P (T1): the LetGo hold brings 017 to the finish this long after GET READY; after an early release, the shorter one.</summary>

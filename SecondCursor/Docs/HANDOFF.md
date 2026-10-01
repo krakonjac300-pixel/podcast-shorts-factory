@@ -1976,6 +1976,204 @@ Phase P-b (the next run) does P3 to P6: the look, the content, the accessibility
     shots), the regressions, both builds, smoke tests and the spoiler grep, Expansion 7.7 and BalanceReport 10.
   - *E8 then P7:* real hands on mouse, trackpad and Deck; set `DeckReelGainScale`; delete the losing model.
 
+### Phase P-b (haul visuals, content, assists, finale let-go)
+
+Input: the review board's `board/PhaseP_Plan.md` steps P3 to P6 (sections 2, 3, 4.4, 4.5, 5) with `B_DesignFeel.md` R1, `F_Accessibility.md` A2
+and `A_TenStar.md` T1, on top of Phase P-a. The reel stays the default tug; the Phase N speed model stays selectable (`-sctug speed`, the F1
+panel, bridge `tugmode`) until P7 after the owner's real-hands test (E8). Scripts and outputs: `_work/2026-10-01/phasePb/`.
+
+- **The look of a reel fight (P3, plan 2.1 to 2.5; `Entity/HaulView.cs`).**
+  - *Rope:* two dotted segments (2 px squares every 3 px, at most 60 each): the player's pointer to the file's near edge, the file's far edge
+    to her pointer. Pale to red with the strain (3 px squares above 0.6), humming across the rope with continuous time (frame-rate safe),
+    slack until 0.20 s into GET READY (then a `grab_snap` 0.3 at pitch 1.4), sagging 6 px while the player's pointer is within 40 px of the file,
+    red for a whole surge.
+  - *Track:* dots every 8 px from her line to the finish; from the grab to the file they are filled pale (the player is ahead) or red (she is).
+    Her line is a short red tick across the track; a tear line is an amber dashed tick; when a window covers the bin (the hit test at its centre
+    is not the bin, checked every 0.1 s) a 1 px amber dotted ring shows where the bin is.
+  - *Feel:* her pointer twitches 3 px back 0.15 s before a surge (`ui_select` 0.3 at pitch 0.5, panned at her; `SurgeWarned`), the surge is a
+    `glitch_burst` and `Fx.Glitch(0.06, at most 0.45)` (under the flash budget's 0.5; `Surged`), the file's shake gets one more pixel in a surge,
+    a stroke crossing 220 px/s is a soft `grab_snap` (at most every 0.15 s), passing half way is a `ui_click` 0.4 at pitch 1.3, a slip is a
+    `mouse_release` and the re-grip a `grab_snap`.
+  - *Win and loss (E9, plan 2.8):* into the bin: the hit-stop, her flinch with `View.Flicker` 0.5 for 0.3 s, a `low_thump` lid and `hdd_seek`,
+    the bin icon jolting 2 px for 0.15 s, then the drop. Torn loose: the snap, the hit-stop and the flinch. Lost: the rope whips out of the hand
+    (its player end collapses onto the file over 0.12 s), the ghost shrinks to 0.6 and back over 0.32 s on its way to her hand
+    (`DragDropSystem.PulseGhost`), `mouse_release` 0.5 at pitch 0.6, then Phase M's nod and sag.
+  - *MINE (`Story/NightDirector.Tug.cs`):* the second lost tug in a row over the same file types MINE once a night in her Jotter (directly,
+    her hand is busy), on Night 2 and on Night 3 before the finale. Night 1 and the finale never.
+- **The panel reads in one glance (R1, both models; `Entity/TugHud.cs`, `Entity/TugArrow.cs`).**
+  - 017's dark skin (`EntityFill` at 0.92, a 1 px `EntityOutline` border), one 2x word, up to two 1x lines and a 140x8 meter (YOU in `Highlight`,
+    017 in `Red`, the keep line in `Amber` standing 3 px proud, at 0.75 in the reel and 0.6 in the speed model). The panel is as wide as its
+    widest part (150 to 264 px).
+  - Words: GET READY `PULL` (speed: `PULL DOWN-RIGHT`) over the amber `haul.ready` lines and no meter; the fight `PULL` (red in a surge) over
+    `haul.label.first` on the first fight on a save, `haul.label` later; `ALMOST IN` (green) past half way; `GRAB IT!` (red, blinking at 2 Hz,
+    steady with Reduce flashing) in the re-grip window; `HOLD` for the hold assist and the finale's LetGo; results `IN THE BIN`, `YOURS` (torn
+    loose or kept), `017 HAS IT` with the reason lines, and the finale's `STILL HERE`.
+  - Arrows at the pointer toward the bin: GET READY 108 px (scale 3), solid; the fight 72 px with the travelling band (hidden in the re-grip
+    window, and after GET READY in the LetGo hold); dimmed where they were for the result. The small arrow on the file is gone in the reel (the
+    track is the way); the speed model shows it dimmed with its result.
+  - The latch: passing the keep line flashes the YOU fill green for 120 ms and rings the file in green for 200 ms.
+  - Placement: the side of the file away from the bin first, clear of both pointers, the arrows and the track's box plus 12 px; it only moves
+    when something comes under it (in a corner her pointer, then the track, may go under it; never the player's pointer).
+  - The result's notice is posted 0.6 s after the result.
+- **Focus dim and held notices (R1 items 4 and 5).** `FX/FocusDim.cs`: everything outside a circle over the track (its midpoint, radius the
+  larger of 120 px and half the track plus 70) dims; a 64x64 point-filtered texture with a 4-texel half-dim ring, four quads, in over 80 ms, out
+  over 200 ms 0.4 s after the result. The speed model dims around the pointer and the file (radius 120). `Notifications.Hold` (wired to
+  `Conflict.IsFighting`): no new notice appears during a fight (and its wait is not counted as stale) and the ones up draw at 40%.
+- **Content (P4, plan section 5).** New base strings: `haul.word*` (the seven words), `tug.word`, `haul.ready.hold` / `haul.label.hold` (+ Deck),
+  `pause.tugassist*`, `pause.clicklock*`, `tip.clicklock` (+ Deck); changed: `welcome.body` (+ Deck) bullet 4 ("hold the button and yank it into
+  the bin, again and again"), `help.body` (+ Deck) TUG-OF-WAR paragraph (the rope, the track, surges, half way, the re-grip, Tug assist and
+  Click lock, "fight for it" kept), `task.017.lost.hint`; the `t_shred_017`, `t2_shred_209` and `e3_letgo` hints (+ Deck). Night 3 only:
+  `haul.ready.letgo`, `haul.label.letgo`, `haul.letgo.released`, `haul.word.released`, `notify.haul.letgo.released` (+ Deck); dialogue
+  `n3_tug_letgo` = I CANT STOP MY HAND / HOLD ON / DONT LET GO, `n3_tug_again` AGAIN, `n3_tug_giveup` I CANT STOP MY HAND, `g3_letgo_go` "go on
+  casey" (Gary's voice); Night 2 `tug_mine` MINE (inherited by Night 3). Tests changed with the wording (plan 4.2): `PhaseJTests`,
+  `PhaseLTests`, `PhaseNTests`, `Night3Tests` (the tug line follows the bin mode). Docs: `Docs/Launch/HowToPlay.md` (the guide's tug paragraph,
+  the two short lines, the Deck line, Options, the audit rows) and `MarketingPackFull.md` (clip 5, the store bullets, the teaser lines) with
+  their `_work/2026-09-29/launch` copies now identical to the repo's (the launch copies were behind Phase N); `SteamChecklist.md` (Sticky drag is
+  now Click lock, built); `LaunchAudit.md` (the tug claim).
+- **Tug assist: Hold and Click lock (P5, A2; `Game/AccessSettings.cs`).** Two Options rows after Difficulty (13 rows in a shift, 408 px tall, 422 with
+  the pending-difficulty note; 10 on the title), saved in `settings.json` (`tugAssist` "off" or "hold", `clickLock`).
+  - *Hold* is read at every contest start (`DifficultyTable.HoldAssist`): the file creeps to the finish in 3.5 s while the button is held,
+    pulling adds a gentle reel (cap 150, gain 1.0), no pull, no surges, no ramp, a 1 s re-grip; the speed model plays Story's tug block. Its wins
+    never lower the assist level; its losses count. Not applied to a mercy contest or the finale's LetGo hold.
+  - *Click lock* filters the raw button in `GameRoot` stage 1 (`Core/Game/ClickLock`): a press that became a drag (a file, a window, a fight)
+    and was held 0.4 s stays held after the raw release; the next press drops it; the cursor shows Grab while locked; pause and Esc clear it,
+    a new game root starts clear, and a locked drag that ends without a press (a lost tug, a file hauled into the bin) lets go at once (review
+    fix). The first locked drag on a save offers `tip.clicklock`. In a fight a lock never slips; a press releases with the normal rules.
+  - Achievements: every real `PlayerWins` counts (`CountsTug`), assisted, mercy, click lock and LetGo included; `Released` never.
+- **The Night 3 finale by trust (P5, T1; `Story/Night3Director.LetGo.cs`, `Entity/EntityBrain.LetGo.cs`).**
+  - `Night3Rules.BinMode` is decided at the finale's start and again at each grab of 017 (once LetGo, it stays): LetGo when trust is above -0.4,
+    a reply in the final exchange was tagged `letgo`, her name was said, or she has won two Fight contests.
+  - *LetGo:* her brain still grabs 017; `ConflictSystem.Customize` makes the contest the reel's LetGo variant (in either tug model): the file
+    creeps to the finish in 3.0 s after GET READY (1.5 s after an earlier release), no pull, surges or ramp, strain floor 0.45, pulling
+    allowed (cap 150, gain 1.0). Her lines are typed paced to the hold (0, 0.40, 0.73 of the way, 16 cps); when she is in the middle of the final
+    exchange they cut in (`NotepadApp.Interject`: the exchange line breaks off and goes on below; a line not typed while the hold lasts is
+    dropped). An early release is `Released`: nothing is taken, the file drops where the pointer is and blinks, she types AGAIN, she hovers.
+    Won, she walks with the file 40 px behind (`FollowFile`); at Confirm Shred (not raced: `ShredService.Raced` is off while `LetsGo`) she rests
+    trembling on No for 0.8 s, then on Yes, 8 px right of the player's pointer when it is on Yes; she never clicks or guards. CancelShred,
+    RaceToNo, GuardYes, DragDialog and KeepAway score 0. Kept Gary types "go on casey" and does not guard; finished Gary keeps `g3c_shred`.
+    `LastWords` unchanged.
+  - *Fight* (trust -0.4 or less, nothing else said): the Night 3 reel contest with grip x1.1 and `n3_tug_refuse`; after her second win she types
+    I CANT STOP MY HAND and the next grab is a hold.
+  - *Deadline:* a LetGo hold under way is an exit under way for `KeepByTime` (7:05 waits, within `ExitGrace`).
+- **Contest cap (T6).** The fourth contest over one file in one beat is a mercy contest on Nights 2 and 3 (`MercyByCap`, counted per beat in
+  `ConflictSystem`, reset at each beat and jump); off on Night 1 and in the finale (`ContestCapOff`).
+- **Bridge.** `heldpath X1 Y1 D1 ... [shots=T1,T2] [release]` (E10), `lockpick` (a click-locked pick-up), `settingsset tugAssist hold|off` and
+  `settingsset clickLock on|off` (saved and applied to the running game); `tugreel`/`tughold`/`tugslip` with a shot prefix also save the first
+  warning, surge, latch and GRAB IT frames and the frame after the end; `tugangle` reports its own fight's end and time, pulls to the roomier
+  side and stops at the screen's edge (sliding along an edge turned a sideways pull toward the bin).
+- **Balance and design docs.** `balance/run_reel_section10.py` (`out_reel_section10.md`): hold-still times, the slowest steady stream and
+  hand-over-hand pattern per night and assist level and along the assist path, and the plan's acceptance checks. Expansion.md 7.7.1 (the reel's
+  verification math and tables) and BalanceReport section 10 (thresholds, board players, night chains, acceptance: all four pass). The port's
+  LetGo variant now matches the game's cap and gain.
+- **Bridge verification table (plan 4.5).** `phasePb/gen_table.py` writes one script per row (`t_*.cmd`), every cell a fresh contest;
+  `parse_table.py` and `compact_table.py` read the outputs (`t_*.out`, the SIDE column re-run as `xSIDE_*.out` after the `tugangle` fix).
+  Cells: the result, seconds from the grab, how it ended, re-grips, and `s/finish` at the end (`tear` = torn loose at the tear line, `in bin`
+  = the finish was the bin and the file dropped in). Columns: `tugreel S STROKE swing` (R150 to R600), PAD = `tugreel 420 150 lift 0.25`,
+  DECK = `tugreel 480 130 lift 0.15`, JUMPS = `tugsteps 30 0.1 8 0.3` (the blind testers' 8 jumps, then the button goes up), HOLD = `tughold`,
+  SLIP = `tugslip 0.2 GAP 300` (0.3 s caught, 0.7 s late), SIDE = `tugangle 90 400 1.2`.
+
+  | row | R150 | R300 | R450 | R600 | PAD | DECK | JUMPS | HOLD | SLIP-OK | SLIP-LATE | SIDE |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | N1 first | won 2.32 tear 141/140 | won 1.35 tear 141/140 | won 1.04 tear 140/140 | won 0.96 tear 140/140 | won 1.00 tear 141/140 | won 0.82 tear 140/140 | won | lost 3.56 held still -90/140 | won 1.47 tear, 1 re-grip 140/140 | lost 1.11 let go -27/140 | lost 3.36 wrong way |
+  | N1 second | won 2.59 tear 140/140 | won 1.93 tear 141/140 | won 1.38 tear 141/140 | won 1.12 tear 140/140 | won 1.06 tear 141/140 | won 0.90 tear 141/140 | let go at meter 0.39 | lost 2.71 held still -90/140 | won 2.00 tear, 1 re-grip 141/140 | lost 1.11 let go -38/140 | lost 2.71 wrong way |
+  | N1 +1 after 2 losses | won 2.10 tear 141/140 | won 1.26 tear 143/140 | won 0.96 tear 140/140 | won 0.88 tear 142/140 | won 0.94 tear 141/140 | won 0.74 tear 140/140 | won | lost 4.11 held still -90/140 | won 1.32 tear, 1 re-grip 140/140 | lost 1.18 let go -33/140 | lost 4.04 wrong way |
+  | N2 first (209) | won 2.64 tear 150/150 | won 1.44 tear 150/150 | won 1.19 tear 154/150 | won 1.02 tear 150/150 | won 1.03 tear 151/150 | won 0.89 tear 150/150 | let go at meter 0.45 | lost 2.53 held still -90/150 | won 1.99 tear, 1 re-grip 150/150 | lost 1.10 let go -22/150 | lost 2.36 wrong way |
+  | N2 second (209) | won 2.40 in bin 110/110 | won 1.36 in bin 110/110 | won 0.96 in bin 110/110 | won 0.90 in bin 112/110 | won 1.36 in bin 111/110 | won 1.00 in bin 111/110 | let go at meter 0.37 | lost 2.31 held still -90/110 | won 1.46 in bin, 1 re-grip 110/110 | lost 1.11 let go -29/110 | lost 2.33 wrong way |
+  | N3 before the finale | won 2.37 in bin 110/110 | won 1.25 in bin 111/110 | won 0.90 in bin 111/110 | won 0.77 in bin 111/110 | won 0.98 in bin 110/110 | won 0.88 in bin 111/110 | let go at meter 0.70 | lost 2.20 held still -91/110 | won 1.37 in bin, 1 re-grip 112/110 | lost 1.10 let go -25/110 | lost 2.15 held still |
+  | Finale Fight first | lost 7.00 too slow -91/160 | won 2.05 tear 160/160 | won 1.36 tear 161/160 | won 1.27 tear 162/160 | won 1.09 tear 161/160 | won 0.94 tear 161/160 | kept, meter 0.98 | lost 2.03 held still -90/160 | won 2.11 tear, 1 re-grip 162/160 | lost 1.11 let go -28/160 | lost 2.06 wrong way |
+  | Finale Fight second | lost 6.48 too slow -90/110 | won 1.96 in bin 111/110 | won 0.97 in bin 110/110 | won 0.89 in bin 110/110 | won 1.14 in bin 110/110 | won 1.06 in bin 110/110 | let go at meter 0.33 | lost 1.64 held still -90/110 | won 2.03 in bin, 1 re-grip 111/110 | lost 1.11 let go -67/110 | lost 1.64 wrong way |
+  | Finale LetGo | won 1.99 tear 161/160 | won 1.70 tear 160/160 | won 1.50 tear 161/160 | won 1.43 tear 160/160 | won 1.66 tear 160/160 | won 1.33 tear 160/160 | kept, meter 0.86 | won 3.40 tear 160/160 | released 0.60 20/160 | released 0.60 20/160 | won 3.40 |
+  | Finale LetGo after an early release | won 1.29 tear 160/160 | won 1.31 tear 160/160 | won 1.27 tear 160/160 | won 1.22 tear 161/160 | won 1.29 tear 160/160 | won 1.14 tear 161/160 | kept, meter 0.98 | won 1.90 tear 160/160 | released 0.60 34/160 | released 0.60 30/160 | won 1.90 |
+  | Story N1 first | won 2.18 tear 141/140 | won 1.95 tear 141/140 | won 1.53 tear 140/140 | won 1.44 tear 141/140 | won 1.45 tear 140/140 | won 1.19 tear 140/140 | let go at meter 0.51 | never lost (88/140 at 12 s; on course for 18.5 s) | won 2.09 tear, 1 re-grip 140/140 | lost 1.19 let go -35/140 | never lost (still going at 12 s) |
+  | Hold assist N1 first | won 1.99 tear 141/140 | won 1.65 tear 140/140 | won 1.47 tear 140/140 | won 1.40 tear 141/140 | won 1.41 tear 141/140 | won 1.20 tear 140/140 | let go at meter 0.63 | won 3.90 tear 140/140 | won 2.02 tear, 1 re-grip 140/140 | won 2.82 tear, 1 re-grip 141/140 | won 3.90 |
+  | Hold assist N3 finale Fight | won 2.06 tear 161/160 | won 1.88 tear 160/160 | won 1.53 tear 161/160 | won 1.47 tear 160/160 | won 1.70 tear 161/160 | won 1.37 tear 160/160 | kept, meter 0.84 | won 3.90 tear 160/160 | won 2.08 tear, 1 re-grip 160/160 | won 2.88 tear, 1 re-grip 161/160 | won 3.90 |
+  | Mercy (assist 3, two losses) | won 1.92 tear 141/140 | won 1.22 tear 141/140 | won 0.90 tear 143/140 | won 0.85 tear 141/140 | won 0.91 tear 142/140 | won 0.72 tear 143/140 | won | won 2.50, mercy let go | won 1.26 tear, 1 re-grip 141/140 | lost 1.23 let go -30/140 | won 2.50, mercy let go |
+  | Click lock N1 first | won 2.31 tear 140/140 | won 1.37 tear 141/140 | won 1.04 tear 140/140 | won 0.96 tear 141/140 | won 0.97 tear 142/140 | won 0.82 tear 140/140 | held on (the lock keeps the button; meter 0.76) | lost 2.40 held still -50/140 | lost 1.41 let go -33/140 | won 1.30 kept 124/140 | lost 2.46 wrong way |
+
+  - Every Normal row is won at 300 to 600 px/s, by the trackpad (PAD) and Deck patterns and by a slip caught at 0.3 s; 150 px/s wins Nights 1
+    and 2 and the Ruth beat and loses the finale's Fight (too slow, as the plan expected to record).
+  - Holding still loses within 0.3 s of the plan's times (N1 3.56 first, 2.71 later; N2 2.53; N3 2.20; the finale Fight 2.03). At +1 after two
+    losses it takes 4.11 s (the assist's slower ramp).
+  - SLIP-LATE loses as `YOU LET GO` everywhere it can; the hold assist's 1 s window catches it.
+  - SIDE loses as `YOU PULLED ... THE BIN IS ...` (wrong way) on every Normal row except the Ruth beat, where the bin's corner leaves no room
+    across the track (held still).
+  - JUMPS (8 jumps of 30 px, then the button up): 4 of the 8 jumps fall in GET READY, so on a later fight the file is short of half way when
+    the button comes up and the release loses (N1 second, N2, the Ruth beat); the night's first fight (her long fade) and the finale's Fight
+    (the jumps carried it past half way: kept) are won. This is the haul's rule (hold on until it is in), recorded for E8.
+  - The LetGo hold wins by 3.40 s from the grab whatever the hands do (1.33 to 1.99 s with pulling), 1.90 s after an early release; any
+    release below half way is `Released` (STILL HERE). The hold assist wins by 3.90 s on Night 1 and in the finale's Fight. Story never loses
+    to holding still. Mercy lets go at 2.50 s.
+  - Click lock: the lock holds the button through the fight (the drag never slips: HOLD loses only to her pull), a press releases with the
+    normal rules (SLIP-OK is "a press, then nothing": let go; SLIP-LATE's press came past half way: kept), and a click drops the file after it.
+  - Extra checks (`extras*.out`): the fourth contest over 209 in one beat is a mercy contest (`Contest cap: contest 4 over employee_209 this
+    beat is a mercy contest`, then won at 2.50 s); after two Fight losses in the finale `Finale bin mode: LetGo (refused contests ...)` and the
+    third grab is a 3.4 s hold; with a LetGo hold running at 7:05 the night waits for it and ends `Keep (letgo)` the frame the hold is won;
+    MINE after the second lost tug over 209; the finale's LetGo reaches SHRED on the first attempt in 4 of 4 real runs (trust 0.3 twice, 0.0
+    twice: `probe_letgo2`, `extras`, `letgo3`), each with `Resting on No`, then `Resting on Yes` 3.8 s later, and never `cancelled by
+    session 017` (the regression's SHRED ending still uses its forced win).
+  - The speed model (`tugmode speed`, Phase N's 400 px/s row, the finale in Fight mode): N1 0.42 / 0.44 s, N2 0.56 / 0.56 s, the finale
+    0.82 / 0.80 s (grip x1.1 now), all won (Phase P-a: 0.35 / 0.43, 0.57 / 0.56, 0.68 / 0.73 at the old neutral grip).
+- **Shots** (`_work/2026-10-01/phasePb/shots`, 960x540; looked at):
+  - GET READY: `t_n1a_r300_0.1` (Night 1), `t_n3r_r300_0.1` and `_0.3` (the near-bin slide), `t_ff1_r300_0.1` (the finale's Fight),
+    `t_lg1_hold_0.1` (LetGo: HOLD), `t_hold1_hold_0.1` (the hold assist), `x_deck_r300_0.1` (Steam Deck wording and Large text),
+    `p_reg_n1_l_tug_first` (a counted run: the focus dim's clear circle and a held notice at 40%). `ready_480_1.png` and `ready_480_2.png`:
+    all of them at 480x270; the 2x word and the arrow read in every one, the amber lines are small but legible.
+  - The fight: `t_n1a_r300_0.6`, her warning and the surge (`t_n1a_hold_warn`, `t_n1a_hold_surge`: the red word and rope), ALMOST IN and the
+    latch (`t_n1a_r300_latch`), GRAB IT (`x5_slip_grabit`), the hold assist label (`t_hold1_hold_1.0`).
+  - Ends: into the bin and the confirm after it (`t_n3r_r300_end`, `t_n3r_r300_result`), torn loose (`t_n1a_r300_result`), the loss's whip
+    and 017 HAS IT (`t_n1a_hold_end`, `t_n1a_hold_result`).
+  - The LetGo sequence: the paced lines cutting into the exchange (`t_lg1_hold_1.0`, `t_lg1_hold_result`), STILL HERE and AGAIN
+    (`x5_again`, `x6_retry_after`), resting on No and on Yes with Gary's "go on casey" (`x_lg_confirm__0.50`, `__1.50`, `__4.50`), the shred
+    (`x_lg_progress__5.20`), the card (`x_lg_card`), her giving up after two Fight wins (`x_giveup_jotter`).
+  - Click lock: the tip (`x4_lock_tip_a`), the file still in hand after the fight (`x3_lock_after2`); MINE (`x_n2_mine`); a held drag with
+    shots inside it (`held_0.30` to `held_1.60`).
+- **Regression** (`phasePb/run_reg.sh`, Phase P-a's scripts with the Phase P-b saves; 0 game errors in every run): Night 1 to its card
+  (`WS-04 went dark at 2:19 AM. The file came back.`), Night 2 to its card (`You shredded employee_209.dat.`), Night 3 to the 6:41 rule, then
+  from that checkpoint SHRED (`You put employee_017.dat in the bin and shredded it.`) and KEEP (`It was 7:05 AM and you were still logged
+  on.`). LOG OFF: the regression's Night 3 typed `ALLOW_LOGOFF=1` while her Jotter was the one waiting for a reply, so the edit went into her
+  Jotter and the log off stayed disabled (the run ended `Keep (seat)`: `The figure reached your chair while you watched the feed.`, a correct
+  ending for that state); re-run from the same checkpoint with the flag the edit sets (`n3_end_logoff2.cmd`, `setflag m.n3.logoff_enabled`):
+  `You logged off with session 017 still open.` The `TIMEOUT` lines are the same script waits as Phase P-a's.
+- **Checks.** CoreTests 470 pass (467 before: `PhasePTests` gains `HelpHintsAndWelcomeTeachTheHaul`, `ThePanelsWordsTheHoldAndTheOptionsExist`,
+  `TheDemoHasNoFinaleHaulText`; `ClickLockFilter` gains the drag that ends without a press; 4 tests changed with the wording). CompileCheck: all
+  8 configurations OK. 0 compiler warnings in the game's scripts; bridge `errors` 0 after every run. No U+2013 or U+2014 in any touched file.
+- **Builds** (bridge, `phasePb/build.cmd`, after the last code change): full `Builds/Windows/SecondCursor.exe` 76.7 MB by the engine's report
+  (73 MB on disk) and demo `Builds/WindowsDemo/SecondCursorDemo.exe` 76.4 MB (72 MB on disk), 0 errors (the engine's usual 2 build warnings),
+  Symbols and `NotShipped/D3D12` moved to `Builds/Symbols/<build>`, content folders back in Resources, `SC_DEMO` off, `buildguard` passes.
+  Windowed smoke tests (`phasePb/smoke.ps1`, 1280x720, saves and logs in `phasePb/smoke`): full, demo, full with `-scnight 3 -scbeat finale`
+  (`Finale bin mode: LetGo (finale start; trust 0.00 ...)`), full with `-sctug speed`; each builds the 50 sounds (0.52 to 0.59 s), hides the
+  Windows pointer, reaches its title or the finale and logs no exception; every player closed. Demo data grep (`phasePb/spoiler_grep.py`, Phase
+  P-b terms added): no LetGo or MINE text (I CANT STOP MY HAND, HOLD ON, DONT LET GO, go on casey, SESSION 017 IS HOLDING ON, THE FILE IS STILL
+  HERE: none); the new hits are four key names in the shared runtime code (`haul.letgo.released`, `haul.word.released`,
+  `notify.haul.letgo.released`, `tug_mine`), the same kind as the older key-name hits; the panel's fallback text for the finale was removed so
+  no line is compiled in.
+- **Review** (a code-reviewer pass: no CRITICAL or HIGH). Fixed: a click lock stayed locked after a drag ended without a press (a lost tug,
+  a file hauled into the bin) and ate the next click; an interjected hold line could stay queued and be typed out of its moment (now only
+  while the hold lasts, else dropped; a stopped routine no longer leaves the pad unable to take one); the ghost's centred pivot drew it 16 px
+  off for one frame; `LastOutcome` survived an interrupted fight; MINE's direct typing could stick after a jump; her tremble could stay after
+  the finale; the focus dim made a texture per game root.
+- **Judgement calls.**
+  - The focus dim's black is 0.5 alpha, not the plan's 0.28: the screen blends in linear colour, where 0.28 darkened a window by only 13% as
+    seen; 0.5 gives the board's 28% (measured on the bridge: 194 to 140).
+  - The track's dots are pale (`Highlight` at 0.35, fill at 0.85), not `Palette.Text`: dark dots do not show on the dark desktop.
+  - The bin mode is decided at the finale's start as well as at each grab (once LetGo, it stays), so KeepAway is off before the first grab
+    for a player who will get the hold; a reply or her name said later still turns Fight into LetGo at the next grab.
+  - The LetGo hold is the reel's LetGo variant in either tug model (the hold is not a speed contest); its pulling is gentle (cap 150, gain 1.0)
+    as in the hold assist.
+  - Her hold lines and AGAIN cut into the line she is typing (`NotepadApp.Interject`) instead of waiting for the final exchange to finish
+    (which takes 20 s and would put them after the hold); the cut line goes on below.
+  - The T6 count is per file per beat, counting every contest (not only lost ones); it resets at each beat and jump.
+  - `tip.clicklock` waits its turn behind other tips (the Tips queue has no priority); the shot was taken on a save that had seen the others.
+  - SLIP columns stay at 0.2 s after GET READY (Phase P-a's call): at the plan's 0.8 s most rows are already past half way and the release
+    keeps the file.
+  - The Night 3 regression's edit of session.cfg (a script timing issue, not a game change) is worked around for the LOG OFF ending with the flag
+    the edit sets; the ending itself is unchanged.
+  - The Options rows say "Tug assist: Off/Hold" and "Click lock: Off/On" (the board's wording); `MaxWidth` of the panel is 284 px so the hold
+    label fits on two lines.
+- **Not yet / for P7.** E8 (real hands on mouse, trackpad and Deck) and P7 (pick the model, set `DeckReelGainScale`, delete the losing path
+  and its tests); the JUMPS finding above is for E8's brief. Not built: R1 item 6 (holding both cursors 3 frames at the grab); `DeckReelGainScale`
+  stays 1.0. The PEAT pass and A1 item 5 are still open from Phase O.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -2002,6 +2200,7 @@ tugangle 90 400 1.2      # Phase K: in a tug, pull at 90 degrees from the arrow 
 sfx 20 | sfxclear | sfxwait scare_hit 30 | sfxorder sub_swell scare_hit | sfxreport | scares | sfxrecord start | sfxrecord stop D:\...\x.wav | shotsafter m_keep 4.2 4.5   # Phase M
 soundcold | fault beat|app|click 2 | fps 144 | flashrate 150 title60 | flashwatch start tug1 ... flashwatch stop   # Phase O: a cold sound bank start, a deliberate exception at a catch point, a frame rate cap now, flash event counts
 tugmode speed | tugstate | tugreel 300 120 swing | tugreel 420 150 lift 0.25 | tugreel 300 120 keep | tughold 8 | tugslip 0.2 0.3 300   # Phase P: the tug model, the fight in one line, reel patterns with the button held
+heldpath 300 200 0.5 520 140 0.6 shots=0.3,0.8 release | lockpick | settingsset tugAssist hold | settingsset clickLock on   # Phase P-b: a held drag with shots inside it, a click-locked pick-up, the access options
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

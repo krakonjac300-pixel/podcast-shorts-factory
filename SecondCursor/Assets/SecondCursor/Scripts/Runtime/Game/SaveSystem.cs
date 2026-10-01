@@ -27,6 +27,10 @@ namespace SecondCursor.Game
         public bool largeText;
         /// <summary>False until the player (or the Deck's first launch) has picked a reading text size.</summary>
         public bool largeTextChosen;
+        /// <summary>Phase P (A2): "off" or "hold" (holding the button wins a tug-of-war).</summary>
+        public string tugAssist = "off";
+        /// <summary>Phase P (A2): a drag stays held after the button comes up; the next press drops it.</summary>
+        public bool clickLock;
     }
 
     /// <summary>
@@ -255,6 +259,7 @@ namespace SecondCursor.Game
             s.frameRate = DisplaySettings.FrameRate;
             s.largeText = DisplaySettings.LargeText;
             s.largeTextChosen = s.largeTextChosen || DisplaySettings.LargeTextChosen;
+            AccessSettings.Save(s);
             SaveSettings(s);
         }
 

@@ -110,6 +110,15 @@ namespace SecondCursor.Tests
             Assert.False(lockOn.Locked);
             Assert.Equal((false, false, true), lockOn.Filter(false, false, false, true, dt));
             Assert.Equal((false, false, false), lockOn.Filter(false, false, false, false, dt));
+            // Phase P-b: a locked drag that ends without a press (a tug lost, a file hauled into the bin) lets go of the lock at once.
+            lockOn.Filter(true, true, false, false, dt);
+            for (int i = 0; i < 25; i++) lockOn.Filter(true, false, false, true, dt);
+            lockOn.Filter(false, false, true, true, dt);
+            Assert.True(lockOn.Locked);
+            Assert.Equal((false, false, true), lockOn.Filter(false, false, false, false, dt));
+            Assert.False(lockOn.Locked);
+            Assert.Equal((true, true, false), lockOn.Filter(true, true, false, false, dt));
+            Assert.Equal((false, false, true), lockOn.Filter(false, false, true, false, dt));
             // Off: nothing changes.
             var off = new ClickLock();
             off.Filter(true, true, false, true, dt);
@@ -183,6 +192,107 @@ namespace SecondCursor.Tests
             var n1 = DifficultyTable.For(1, DifficultyMode.Normal);
             n1.TugFor(new AdaptiveAssist()).reel.herPull = 99f;
             Assert.Equal(25f, n1.Tug.reel.herPull);
+        }
+
+        // ------------------------------------------------------------------ Phase P-b: the content that teaches the haul
+
+        static Dictionary<string, string> Strings(string folder)
+        {
+            string path = Path.Combine(Dir, folder, "strings.json");
+            if (!File.Exists(path)) return new Dictionary<string, string>();
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.GetProperty("entries").EnumerateArray().ToDictionary(e => e.GetProperty("key").GetString(), e => e.GetProperty("value").GetString());
+        }
+
+        static string TaskHint(string folder, string id, bool deck)
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(Dir, folder, "tasks.json")));
+            foreach (var t in doc.RootElement.GetProperty("tasks").EnumerateArray())
+                if (t.GetProperty("id").GetString() == id) return t.GetProperty(deck ? "hintDeck" : "hint").GetString();
+            return null;
+        }
+
+        static string[] LineSet(string folder, string id)
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(Dir, folder, "dialogue.json")));
+            if (!doc.RootElement.TryGetProperty("lineSets", out var sets)) return null;
+            foreach (var t in sets.EnumerateArray())
+                if (t.GetProperty("id").GetString() == id) return t.GetProperty("lines").EnumerateArray().Select(l => l.GetString()).ToArray();
+            return null;
+        }
+
+        [Fact]
+        public void HelpHintsAndWelcomeTeachTheHaul()
+        {
+            var s = BaseStrings();
+            foreach (var key in new[] { "help.body", "help.body.deck" })
+            {
+                foreach (var phrase in new[] { "Disposal bin", "half way", "fight for it", "Tug assist", "Click lock", "GET READY" })
+                    Assert.True(s[key].Contains(phrase), key + " does not say " + phrase);
+                Assert.DoesNotContain("the way the arrow", s[key]);
+                Assert.DoesNotContain("the bar", s[key]);
+            }
+            Assert.Contains("yank it into the bin", s["welcome.body"]);
+            Assert.Contains("swipe it into the bin", s["welcome.body.deck"]);
+            Assert.Contains("yank it into the bin", TaskHint("", "t_shred_017", false));
+            Assert.Contains("swipe it into the bin", TaskHint("", "t_shred_017", true));
+            Assert.Contains("yank it into the bin", TaskHint("night2", "t2_shred_209", false));
+            Assert.Contains("swipe it into the bin", TaskHint("night2", "t2_shred_209", true));
+            Assert.Contains("keep the button held until it is in the bin", TaskHint("night3", "e3_letgo", false));
+            Assert.Contains("keep R2 held until it is in the bin", TaskHint("night3", "e3_letgo", true));
+            Assert.Contains("Yank it into the bin", s["task.017.lost.hint"]);
+        }
+
+        [Fact]
+        public void ThePanelsWordsTheHoldAndTheOptionsExist()
+        {
+            var s = BaseStrings();
+            var words = new Dictionary<string, string>
+            {
+                ["haul.word"] = "PULL", ["haul.word.ahead"] = "ALMOST IN", ["haul.word.regrip"] = "GRAB IT!", ["haul.word.hold"] = "HOLD",
+                ["haul.word.won"] = "IN THE BIN", ["haul.word.kept"] = "YOURS", ["haul.word.lost"] = "017 HAS IT", ["tug.word"] = "PULL {0}",
+            };
+            foreach (var w in words) Assert.Equal(w.Value, s[w.Key]);
+            foreach (var key in new[] { "haul.ready.hold", "haul.label.hold", "tip.clicklock" })
+            {
+                Assert.True(s.ContainsKey(key), key);
+                Assert.True(s[key + ".deck"].Contains("R2"), key + ".deck");
+            }
+            Assert.Equal("Tug assist: {0}", s["pause.tugassist"]);
+            Assert.Equal("Hold", s["pause.tugassist.hold"]);
+            Assert.Equal("Off", s["pause.tugassist.off"]);
+            Assert.Equal("Click lock: {0}", s["pause.clicklock"]);
+            Assert.Equal("On", s["pause.clicklock.on"]);
+            Assert.Equal("Off", s["pause.clicklock.off"]);
+        }
+
+        [Fact]
+        public void TheDemoHasNoFinaleHaulText()
+        {
+            // The finale's LetGo words live in night3 only (the demo build carries the base strings).
+            string[] finale = { "haul.ready.letgo", "haul.label.letgo", "haul.letgo.released", "haul.word.released", "notify.haul.letgo.released" };
+            var night3 = Strings("night3");
+            foreach (var folder in new[] { "", "full", "night2" })
+            {
+                var t = Strings(folder);
+                foreach (var k in t.Keys) Assert.False((k.StartsWith("haul.") || k.StartsWith("notify.haul")) && k.Contains("letgo"), folder + ": " + k);
+                foreach (var k in finale) Assert.False(t.ContainsKey(k), folder + ": " + k);
+            }
+            foreach (var k in finale)
+            {
+                Assert.True(night3.ContainsKey(k), k);
+                Assert.True(night3[k].IndexOfAny(LongDashes) < 0, k);
+            }
+            foreach (var k in new[] { "haul.ready.letgo", "haul.label.letgo", "haul.letgo.released", "notify.haul.letgo.released" })
+                Assert.Contains("R2", night3[k + ".deck"]);
+            // Her hold lines, paced to the hold, and the lines around it (Ellen's voice: capitals, no apostrophes; Gary lower case).
+            Assert.Equal(new[] { "I CANT STOP MY HAND", "HOLD ON", "DONT LET GO" }, LineSet("night3", "n3_tug_letgo"));
+            Assert.Equal(new[] { "AGAIN" }, LineSet("night3", "n3_tug_again"));
+            Assert.Equal(new[] { "I CANT STOP MY HAND" }, LineSet("night3", "n3_tug_giveup"));
+            Assert.Equal(new[] { "go on casey" }, LineSet("night3", "g3_letgo_go"));
+            Assert.Equal(new[] { "MINE" }, LineSet("night2", "tug_mine"));
+            Assert.Null(LineSet("", "tug_mine"));
+            Assert.Equal(Night3Rules.LetGoLineAt.Length, LineSet("night3", "n3_tug_letgo").Length);
         }
     }
 }

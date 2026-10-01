@@ -195,8 +195,8 @@ namespace SecondCursor.Story
                 // M8: the last five minutes before seven read amber on the tray clock.
                 g.Taskbar.ClockAmber = clock >= Night3Rules.LogOffTime - AmberMinutes && clock < Night3Rules.LogOffTime;
 
-                // KEEP by confirmation lands at 7:00 (unless a shred is already running).
-                bool running = g.Shred.Busy || LogOffRunning;
+                // KEEP by confirmation lands at 7:00 (unless a shred is already running). Phase P (T1): a LetGo hold under way is an exit too.
+                bool running = g.Shred.Busy || LogOffRunning || LetGoHoldRunning;
                 // Spec 13.5: a player who does nothing for a minute does not wait the clock out at its own pace.
                 if (PlayerActive()) _idleSince = Time.time;
                 else if (!_fastForward && !running && !g.Conflict.IsFighting && clock < Night3Rules.LogOffTime
@@ -367,6 +367,7 @@ namespace SecondCursor.Story
         {
             OnEllenReply(r, said);
             if (r.Tag == "stay") _g.Flags.Set(MemoryFlags.N3SaidStay);
+            NoteFinalReplyForLetGo(r);
             if (!string.IsNullOrEmpty(r.Tag)) GameLog.Info(LogChannel.Story, "Finale reply tag: " + r.Tag);
         }
 
@@ -386,6 +387,11 @@ namespace SecondCursor.Story
                     // Finished Gary helps the shred along: he sits on No so she cannot answer it.
                     Gary.Run(GaryGuard(() => box.IsOpen ? box.Button("No")?.Hit : null, 3f), "gary-guard-no");
                     if (first) RunSide(Say(_gary, Lines("g3c_shred"), GaryCps), "gary-shred-line");
+                }
+                else if (_binMode == FinaleBinMode.LetGo)
+                {
+                    // Phase P (T1): she is letting it go; kept Gary does not guard, he says it is all right.
+                    if (first) RunSide(GarySays("g3_letgo_go"), "gary-letgo-line");
                 }
                 else
                 {
@@ -420,9 +426,10 @@ namespace SecondCursor.Story
                 if (p.FileId == ContentIds.File017 && _exit == Night3Exit.None) _lastTry = "letgo";
                 if (p.FileId != ContentIds.File017 || _tugLineSaid || _exit != Night3Exit.None) return;
                 _tugLineSaid = true;
-                string set = Night3Rules.TugLineSet(g.Memory.Trust);
-                GameLog.Info(LogChannel.Story, "Finale tug: " + set + " (grip x" + E.Brain.TrustGripMult.ToString("0.0") + ")");
-                RunSide(Say(_ellen, Lines(set), 5f), "tug-line");
+                // Phase P (T1): the line set follows the bin mode; LetGo's lines are paced to the hold (Night3Director.LetGo.cs).
+                string set = Night3Rules.TugLineSet(_binMode);
+                GameLog.Info(LogChannel.Story, "Finale tug: " + set + " (" + _binMode + ", grip x" + E.Brain.TrustGripMult.ToString("0.0") + ")");
+                if (_binMode == FinaleBinMode.Fight) RunSide(Say(_ellen, Lines(set), 5f), "tug-line");
             };
             _onFinaleSeat = () =>
             {
@@ -438,6 +445,7 @@ namespace SecondCursor.Story
             g.Shred.Cancelled += _onFinaleCancelled;
             g.Conflict.TugStarted += _onFinaleTug;
             g.Rounds.SeatCleared += _onFinaleSeat;
+            HookLetGo();
         }
 
         void UnhookFinale()
@@ -450,6 +458,7 @@ namespace SecondCursor.Story
             if (_onFinaleCancelled != null) g.Shred.Cancelled -= _onFinaleCancelled;
             if (_onFinaleTug != null) g.Conflict.TugStarted -= _onFinaleTug;
             if (_onFinaleSeat != null && g.Rounds != null) g.Rounds.SeatCleared -= _onFinaleSeat;
+            UnhookLetGo();
             if (g.Rounds != null) g.Rounds.OnItNoticeKey = g.Rounds.NotOnItNoticeKey = g.Rounds.ClosedNoticeKey = null;
             _onFinaleRequested = null;
             _onFinaleConfirm = null;

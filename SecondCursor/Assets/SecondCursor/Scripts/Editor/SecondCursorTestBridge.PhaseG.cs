@@ -18,7 +18,7 @@ namespace SecondCursor.EditorTools
     {
         const string PhaseGHelp =
             "Phase G: savecheck (test folder: a locked progress.json is retried, a damaged one is set aside) | qaread on|off (progress.json read-only, like a -scnight launch)\n" +
-            "         settingsset frameRate|largeText|volume|reduceFlashing VALUE (edit settings.json on disk) | storeart (render Builds/StoreArt) | storeshot NAME (1920x1080 game shot into Builds/StoreArt/screenshots)\n" +
+            "         settingsset frameRate|largeText|volume|reduceFlashing|tugAssist|clickLock VALUE (edit settings.json on disk) | storeart (render Builds/StoreArt) | storeshot NAME (1920x1080 game shot into Builds/StoreArt/screenshots)\n" +
             "         storeshotafter SECONDS NAME (the same, taken later while the next commands run) | savecheck | buildguard | democrash | contentfolders | reload | steamcheck\n";
 
         static IEnumerator TryEditorPhaseGCommand(string cmd, string[] a, string rest)
@@ -198,6 +198,9 @@ namespace SecondCursor.EditorTools
                 case "largetext": s.largeText = value == "on" || value == "true"; break;
                 case "volume": s.masterVolume = float.Parse(value, CultureInfo.InvariantCulture); break;
                 case "reduceflashing": s.reduceFlashing = value == "on" || value == "true"; break;
+                // Phase P (A2): saved, and applied to a running game from its next contest (or drag).
+                case "tugassist": s.tugAssist = value == "hold" ? "hold" : "off"; AccessSettings.SetTugAssist(value == "hold"); break;
+                case "clicklock": s.clickLock = value == "on" || value == "true"; AccessSettings.SetClickLock(s.clickLock); break;
                 default: Say("ERROR: unknown settings field '" + a[1] + "'"); return;
             }
             SaveSystem.SaveSettings(s);

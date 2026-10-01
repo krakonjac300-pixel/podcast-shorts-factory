@@ -132,17 +132,15 @@ Sources marked (search) were read as search-result summaries only, not full page
 #### 5. Tug-of-war
 - **Night and beat:** Night 1, `conflict`. It returns in Night 2 (she protects 209) and Night 3 (017).
 - **Clip (10 s):**
-  - 0 to 2 s: The file hangs between two cursors, the red band vibrating. Caption: "The ghost grabbed my file mid-drag."
-  - 2 to 5 s: The streamer yanks. Shake and a rising strain tone. Handcam of the wrist.
-  - 5 to 7 s: Win (hit-stop, the ghost thrown back) or loss (the file slides over).
+  - 0 to 2 s: Her pointer snaps onto the file mid-drag and a rope pulls taut between the two cursors. Caption: "The ghost grabbed my file mid-drag."
+  - 2 to 5 s: The streamer yanks toward the bin, again and again; her pointer twitches and yanks back, the rope flashing red. Shake and a rising strain tone. Handcam of the wrist.
+  - 5 to 7 s: Win (the file slams into the bin, hit-stop, the ghost thrown back) or loss (the rope whips out of your hand).
   - 7 to 10 s: Toast "Session 017 is still open." Hold.
 - **Why it clips:** it is physical. The streamer's arm jerks and chat yells PULL. Both outcomes are clips.
 - **Clip title:** "tug of war with a ghost. the ghost is winning."
 - **Hook text:** "The ghost grabbed my file"
-- **Game-side change:**
-  - On a player loss, the winning cursor makes one 4 px downward dip (a nod) before leaving with the file. The ghost wins politely.
-  - Drop the strain tone by two semitones over 0.3 s on release, so a loss also sounds like a punchline. The win hit-stop is already implemented.
-- **Spoiler:** S0 for the Night 1 fight. Do not reuse the Night 3 tug ("PULL HARDER").
+- **Game-side change:** built in Phase P (the haul to the bin: the rope, the track, her warned surges, the lid and the whip; the nod and the two-semitone sag on a loss).
+- **Spoiler:** S0 for the Night 1 fight. Do not reuse the Night 3 hold (I CANT STOP MY HAND).
 
 #### 6. Closer every time you look again
 - **Night and beat:** Night 1, `reveal`.
@@ -362,7 +360,7 @@ A first run takes about an hour. Each night adds a system instead of repeating t
 
 [h2]THE GHOST USES THE MOUSE THE WAY YOU DO[/h2]
 [list]
-[*]It grabs a file while you are dragging it. Keep the button held and drag firmly away. Hold still, or let go, and it keeps the file.
+[*]It grabs a file while you are dragging it. Keep the button held and yank the file into the bin, again and again. Stop, or let go, and it drags the file back.
 [*]It races you to the No button on a confirm dialog.
 [*]It goes for Cancel while a file is shredding. Park your cursor on Cancel and it has to find another way.
 [*]It follows the same input rules you do, so your cursor can block its cursor. Its cursor can block yours.
@@ -387,7 +385,7 @@ Everything happens inside the fake computer. The game does not read your files, 
 [*][b]Right-click[/b] anything to see what you can do with it.
 [*]Your tasks are in the [b]Work Queue[/b] (top right, or the [b]Task[/b] button on the taskbar). Do them in order. The hint under each task says how.
 [*]The job: read the briefing in [b]Mail[/b], move files in [b]File Manager[/b] (the [b]Workstation[/b] icon), and look up each work order's owner in [b]Personnel[/b] before you click [b]Approve[/b] or [b]Reject[/b].
-[*]If the second cursor grabs your file, keep the mouse button held and drag firmly away from it. Hold still, or let go, and it keeps the file.
+[*]If the second cursor grabs your file, keep the mouse button held and yank it into the [b]Disposal[/b] bin, again and again. Stop pulling and it drags the file back; let go too early and it keeps it.
 [*]It types to you in the [b]Jotter[/b]. Type a reply and press [b]Enter[/b].
 [*]Stuck? Hints come back on their own, and [b]NEXUS Help[/b] on the desktop explains every action.
 [*][b]Esc[/b] or the [b]||[/b] button on the taskbar pauses the shift and opens the options. [b]Ctrl+S[/b] saves a file you changed in the Jotter.
@@ -504,7 +502,7 @@ The last line matches the demo's actual end card (`SC_DEMO` build). The full gam
 | 0:06 to 0:12 | Work montage, 1 to 1.5 s cuts: briefing, ledger to Archive, Personnel lookup, Approve, temp file to Disposal, Yes | ARCHIVE. VERIFY. SHRED. | clicks as rhythm |
 | 0:12 to 0:16 | A window shifts two pixels, your cursor twitches, `employee_017.dat` highlights itself | "Files do not move on their own." | hum dips, one soft click |
 | 0:16 to 0:21 | A dark cursor slides in from the right carrying `employee_017.dat`, drops it, hovers, leaves. Toast "New pointing device detected." Tray goes from one mouse to two | none | room tone ducks, drone begins |
-| 0:21 to 0:28 | Confirm Shred: both cursors sprint for Yes and No, then the tug-of-war with the red band | "If it types to you, do not reply." | strain tone rising |
+| 0:21 to 0:28 | Confirm Shred: both cursors sprint for Yes and No, then the tug-of-war: a rope from your pointer through the file to hers, the file jerking toward the bin | "If it types to you, do not reply." | strain tone rising |
 | 0:28 to 0:34 | The Jotter opens itself: STOP / NOT THAT FILE / PLEASE. You type "who are you". It types I WORK NIGHTS / LIKE YOU | none | key taps only |
 | 0:34 to 0:44 | LOOK AT YOU. CAM 03 opens. You wave, the arm follows. Static: door ajar. Static: figure in the doorway. IT MOVES WHEN YOU WATCH. Close and reopen: figure mid-room. DONT TURN AROUND | "CAM 03" | room tone cuts, drone up, `low_thump` on the mid-room frame |
 | 0:44 to 0:46 | Black | none | silence |
@@ -532,8 +530,8 @@ The last line matches the demo's actual end card (`SC_DEMO` build). The full gam
 
 | Time | Shot | Text |
 |---|---|---|
-| 0:00 to 0:02 | Two cursors, one file, the red band already vibrating | "Two cursors. One file." |
-| 0:02 to 0:04 | You yank. Hit-stop. The dark cursor is thrown back | none |
+| 0:00 to 0:02 | Two cursors, one file on a taut rope, the dark pointer straining away from the bin | "Two cursors. One file." |
+| 0:02 to 0:04 | You yank it into the bin. Hit-stop. The dark cursor is thrown back | none |
 | 0:04 to 0:07 | The Jotter opens itself: STOP / NOT THAT FILE / PLEASE, one line per second | none |
 | 0:07 to 0:10 | The Work Queue: a row types itself in the ghost's color, PUT YOU IN ARCHIVE. Toast "Work Queue changed by a remote session." | none |
 | 0:10 to 0:13 | CAM 03: you wave, the arm follows. Static. The figure in the doorway | none |

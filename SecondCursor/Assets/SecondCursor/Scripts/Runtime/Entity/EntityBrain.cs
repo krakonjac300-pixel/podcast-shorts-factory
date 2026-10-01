@@ -22,7 +22,7 @@ namespace SecondCursor.Entity
     /// <see cref="DifficultyProfile"/> scaled by the <see cref="AdaptiveAssist"/>, which it tells about
     /// every defense that was not a tug-of-war.
     /// </summary>
-    public sealed class EntityBrain
+    public sealed partial class EntityBrain
     {
         sealed class Behaviour
         {
@@ -65,6 +65,11 @@ namespace SecondCursor.Entity
         public bool AllowIdleLurk = true;
         /// <summary>Allow snatching the desktop icon away when the player reaches for it.</summary>
         public bool AllowKeepAway = true;
+        /// <summary>
+        /// Phase P (T1): the Night 3 finale's LetGo: she still grabs 017 ("she can't stop her hand") but never races, guards, drags the dialog,
+        /// cancels the shred or snatches the icon; she follows the file to the bin and rests on Yes (EntityBrain.LetGo.cs).
+        /// </summary>
+        public bool LetsGo;
         /// <summary>Grip multiplier from trust (1 except in the Night 3 finale: 0.9 or 1.1).</summary>
         public float TrustGripMult = 1f;
         /// <summary>
@@ -104,6 +109,7 @@ namespace SecondCursor.Entity
             Add("CloseFilesWindow", ScoreCloseFiles, RunCloseFiles, 9f);
             Add("CloseCamera", ScoreCloseCamera, RunCloseCamera, 0.5f);
             Add(LurkName, ScoreLurk, RunLurk, 0.5f);
+            AddLetGo();
         }
 
         void Add(string name, Func<float> score, Func<IEnumerator> run, float cooldown)
@@ -297,6 +303,13 @@ namespace SecondCursor.Entity
             }
             while (_g.Conflict.IsFighting) yield return null;
 
+            if (_g.Conflict.LastOutcome == TugOutcome.Released)
+            {
+                // Phase P (T1): the finale's hold was let go early: nobody won, nothing is held against anyone. She hovers by the file.
+                _c.Agent.SetButton(false);
+                yield return HoverAfterRelease();
+                yield break;
+            }
             if (payload.Holder == _c.Agent && !payload.Dropped)
             {
                 // Won: she sets it down on bare desktop near where she grabbed it (Phase K: it used to be thrown to the far corner)
@@ -347,6 +360,8 @@ namespace SecondCursor.Entity
                 _wonByPlayer = Player.Payload;
                 Delay(InterceptName, ReGrabCooldown);
                 _c.Agent.SetButton(false);
+                // Phase P (T1): letting go, she does not recoil: she walks with the file (FollowFile, EntityBrain.LetGo.cs).
+                if (LetsGo) yield break;
                 yield return _c.Recoil(Player.Position);
                 _c.State = Core.Entity.EntityState.Defensive;
             }
@@ -356,6 +371,7 @@ namespace SecondCursor.Entity
 
         float ScoreRaceToNo()
         {
+            if (LetsGo) return 0f;
             var box = _g.Shred.Confirm;
             if (box == null || !box.IsOpen || !IsProtected(_g.Shred.PendingFileId)) return 0f;
             return 85f;
@@ -380,6 +396,7 @@ namespace SecondCursor.Entity
 
         float ScoreDragDialog()
         {
+            if (LetsGo) return 0f;
             var box = _g.Shred.Confirm;
             if (box == null || !box.IsOpen || !IsProtected(_g.Shred.PendingFileId)) return 0f;
             var yes = box.Button("Yes");
@@ -416,6 +433,7 @@ namespace SecondCursor.Entity
 
         float ScoreGuardYes()
         {
+            if (LetsGo) return 0f;
             var box = _g.Shred.Confirm;
             if (box == null || !box.IsOpen || !IsProtected(_g.Shred.PendingFileId)) return 0f;
             // Alternate between guarding and racing so it stays unpredictable.
@@ -461,6 +479,7 @@ namespace SecondCursor.Entity
 
         float ScoreCancelShred()
         {
+            if (LetsGo) return 0f;
             var p = _g.Shred.Progress;
             if (p == null || !p.IsOpen || !IsProtected(_g.Shred.PendingFileId)) return 0f;
             // Held off Cancel for a whole patience: this shred is the player's (Phase F, no endless retries).
@@ -504,7 +523,7 @@ namespace SecondCursor.Entity
 
         float ScoreKeepAway()
         {
-            if (!AllowKeepAway || !Profile.KeepsAway(Defenses) || Player.Payload != null || Player.Held) return 0f;
+            if (LetsGo || !AllowKeepAway || !Profile.KeepsAway(Defenses) || Player.Payload != null || Player.Held) return 0f;
             var icon = _g.Desktop.IconForFile(ProtectedFileId);
             if (icon == null) return 0f;
             var r = icon.GlyphWorldRect;

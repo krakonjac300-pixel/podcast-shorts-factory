@@ -48,6 +48,8 @@ namespace SecondCursor.Story
         static readonly string[] ShelfOrders = { ContentIds.Order3340, ContentIds.Order3341, ContentIds.Order3342 };
 
         Speaker _ellen, _gary;
+        /// <summary>Phase P (E9): MINE before the finale only (in the finale her own tug lines take that role).</summary>
+        protected override Speaker MineSpeaker => CurrentBeat == "finale" || CurrentBeat == "ending" ? null : _ellen;
         int _holdAt = -1;
         float _lastCloseIt = -100f;
         bool _saidCorrupt;

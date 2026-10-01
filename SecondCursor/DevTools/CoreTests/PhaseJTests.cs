@@ -178,13 +178,14 @@ namespace SecondCursor.Tests
             foreach (var key in new[] { "notify.conflict", "notify.conflict.release", "notify.conflict.won", "drop.missed.desktop", "drop.missed", "tug.refused" })
                 Assert.Contains("{0}", db.Text(key));
             Assert.Contains("{1}", db.Text("drop.missed"));
-            Assert.Equal("It is holding the file. Pull harder, or leave it: the file is not going anywhere.", db.Text("task.017.lost.hint"));
-            Assert.Contains("until the bar is yours", db.Task(ContentIds.TaskShred017).hint);
-            Assert.Contains("passes the line", db.Text("help.body"));
+            Assert.Equal("It is holding the file. Yank it into the bin, again and again, or leave it: the file is not going anywhere.", db.Text("task.017.lost.hint"));
+            // Phase P: the hints and Help describe the haul (the speed model's own tug.* words stay until the real-hands test decides).
+            Assert.Contains("yank it into the bin", db.Task(ContentIds.TaskShred017).hint);
+            Assert.Contains("half way", db.Text("help.body"));
             db.Variant = "deck";
             foreach (var key in new[] { "tug.label", "tug.ahead", "tug.lost.release", "notify.conflict", "notify.conflict.release", "tug.refused" })
                 Assert.Contains("R2", db.Text(key));
-            Assert.Contains("until the bar is yours", db.Task(ContentIds.TaskShred017).hint);
+            Assert.Contains("swipe it into the bin", db.Task(ContentIds.TaskShred017).hint);
         }
 
         // ------------------------------------------------------------------ endings say why

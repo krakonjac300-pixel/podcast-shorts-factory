@@ -71,6 +71,8 @@ namespace SecondCursor.Entity
             _payload.GhostPosition = obj + new Vector2(-16f, 14f) + shake;
 
             UpdateBand(player.Position, obj, entity.Position, strain);
+            // Phase P (R1): the rest of the screen dims around the player's pointer and the file.
+            if (outcome == TugOutcome.None) Dim.Show((player.Position + obj) * 0.5f, 120f);
             // Feel: your cursor is dragged a little toward it; its cursor shakes with effort.
             if (_g.PlayerView != null) _g.PlayerView.VisualOffset = (entity.Position - player.Position).normalized * (strain * 5f);
             if (_g.EntityView != null) _g.EntityView.Jitter = 0.5f + strain * 2f;

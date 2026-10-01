@@ -152,7 +152,7 @@ Fix:
 **Status: done for display, VSync and frame cap** (Phase E): Display (borderless fullscreen / largest whole-number window,
 applied at start), Frame rate (VSync default, 30, 60, 120, 144, Unlimited: `DisplaySettings`), Reading text (Normal / Large),
 volume, CRT, flashing and difficulty, all saved to `settings.json` at once. Still open: a separate screen-shake setting,
-window sizes to pick from, sticky drag.
+window sizes to pick from, Click lock (built in Phase P).
 
 Evidence: `PauseMenu.ToggleDisplay` does `Screen.fullScreenMode = FullScreenMode.FullScreenWindow` when returning to fullscreen, which keeps the current 1280x720 render size, so the game is upscaled and blurry until restart; windowed is always 1280x720 (non-integer 1.333x of 960x540); `SaveData.fullscreen` is written but never read in `GameRoot.Build`; VSync and frame cap are hard-coded in `GameRoot.Awake`; only master volume exists.
 
@@ -168,7 +168,7 @@ Fix (Esc menu, plus the title "Options"):
 | Flashing | Full / Reduced (exists) | `VisualFx.ReduceFlashing` |
 | Screen shake | On / Reduced / Off | split from ReduceFlashing so it can go to zero (Steam "Camera Comfort" tag) |
 | CRT effects | On / Off (exists) | `VisualFx.CrtEnabled` |
-| Sticky drag (accessibility, Deck) | Off / On (click to pick up, click to drop) | `DragDropSystem` |
+| Click lock (built, Phase P; accessibility, Deck) | Off / On (click to pick up, click to drop); also Tug assist: Off / Hold | `ClickLock`, `AccessSettings`, `PauseMenu` |
 
 Apply all of these at startup in `GameRoot.Build` right after `SaveSystem.Load()` (today only volume, CRT and flashing are applied).
 
@@ -272,7 +272,7 @@ Measured scale on Deck: `min(1280/960, 800/540) = 1.333` (non-integer), so the 9
 | D3 | Deck wording: when `IsSteamRunningOnSteamDeck()` swap strings that name keys or mouse buttons: `quickstart.body` ("Double-click", "Right-click anything"), `help.body`, `disclaimer.body` ("from the Esc menu"), `tasks.json` hint "Or right-click it", README-style Esc/Enter/Delete prompts. Add `*.deck` variants in `strings.json` ("press L2", "press B / Menu") | `strings.json`, `ContentDatabase.Text` | Verified |
 | D4 | Text size: add a "Large text" option, default On when on Deck, that renders reading text (Mail body, Notepad, Work Queue hints, Help, dialogs) with `PixelText.Scale = 2` and re-wraps. Without it expect a "some text may be hard to read" note | `PixelText`, app views | Verified |
 | D5 | Pointer from touch: read `Pointer.current` (mouse, pen or touch) instead of `Mouse.current` for position and press in `InputSystemBackend`, so the touchscreen works when Steam passes touches through | `InputBackend.cs` | Quality |
-| D6 | Trackpad-friendly conflict: when on Deck (or Sticky drag on), relax `TugOfWarSettings` (`ConflictSystem.Settings`) so a trackpad flick can win, and enlarge the minimum hit area for title-bar buttons | `ConflictSystem`, `OSWindow` | Quality |
+| D6 | Trackpad-friendly conflict: when on Deck (or Click lock on), relax `TugOfWarSettings` (`ConflictSystem.Settings`) so a trackpad flick can win, and enlarge the minimum hit area for title-bar buttons | `ConflictSystem`, `OSWindow` | Quality |
 | D7 | Suspend/resume: press the power button during a tug-of-war, during entity typing and during the CCTV sequence; resume after 1 minute. Expected: the focus-loss auto-pause opens the menu; nothing is decided while suspended. Also add `OnApplicationPause(true)` to trigger the same pause | `PauseMenu` | Verified QA |
 | D8 | Cloud round trip PC to Deck (2.4) and confirm `Player.log` is readable inside the Proton prefix | Steamworks | QA |
 | D9 | Performance: keep VSync on and 60 fps cap by default; check battery draw with CRT effects on (full-screen overlay plus 2x supersample) | none | Verified |

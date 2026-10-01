@@ -23,8 +23,10 @@ namespace SecondCursor.EditorTools
             "         tugreel SPEED STROKE [swing|lift|keep] [PAUSE] [TIMEOUT] [SHOTPREFIX] (in a tug: strokes toward the bin at SPEED px/s for STROKE px, then a swing back at\n" +
             "           0.8x SPEED or a still PAUSE s, until it ends; never lets go, except keep: the swing, letting go once past half way; shots at 0.1, 0.3, 0.6, 1.0,\n" +
             "           1.5 s from the grab and at the result)\n" +
-            "         tughold [SECONDS] [SHOTPREFIX] (in a tug: hold still, button down) | tugslip AFTER GAP [SPEED] [STROKE] (tugreel's swing; the button goes up\n" +
-            "           AFTER s after GET READY for GAP s, then down again)\n";
+            "         tughold [SECONDS] [SHOTPREFIX] (in a tug: hold still, button down) | tugslip AFTER GAP [SPEED] [STROKE] [SHOTPREFIX] (tugreel's swing; the button goes up\n" +
+            "           AFTER s after GET READY for GAP s, then down again)\n" +
+            "         heldpath X1 Y1 D1 [X2 Y2 D2 ...] [shots=T1,T2,...] [release] (press, move through the points over D s each with the button held, shots\n" +
+            "           T s after the press; lets go only with release)\n";
 
         static readonly float[] HaulShotTimes = { 0.1f, 0.3f, 0.6f, 1.0f, 1.5f };
 
@@ -51,9 +53,85 @@ namespace SecondCursor.EditorTools
                 case "tugslip":
                     _scripted = true;
                     AttachInput();
-                    return TugReelRun("tugslip", F(a, 3, 300f), F(a, 4, 120f), false, 0f, 8f, null, F(a, 1, 0.8f), F(a, 2, 0.3f));
+                    return TugReelRun("tugslip", F(a, 3, 300f), F(a, 4, 120f), false, 0f, 8f, a.Length > 5 ? a[5] : null, F(a, 1, 0.8f), F(a, 2, 0.3f));
+                case "heldpath":
+                    _scripted = true;
+                    AttachInput();
+                    return HeldPath(a);
+                case "lockpick":
+                    // Click lock: press on what is under the pointer, drag it 17 px over 0.5 s, let go (the lock keeps holding it).
+                    _scripted = true;
+                    AttachInput();
+                    _input.Press();
+                    _input.MoveTo(g.Player.Position + new Vector2(14f, -10f), 0.5f);
+                    _input.Release();
+                    return LockPick();
                 default: return null;
             }
+        }
+
+        static IEnumerator LockPick()
+        {
+            var drain = Drain();
+            while (drain.MoveNext()) yield return drain.Current;
+            var g = G;
+            if (g == null) yield break;
+            Say("lockpick: carrying " + (g.Player.Payload != null ? g.Player.Payload.FileId : "nothing") + ", held " + g.Player.Held
+                + ", click lock " + (AccessSettings.Lock.Locked ? "locked" : "free"));
+        }
+
+        /// <summary>
+        /// Phase P (E10): a held drag through several points with screenshots inside it (the click lock and the tug's frames in mid-drag). The
+        /// button goes down where the pointer is and stays down; it comes up at the end only with "release".
+        /// </summary>
+        static IEnumerator HeldPath(string[] a)
+        {
+            var points = new System.Collections.Generic.List<Vector3>();
+            var shots = new System.Collections.Generic.List<float>();
+            bool release = false;
+            for (int i = 1; i < a.Length; i++)
+            {
+                if (a[i] == "release") { release = true; continue; }
+                if (a[i].StartsWith("shots=", StringComparison.Ordinal))
+                {
+                    foreach (var t in a[i].Substring(6).Split(','))
+                        if (float.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out float v)) shots.Add(v);
+                    continue;
+                }
+                if (i + 2 >= a.Length) break;
+                points.Add(new Vector3(F(a, i, 0f), F(a, i + 1, 0f), F(a, i + 2, 0.3f)));
+                i += 2;
+            }
+            if (points.Count == 0) { Say("ERROR: heldpath X1 Y1 D1 [...] [shots=T1,T2] [release]"); yield break; }
+            _input.Press();
+            float total = 0f;
+            foreach (var p in points)
+            {
+                _input.MoveTo(new Vector2(p.x, p.y), p.z);
+                total += p.z;
+            }
+            if (release) _input.Release();
+            float start = Time.unscaledTime;
+            int next = 0;
+            shots.Sort();
+            while (_input.Pending > 0 || next < shots.Count)
+            {
+                float since = Time.unscaledTime - start;
+                if (next < shots.Count && since >= shots[next])
+                {
+                    var g = G;
+                    if (g != null) SaveScreen(g, "held_" + shots[next].ToString("0.00", CultureInfo.InvariantCulture));
+                    next++;
+                }
+                if (since > total + 10f) break;
+                yield return null;
+            }
+            var drain = Drain();
+            while (drain.MoveNext()) yield return drain.Current;
+            var gg = G;
+            Say("heldpath: " + points.Count + " point(s) over " + total.ToString("0.00", CultureInfo.InvariantCulture) + " s" + (release ? ", released" : ", still held")
+                + (gg != null ? "; pointer " + gg.Player.Position + ", held " + gg.Player.Held + ", carrying " + (gg.Player.Payload != null ? gg.Player.Payload.FileId : "nothing")
+                    + ", click lock " + (AccessSettings.Lock.Locked ? "locked" : "free") : ""));
         }
 
         static string TugState(GameServices g)
@@ -135,15 +213,28 @@ namespace SecondCursor.EditorTools
                 }
                 return next;
             });
+            // Phase P-b: with a shot prefix, also the first frame of each cue (her warning, the surge, the latch past half way, GRAB IT) and the
+            // frame after the end (a loss's whip lasts 0.12 s).
+            bool warnShot = false, surgeShot = false, latchShot = false, regripShot = false, endShot = false;
             try
             {
                 int nextShot = 0;
                 while (_input.Pending > 0 && EditorApplication.timeSinceStartup - start < timeout + 6f)
                 {
+                    var cr = g.Conflict.Reel;
                     if (shots != null && g.Conflict.IsFighting && nextShot < HaulShotTimes.Length && g.Conflict.Elapsed >= HaulShotTimes[nextShot])
                         SaveScreen(g, shots + "_" + HaulShotTimes[nextShot++].ToString("0.0", CultureInfo.InvariantCulture));
+                    if (shots != null && g.Conflict.IsFighting && cr != null)
+                    {
+                        if (!warnShot && cr.Telegraph) { warnShot = true; SaveScreen(g, shots + "_warn"); }
+                        if (!surgeShot && cr.Surging) { surgeShot = true; SaveScreen(g, shots + "_surge"); }
+                        if (!latchShot && g.Conflict.PlayerKeepsOnRelease) { latchShot = true; SaveScreen(g, shots + "_latch"); }
+                        if (!regripShot && g.Conflict.InRegrip && !g.Conflict.InReady) { regripShot = true; SaveScreen(g, shots + "_grabit"); }
+                    }
+                    if (shots != null && !endShot && result != TugOutcome.None) { endShot = true; SaveScreen(g, shots + "_end"); }
                     yield return null;
                 }
+                if (shots != null && !endShot && result != TugOutcome.None) SaveScreen(g, shots + "_end");
                 var drain = Drain();
                 while (drain.MoveNext()) yield return drain.Current;
             }

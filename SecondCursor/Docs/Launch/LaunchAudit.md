@@ -135,7 +135,7 @@ Verdicts: TRUE, NEEDS CHANGE (copy or game must change), BLOCKED (true only afte
 | Night 1 bullet (the job, the second cursor, a camera you were told not to use) | TRUE | Camera denial on Night 1. |
 | Night 2 bullet (ghost writes tasks, a third pointer wants something) | TRUE | `Night2Director.Asks`, Gary finish beat. |
 | Night 3 bullet: "Custodial makes its rounds on the security cameras, and watching it makes it move." | NEEDS CHANGE | The first round and the watch mechanic start on Night 2 (`Night2Director.RoundsBeat`, `RoundsConfig.Night2`). Put "Custodial's first round on the cameras" under Night 2 and "a full round" under Night 3. The rest of the bullet (locked folder, editable config files, clock to 7:00) is TRUE. |
-| Tug: "Yank away hard to win it back. Hold still and you lose it." | TRUE | `TugOfWarSettings` (pull speed, ramp). |
+| Tug: "Keep the button held and yank the file into the bin, again and again. Stop, or let go, and it drags the file back." (Phase P wording) | TRUE | The reel (`TugReel`, `ReelSettings`): strokes toward the bin reel the file, her pull drags it back, letting go below half way loses after the re-grip window. |
 | "It races you to the No button on a confirm dialog." | TRUE | `RaceToNoDelay`. |
 | "It goes for Cancel while a file is shredding. Park your cursor on Cancel and it has to find another way." | TRUE | `CancelCrawl`, `CancelPatience`, `IsBlockedByPlayer`. |
 | "your cursor can block its cursor. Its cursor can block yours." | TRUE | `Guarding`, `IsBlockedByOthers`. |

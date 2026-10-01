@@ -142,6 +142,7 @@
     { "id": "n2_end_finished", "voice": "", "lines": ["HE IS FINISHED", "THEY HAVE ALL OF HIM", "TOMORROW THEY WANT YOU", "SEE YOU TOMORROW NIGHT"], "speakers": [] },
     { "id": "n2_end_kept", "voice": "", "lines": ["HE STAYS", "HALF IS ENOUGH", "FOR NOW", "TOMORROW THEY WANT YOU", "SEE YOU TOMORROW NIGHT"], "speakers": [] },
     { "id": "n2_hand_took", "voice": "", "lines": ["YOU TRIED TO TAKE MY HAND", "WHO WOULD HOLD YOURS"], "speakers": [] },
-    { "id": "n2_hand_left", "voice": "", "lines": ["YOU LEFT ME MY HAND"], "speakers": [] }
+    { "id": "n2_hand_left", "voice": "", "lines": ["YOU LEFT ME MY HAND"], "speakers": [] },
+    { "id": "tug_mine", "voice": "", "lines": ["MINE"], "speakers": [] }
   ]
 }

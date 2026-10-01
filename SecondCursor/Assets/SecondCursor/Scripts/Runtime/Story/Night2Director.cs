@@ -52,6 +52,8 @@ namespace SecondCursor.Story
         static readonly string[] Batch46 = { ContentIds.Batch46A, ContentIds.Batch46B, ContentIds.Batch46C, ContentIds.Batch46D };
 
         Speaker _ellen, _gary;
+        /// <summary>Phase P (E9): she types MINE after the second tug in a row she wins over one file.</summary>
+        protected override Speaker MineSpeaker => _ellen;
         bool _freezeClock = true;
         bool _stopHelping;
         float _firstEntityTaskAt = -1f;

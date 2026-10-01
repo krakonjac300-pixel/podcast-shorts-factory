@@ -100,13 +100,14 @@ namespace SecondCursor.Tests
         [Theory]
         [InlineData(0.5f, 0.9f, "n3_tug_letgo", "n3_shred_last_a", "n3_logoff_trust")]
         [InlineData(0.2f, 0.9f, "n3_tug_letgo", "n3_shred_last_a", "n3_logoff_trust")]
-        [InlineData(0.1f, 1.0f, "n3_tug_refuse", "n3_shred_last_b", "n3_logoff_low")]
-        [InlineData(-0.39f, 1.0f, "n3_tug_refuse", "n3_shred_last_b", "n3_logoff_low")]
+        [InlineData(0.1f, 1.0f, "n3_tug_letgo", "n3_shred_last_b", "n3_logoff_low")]
+        [InlineData(-0.39f, 1.0f, "n3_tug_letgo", "n3_shred_last_b", "n3_logoff_low")]
         [InlineData(-0.4f, 1.1f, "n3_tug_refuse", "n3_shred_last_b", "n3_logoff_low")]
         public void TrustDecidesHerGripAndHerLines(float trust, float grip, string tug, string lastWords, string logOff)
         {
             Assert.Equal(grip, Night3Rules.GripMultForTrust(trust), 3);
-            Assert.Equal(tug, Night3Rules.TugLineSet(trust));
+            // Phase P (T1): the tug line follows the finale bin mode (trust alone, with no reply, name or refused contests).
+            Assert.Equal(tug, Night3Rules.TugLineSet(Night3Rules.BinMode(trust, false, false, 0)));
             Assert.Equal(lastWords, Night3Rules.ShredLastWordsSet(trust));
             Assert.Equal(logOff, Night3Rules.LogOffLineSet(trust));
         }

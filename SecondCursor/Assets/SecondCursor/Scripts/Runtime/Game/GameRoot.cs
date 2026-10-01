@@ -109,6 +109,9 @@ namespace SecondCursor.Game
             g.Audio.MasterVolume = settings.masterVolume;
             g.Fx.CrtEnabled = settings.crtEffects;
             g.Fx.ReduceFlashing = settings.reduceFlashing;
+            // Phase P (A2): Tug assist and Click lock; a locked drag never outlives its game root.
+            AccessSettings.Load(settings);
+            AccessSettings.Lock.Clear();
             if (!Application.isEditor && Screen.fullScreen != settings.fullscreen) Display(settings.fullscreen);
 
             // Night, difficulty and memory
@@ -288,7 +291,16 @@ namespace SecondCursor.Game
                     }
                     else
                     {
-                        player.SetButtonEdges(g.Input.LeftHeld, g.Input.LeftDown, g.Input.LeftUp);
+                        // Phase P (A2): Click lock keeps a drag held after the button comes up; Esc lets go of it.
+                        var clickLock = AccessSettings.Lock;
+                        if (g.Input.KeyDown(GameKey.Escape)) clickLock.Clear();
+                        var (held, down, up) = clickLock.Filter(g.Input.LeftHeld, g.Input.LeftDown, g.Input.LeftUp,
+                            player.Payload != null || player.IsDragging || (g.Conflict != null && g.Conflict.IsFighting), unscaledDt);
+                        bool locked = clickLock.Locked;
+                        if (locked && !_wasLocked) OnClickLocked(g);
+                        _wasLocked = locked;
+                        if (g.PlayerView != null) g.PlayerView.ForcedShape = locked ? CursorShape.Grab : (CursorShape?)null;
+                        player.SetButtonEdges(held, down, up);
                         player.RightClickEdge(g.Input.RightDown, g.Input.RightUp);
                         player.Scroll = g.Input.Scroll;
                     }
@@ -331,6 +343,15 @@ namespace SecondCursor.Game
                     g.CameraRig.PlayerHand = new Vector2(g.Player.Position.x / ScreenRig.Width * 2f - 1f, g.Player.Position.y / ScreenRig.Height * 2f - 1f);
             }
             catch (Exception e) { FaultLog.Report("camera", e); }
+        }
+
+        bool _wasLocked;
+
+        /// <summary>Phase P (A2): the first locked drag on a save says how to drop it.</summary>
+        static void OnClickLocked(GameServices g)
+        {
+            GameLog.Info(LogChannel.Player, "Click lock: drag held");
+            g.Tips?.Offer("clicklock", () => new Rect(g.Player.Position.x - 8f, g.Player.Position.y - 8f, 16f, 16f), () => AccessSettings.Lock.Locked, 12f);
         }
 
         void OnApplicationFocus(bool focus)

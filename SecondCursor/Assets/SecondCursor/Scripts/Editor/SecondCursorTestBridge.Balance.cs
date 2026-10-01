@@ -3,7 +3,9 @@ using System.Collections;
 using System.Globalization;
 using System.Linq;
 using SecondCursor.Core;
+using SecondCursor.Core.Entity;
 using SecondCursor.Game;
+using SecondCursor.Input;
 using SecondCursor.OS;
 using SecondCursor.Rendering;
 using UnityEditor;
@@ -221,6 +223,17 @@ namespace SecondCursor.EditorTools
             var g = G;
             if (g == null || !g.Conflict.IsFighting) yield break;
             float t = 0f;
+            // Phase P-b: a sideways pull (90 degrees) goes to the side with more room, so the screen's edge does not stop it at once.
+            if (Mathf.Abs(Mathf.Abs(degrees) - 90f) < 0.5f)
+            {
+                Vector2 way = g.Conflict.PullDirection.normalized, here = g.Player.Position;
+                Vector2 a = Quaternion.Euler(0f, 0f, degrees) * way, b = Quaternion.Euler(0f, 0f, -degrees) * way;
+                if (Room(here, b) > Room(here, a)) degrees = -degrees;
+            }
+            // Phase P-b: the result comes from this fight's own end (the log's last lines can belong to an earlier fight).
+            TugOutcome result = TugOutcome.None;
+            Action<DragPayload, TugOutcome> onEnd = (p, o) => result = o;
+            g.Conflict.TugEnded += onEnd;
             _input.Steer((pos, dt) =>
             {
                 var gg = G;
@@ -228,14 +241,24 @@ namespace SecondCursor.EditorTools
                 t += dt;
                 if (t > pullSeconds || speed <= 0f) return pos;
                 Vector2 dir = Quaternion.Euler(0f, 0f, degrees) * gg.Conflict.PullDirection.normalized;
-                return ScreenRig.ClampToScreen(pos + dir * speed * dt);
+                Vector2 next = pos + dir * speed * dt;
+                // Phase P: at the screen's edge the pull stops (sliding along the edge would turn a sideways pull toward the bin).
+                return next == ScreenRig.ClampToScreen(next) ? next : pos;
             });
-            var drain = Drain();
-            while (drain.MoveNext()) yield return drain.Current;
-            string end = GameLog.Recent(60).Select(e => e.ToString()).LastOrDefault(e => e.Contains("Tug-of-war ended"));
-            string why = GameLog.Recent(60).Select(e => e.ToString()).LastOrDefault(e => e.Contains("Tug lost:"));
+            try
+            {
+                var drain = Drain();
+                while (drain.MoveNext()) yield return drain.Current;
+            }
+            finally
+            {
+                g.Conflict.TugEnded -= onEnd;
+            }
+            var c = g.Conflict;
+            string why = result == TugOutcome.EntityWins ? GameLog.Recent(20).Select(e => e.ToString()).LastOrDefault(e => e.Contains("Tug lost:")) : null;
             Say("tugangle " + degrees.ToString("0", CultureInfo.InvariantCulture) + " deg " + speed.ToString("0", CultureInfo.InvariantCulture) + " px/s: "
-                + (end ?? "no result") + (why != null ? "; " + why : ""));
+                + "[ENTITY] Tug-of-war ended: " + result + " at " + (c.Reel != null ? c.Reel.Elapsed : t).ToString("0.00", CultureInfo.InvariantCulture) + " s"
+                + (why != null ? "; " + why : ""));
         }
 
         /// <summary>Lets go of the button, waits for the fight to be decided and prints how it ended.</summary>
@@ -308,6 +331,14 @@ namespace SecondCursor.EditorTools
         }
 
         /// <summary>The direction closest to <paramref name="dir"/> that still has at least 40 px of screen ahead.</summary>
+        /// <summary>How far the pointer can go from <paramref name="pos"/> along <paramref name="dir"/> before the screen's edge (px).</summary>
+        static float Room(Vector2 pos, Vector2 dir)
+        {
+            float rx = dir.x > 1e-4f ? (ScreenRig.Width - 1f - pos.x) / dir.x : dir.x < -1e-4f ? pos.x / -dir.x : float.MaxValue;
+            float ry = dir.y > 1e-4f ? (ScreenRig.Height - 1f - pos.y) / dir.y : dir.y < -1e-4f ? (pos.y - WindowManager.TaskbarHeight) / -dir.y : float.MaxValue;
+            return Mathf.Min(rx, ry);
+        }
+
         static Vector2 RoomyDirection(Vector2 pos, Vector2 dir)
         {
             foreach (float deg in new[] { 0f, 25f, -25f, 50f, -50f, 75f, -75f, 100f, -100f, 125f, -125f })

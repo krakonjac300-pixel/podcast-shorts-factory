@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Collections;
 using SecondCursor.Core;
 using SecondCursor.Core.Entity;
 using SecondCursor.Game;
@@ -12,48 +12,45 @@ using UnityEngine.UI;
 namespace SecondCursor.Entity
 {
     /// <summary>
-    /// Phase H (blind playtest): the tug-of-war explains itself where it happens. While two cursors grip the same file,
-    /// a NEXUS label above it says who is pulling and what to do, with a pull meter (YOU on the left, 017 on the right)
-    /// that follows the fight; when it ends the label says who kept the file. A release over the Disposal bin during a
-    /// fight gets a Disposal notice, so a lost tug never reads as a drop the bin ignored. Nothing here changes the fight.
-    /// Phase I (second blind playtest): a small arrow on the file points away from her pointer (the way to drag), a lost
-    /// fight says why (you let go, or she pulled harder), and a file she takes while you are not holding it says so.
-    /// Phase J (third blind playtest): the label says what winning looks like (the bar is yours past its line, then letting
-    /// go drops the file), the arrow points toward open screen, and the result stays up longer and is also posted as a notice.
-    /// Phase P: the reel's words (haul.*, <see cref="TugText"/>): the arrows point at the bin, the keep line sits at half way, and the
-    /// re-grip window says GRAB IT.
+    /// Phase H (blind playtest): the tug-of-war explains itself where it happens: who is pulling, what to do, a meter, and who kept the file
+    /// (also posted as a notice; a release over the Disposal bin mid-fight gets a Disposal notice). Phases I to N added the arrows, the reasons
+    /// for a loss, the keep line and GET READY. Phase P (review board R1, both models): the panel reads in one glance. It wears 017's dark skin
+    /// with one 2x word (PULL, ALMOST IN, GRAB IT!, HOLD, IN THE BIN, YOURS, 017 HAS IT), up to two 1x lines under it and a compact 140 px meter
+    /// with the keep line; GET READY shows a 108 px arrow at the pointer toward the bin and no meter; the fight keeps a 72 px arrow at the pointer;
+    /// passing the keep line flashes the meter and rings the file in green (the latch). The panel sits on the side of the file away from the bin,
+    /// clear of both pointers, the arrow and the track, and only moves when something comes under it. The result's notice posts 0.6 s after the
+    /// result (notices wait during a fight). Nothing here changes the fight.
     /// </summary>
     public sealed class TugHud : MonoBehaviour
     {
-        const int Width = 212, MeterH = 8, Pad = 5, Gap = 18;
-        const float ResultSeconds = 3.2f;
+        const int MinWidth = 150, MaxWidth = 284, MeterW = 140, MeterH = 8, Pad = 6, TagW = 22;
+        const float ResultSeconds = 3.2f, NoticeDelay = 0.6f, LatchFlash = 0.12f, LatchRing = 0.2f, Margin = 12f;
+        static readonly Color PanelFill = new Color(Palette.EntityFill.r / 255f, Palette.EntityFill.g / 255f, Palette.EntityFill.b / 255f, 0.92f);
 
         GameServices _g;
         RectTransform _panel;
-        PixelText _label;
+        Image _fill;
+        readonly Image[] _border = new Image[4], _ring = new Image[4];
+        PixelText _word, _lines, _youText, _themText;
         RectTransform _meter;
-        Image _you, _them, _mark, _line;
-        PixelText _youText, _themText;
-        int _textH;
-        float _resultUntil = -1f;
+        Image _you, _them, _keep;
+        TugArrow _small, _big, _bigReady;
+        float _resultUntil = -1f, _latchAt = -10f;
         Vector2 _anchor;
-        bool _refusedShown;
+        Rect _avoid;
+        bool _refusedShown, _first, _wasAhead;
         CursorAgent _winner;
-        /// <summary>Pixel-art arrow on the contested file: dark backing squares under bright ones.</summary>
-        readonly List<Image> _arrowBack = new List<Image>();
-        readonly List<Image> _arrowDots = new List<Image>();
-        /// <summary>Phase K: the same arrow at twice the size at the player's pointer for the first moments of every fight.</summary>
-        readonly List<Image> _bigBack = new List<Image>();
-        readonly List<Image> _bigDots = new List<Image>();
-        const float BigArrowSeconds = 1f;
-        /// <summary>Where the arrow was drawn last (it stays there, dimmed, while the result shows).</summary>
-        Vector2 _arrowAt;
+        Coroutine _notice;
+
+        enum FightText { None, Ready, Pull, Regrip, Ahead }
+        FightText _shown;
+        bool _shownSurge, _shownBlink;
 
         public static TugHud Create(GameServices g, ConflictSystem conflict)
         {
             var root = UIBuilder.Rect("Tug HUD", g.Layers.Effects);
             root.anchorMin = root.anchorMax = Vector2.zero;
-            root.pivot = new Vector2(0.5f, 0f);
+            root.pivot = Vector2.zero;
             var hud = root.gameObject.AddComponent<TugHud>();
             hud._g = g;
             hud._panel = root;
@@ -66,181 +63,105 @@ namespace SecondCursor.Entity
 
         void Build()
         {
-            var face = _panel.gameObject.AddComponent<BevelGraphic>();
-            face.Style = BevelStyle.Window;
-            face.Fill = Palette.Tooltip;
-            face.raycastTarget = false;
-            _label = UIBuilder.Text(_panel, "", Palette.Text, true, "Label");
-            _label.Align = TextAlign.Center;
-            _label.Wrap = true;
-
+            _fill = UIBuilder.Solid(_panel, PanelFill, "Fill");
+            _fill.rectTransform.Stretch();
+            for (int i = 0; i < 4; i++) _border[i] = UIBuilder.Solid(_panel, Palette.EntityOutline, "Border " + i);
+            _word = UIBuilder.Text(_panel, "", Palette.EntityText, true, "Word");
+            _word.Scale = 2;
+            _word.Align = TextAlign.Center;
+            _lines = UIBuilder.Text(_panel, "", Palette.EntityText, true, "Lines");
+            _lines.Align = TextAlign.Center;
+            _lines.Wrap = true;
             _meter = UIBuilder.Rect("Meter", _panel);
-            var track = UIBuilder.Bevel(_meter, BevelStyle.Sunken, "Track");
-            track.rectTransform.Stretch(0, 0, 0, 0);
-            _you = UIBuilder.Solid(_meter, Palette.Selection, "You");
+            var track = UIBuilder.Solid(_meter, new Color32(0x3A, 0x3E, 0x3C, 0xFF), "Track");
+            track.rectTransform.Stretch();
+            _you = UIBuilder.Solid(_meter, Palette.Highlight, "You");
             _them = UIBuilder.Solid(_meter, Palette.Red, "Them");
-            _mark = UIBuilder.Solid(_meter, Palette.Dark, "Mark");
-            // Phase J: the line past which the file is yours (letting go keeps it).
-            _line = UIBuilder.Solid(_meter, Palette.Amber, "Keep Line");
-            _youText = UIBuilder.Text(_panel, "", Palette.Selection, true, "You Label");
+            // Phase J: the line past which letting go keeps the file, standing 3 px proud above and below the bar.
+            _keep = UIBuilder.Solid(_meter, Palette.Amber, "Keep Line");
+            _youText = UIBuilder.Text(_panel, "", Palette.Highlight, true, "You Label");
             _themText = UIBuilder.Text(_panel, "", Palette.Red, true, "Them Label");
             _themText.Align = TextAlign.Right;
-            BuildArrow();
-        }
-
-        /// <summary>
-        /// The arrow in its own frame, x along the direction to drag, y across (px): a 3 px thick shaft and a filled head, drawn
-        /// with 4 px squares on a 3 px grid.
-        /// </summary>
-        static readonly Vector2[] ArrowShape = BuildShape();
-
-        static Vector2[] BuildShape()
-        {
-            var pts = new List<Vector2>();
-            for (int x = 0; x <= 27; x += 3) pts.Add(new Vector2(x, 0f));
-            for (int y = -6; y <= 6; y += 3) pts.Add(new Vector2(30f, y));
-            for (int y = -3; y <= 3; y += 3) pts.Add(new Vector2(33f, y));
-            pts.Add(new Vector2(36f, 0f));
-            return pts.ToArray();
-        }
-
-        void BuildArrow()
-        {
-            BuildDots(_arrowBack, _arrowDots, 1, "Tug Arrow");
-            BuildDots(_bigBack, _bigDots, 2, "Tug Big Arrow");
-        }
-
-        void BuildDots(List<Image> backs, List<Image> dots, int scale, string name)
-        {
             var layer = _g.Layers.Effects;
-            for (int i = 0; i < ArrowShape.Length; i++)
+            _small = new TugArrow(layer, 1, "Tug Arrow");
+            _big = new TugArrow(layer, 2, "Tug Big Arrow");
+            _bigReady = new TugArrow(layer, 3, "Tug Ready Arrow");
+            for (int i = 0; i < 4; i++)
             {
-                var back = UIBuilder.Solid(layer, new Color(0f, 0f, 0f, 0.75f), name + " Back " + i);
-                back.rectTransform.anchorMin = back.rectTransform.anchorMax = Vector2.zero;
-                back.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                back.rectTransform.sizeDelta = new Vector2(6f * scale, 6f * scale);
-                back.enabled = false;
-                backs.Add(back);
-                var dot = UIBuilder.Solid(layer, ArrowColor, name + " " + i);
-                dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = Vector2.zero;
-                dot.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                dot.rectTransform.sizeDelta = new Vector2(4f * scale, 4f * scale);
-                dot.enabled = false;
-                dots.Add(dot);
-            }
-        }
-
-        static readonly Color ArrowColor = new Color(1f, 0.93f, 0.55f, 1f);
-        bool _arrowShown;
-        /// <summary>The arrow's tip (the label keeps clear of it, like it does of the pointers).</summary>
-        Vector2 _arrowTip;
-
-        /// <summary>
-        /// The arrow on the file: from its edge, the way to drag (Phase J: away from her, turned toward open screen, so a pull
-        /// never runs into a corner). It only shows the fight's direction, so it cannot change what the fight does.
-        /// </summary>
-        void UpdateArrow(Vector2 file, bool show, float alpha = 1f)
-        {
-            _arrowShown = show && _g.Conflict.PullDirection.sqrMagnitude > 0.5f;
-            if (_arrowShown)
-            {
-                _arrowAt = file;
-                _arrowTip = file + _g.Conflict.PullDirection.normalized * 60f;
-            }
-            DrawArrow(_arrowBack, _arrowDots, file, 24f, 1, _arrowShown, alpha);
-        }
-
-        /// <summary>
-        /// Phase K: for the first second of every fight the arrow also shows at twice the size at the player's own pointer, where the
-        /// eyes are when the file is grabbed (the blind tester never found the small one in time).
-        /// </summary>
-        void UpdateBigArrow(bool show)
-        {
-            float pulse = 0.65f + 0.35f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f));
-            _bigShown = show && _g.Conflict.PullDirection.sqrMagnitude > 0.5f;
-            DrawArrow(_bigBack, _bigDots, _g.Player.Position, 14f, 2, _bigShown, pulse);
-        }
-
-        /// <summary>Phase N: the big arrow is up (the label keeps off its shaft, which runs about 90 px from the pointer).</summary>
-        bool _bigShown;
-
-        void DrawArrow(List<Image> backs, List<Image> dots, Vector2 from, float start, int scale, bool show, float alpha)
-        {
-            if (!show)
-            {
-                for (int i = 0; i < dots.Count; i++) { dots[i].enabled = false; backs[i].enabled = false; }
-                return;
-            }
-            Vector2 dir = _g.Conflict.PullDirection.normalized;
-            Vector2 side = new Vector2(-dir.y, dir.x);
-            for (int i = 0; i < ArrowShape.Length; i++)
-            {
-                Vector2 q = ArrowShape[i] * scale;
-                Vector2 at = from + dir * (start + q.x) + side * q.y;
-                Vector2 p = new Vector2(Mathf.Round(at.x), Mathf.Round(at.y));
-                backs[i].rectTransform.anchoredPosition = p;
-                dots[i].rectTransform.anchoredPosition = p;
-                // A bright band runs along the shaft toward the tip so the direction reads even at a glance.
-                float wave = Mathf.Repeat(Time.unscaledTime * 2.4f - q.x * 0.03f / scale, 1f);
-                float k = q.x >= 30f * scale ? 1f : (wave < 0.4f ? 1f : 0.65f);
-                dots[i].color = new Color(1f, 0.93f, 0.55f, k * alpha);
-                backs[i].color = new Color(0f, 0f, 0f, 0.75f * alpha);
-                backs[i].enabled = true;
-                dots[i].enabled = true;
+                _ring[i] = UIBuilder.Solid(layer, Palette.Green, "Latch Ring " + i);
+                _ring[i].rectTransform.anchorMin = _ring[i].rectTransform.anchorMax = Vector2.zero;
+                _ring[i].rectTransform.pivot = Vector2.zero;
+                _ring[i].enabled = false;
             }
         }
 
         string T(string key, string fallback) => _g.Content != null ? _g.Content.Text(key, fallback) : fallback;
+        string F(string key, params object[] args) => _g.Content != null ? _g.Content.Format(key, args) : key;
 
-        /// <summary>Phase L: the first fight on a save carries the whole lesson in its label (the Quick Start no longer does).</summary>
-        bool _first;
+        ConflictSystem C => _g.Conflict;
+        /// <summary>Phase P: the words of the model in play (the speed model's tug.*, the reel's haul.*).</summary>
+        TugModel Model => C.CurrentSettings.model;
+        TugVariant Variant => C.Reel != null ? C.Reel.Variant : C.IsAssisted ? TugVariant.Hold : TugVariant.Fight;
+        string Key(string part) => TugText.Key(Model, Variant, part);
 
         void OnStarted(DragPayload p)
         {
             if (p != null) _first = _g.Tips.Claim("tug");
+            if (_notice != null) { StopCoroutine(_notice); _notice = null; }
             _refusedShown = false;
             _resultUntil = -1f;
+            _latchAt = -10f;
+            _wasAhead = false;
+            _small.Hide();
             ShowFight(FightState());
             _panel.gameObject.SetActive(true);
             GameLog.Info(LogChannel.Entity, "Tug HUD shown");
-            Place(_g.Conflict.ObjectPosition);
+            Place(C.ObjectPosition, true);
         }
-
-        /// <summary>
-        /// What the label says while a fight runs: Phase N's GET READY (amber), the fight's own words, Phase P's re-grip window (red) and,
-        /// past the keep line, that letting go now keeps the file (green).
-        /// </summary>
-        enum FightText { None, Ready, Pull, Regrip, Ahead }
-        FightText _shown;
-        /// <summary>A deep amber that reads on the pale label (the taskbar clock's).</summary>
-        static readonly Color32 ReadyText = new Color32(0xA8, 0x62, 0x00, 0xFF);
-
-        /// <summary>Phase P: the words of the model in play (the speed model's tug.*, the reel's haul.*).</summary>
-        TugModel Model => _g.Conflict.CurrentSettings.model;
-        string Key(string part) => TugText.Key(Model, _g.Conflict.Reel != null ? _g.Conflict.Reel.Variant : TugVariant.Fight, part);
 
         FightText FightState()
         {
-            var c = _g.Conflict;
+            var c = C;
             return c.InReady ? FightText.Ready : c.InRegrip ? FightText.Regrip : c.PlayerKeepsOnRelease ? FightText.Ahead : FightText.Pull;
+        }
+
+        bool Surging => C.Reel != null && C.Reel.Surging;
+        bool BlinkOn => (_g.Fx != null && _g.Fx.ReduceFlashing) || Mathf.Repeat(Time.unscaledTime * 2f, 1f) < 0.5f;
+
+        /// <summary>The 2x word for the fight's state: PULL (the speed model names the arrow's way), ALMOST IN, GRAB IT!, HOLD.</summary>
+        string Word(FightText state)
+        {
+            if (state == FightText.Regrip) return T("haul.word.regrip", "GRAB IT!");
+            if (state == FightText.Ahead) return Model == TugModel.Speed ? T("haul.word.kept", "YOURS") : T("haul.word.ahead", "ALMOST IN");
+            if (Variant != TugVariant.Fight) return T("haul.word.hold", "HOLD");
+            return Model == TugModel.Speed ? F("tug.word", C.ArrowDirection) : T("haul.word", "PULL");
         }
 
         void ShowFight(FightText state)
         {
             _shown = state;
+            _shownSurge = Surging;
+            _shownBlink = BlinkOn;
             // Phase K: the speed model's lines name the arrow's direction ("HOLD AND DRAG DOWN-LEFT UNTIL THE BAR IS YOURS.").
-            string way = _g.Conflict.ArrowDirection;
-            bool fight = _g.Conflict.Reel == null || _g.Conflict.Reel.Variant == TugVariant.Fight;
+            string way = C.ArrowDirection;
+            string word = Word(state);
             switch (state)
             {
-                case FightText.Ready: SetText(F(Key("ready"), way), ReadyText, true); break;
-                case FightText.Regrip: SetText(F(Key("regrip"), way), Palette.Red, true); break;
-                case FightText.Ahead: SetText(F(Key("ahead"), way), Palette.Green, true); break;
-                default: SetText(F(Key(_first && fight ? "label.first" : "label"), way), Palette.Text, true); break;
+                case FightText.Ready:
+                    SetText(word, Palette.EntityText, F(Key("ready"), way), Palette.Amber, false);
+                    break;
+                case FightText.Regrip:
+                    SetText(word, _shownBlink ? Palette.Red : Palette.EntityFill, F(Key("regrip"), way), Palette.EntityText, true);
+                    break;
+                case FightText.Ahead:
+                    SetText(word, Palette.Green, F(Key("ahead"), way), Palette.EntityText, true);
+                    break;
+                default:
+                    string part = _first && Variant == TugVariant.Fight ? "label.first" : "label";
+                    SetText(word, _shownSurge ? Palette.Red : Palette.EntityText, F(Key(part), way), Palette.EntityText, true);
+                    break;
             }
         }
-
-        string F(string key, params object[] args) => _g.Content != null ? _g.Content.Format(key, args) : key;
 
         /// <summary>Phase K: the result's own words and notice key for what the player's pointer did.</summary>
         static string ReasonKey(TugLossReason r)
@@ -258,29 +179,37 @@ namespace SecondCursor.Entity
 
         void OnEnded(DragPayload p, TugOutcome outcome)
         {
-            var c = _g.Conflict;
+            var c = C;
             _first = false;
             _shown = FightText.None;
             _resultUntil = Time.unscaledTime + ResultSeconds;
-            UpdateArrow(_arrowAt, true, 0.45f);
-            UpdateBigArrow(false);
+            _bigReady.Hide();
+            string name = p != null && !string.IsNullOrEmpty(p.Label) ? p.Label : "the file";
             if (outcome == TugOutcome.Released)
             {
                 // Phase P: the finale's LetGo hold was let go early: nobody won, and the file lies where the pointer let go of it.
-                SetText(T("haul.letgo.released", "YOU LET GO. THE FILE IS STILL HERE.\nGRAB IT AGAIN."), Palette.Text, false);
-                _winner = _g.Player;
+                _big.Hide();
+                // The words live in Night 3's strings only (no fallback here: the demo build must not carry the finale's lines).
+                SetText(T("haul.word.released", ""), Palette.EntityText, T("haul.letgo.released", ""), Palette.EntityText, false);
+                _winner = null;
+                _anchor = c.ObjectPosition;
                 GameLog.Info(LogChannel.Entity, "Tug HUD: released");
+                PostLater(T("os.name", "NEXUS OS"), F("notify.haul.letgo.released", name), "icon_info", "ui_select");
                 return;
             }
             bool won = outcome == TugOutcome.PlayerWins;
             bool letGo = !won && c.LastLostByRelease;
-            // Phase I: a lost fight says why. Phase K: from what the pointer really did, with the arrow's direction by name ("YOU
-            // PULLED LEFT. THE ARROW POINTED DOWN."), and the bar stays up where it ended, so the player sees how close it was.
-            // Phase P, the reel: a win says where the file is (in the bin, torn loose, or kept where it was let go).
+            // Phase I: a lost fight says why. Phase K: from what the pointer really did, with the direction by name, and the bar stays up where
+            // it ended. Phase P, the reel: a win says where the file is (in the bin, torn loose, or kept where it was let go).
             bool kept = won && Model == TugModel.Reel && c.LastKeptOnRelease;
             string reason = !won ? ReasonKey(c.LastLossReason) : Model == TugModel.Speed || c.LastWonIntoBin ? "won" : kept ? "kept" : "won.tear";
-            SetText(won ? F(Key(reason)) : F(Key("lost." + reason), c.LastArrowDirection, c.LastPlayerDirection), won ? Palette.Green : Palette.Red, true);
-            SetMeter(won && !kept ? 1f : c.LastFinalLead);
+            string word = !won ? T("haul.word.lost", "017 HAS IT") : c.LastWonIntoBin ? T("haul.word.won", "IN THE BIN") : T("haul.word.kept", "YOURS");
+            string lines = won ? F(Key(reason)) : F(Key("lost." + reason), c.LastArrowDirection, c.LastPlayerDirection);
+            SetText(word, won ? Palette.Green : Palette.Red, lines, Palette.EntityText, true);
+            SetMeter(won && !kept ? 1f : c.LastFinalLead, false);
+            // The arrows stay where the fight left them, dimmed (the speed model's small arrow comes back on the file).
+            if (_big.Shown) _big.Draw(_big.From, _big.Direction, 14f, 0.35f, false);
+            if (Model == TugModel.Speed) _small.Draw(c.ObjectPosition, c.PullDirection, 24f, 0.45f, false);
             _winner = won ? _g.Player : _g.EntityAgent;
             if (c.LastWonIntoBin)
             {
@@ -289,19 +218,31 @@ namespace SecondCursor.Entity
                 _anchor = _g.Desktop.DisposalIcon.Hit.Center;
             }
             GameLog.Info(LogChannel.Entity, "Tug HUD: " + (won ? "kept (" + reason + ")" : "taken (" + reason + ")"));
-            string name = p != null && !string.IsNullOrEmpty(p.Label) ? p.Label : "the file";
             // Let go over the bin mid-fight: the bin did not ignore the drop, the other session still held the file.
-            if (letGo && !_refusedShown && OverDisposal(_g.Conflict.LastEndPlayerPosition))
+            if (letGo && !_refusedShown && OverDisposal(c.LastEndPlayerPosition))
             {
                 _refusedShown = true;
-                _g.Notifications.Show(T("app.disposal", "Disposal"), _g.Content.Format(Key("refused"), name), "icon_error", null, "sys_error");
+                PostLater(T("app.disposal", "Disposal"), F(Key("refused"), name), "icon_error", "sys_error");
                 GameLog.Info(LogChannel.OS, "Disposal refused " + name + ": still held by session 017");
                 return;
             }
             // Phase J: the result is also a notice, for a player who was looking somewhere else when the fight ended.
             string key = TugText.NoticeKey(Model, reason == "pulled" ? "" : reason);
-            _g.Notifications.Show(T("os.name", "NEXUS OS"), _g.Content.Format(key, name, c.LastArrowDirection, c.LastPlayerDirection),
-                won ? "icon_info" : "icon_error", null, won ? "ui_select" : "sys_warning");
+            PostLater(T("os.name", "NEXUS OS"), F(key, name, c.LastArrowDirection, c.LastPlayerDirection), won ? "icon_info" : "icon_error", won ? "ui_select" : "sys_warning");
+        }
+
+        /// <summary>Phase P (R1 item 5): the result's notice comes 0.6 s after the result, once the dim is going (notices wait during a fight).</summary>
+        void PostLater(string title, string body, string icon, string sound)
+        {
+            if (_notice != null) StopCoroutine(_notice);
+            _notice = StartCoroutine(Post(title, body, icon, sound));
+        }
+
+        IEnumerator Post(string title, string body, string icon, string sound)
+        {
+            yield return new WaitForSecondsRealtime(NoticeDelay);
+            _notice = null;
+            _g.Notifications.Show(title, body, icon, null, sound);
         }
 
         /// <summary>
@@ -310,15 +251,16 @@ namespace SecondCursor.Entity
         /// </summary>
         public void ShowMessage(string text, Vector2 at)
         {
-            if (_g.Conflict != null && _g.Conflict.IsFighting) return;
-            SetText(text, Palette.Red, false);
+            if (C != null && C.IsFighting) return;
+            SetText("", Palette.Red, text, Palette.Red, false);
             _resultUntil = Time.unscaledTime + ResultSeconds;
             _winner = null;
             _anchor = at;
             _panel.gameObject.SetActive(true);
-            UpdateArrow(Vector2.zero, false);
-            UpdateBigArrow(false);
-            Place(at);
+            _small.Hide();
+            _big.Hide();
+            _bigReady.Hide();
+            Place(at, true);
             GameLog.Info(LogChannel.Entity, "Tug HUD: snatched (not holding)");
         }
 
@@ -328,114 +270,219 @@ namespace SecondCursor.Entity
             return bin != null && bin.Hit != null && bin.Hit.WorldRect.Contains(at);
         }
 
-        void SetText(string text, Color32 color, bool meter)
+        /// <summary>One 2x word, the 1x lines under it and (optionally) the meter row; the panel is as wide as its widest part.</summary>
+        void SetText(string word, Color32 wordColor, string lines, Color32 linesColor, bool meter)
         {
-            _label.text = text ?? "";
-            _label.color = color;
-            int inner = Width - Pad * 2;
-            _textH = PixelFont.Measure(_label.text, inner, true, 1).y;
-            _label.rectTransform.At(Pad, Pad, inner, _textH + 2);
+            _word.text = word ?? "";
+            _word.color = wordColor;
+            _lines.text = lines ?? "";
+            _lines.color = linesColor;
+            var wordSize = _word.text.Length > 0 ? PixelFont.Measure(_word.text, 0, true, 2) : Vector2Int.zero;
+            int linesW = _lines.text.Length > 0 ? PixelFont.Measure(_lines.text, 0, true, 1).x : 0;
+            int width = Mathf.Clamp(Mathf.Max(wordSize.x, Mathf.Max(linesW, meter ? MeterW + TagW * 2 + 8 : 0)) + Pad * 2, MinWidth, MaxWidth);
+            int inner = width - Pad * 2;
+            int linesH = _lines.text.Length > 0 ? PixelFont.Measure(_lines.text, inner, true, 1).y : 0;
+            int y = Pad;
+            if (wordSize.y > 0)
+            {
+                _word.rectTransform.At(Pad, y, inner, wordSize.y + 2);
+                y += wordSize.y + 4;
+            }
+            _lines.rectTransform.At(Pad, y, inner, linesH + 2);
+            y += linesH;
             _meter.gameObject.SetActive(meter);
             _youText.gameObject.SetActive(meter);
             _themText.gameObject.SetActive(meter);
-            int h = Pad + _textH + (meter ? 4 + MeterH + 2 : 0) + Pad + 1;
-            _panel.sizeDelta = new Vector2(Width, h);
-            if (!meter) return;
-            _youText.text = T("tug.you", "YOU");
-            _themText.text = T("tug.them", "017");
-            int y = Pad + _textH + 4;
-            _youText.rectTransform.At(Pad, y - 2, 30, 12);
-            _themText.rectTransform.At(Width - Pad - 30, y - 2, 30, 12);
-            _meter.At(Pad + 30, y, inner - 60, MeterH);
-            // The keep line stands out above and below the bar.
-            _line.rectTransform.At(Mathf.Round(_g.Conflict.KeepLead * (inner - 62)), -3, 2, MeterH + 6);
+            if (meter)
+            {
+                y += 6;
+                _youText.text = T("tug.you", "YOU");
+                _themText.text = T("tug.them", "017");
+                float x = (width - MeterW) * 0.5f;
+                _youText.rectTransform.At(x - TagW - 4, y - 2, TagW, 12);
+                _themText.rectTransform.At(x + MeterW + 4, y - 2, TagW, 12);
+                _meter.At(x, y, MeterW, MeterH);
+                _keep.rectTransform.At(Mathf.Round(C.KeepLead * MeterW) - 1, -3, 2, MeterH + 6);
+                y += MeterH;
+            }
+            int h = y + Pad;
+            _panel.sizeDelta = new Vector2(width, h);
+            Border(width, h);
         }
 
-        void SetMeter(float lead)
+        void Border(float w, float h)
         {
-            float w = _meter.rect.width - 2f;
-            float you = Mathf.Round(Mathf.Clamp01(lead) * w);
-            _you.rectTransform.At(1, 1, you, MeterH - 2);
-            _them.rectTransform.At(1 + you, 1, w - you, MeterH - 2);
-            _mark.rectTransform.At(Mathf.Clamp(you, 0f, w), 0, 2, MeterH);
+            _border[0].rectTransform.At(0, 0, w, 1);
+            _border[1].rectTransform.At(0, h - 1, w, 1);
+            _border[2].rectTransform.At(0, 0, 1, h);
+            _border[3].rectTransform.At(w - 1, 0, 1, h);
         }
 
-        /// <summary>Where the label may sit around the file: above, below, left, right (the first that hides no cursor wins).</summary>
-        int _side;
+        void SetMeter(float lead, bool latch)
+        {
+            float you = Mathf.Round(Mathf.Clamp01(lead) * MeterW);
+            _you.rectTransform.At(0, 0, you, MeterH);
+            _them.rectTransform.At(you, 0, MeterW - you, MeterH);
+            // The latch: for 120 ms past the keep line the YOU fill flashes green.
+            _you.color = latch ? (Color)Palette.Green : (Color)Palette.Highlight;
+        }
 
-        void Place(Vector2 obj)
+        // ------------------------------------------------------------------ placement
+
+        /// <summary>Where the panel may not go: the track's bounding box (the reel) or the file (the speed model), plus a margin.</summary>
+        Rect TrackBox()
+        {
+            var reel = C.Reel;
+            Vector2 file = C.ObjectPosition;
+            Rect r = new Rect(file.x - 16f, file.y - 16f, 32f, 32f);
+            if (reel != null && C.IsFighting)
+            {
+                Vector2 o = reel.Origin.ToUnity(), axis = reel.Axis.ToUnity();
+                Vector2 a = o - axis * reel.HerLine, b = o + axis * reel.Finish;
+                r = Rect.MinMaxRect(Mathf.Min(a.x, b.x) - 4f, Mathf.Min(a.y, b.y) - 4f, Mathf.Max(a.x, b.x) + 4f, Mathf.Max(a.y, b.y) + 4f);
+            }
+            return new Rect(r.x - Margin, r.y - Margin, r.width + Margin * 2f, r.height + Margin * 2f);
+        }
+
+        int _side = -1;
+
+        /// <summary>
+        /// The panel keeps its side until something comes under it: a pointer, the arrow or the track. The first side tried is the one away
+        /// from the bin; in a corner where every side covers something, her pointer, then the track, may go under it, never the player's pointer.
+        /// </summary>
+        void Place(Vector2 obj, bool fresh)
         {
             _anchor = obj;
-            // Both pointers must stay visible (the player pulls away from hers): keep the side that covers neither,
-            // and only move when a pointer comes under the label. Phase N: in a corner where every side covers something,
-            // her pointer may go under the label, never the player's pointer or the arrow.
-            if (Covers(Candidate(obj, _side), true))
+            _avoid = C.IsFighting ? TrackBox() : new Rect(obj.x - 28f, obj.y - 28f, 56f, 56f);
+            if (fresh) _side = -1;
+            if (_side < 0 || Covers(Candidate(_side), 2))
             {
-                int free = FreeSide(obj, true);
-                if (free < 0 && Covers(Candidate(obj, _side), false)) free = FreeSide(obj, false);
-                if (free >= 0) _side = free;
+                int best = -1;
+                for (int level = 2; level >= 0 && best < 0; level--)
+                    foreach (int s in SideOrder())
+                        if (!Covers(Candidate(s), level)) { best = s; break; }
+                _side = best >= 0 ? best : _side >= 0 ? _side : SideOrder()[0];
             }
-            var r = Candidate(obj, _side);
-            _panel.anchoredPosition = new Vector2(Mathf.Round(r.center.x), Mathf.Round(r.yMin));
+            var r = Candidate(_side);
+            _panel.anchoredPosition = new Vector2(Mathf.Round(r.x), Mathf.Round(r.y));
         }
 
-        /// <summary>The label's rect (virtual px, y up) on one side of the file, kept on screen.</summary>
-        Rect Candidate(Vector2 obj, int side)
+        readonly int[] _order = new int[4];
+
+        /// <summary>Sides (0 above, 1 below, 2 left, 3 right) from the one facing away from the bin to the one facing it.</summary>
+        int[] SideOrder()
         {
-            float h = _panel.sizeDelta.y;
-            float cx = obj.x, y;
+            Vector2 way = C.PullDirection.sqrMagnitude > 0.25f ? C.PullDirection.normalized : Vector2.down;
+            Vector2[] dirs = { Vector2.up, Vector2.down, Vector2.left, Vector2.right };
+            for (int i = 0; i < 4; i++) _order[i] = i;
+            System.Array.Sort(_order, (a, b) => Vector2.Dot(dirs[a], way).CompareTo(Vector2.Dot(dirs[b], way)));
+            return _order;
+        }
+
+        Rect Candidate(int side)
+        {
+            float w = _panel.sizeDelta.x, h = _panel.sizeDelta.y;
+            Rect box = _avoid;
+            float x, y;
             switch (side)
             {
-                case 1: y = obj.y - Gap - 36f - h; break;                     // below the file and its label
-                case 2: cx = obj.x - Width * 0.5f - 34f; y = obj.y - h * 0.5f; break;
-                case 3: cx = obj.x + Width * 0.5f + 34f; y = obj.y - h * 0.5f; break;
-                default: y = obj.y + Gap; break;                               // above
+                case 0: x = _anchor.x - w * 0.5f; y = box.yMax; break;
+                case 1: x = _anchor.x - w * 0.5f; y = box.yMin - h; break;
+                case 2: x = box.xMin - w; y = _anchor.y - h * 0.5f; break;
+                default: x = box.xMax; y = _anchor.y - h * 0.5f; break;
             }
-            cx = Mathf.Clamp(cx, Width * 0.5f + 2f, ScreenRig.Width - Width * 0.5f - 2f);
+            x = Mathf.Clamp(x, 2f, ScreenRig.Width - w - 2f);
             y = Mathf.Clamp(y, WindowManager.TaskbarHeight + 2f, ScreenRig.Height - h - 2f);
-            return new Rect(cx - Width * 0.5f, y, Width, h);
+            return new Rect(x, y, w, h);
         }
 
-        int FreeSide(Vector2 obj, bool herPointer)
-        {
-            for (int s = 0; s < 4; s++)
-                if (!Covers(Candidate(obj, s), herPointer)) return s;
-            return -1;
-        }
-
-        bool Covers(Rect r, bool herPointer)
+        /// <summary>
+        /// What would be covered: the player's pointer and the arrows always; at <paramref name="level"/> 1 also her pointer, at 2 also the
+        /// track (a fight) or the file (a result).
+        /// </summary>
+        bool Covers(Rect r, int level)
         {
             var grow = new Rect(r.x - 10f, r.y - 14f, r.width + 20f, r.height + 24f);
-            Vector2 way = _g.Conflict.PullDirection.normalized;
-            return grow.Contains(_g.Player.Position) || (herPointer && _g.EntityAgent.Visible && grow.Contains(_g.EntityAgent.Position))
-                   || (_arrowShown && grow.Contains(_arrowTip))
-                   || (_bigShown && (grow.Contains(_g.Player.Position + way * 50f) || grow.Contains(_g.Player.Position + way * 90f)));
+            if (grow.Contains(_g.Player.Position) || _big.Overlaps(grow) || _bigReady.Overlaps(grow)) return true;
+            if (level >= 1 && _g.EntityAgent.Visible && grow.Contains(_g.EntityAgent.Position)) return true;
+            return level >= 2 && r.Overlaps(_avoid);
         }
+
+        // ------------------------------------------------------------------ per frame
 
         void LateUpdate()
         {
             if (_g == null || _panel == null) return;
-            var c = _g.Conflict;
+            var c = C;
+            Latch();
             if (c != null && c.IsFighting)
             {
-                if (!_meter.gameObject.activeSelf) OnStarted(null);
-                if (FightState() != _shown) ShowFight(FightState());
-                SetMeter(c.PlayerLead);
-                Place(c.ObjectPosition);
-                UpdateArrow(c.ObjectPosition, true);
-                UpdateBigArrow(c.Elapsed < ConflictSystem.ReadySeconds + BigArrowSeconds);
+                if (!_meter.gameObject.activeSelf && _shown == FightText.None) OnStarted(null);
+                var state = FightState();
+                if (state != _shown || (state == FightText.Pull && Surging != _shownSurge) || (state == FightText.Regrip && BlinkOn != _shownBlink)) ShowFight(state);
+                bool ahead = c.PlayerKeepsOnRelease;
+                if (ahead && !_wasAhead) _latchAt = Time.unscaledTime;
+                _wasAhead = ahead;
+                SetMeter(c.PlayerLead, Time.unscaledTime - _latchAt < LatchFlash);
+                Arrows(state);
+                Place(c.ObjectPosition, false);
                 return;
             }
             if (_resultUntil > 0f && Time.unscaledTime < _resultUntil)
             {
-                // The result follows the file: it is in the winner's hand now. The arrow and the bar stay as the fight ended.
-                Place(_winner != null ? _winner.Position : _anchor);
-                if (_arrowShown) UpdateArrow(_arrowAt, true, 0.45f);
+                // The result follows the file: it is in the winner's hand now. The arrows and the bar stay as the fight ended.
+                Place(_winner != null ? _winner.Position : _anchor, false);
                 return;
             }
-            if (_arrowShown) UpdateArrow(Vector2.zero, false);
+            _small.Hide();
+            _big.Hide();
+            _bigReady.Hide();
             if (_panel.gameObject.activeSelf) _panel.gameObject.SetActive(false);
             _resultUntil = -1f;
+        }
+
+        /// <summary>
+        /// GET READY: the 108 px arrow at the pointer, solid, toward the bin (the speed model: its arrow). The fight: the 72 px arrow with its
+        /// travelling band, hidden in the re-grip window and after GET READY in the finale's LetGo hold.
+        /// </summary>
+        void Arrows(FightText state)
+        {
+            Vector2 at = _g.Player.Position, way = C.PullDirection;
+            _small.Hide();
+            if (state == FightText.Ready)
+            {
+                _big.Hide();
+                _bigReady.Draw(at, way, 14f, 1f, false);
+                return;
+            }
+            _bigReady.Hide();
+            if (state == FightText.Regrip || Variant == TugVariant.LetGo) _big.Hide();
+            else _big.Draw(at, way, 14f, 1f, true);
+        }
+
+        /// <summary>The latch's 1 px green ring around the file for 200 ms.</summary>
+        void Latch()
+        {
+            bool on = C != null && C.IsFighting && Time.unscaledTime - _latchAt < LatchRing;
+            if (!on)
+            {
+                if (_ring[0].enabled) foreach (var r in _ring) r.enabled = false;
+                return;
+            }
+            Vector2 c = C.ObjectPosition;
+            float x = Mathf.Round(c.x - 17f), y = Mathf.Round(c.y - 17f);
+            SetRing(0, x, y, 34f, 1f);
+            SetRing(1, x, y + 33f, 34f, 1f);
+            SetRing(2, x, y, 1f, 34f);
+            SetRing(3, x + 33f, y, 1f, 34f);
+        }
+
+        void SetRing(int i, float x, float y, float w, float h)
+        {
+            var rt = _ring[i].rectTransform;
+            rt.anchoredPosition = new Vector2(x, y);
+            rt.sizeDelta = new Vector2(w, h);
+            _ring[i].enabled = true;
         }
     }
 }

@@ -36,11 +36,19 @@ namespace SecondCursor.OS
         /// </summary>
         public Func<List<Rect>> Avoid;
         bool _left;
+        /// <summary>
+        /// Phase P (review board R1 item 5): while this says so (a tug-of-war is on), no new notice appears and the ones already up draw at
+        /// 40% alpha, so nothing competes with the fight. The fight's own result is posted after it ends.
+        /// </summary>
+        public Func<bool> Hold;
+        const float HeldAlpha = 0.4f;
+        float _alpha = 1f;
 
         /// <summary>A shown toast: its body can change after it appears (a line that lands on its own beat).</summary>
         public sealed class Toast
         {
             internal RectTransform Rect;
+            internal CanvasGroup Group;
             internal float Age;
             /// <summary>Seconds its turn has come but there was no room for it (Review J2).</summary>
             internal float Waited;
@@ -112,6 +120,8 @@ namespace SecondCursor.OS
             face.Style = BevelStyle.Window;
             face.Fill = Palette.Tooltip;
             face.raycastTarget = false;
+            var group = rt.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = _alpha;
 
             if (!string.IsNullOrEmpty(icon))
             {
@@ -132,7 +142,7 @@ namespace SecondCursor.OS
             _nextShowAt = Time.time + delay + Stagger;
             int visible = 0;
             foreach (var other in _toasts) if (!other.Waiting) visible++;
-            var toast = new Toast { Rect = rt, Slot = visible, Sticky = sticky, Height = h, Body = b, Scale = s, Age = -delay, Sound = sound, KeepWhile = keepWhile };
+            var toast = new Toast { Group = group, Rect = rt, Slot = visible, Sticky = sticky, Height = h, Body = b, Scale = s, Age = -delay, Sound = sound, KeepWhile = keepWhile };
             toast.Fit();
             var hit = UIBuilder.Hit(rt.gameObject, "toast:" + title, onClick != null ? CursorShape.Hand : CursorShape.Arrow);
             hit.passThroughWhileCarrying = true;
@@ -166,7 +176,11 @@ namespace SecondCursor.OS
                 }
             }
 
-            // Oldest first: a toast whose turn has come appears when there is room for it above the bin.
+            bool held = SafeHold();
+            _alpha = Mathf.MoveTowards(_alpha, held ? HeldAlpha : 1f, Time.unscaledDeltaTime * 6f);
+            foreach (var t in _toasts) if (t.Group != null) t.Group.alpha = _alpha;
+
+            // Oldest first: a toast whose turn has come appears when there is room for it above the bin (not during a fight).
             float baseY = WindowManager.TaskbarHeight + 84;
             float ceiling = PickColumn(baseY);
             float used = 0f;
@@ -175,6 +189,7 @@ namespace SecondCursor.OS
             {
                 if (t.Shown || t.Age < 0f) continue;
                 t.Age = 0f;   // its time only starts when it is on screen
+                if (held) continue;   // a fight holds it back (not counted as waiting for room)
                 // Review J2: a notice that waited for room longer than it would have shown is stale: it goes unseen.
                 t.Waited += dt;
                 if (t.Waited > Life && !t.Sticky && t.KeepWhile == null) { t.Dismissed = true; continue; }
@@ -257,6 +272,12 @@ namespace SecondCursor.OS
         {
             foreach (var t in _toasts) if (t.Shown && !t.Dismissed) return true;
             return false;
+        }
+
+        bool SafeHold()
+        {
+            try { return Hold != null && Hold(); }
+            catch (Exception) { return false; }
         }
 
         static bool SafeKeep(Toast t)

@@ -38,6 +38,8 @@ namespace SecondCursor.Input
         /// <summary>Phase P: the ghost flies from <see cref="SnapFrom"/> to its holder's hand over <see cref="SnapSeconds"/> (time left: SnapLeft).</summary>
         public Vector2 SnapFrom;
         public float SnapSeconds, SnapLeft;
+        /// <summary>Phase P: the ghost shrinks to <see cref="PulseScale"/> and back over <see cref="PulseSeconds"/> (a lost file flying into her hand).</summary>
+        public float PulseScale = 1f, PulseSeconds, PulseLeft;
 
         public override string ToString() => Kind + ":" + (FileId ?? Label);
     }
