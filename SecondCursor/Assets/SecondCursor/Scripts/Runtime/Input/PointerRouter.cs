@@ -49,6 +49,11 @@ namespace SecondCursor.Input
         public Action<CursorAgent> ContestRelease;
         /// <summary>Phase J: letting go of this cursor's contested payload now would keep it (so drop targets light up for it).</summary>
         public Func<CursorAgent, bool> ContestKeeps;
+        /// <summary>
+        /// Phase P: this cursor's press grabs its contested file again (the tug's re-grip window): it is swallowed, so no button or icon
+        /// under the pointer receives it. Menus still close, as for any press.
+        /// </summary>
+        public Func<CursorAgent, bool> ContestRegrip;
 
         public IReadOnlyList<CursorAgent> Agents => _agents;
 
@@ -143,7 +148,14 @@ namespace SecondCursor.Input
             }
 
             // Press
-            if (a.PressedThisFrame && hit != null && PressBlocked != null && PressBlocked(a, hit))
+            if (a.PressedThisFrame && ContestRegrip != null && ContestRegrip(a))
+            {
+                a.Pressed = null;
+                a.IsDragging = false;
+                st.PressPosition = a.Position;
+                AnyPointerDown?.Invoke(a, null);
+            }
+            else if (a.PressedThisFrame && hit != null && PressBlocked != null && PressBlocked(a, hit))
             {
                 PressRefused?.Invoke(a, hit);
                 a.Pressed = null;

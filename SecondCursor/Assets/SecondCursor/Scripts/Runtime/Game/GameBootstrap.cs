@@ -32,6 +32,9 @@ namespace SecondCursor.Game
         static void PrepareLaunch()
         {
             ResetLaunchState();
+            string tug = CommandLineArg("-sctug");
+            GameRoot.TugModel = tug == "speed" ? Core.Entity.TugModel.Speed : Core.Entity.TugModel.Reel;
+            if (!string.IsNullOrEmpty(tug)) Debug.LogWarning("[SYSTEM] Launch argument -sctug " + tug + ": the tug plays the " + GameRoot.TugModel + " model");
             string beat = CommandLineArg("-scbeat");
             bool hasNight = int.TryParse(CommandLineArg("-scnight"), out int night);
             string saveDirArg = CommandLineArg("-scsavedir");

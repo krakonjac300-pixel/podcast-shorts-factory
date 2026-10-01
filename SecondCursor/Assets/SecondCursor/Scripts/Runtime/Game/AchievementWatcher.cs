@@ -62,7 +62,8 @@ namespace SecondCursor.Game
 
         void OnTugEnded(DragPayload payload, TugOutcome outcome)
         {
-            if (Preparing) return;
+            // Phase P: a LetGo hold let go early (Released) is neither a win nor a loss.
+            if (Preparing || !AchievementRules.CountsTug(outcome, false)) return;
             bool won = outcome == TugOutcome.PlayerWins;
             bool forced = _g.Conflict != null && _g.Conflict.LastOutcomeForced;
             // Tug totals and both tug achievements only count real fights in runs that count.

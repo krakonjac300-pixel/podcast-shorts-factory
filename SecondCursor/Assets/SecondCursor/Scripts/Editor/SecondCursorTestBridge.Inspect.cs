@@ -301,6 +301,14 @@ namespace SecondCursor.EditorTools
                 });
             }
 
+            /// <summary>Phase P: the button goes down or up this frame, from inside a steer (a slip and a re-grip in the middle of a pattern).</summary>
+            public void ButtonNow(bool down)
+            {
+                _held = down;
+                _down = down;
+                _up = !down;
+            }
+
             public void Press() => _steps.Enqueue(dt => { _held = true; _down = true; return NextFrame; });
             public void Release() => _steps.Enqueue(dt => { _held = false; _up = true; return NextFrame; });
 

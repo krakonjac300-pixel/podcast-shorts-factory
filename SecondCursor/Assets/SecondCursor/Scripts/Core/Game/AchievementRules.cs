@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using SecondCursor.Core.Content;
+using SecondCursor.Core.Entity;
 using SecondCursor.Core.Story;
 
 namespace SecondCursor.Core.Game
@@ -51,6 +52,13 @@ namespace SecondCursor.Core.Game
                 if (Array.IndexOf(endingsSeen, id) < 0) return false;
             return true;
         }
+
+        /// <summary>
+        /// Phase P: a tug's end counts for the tug records and achievements when it was a real win or loss. Assisted wins count (Story,
+        /// mercy, the hold assist, click lock, the finale's LetGo): accessibility must not cost unlocks. A LetGo hold let go early
+        /// (Released) is neither; a debug-forced outcome never counts.
+        /// </summary>
+        public static bool CountsTug(TugOutcome outcome, bool forced) => !forced && (outcome == TugOutcome.PlayerWins || outcome == TugOutcome.EntityWins);
 
         /// <summary>The player won a tug-of-war. A debug-forced outcome never counts (a mercy win does).</summary>
         public static string OnTugWon(bool forced) => forced ? null : AchievementIds.FirmGrip;

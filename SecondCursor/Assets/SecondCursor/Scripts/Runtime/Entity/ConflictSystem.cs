@@ -14,21 +14,20 @@ using UnityEngine.UI;
 namespace SecondCursor.Entity
 {
     /// <summary>
-    /// Runs the tug-of-war when both cursors grip the same dragged file: feeds real cursor motion into the
-    /// engine-free <see cref="TugOfWar"/> model, drags the entity's end away, positions the straining file
-    /// ghost between the cursors, draws the "rubber band", drives the strain sound, shake and glitches,
-    /// and hands the file to the winner. Each contest gets fresh settings from the night's difficulty and
-    /// the adaptive assist, and reports its outcome back to the assist (which may make the next contest a
-    /// mercy contest: low grip, and the entity lets go by itself once the player pulls for a while).
+    /// Runs the tug-of-war when both cursors grip the same dragged file: feeds real cursor motion into the engine-free model, places
+    /// the entity's end and the straining file ghost, draws the "rubber band", drives the strain sound, shake and glitches, and hands
+    /// the file to the winner. Each contest gets fresh settings from the night's difficulty and the adaptive assist, and reports its
+    /// outcome back to the assist (which may make the next contest a mercy contest: low grip, and the entity lets go by itself once
+    /// the player pulls for a while). Phase P: the model is chosen per contest (<see cref="TugOfWarSettings.model"/>): the Phase N
+    /// speed model (ConflictSystem.Speed.cs) or the reel, "haul it to the bin" (ConflictSystem.Reel.cs).
     /// </summary>
-    public sealed class ConflictSystem : MonoBehaviour
+    public sealed partial class ConflictSystem : MonoBehaviour
     {
         const int BandDots = 15;
 
         GameServices _g;
-        TugOfWar _model;
+        ITugContest _model;
         DragPayload _payload;
-        Vector2 _escapeDir;
         readonly List<Image> _band = new List<Image>();
         float _glitchCooldown;
         /// <summary>Strain glitches are at least this far apart (0.4 s: the flash budget's 0.34 s gap would refuse a closer one).</summary>
@@ -39,6 +38,7 @@ namespace SecondCursor.Entity
         /// <summary>
         /// Phase I read grace: the next contest starts with a standoff (Difficulty.ReadGraceSeconds) so the label can be read.
         /// Armed for a night's first contest (each root starts armed) and again when Story is chosen mid-night.
+        /// Phase P, the reel: the same contests get her long fade-in.
         /// </summary>
         bool _readGraceArmed = true;
         bool _graceContest;
@@ -59,14 +59,24 @@ namespace SecondCursor.Entity
         public bool LastOutcomeForced { get; private set; }
         bool _forcedNow;
         public float Strain => _model != null && IsFighting ? _model.Strain : 0f;
-        public float EntityShare => _model != null && IsFighting ? _model.EntityShare : 0f;
+        public float EntityShare => IsFighting && _model is TugOfWar speed ? speed.EntityShare : 0f;
         /// <summary>The pull meter's value: 0 = the second cursor is about to take the file, 1 = the player is about to keep it.</summary>
         public float PlayerLead => _model != null ? _model.PlayerLead : 0.5f;
         /// <summary>Phase J: letting go now would keep the file (the meter is past its line): the release is an ordinary drop.</summary>
         public bool PlayerKeepsOnRelease => IsFighting && _model.KeepsOnRelease;
-        /// <summary>Phase J: the way the player should drag (away from her, turned toward open screen by <see cref="TugGeometry"/>).</summary>
-        public Vector2 PullDirection => -_escapeDir;
-        /// <summary>Where the fought-over file sits between the two cursors (virtual px).</summary>
+        /// <summary>Phase P: the reel of the contest in progress or the last one (null when it was the speed model).</summary>
+        public TugReel Reel => _model as TugReel;
+        public bool IsReel => _model is TugReel;
+        /// <summary>Phase P: the meter reading past which letting go keeps the file (the reel's half way is 0.75 on the meter).</summary>
+        public float KeepLead => IsReel ? 0.5f + 0.5f * CurrentSettings.reel.keepFraction : TugOfWar.ReleaseKeepLead;
+        /// <summary>Phase P: the player let go below the keep point and can still grab it again (the router swallows that press).</summary>
+        public bool InRegrip => IsFighting && IsReel && Reel.InRegrip;
+        /// <summary>
+        /// Phase J: the way the player should drag. Speed: away from her, turned toward open screen by <see cref="TugGeometry"/>. Phase P,
+        /// the reel: toward the Disposal bin.
+        /// </summary>
+        public Vector2 PullDirection => IsReel ? Reel.Axis.ToUnity() : -_escapeDir;
+        /// <summary>Where the fought-over file sits (virtual px).</summary>
         public Vector2 ObjectPosition => _model != null && IsFighting ? _model.ObjectPosition.ToUnity() : _lastObject;
         /// <summary>The last contest was lost because the player let go of the button (not by being out-pulled).</summary>
         public bool LastLostByRelease { get; private set; }
@@ -79,16 +89,15 @@ namespace SecondCursor.Entity
         public float LastFinalLead { get; private set; } = 0.5f;
         /// <summary>Phase K: where the file was when the last contest started (a file she wins is set down near here).</summary>
         public Vector2 LastGrabPoint { get; private set; }
+        /// <summary>Phase P: the last contest the player won ended with the file in the bin (the reel's finish was the bin).</summary>
+        public bool LastWonIntoBin { get; private set; }
+        /// <summary>Phase P: the last contest the player won ended by letting go past the keep line (the file dropped where the pointer was).</summary>
+        public bool LastKeptOnRelease { get; private set; }
         /// <summary>Phase K: the way the arrow pointed, for the arrow's own name while the fight runs ("DOWN-LEFT").</summary>
         public string ArrowDirection => TugCoach.DirectionName(PullDirection.ToCore());
         /// <summary>Phase K: seconds into the current contest (the big arrow at the pointer shows at its start).</summary>
         public float Elapsed => _model != null && IsFighting ? _model.Elapsed : 0f;
         TugCoach _coach;
-        /// <summary>
-        /// Phase K: every contest starts with this standoff (her pull and drift wait, the player's pull counts) while a big arrow at
-        /// the pointer shows the way; the night's first contest keeps its longer read grace.
-        /// </summary>
-        public const float GrabHitchSeconds = 0.3f;
         /// <summary>
         /// Phase N (fifth blind playtest, finding 6): every contest opens with a GET READY beat this long, before anything is scored (the
         /// label says it and the big arrow shows the way); the hitch or the night's read grace follows it.
@@ -96,8 +105,6 @@ namespace SecondCursor.Entity
         public const float ReadySeconds = 0.4f;
         /// <summary>The GET READY beat is still running.</summary>
         public bool InReady => IsFighting && _model.InReady;
-        /// <summary>Phase N: the way each file was fought over tonight: a retry over the same file keeps it (room permitting).</summary>
-        readonly Dictionary<string, Vector2> _escapeByFile = new Dictionary<string, Vector2>();
         /// <summary>Where the player's cursor was when the last contest ended.</summary>
         public Vector2 LastEndPlayerPosition { get; private set; }
         Vector2 _lastObject;
@@ -127,6 +134,8 @@ namespace SecondCursor.Entity
             // Phase J: a player clearly ahead keeps the file on letting go, and drop targets light up for it.
             g.Router.ContestRelease = c.OnPlayerRelease;
             g.Router.ContestKeeps = a => a == g.Player && c.PlayerKeepsOnRelease;
+            // Phase P: a press inside the re-grip window grabs the file again; nothing under the pointer receives it.
+            g.Router.ContestRegrip = a => a == g.Player && c.InRegrip;
             // Phase H: the fight explains itself above the file (label, pull meter, who kept it).
             c.Hud = TugHud.Create(g, c);
             g.DragDrop.PayloadFinished += (p, accepted, by) =>
@@ -151,23 +160,10 @@ namespace SecondCursor.Entity
             _graceContest = _readGraceArmed;
             _readGraceArmed = false;
             CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy, _graceContest) : new TugOfWarSettings();
-            CurrentSettings.readGrace = Mathf.Max(CurrentSettings.readGrace, GrabHitchSeconds);
             CurrentSettings.readySeconds = ReadySeconds;
-            _model = new TugOfWar(CurrentSettings);
-            // Away from the player and the bin, turned if the player's pull would have no room (a grab by the bin). Phase N: a file fought
-            // over before tonight keeps its way, turned only as far as the room at this grab needs.
-            var player = _g.Player.Position.ToCore();
-            _escapeDir = (_escapeByFile.TryGetValue(p.FileId ?? "", out var before)
-                ? TugGeometry.WithRoom(before.ToCore(), player, ScreenRig.Width, ScreenRig.Height, WindowManager.TaskbarHeight)
-                : TugGeometry.EscapeDirection(player, _g.EntityAgent.Position.ToCore(), _g.Desktop.DisposalIcon.Hit.Center.ToCore(),
-                    ScreenRig.Width, ScreenRig.Height, WindowManager.TaskbarHeight, TugGeometry.MinPlayerRoom + TugGeometry.FirstArrowMargin)).ToUnity();
-            if (_escapeDir.sqrMagnitude < 0.1f) _escapeDir = Vector2.up;
-            _escapeDir.Normalize();
-            if (p.FileId != null) _escapeByFile[p.FileId] = _escapeDir;
-            // Phase K: the arrow is decided once per fight and it is exactly what counts: pulling along it is the pull.
-            _model.PullAxis = (-_escapeDir).ToCore();
-            _coach = new TugCoach((-_escapeDir).ToCore());
             LastGrabPoint = p.GhostPosition + new Vector2(16f, -14f);
+            if (CurrentSettings.model == TugModel.Reel) BeginReel(p);
+            else BeginSpeed(p);
 
             _g.Flags.Set(Flags.ConflictStarted);
             _g.Audio?.Play("grab_snap", 0.7f, 0.8f, Audio.AudioManager.PanFor(_g.EntityAgent.Position.x));
@@ -175,8 +171,8 @@ namespace SecondCursor.Entity
             _g.Fx?.Glitch(0.12f, 0.6f);
             GameLog.Info(LogChannel.Entity, "Tug-of-war started over " + p.FileId);
             if (_mercy) GameLog.Info(LogChannel.Entity, "Mercy contest");
-            if (_graceContest) GameLog.Info(LogChannel.Entity, "Read grace: " + CurrentSettings.readGrace.ToString("0.0") + " s standoff");
-            GameLog.Info(LogChannel.Entity, "Tug arrow " + ArrowDirection + (before != default ? " (same file as before)" : ""));
+            if (_graceContest) GameLog.Info(LogChannel.Entity, IsReel ? "Her long fade-in: " + CurrentSettings.reel.fade.ToString("0.0") + " s"
+                : "Read grace: " + CurrentSettings.readGrace.ToString("0.0") + " s standoff");
             TugStarted?.Invoke(p);
         }
 
@@ -194,66 +190,51 @@ namespace SecondCursor.Entity
                 return;
             }
             float grip = _mercy ? AdaptiveAssist.MercyGrip : _g.Entity != null ? _g.Entity.Brain.Grip : 0.62f;
-
-            // The entity's end drags away (strength-dependent), with a nervous tremble. During the read grace it holds
-            // still (only the tremble), so the label can be read and the cursors do not drift apart.
-            float driftScale = _model.InReadGrace ? 0f : 1f;
-            Vector2 drift = _escapeDir * TugOfWar.EntityDriftSpeed(grip) * dt * driftScale;
-            // At a screen edge her end slides along it (Phase K: the arrow, which is her way reversed, never flips mid-fight).
-            if ((entity.Position.x <= 1f && drift.x < 0f) || (entity.Position.x >= ScreenRig.Width - 2f && drift.x > 0f)) drift.x = 0f;
-            if ((entity.Position.y <= WindowManager.TaskbarHeight + 1f && drift.y < 0f) || (entity.Position.y >= ScreenRig.Height - 2f && drift.y > 0f)) drift.y = 0f;
-            // The tremble is a random walk: its step shrinks with the frame time, so it spreads the same per second at any frame rate.
-            drift += UnityEngine.Random.insideUnitCircle * ((1.5f + _model.Strain * 3f) * Mathf.Sqrt(dt * 60f));
-            entity.Position = ScreenRig.ClampToScreen(entity.Position + drift);
-
-            // Phase N: the coach judges the pull from the end of GET READY on.
-            if (!_model.InReady) _coach.Step(dt, player.Position.ToCore(), playerGrips);
-            var outcome = _model.Step(dt, player.Position.ToCore(), playerGrips, entity.Position.ToCore(), grip);
+            var outcome = IsReel ? StepReel(dt, playerGrips, grip) : StepSpeed(dt, playerGrips, grip);
             if (outcome == TugOutcome.None) outcome = Overrule(dt, playerGrips);
-            float strain = _model.Strain;
             _playerGripsNow = playerGrips;
+            Feel(dt, _model.Strain);
+            if (outcome != TugOutcome.None) End(outcome, true);
+        }
 
-            Vector2 obj = _model.ObjectPosition.ToUnity();
-            _lastObject = obj;
-            Vector2 shake = UnityEngine.Random.insideUnitCircle * (strain * 4f);
-            _payload.GhostPosition = obj + new Vector2(-16f, 14f) + shake;
-
-            UpdateBand(player.Position, obj, entity.Position, strain);
-            // Feel: your cursor is dragged a little toward it; its cursor shakes with effort.
-            if (_g.PlayerView != null) _g.PlayerView.VisualOffset = (entity.Position - player.Position).normalized * (strain * 5f);
-            if (_g.EntityView != null) _g.EntityView.Jitter = 0.5f + strain * 2f;
-
+        /// <summary>The strain heard and seen: the strain loop, the grain, a shake at high strain and now and then a strain glitch.</summary>
+        void Feel(float dt, float strain)
+        {
             if (_g.Audio != null)
             {
                 _g.Audio.SetLoopVolume("tug_strain", 0.25f + strain * 0.75f, 0.05f);
                 _g.Audio.SetLoopPitch("tug_strain", 0.85f + strain * 0.9f);
             }
-            if (_g.Fx != null)
+            if (_g.Fx == null) return;
+            _g.Fx.ExtraGrain = strain * 0.4f;
+            if (strain > 0.7f) _g.Fx.Shake(0.05f, 1f);
+            _glitchCooldown -= dt;
+            if (strain > 0.55f && _glitchCooldown <= 0f && UnityEngine.Random.value < MathUtil.ChanceAt60(0.08f, dt))
             {
-                _g.Fx.ExtraGrain = strain * 0.4f;
-                if (strain > 0.7f) _g.Fx.Shake(0.05f, 1f);
-                _glitchCooldown -= dt;
-                if (strain > 0.55f && _glitchCooldown <= 0f && UnityEngine.Random.value < MathUtil.ChanceAt60(0.08f, dt))
-                {
-                    _g.Fx.Glitch(0.08f, strain);
-                    _g.Audio?.Play("glitch_burst", 0.3f + strain * 0.4f);
-                    _glitchCooldown = GlitchCooldownSeconds;
-                }
+                _g.Fx.Glitch(0.08f, strain);
+                _g.Audio?.Play("glitch_burst", 0.3f + strain * 0.4f);
+                _glitchCooldown = GlitchCooldownSeconds;
             }
-
-            if (outcome != TugOutcome.None) End(outcome, true);
         }
 
         /// <summary>
-        /// Phase J: the player lets go during a fight. Clearly ahead, the player keeps the file and the router drops it where
-        /// the pointer is (a folder, the desktop, the bin); otherwise the fight goes on and she takes it (<see cref="Tick"/>).
+        /// Phase J: the player lets go during a fight. Clearly ahead, the player keeps the file and the router drops it where the pointer
+        /// is (a folder, the desktop, the bin); otherwise the fight goes on and she takes it (<see cref="Tick"/>). Phase P: letting go of
+        /// the finale's LetGo hold below the keep point ends it with nobody winning, and the router drops the file the same way.
         /// </summary>
         void OnPlayerRelease(CursorAgent a)
         {
             var p = _payload;
-            if (p == null || a != _g.Player || (p.Holder != a && p.Contender != a) || !_model.KeepsOnRelease) return;
-            GameLog.Info(LogChannel.Entity, "Tug-of-war: let go ahead (meter " + _model.PlayerLead.ToString("0.00") + ")");
-            End(TugOutcome.PlayerWins, true, true);
+            if (p == null || a != _g.Player || (p.Holder != a && p.Contender != a)) return;
+            if (_model.KeepsOnRelease)
+            {
+                GameLog.Info(LogChannel.Entity, "Tug-of-war: let go ahead (meter " + _model.PlayerLead.ToString("0.00") + ")");
+                End(TugOutcome.PlayerWins, true, true);
+            }
+            else if (IsReel && Reel.Variant == TugVariant.LetGo)
+            {
+                End(TugOutcome.Released, true, true);
+            }
         }
 
         /// <summary>
@@ -306,13 +287,18 @@ namespace SecondCursor.Entity
             _payload = null;   // so the PayloadFinished handler does not score the cancelled drag
             // Paused inside the standoff, the player never got to read it: the next fight has its standoff.
             if (_graceContest && _model.InReadGrace) _readGraceArmed = true;
+            ClearFeel();
+            _g.Audio?.StopLoop("tug_strain", 0.08f);
+            _g.DragDrop.Cancel(p);
+            GameLog.Info(LogChannel.Entity, "Tug-of-war interrupted: no winner");
+        }
+
+        void ClearFeel()
+        {
             foreach (var d in _band) d.enabled = false;
             if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
             if (_g.EntityView != null) _g.EntityView.Jitter = 0f;
-            _g.Audio?.StopLoop("tug_strain", 0.08f);
             if (_g.Fx != null) _g.Fx.ExtraGrain = 0f;
-            _g.DragDrop.Cancel(p);
-            GameLog.Info(LogChannel.Entity, "Tug-of-war interrupted: no winner");
         }
 
         /// <summary>
@@ -364,58 +350,76 @@ namespace SecondCursor.Entity
             if (view != null) view.VisualOffset = Vector2.zero;
         }
 
-        /// <param name="released">The player let go ahead: the file is theirs and the release in progress drops it.</param>
+        /// <param name="released">The player let go: the file is theirs and the release in progress drops it.</param>
         void End(TugOutcome outcome, bool transfer, bool released = false)
         {
             var p = _payload;
-            LastLostByRelease = outcome == TugOutcome.EntityWins && !_playerGripsNow;
+            var reel = Reel;
+            LastLostByRelease = outcome == TugOutcome.EntityWins && (reel != null && reel.IsOver ? reel.EndReason == TugLossReason.LetGo : !_playerGripsNow);
             LastEndPlayerPosition = _g.Player.Position;
             LastFinalLead = _model.IsOver ? _model.FinalLead : _model.PlayerLead;
+            LastWonIntoBin = outcome == TugOutcome.PlayerWins && transfer && !released && reel != null && reel.IsOver && reel.FinishIsBin && reel.S >= reel.Finish;
+            LastKeptOnRelease = outcome == TugOutcome.PlayerWins && released;
             if (_coach != null)
             {
-                LastLossReason = _coach.Classify(LastLostByRelease, CurrentSettings.pullSpeedForFullStrength);
+                LastLossReason = reel != null ? _coach.ClassifyReel(LastLostByRelease, reel.MeanReel, reel.MeanPull)
+                    : _coach.Classify(LastLostByRelease, CurrentSettings.pullSpeedForFullStrength);
                 LastArrowDirection = ArrowDirection;
                 LastPlayerDirection = TugCoach.DirectionName(_coach.Net);
                 if (outcome == TugOutcome.EntityWins)
                     GameLog.Info(LogChannel.Entity, "Tug lost: " + LastLossReason + " (pulled " + LastPlayerDirection + " " + _coach.Along.ToString("0") + " px along of "
-                        + _coach.Path.ToString("0") + " px in " + _coach.HeldSeconds.ToString("0.00") + " s; arrow " + LastArrowDirection + ")");
+                        + _coach.Path.ToString("0") + " px in " + _coach.HeldSeconds.ToString("0.00") + " s; " + (reel != null ? "bin " : "arrow ") + LastArrowDirection + ")");
             }
             _playerGripsNow = true;
             _payload = null;
-            foreach (var d in _band) d.enabled = false;
-            if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
-            if (_g.EntityView != null) _g.EntityView.Jitter = 0f;
+            ClearFeel();
             if (outcome == TugOutcome.EntityWins && _g.Audio != null)
             {
                 // M5: a loss sounds like a punchline: the strain sags two semitones as it dies away.
                 StartCoroutine(StrainSag());
             }
             else _g.Audio?.StopLoop("tug_strain", 0.08f);
+            if (outcome == TugOutcome.Released)
+            {
+                // Phase P: the finale's LetGo hold let go early. Nobody won and nothing was taken: the release in progress drops the file.
+                if (p != null)
+                {
+                    _g.DragDrop.TransferTo(p, _g.Player);
+                    if (!released && !_g.Player.Held) _g.DragDrop.Cancel(p);
+                }
+                GameLog.Info(LogChannel.Entity, "Tug-of-war ended: Released (the hold was let go early)");
+                _graceContest = false;
+                _mercy = false;
+                TugEnded?.Invoke(p, outcome);
+                return;
+            }
             _g.Audio?.Play("grab_snap", 1f, outcome == TugOutcome.PlayerWins ? 1.3f : 0.9f);
             // M5: the second cursor wins politely: one small nod before it leaves with the file.
             if (outcome == TugOutcome.EntityWins && transfer && _g.EntityView != null) StartCoroutine(Nod(_g.EntityView));
             if (outcome == TugOutcome.PlayerWins && transfer)
             {
-                // A win lands as a punch: a sliver of hit-stop and the second cursor thrown back, shuddering.
+                // A win lands as a punch: a sliver of hit-stop and the second cursor thrown back (Phase P, the reel: away from the bin), shuddering.
                 StartCoroutine(HitStop());
-                if (_g.EntityView != null)
-                    _g.EntityView.Flinch((_g.EntityAgent.Position - _g.Player.Position).normalized * 40f, 0.45f);
+                Vector2 back = reel != null ? -PullDirection : (_g.EntityAgent.Position - _g.Player.Position).normalized;
+                if (_g.EntityView != null) _g.EntityView.Flinch(back * 40f, 0.45f);
             }
-            if (_g.Fx != null)
-            {
-                _g.Fx.ExtraGrain = 0f;
-                _g.Fx.Glitch(0.1f, 0.8f);
-            }
+            if (_g.Fx != null) _g.Fx.Glitch(0.1f, 0.8f);
             if (p == null) return;
 
             if (transfer)
             {
                 var winner = outcome == TugOutcome.PlayerWins ? _g.Player : _g.EntityAgent;
+                Vector2 ghostWas = p.GhostPosition;
                 _g.DragDrop.TransferTo(p, winner);
                 if (!winner.Held && !released)
                 {
                     // The winner isn't holding the button any more: the file just drops back where it came from.
                     _g.DragDrop.Cancel(p);
+                }
+                else if (reel != null && !released && !LastWonIntoBin)
+                {
+                    // Phase P: the file was out on the track: it flies to the winner's hand (a torn-loose win, or hers).
+                    _g.DragDrop.SnapGhost(p, ghostWas, TearSnapSeconds);
                 }
             }
             if (outcome == TugOutcome.PlayerWins)
@@ -431,10 +435,17 @@ namespace SecondCursor.Entity
             _forcedNow = false;
             if (LastOutcomeForced) _g.Disarm("forced tug outcome");
             GameLog.Info(LogChannel.Entity, "Tug-of-war ended: " + outcome);
-            _g.Assist?.ReportTug(outcome == TugOutcome.PlayerWins, _model.ActiveElapsed, _model.PeakEffort);
+            _g.Assist?.ReportTug(outcome == TugOutcome.PlayerWins, _model.ActiveElapsed, _model.PeakEffort, CurrentSettings.model,
+                reel != null && reel.Variant == TugVariant.Hold);
             _graceContest = false;
             _mercy = false;
             TugEnded?.Invoke(p, outcome);
+            if (LastWonIntoBin && _g.Player.Payload == p)
+            {
+                // Phase P: hauled all the way: once the fight is recorded, the file drops into the bin as the player's own drop (Confirm Shred follows).
+                GameLog.Info(LogChannel.Entity, "Tug-of-war: hauled into the bin");
+                _g.DragDrop.DropInto(p, _g.Player, _g.Desktop.DisposalIcon.Hit);
+            }
         }
     }
 }

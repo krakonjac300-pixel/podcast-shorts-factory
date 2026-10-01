@@ -149,7 +149,8 @@ namespace SecondCursor.Game
             GUILayout.Label("Night " + _g.Night + " (" + _g.Difficulty.Mode + ")   Beat: " + _g.Director.CurrentBeat + "   Phase: " + e.Phase + "   State: " + e.State +
                             "\nEntity action: " + (e.CurrentAction ?? "-") + "   Brain: " + (e.Brain.Enabled ? "ON" : "off") +
                             "  Defenses: " + e.Brain.Defenses + "  Grip: " + e.Brain.Grip.ToString("0.00") +
-                            "\nFight: " + (_g.Conflict.IsFighting ? "YES strain " + _g.Conflict.Strain.ToString("0.00") + " share " + _g.Conflict.EntityShare.ToString("0.00") + (_g.Conflict.IsMercyContest ? " MERCY" : "") : "no") +
+                            "\nFight: " + (_g.Conflict.IsFighting ? "YES strain " + _g.Conflict.Strain.ToString("0.00") + (_g.Conflict.IsReel ? ReelLine(_g.Conflict.Reel)
+                                : " share " + _g.Conflict.EntityShare.ToString("0.00")) + (_g.Conflict.IsMercyContest ? " MERCY" : "") : "no") + "   Tug model: " + _g.Difficulty.Tug.model +
                             "\nAssist L" + assist.Level + "  loss streak " + assist.LossStreak.ToString("0.0") + "  wins " + assist.WinStreak + (assist.MercyArmed ? "  mercy armed" : "") +
                             "   Tug: " + (ConflictSystem.ForcedOutcome == TugOutcome.None ? "real" : ConflictSystem.ForcedOutcome.ToString()) +
                             "\nTrust: " + _g.Memory.Trust.ToString("0.00") + "   Shred busy: " + _g.Shred.Busy +
@@ -197,6 +198,8 @@ namespace SecondCursor.Game
             if (GUILayout.Button("Assist -")) Defer(() => assist.SetLevel(assist.Level - 1));
             if (GUILayout.Button("Assist +")) Defer(() => assist.SetLevel(assist.Level + 1));
             GUILayout.EndHorizontal();
+            if (GUILayout.Button("Tug model: " + _g.Difficulty.Tug.model + " (next contest)")) Defer(() =>
+                SetTugModel(_g, _g.Difficulty.Tug.model == TugModel.Reel ? TugModel.Speed : TugModel.Reel));
             GUILayout.BeginHorizontal();
             foreach (float trust in new[] { -0.5f, 0f, 0.5f })
                 if (GUILayout.Button("Trust " + trust.ToString("+0.0;-0.0;0"))) Defer(() => _g.Memory.Seed(trust));
@@ -295,6 +298,19 @@ namespace SecondCursor.Game
             foreach (var line in _logSnapshot) GUILayout.Label(line.ToString(), _label);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
+        }
+
+        /// <summary>Phase P: the reel's state in one line ("s 34/140 bin pull 38 reel 210 SURGE").</summary>
+        public static string ReelLine(TugReel r) =>
+            " s " + r.S.ToString("0") + "/" + r.Finish.ToString("0") + (r.FinishIsBin ? " bin" : " tear") + " pull " + r.Pull.ToString("0") + " reel "
+            + r.ReelSpeed.ToString("0") + (r.Surging ? " SURGE" : r.Telegraph ? " warn" : "") + (r.InRegrip ? " REGRIP " + r.RegripLeft.ToString("0.00") : "");
+
+        /// <summary>Phase P: the tug model from the next contest on (and for any root this launch builds).</summary>
+        public static void SetTugModel(GameServices g, TugModel model)
+        {
+            GameRoot.TugModel = model;
+            g.Difficulty.Tug.model = model;
+            GameLog.Info(LogChannel.Debug, "Tug model " + model + " from the next contest");
         }
 
         System.Collections.IEnumerator DebugType()

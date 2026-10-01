@@ -376,13 +376,26 @@ namespace SecondCursor.Game
             var p = DifficultyTable.For(night, mode);
             var tuning = EntityTuningAsset.LoadOptional();
             if (tuning != null && night == 1 && mode == DifficultyMode.Normal) tuning.ApplyTo(p);
-            // Steam Deck trackpad fairness: the drag speed that counts as a full pull (measured on hardware in Phase F).
-            if (SteamBridge.OnDeck) p.Tug.pullSpeedForFullStrength *= DeckPullSpeedScale;
+            p.Tug.model = TugModel;
+            // Steam Deck trackpad fairness: the drag speed that counts as a full pull (speed model), the reel's gain (Phase P).
+            if (SteamBridge.OnDeck)
+            {
+                p.Tug.pullSpeedForFullStrength *= DeckPullSpeedScale;
+                p.Tug.reel.reelGain *= DeckReelGainScale;
+            }
             return p;
         }
 
-        /// <summary>Scales the tug's full-strength drag speed on a Steam Deck (1 until trackpad drags are measured).</summary>
+        /// <summary>Scales the speed model's full-strength drag speed on a Steam Deck (1 until trackpad drags are measured).</summary>
         public const float DeckPullSpeedScale = 1f;
+        /// <summary>Phase P: scales the reel's gain on a Steam Deck (1 until the real-hands test, review board E8, measures it).</summary>
+        public const float DeckReelGainScale = 1f;
+
+        /// <summary>
+        /// Phase P: which tug the game plays: the reel ("haul it to the bin") unless the launch says <c>-sctug speed</c> (any build, so the
+        /// two can be compared on a Steam Deck); the developer panel and the test bridge change it for the next contests.
+        /// </summary>
+        public static TugModel TugModel = TugModel.Reel;
 
         /// <summary>Used by restart: the next GameRoot becomes the instance before this one is destroyed.</summary>
         internal static void ReleaseInstance() => Instance = null;

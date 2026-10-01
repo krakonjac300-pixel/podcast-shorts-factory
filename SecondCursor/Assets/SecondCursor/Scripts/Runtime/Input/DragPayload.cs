@@ -35,6 +35,10 @@ namespace SecondCursor.Input
         /// <summary>The ghost's own interactable (lets the other cursor grab it).</summary>
         public Interactable Ghost;
 
+        /// <summary>Phase P: the ghost flies from <see cref="SnapFrom"/> to its holder's hand over <see cref="SnapSeconds"/> (time left: SnapLeft).</summary>
+        public Vector2 SnapFrom;
+        public float SnapSeconds, SnapLeft;
+
         public override string ToString() => Kind + ":" + (FileId ?? Label);
     }
 }

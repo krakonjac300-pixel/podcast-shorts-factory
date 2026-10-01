@@ -46,6 +46,11 @@ namespace SecondCursor.Core.Entity
         public float CancelDelayMin = 0.35f;
         public float CancelDelayMax = 0.55f;
         public int KeepAwayAfter = 2;
+        /// <summary>
+        /// Phase P (T6): the contest after this many over the same file in one beat is a mercy contest (0 = no cap: Night 1, whose
+        /// defense cap is a story beat). The Night 3 finale has its own rule.
+        /// </summary>
+        public int TugContestCap;
         public float UrgencyPerDefense = 0.15f;
         public float UrgencyCap = 2.2f;
 
@@ -85,7 +90,7 @@ namespace SecondCursor.Core.Entity
 
         /// <summary>
         /// A fresh copy of the tug settings for one contest, scaled by the current assist level. <paramref name="readGrace"/>:
-        /// the night's first contest, which starts with <see cref="ReadGraceSeconds"/> of standoff.
+        /// the night's first contest, which starts with <see cref="ReadGraceSeconds"/> of standoff (the reel: her long fade-in).
         /// </summary>
         public TugOfWarSettings TugFor(AdaptiveAssist assist, bool mercy = false, bool readGrace = false)
         {
@@ -95,14 +100,27 @@ namespace SecondCursor.Core.Entity
             s.pullSpeedForFullStrength *= fx.PullSpeed;
             s.rampPerSecond *= fx.Ramp;
             s.releaseGrace += fx.ReleaseGraceAdd;
+            // Phase P, the reel: her pull follows the grip (assist and growth included); the assist's pull factor strengthens the reel.
+            var r = s.reel;
+            r.fade = readGrace ? r.fadeFirst : r.fadeLater;
+            r.regrip += fx.ReleaseGraceAdd;
+            r.reelGain /= fx.PullSpeed;
+            r.reelRampPerSecond *= fx.Ramp;
+            r.surge *= fx.Grip;
+            r.gripBase = GripBase;
             if (mercy)
             {
                 // A mercy contest never ramps up: the entity is about to let go.
                 s.rampPerSecond = 0f;
                 s.rampDelay = 99f;
+                r.reelRampPerSecond = 0f;
+                r.surge = 0f;
             }
             return s;
         }
+
+        /// <summary>Phase P (T6): <paramref name="earlierContests"/> over the same file this beat make the next one a mercy contest.</summary>
+        public bool MercyByCap(int earlierContests) => TugContestCap > 0 && earlierContests >= TugContestCap;
 
         /// <summary>
         /// Tug-of-war grip: min(cap, base * assist grip * trust * (1 + tugLosses * growth * assist growth)).
@@ -184,6 +202,10 @@ namespace SecondCursor.Core.Entity
             t.rampDelay = 2.5f;
             t.rampPerSecond = 0.18f;
             t.releaseGrace = 0.08f;
+            t.reel.herPull = 40f;
+            t.reel.surge = 90f;
+            t.reel.reelRampPerSecond = 25f;
+            t.reel.finishMax = 150f;
             p.GripBase = 0.68f;
             p.GripGrowth = 0.05f;
             p.GripCap = 1.40f;
@@ -192,6 +214,7 @@ namespace SecondCursor.Core.Entity
             p.RaceToNoDelayMax = 0.40f;
             p.InterceptDelay = 0.15f;
             p.DragDialogRadius = 80f;
+            p.TugContestCap = 3;
             p.CancelCrawl = 0.30f;
             p.CancelDelayMin = 0.30f;
             p.CancelDelayMax = 0.50f;
@@ -210,6 +233,10 @@ namespace SecondCursor.Core.Entity
             t.rampDelay = 2.0f;
             t.rampPerSecond = 0.22f;
             t.releaseGrace = 0.08f;
+            t.reel.herPull = 55f;
+            t.reel.surge = 120f;
+            t.reel.reelRampPerSecond = 35f;
+            t.reel.finishMax = 160f;
             p.GripBase = 0.74f;
             p.GripGrowth = 0.05f;
             p.GripCap = 1.50f;
@@ -226,6 +253,7 @@ namespace SecondCursor.Core.Entity
             p.CancelDelayMin = 0.25f;
             p.CancelDelayMax = 0.45f;
             p.KeepAwayAfter = 1;
+            p.TugContestCap = 3;
             p.UrgencyPerDefense = 0.18f;
             p.UrgencyCap = 2.4f;
             p.TaskHintFirst = 45f;
@@ -237,24 +265,18 @@ namespace SecondCursor.Core.Entity
         /// Story changes challenge only, never content (7.5). Its tug is a real 5 to 8 s struggle that holding on
         /// cannot lose: no tension snap, a player strength just above her grip, a slow share, and a slip shorter
         /// than half a second is forgiven. Holding still drifts toward the player very slowly; pulling decides.
+        /// Phase P, the reel: holding on creeps the file to the bin (her pull is -8 px/s), with no surges, no ramp and a gentler reel.
         /// </summary>
         static void Story(DifficultyProfile p)
         {
             var t = p.Tug;
-            t.startShare = 0.50f;
-            t.playerWinShare = 0.15f;
-            t.entityWinShare = 0.95f;
-            t.shareRate = 0.30f;
-            t.playerBaseStrength = 0.30f;
-            t.pullSpeedForFullStrength = 250f;
-            t.jiggleCredit = 0.0001f;
-            t.maxPlayerStrength = 0.65f;
-            t.effortSmoothing = 0.12f;
-            t.maxTension = StoryNoSnap;
-            t.strainTension = 300f;
-            t.rampDelay = 99f;
-            t.rampPerSecond = 0f;
-            t.releaseGrace = 0.45f;
+            StorySpeedTug(t);
+            t.reel.herPull = -8f;
+            t.reel.surge = 0f;
+            t.reel.reelRampPerSecond = 0f;
+            t.reel.finishMax = 140f;
+            t.reel.reelCap = 150f;
+            t.reel.reelGain = 1f;
             p.GripBase = 0.41f;
             p.GripGrowth = 0f;
             p.GripCap = 0.41f;
@@ -282,6 +304,43 @@ namespace SecondCursor.Core.Entity
             p.CodeFormatAfterFailures = 1;
             p.CodeGaryHint = 60f;
             p.CodeHint2Delay = 60f;
+        }
+
+        /// <summary>Story's speed-model tug, which the hold assist also plays in Speed mode.</summary>
+        static void StorySpeedTug(TugOfWarSettings t)
+        {
+            t.startShare = 0.50f;
+            t.playerWinShare = 0.15f;
+            t.entityWinShare = 0.95f;
+            t.shareRate = 0.30f;
+            t.playerBaseStrength = 0.30f;
+            t.pullSpeedForFullStrength = 250f;
+            t.jiggleCredit = 0.0001f;
+            t.maxPlayerStrength = 0.65f;
+            t.effortSmoothing = 0.12f;
+            t.maxTension = StoryNoSnap;
+            t.strainTension = 300f;
+            t.rampDelay = 99f;
+            t.rampPerSecond = 0f;
+            t.releaseGrace = 0.45f;
+        }
+
+        /// <summary>
+        /// Phase P (A2), "Tug assist: Hold", applied to a contest's settings after <see cref="DifficultyProfile.TugFor"/>: holding the button
+        /// brings the file to the finish in 3.5 s by itself and pulling makes it faster (a gentle reel); she neither pulls, surges nor ramps,
+        /// and a slip has 1 s to grab it again. In Speed mode the contest plays Story's tug.
+        /// </summary>
+        public static void HoldAssist(TugOfWarSettings s)
+        {
+            StorySpeedTug(s);
+            var r = s.reel;
+            r.holdSeconds = 3.5f;
+            r.herPull = 0f;
+            r.surge = 0f;
+            r.reelRampPerSecond = 0f;
+            r.reelCap = 150f;
+            r.reelGain = 1f;
+            r.regrip = 1f;
         }
     }
 
@@ -348,6 +407,9 @@ namespace SecondCursor.Core.Entity
         public const int WinsToLower = 2;
         public const float EasyWinSeconds = 0.45f;
         public const float EasyWinEffort = 1.8f;
+        /// <summary>Phase P, the reel's easy win: within this long after GET READY with a smoothed stroke of at least this (px/s).</summary>
+        public const float ReelEasyWinSeconds = 0.8f;
+        public const float ReelEasyWinStroke = 280f;
         /// <summary>Grip during a mercy contest (below every base strength: holding on cannot lose it).</summary>
         public const float MercyGrip = 0.15f;
         /// <summary>Player effort that counts toward the mercy release.</summary>
@@ -415,8 +477,11 @@ namespace SecondCursor.Core.Entity
             return InMercyContest;
         }
 
-        /// <summary>A tug-of-war ended (<paramref name="peakEffort"/> from <see cref="TugOfWar.PeakEffort"/>).</summary>
-        public void ReportTug(bool playerWon, float elapsed, float peakEffort)
+        /// <summary>
+        /// A tug-of-war ended (<paramref name="peakEffort"/> from <see cref="ITugContest.PeakEffort"/>, <paramref name="elapsed"/> from its
+        /// ActiveElapsed). Phase P: <paramref name="assisted"/> (the hold assist) wins never lower the level; its losses count as usual.
+        /// </summary>
+        public void ReportTug(bool playerWon, float elapsed, float peakEffort, TugModel model = TugModel.Speed, bool assisted = false)
         {
             bool mercy = InMercyContest;
             InMercyContest = false;
@@ -430,8 +495,11 @@ namespace SecondCursor.Core.Entity
                 // Phase F: a won tug does not clear the loss streak, so an attempt that wins the tug and then loses
                 // the confirm race still counts toward help.
                 _lossesAtMax = 0;
+                if (assisted) return;
                 WinStreak++;
-                bool easy = elapsed < EasyWinSeconds && peakEffort >= EasyWinEffort;
+                bool easy = model == TugModel.Reel
+                    ? elapsed < ReelEasyWinSeconds && peakEffort * TugReel.EffortSpeed >= ReelEasyWinStroke
+                    : elapsed < EasyWinSeconds && peakEffort >= EasyWinEffort;
                 if (WinStreak >= WinsToLower || easy)
                 {
                     WinStreak = 0;

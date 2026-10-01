@@ -1798,6 +1798,184 @@ Input: the review board's `board/ROADMAP.md` (Phase O) with `G_CodeHealth.md` (C
   Reduce flashing); a 75-minute soak and a Steam Deck run (CH4, phase T); `OSWindow`'s shake and the guard lerps' random jitter are still per frame; the Build
   Profiles window's handler was not clicked; the real Windows pointer was never moved by a test (a smoke test only reads the log line).
 
+### Phase P-a (reel tug model and runtime path)
+
+Input: the review board's `board/PhaseP_Plan.md`, steps P1 and P2 only, with `board/E_Tug.md` (E1 to E7) and its simulation in `board/tug/`.
+Phase P-b (the next run) does P3 to P6: the look, the content, the accessibility options, the Night 3 finale and the full verification.
+
+- **The reel, "haul it to the bin" (E1, E2, E4, E6).** Every fight runs from the grabbed file to the Disposal bin.
+  - *Reeling.* Each stroke toward the bin reels the file along a straight track: the forward part of the motion only, smoothed over 0.10 s,
+    capped at 300 px/s, x1.5. Motion away from the bin or across it counts nothing, so a return stroke with the button held is free (hand over
+    hand).
+  - *Her pull.* Her pointer rides 40 px behind the file and drags it back. Her pull fades in over 1.2 s on the night's first fight (and the first
+    after Story is chosen) and over 0.5 s otherwise, then ramps after the night's `rampDelay`. She surges every 0.9 to 1.4 s for 0.25 s (the first
+    0.6 to 1.0 s after GET READY), warned 0.15 s ahead (her pointer twitches back 3 px). Surges are seeded per fight and faded in with her pull.
+  - *Winning and losing.* The file at the finish is the player's: the bin, or a tear line at `finishMax` when the bin is further. Dragged back to
+    her line it is hers (90 px behind the grab, less at a screen edge, never under 50). There is no tension snap.
+  - *GET READY (0.4 s).* Nothing scores. A grab closer than 110 px to the bin's edge slides the file back to 110 px during it (her yank).
+  - *Letting go.* Past half way, letting go keeps the file: an ordinary drop where the pointer is. Below it, a press within 0.5 s (plus the
+    assist's release-grace add) grabs it again. The router swallows that press, so nothing under the pointer receives it. Meanwhile she pulls
+    twice as hard (at least 80 px/s). After the window she has it (`YOU LET GO`).
+  - *Inside GET READY* a release still loses after the night's short grace (Phase N); a press inside that grace is swallowed the same way.
+  - The player's pointer is never moved; the arrow leans at most 3 px toward her (was 5).
+- **Values (plan 1.5), at assist level 0 and the night's base grip** (`Difficulty.cs`; `ReelTablesMatchSection15`):
+
+  | | N1 | N2 | N3 | Story |
+  |---|---|---|---|---|
+  | her pull (px/s, x grip / GripBase) | 25 | 40 | 55 | -8 (the file creeps to the bin while held) |
+  | surge (px/s) / ramp (px/s per s, after rampDelay) | 60 / 15 after 3.0 s | 90 / 25 after 2.5 s | 120 / 35 after 2.0 s | none |
+  | finishMax / finishMin / her line (px) | 140 / 110 / 90 | 150 / 110 / 90 | 160 / 110 / 90 | 140 / 110 / 90 |
+  | reel cap (px/s) / gain | 300 / 1.5 | 300 / 1.5 | 300 / 1.5 | 150 / 1.0 |
+  | holding still loses at (from the grab, 20 seeds: median, range) | first 3.47 (3.17 to 3.63), later 3.05 | first 2.48 (2.32 to 2.67) | first 2.18 (2.07 to 2.30) | never (wins at 18.5 s) |
+
+  - *Assist (`TugFor`):* the reel gain is divided by the pull factor (L-1 x0.93, L1 x1.14, L2 x1.28, L3 x1.43). Surges are scaled by the grip
+    factor and the ramp by the ramp factor. The re-grip window adds the release-grace add (L3: 0.62 s). Grip growth on lost tugs reaches her
+    pull through the grip.
+  - *Mercy:* grip 0.15 (about 6 / 9 / 11 px/s), no ramp and no surges; `MercyRelease` is unchanged (2.5 s held, or 1 s at 45 px/s or more).
+  - *Easy win:* in the reel, within 0.8 s after GET READY with a smoothed stroke of 280 px/s or more (`ReelEasyWinSeconds`, `ReelEasyWinStroke`).
+  - *Hold-assist wins* (`assisted`) never lower the level.
+- **Core (engine-free).**
+  - New files: `Core/Entity/ITugContest.cs` (what the runtime reads from either model), `ReelSettings.cs`, `TugReel.cs` (`TugReel`,
+    `HaulGeometry`, `ScreenBounds`, `TugVariant` Fight / Hold / LetGo), `Core/Game/ClickLock.cs` (A2's filter: Core only until P-b wires it).
+  - `TugOfWar.cs`: `TugOutcome.Released`, `TugModel { Speed, Reel }`, the settings' `model` (Core default Speed, so every Phase F to N test runs
+    unchanged) and `reel` (deep-copied), `TugOfWar : ITugContest`. `ReelSettings` compares by value, so the Phase F test that compares every
+    settings field still holds.
+  - `Difficulty.cs`: the reel tables; `TugFor` resolves the fade, the assist, mercy and `gripBase`. `DifficultyTable.HoldAssist(s)` (P-b uses it:
+    a 3.5 s creep, cap 150, gain 1.0, a 1 s re-grip; Speed plays Story's tug). `TugContestCap` / `MercyByCap` (N2 and N3: 3; P-b applies it).
+    `AdaptiveAssist.ReportTug(won, elapsed, peak, model, assisted)`.
+  - `TugCoach`: `Step(..., reelSpeed)` and `ClassifyReel`. WrongWay when under 0.3 of the path went toward the bin; Stopped when the smoothed
+    stroke stayed under 40 px/s for 0.6 s at the end; TooSlow when the mean reel was under her mean pull plus 30.
+  - `Night3Rules`: `FinaleBinMode`, `BinMode`, `FightContestsBeforeLetGo`, `LetGoHoldSeconds`, `LetGoRetryHoldSeconds`, `LetGoLineAt` and
+    `TugLineSet(FinaleBinMode)` (T1's rules; P-b plays them). `AchievementRules.CountsTug`.
+- **Runtime.**
+  - *ConflictSystem* is split into partials. `ConflictSystem.cs` holds what both models share: start, tick, the strain feel, letting go,
+    mercy and forced outcomes, `End`. `ConflictSystem.Speed.cs` keeps Phase N's arrow, drift and tremble as they were. `ConflictSystem.Reel.cs`
+    places her pointer on the far end and the ghost on the track; her tremble and the file's shake are re-rolled every 1/60 s (`StepTimer`).
+  - *New members:* `IsReel`, `Reel`, `KeepLead` (0.75 in the reel, 0.6 in Speed), `InRegrip`, `LastWonIntoBin`, `LastKeptOnRelease`.
+    `PullDirection` is the bin's way in the reel.
+  - *End:*
+    - a win at the bin drops the file in as the player's own drop (`DragDropSystem.DropInto`), after the fight is recorded, so Confirm Shred and
+      Phase N's race follow as for any drop;
+    - a torn-loose win or a loss flies the ghost to the winner's hand (`SnapGhost`, 0.12 s);
+    - `Released` (the LetGo hold, P-b) hands the file back with no records, no assist report and no counters.
+  - *Router:* `PointerRouter.ContestRegrip` swallows the re-grip press (`AnyPointerDown(a, null)` still closes menus).
+  - *Others:* `AchievementWatcher` ignores `Released` (`CountsTug`). The release that ends a bin win's drag clicks nothing: checked on the
+    bridge with the pointer over Yes.
+- **The switch (E8).**
+  - `GameRoot.TugModel` (default **Reel**) is applied in `MakeDifficulty`. The launch argument `-sctug speed|reel` works in any build
+    (`GameBootstrap.PrepareLaunch`).
+  - The F1 panel's `Tug model` button and the bridge's `tugmode` change it from the next contest (`DebugOverlay.SetTugModel`).
+  - `GameRoot.DeckReelGainScale` (1.0, set from E8) scales the reel gain on a Steam Deck; `DeckPullSpeedScale` keeps its Speed meaning.
+- **Minimal HUD.** `TugHud` picks its words per model (`TugText`: `tug.*` and `notify.conflict*` for Speed, `haul.*` and `notify.haul*` for the
+  reel; 43 new base strings from plan 5.1, every one that names an input with a Deck twin).
+  - GET READY (amber): `SESSION 017 GRABBED IT. / PULL IT INTO THE BIN.`
+  - The fight: `haul.label.first` / `haul.label`.
+  - Past half way (green): `ALMOST IN. / KEEP PULLING.`
+  - The re-grip window (red): `YOU LET GO. / PRESS THE BUTTON AGAIN, NOW.`
+  - Results: `IT'S IN THE BIN.` (shown by the bin, clear of Confirm Shred), `YOU TORE IT LOOSE. / DROP IT IN THE BIN.`, `YOU KEPT THE FILE.`,
+    and `haul.lost.*` with the bin's direction (`YOU PULLED UP-LEFT. THE BIN IS DOWN-RIGHT.`). Each result is also a notice.
+  - The keep line sits at 0.75. Until P-b's rope and track exist, the reel reuses the 15-dot band (through her pointer, the file and the
+    player's) and both arrows, which now point at the bin.
+- **Bridge (`SecondCursorTestBridge.Haul.cs`).**
+  - `tugmode [reel|speed]`; `tugstate` (one line).
+  - `tugreel SPEED STROKE [swing|lift|keep] [PAUSE] [TIMEOUT] [SHOTPREFIX]`: strokes toward the bin with a swing back at 0.8x or a still
+    pause. A stroke blocked by the screen edge swings back. `keep` lets go once past half way.
+  - `tughold [SECONDS] [SHOTPREFIX]`; `tugslip AFTER GAP [SPEED] [STROKE]` (the button up AFTER s after GET READY for GAP s, then down).
+  - `ScriptedInput.ButtonNow`. `tugsteps` jumps toward the bin in the reel.
+  - Scripts and outputs: `_work/2026-10-01/phaseP/` (`gen_reel.py` writes `reel_*.cmd` and `speed_row.cmd`; saves under `saves/phaseP`).
+- **Balance port (E7, `_work/2026-09-29/balance/`).**
+  - `reel.py`: the C# reel as built, plus the board's players and geometry, self-contained, with mercy, growth, hold, LetGo, Deck gain and dt.
+  - `port.py`: `REEL*` tables and `reel_profile`. `scenario.py`: `tug_contest(model="reel")`; her race to No starts from the far end of the rope.
+  - `run_nights.py --model reel` writes `out_nights_reel.md`.
+  - `run_reel_targets.py` writes `out_reel_targets.md`: the board's reel column (5 contests x first-time, average, skilled, trackpad, Deck,
+    N = 1500) is reproduced within **1.5 points** (tolerance 3; the largest gap is N3 #1 first-time, 39% vs 40%).
+  - `check_reel_core.py` writes `out_check_reel_core.md`: a scalar twin of `TugReel` with the game's `Rng`. Its values match the C# tests
+    (hold-still medians above, the 150 px/s stream wins N1 by 1.30 s and N3 by 1.57 s, Story 18.50 s, the hold assist 3.90 to 3.92 s, LetGo
+    3.42 / 1.92 s, frame rates within 0.02 s).
+  - Night chains (`out_nights_reel.md`, N = 400), shred done in the beat, speed / reel:
+    - N1 first-time 4% / 16%, average 36% / 50%, skilled 99% / 100% (Night 1's race to No and Cancel are the wall); Nights 2 and 3 100%
+      both ways; Story N1 first-time 87% / 94%;
+    - median fight 1.0 to 2.2 s;
+    - the Night 3 finale's Fight-mode first fight (grip x1.1) is still the spike: first-time 35%, average 91%, skilled 97%.
+  - Expansion 7.7's reel table and BalanceReport section 10 are P-b (plan P6).
+- **Bridge table** (the reel, Normal unless noted; the result, seconds from the grab, re-grips and how it ended; `in bin` = the finish was the bin
+  and the file dropped in, `tear` = torn loose at the tear line; `phaseP/reel_*.out`).
+  - *Rows:* Night 1's first contest, then its second after a won first at 450 px/s (an easy win, so at L-1). Night 2's 209. Night 3 before the
+    finale (the Ruth beat, 017 dragged from Intake: every grab came within 110 px of the bin and slid back to 110). Story Night 1 (assist +2).
+  - *Columns:* `tugreel S 120 swing` (600: 150 px strokes); PAD = `tugreel 420 150 lift 0.25`; HOLD = `tughold`; SLIP = `tugslip 0.2 GAP 300`;
+    KEEP = `tugreel 300 120 keep`.
+
+  | | R150 | R300 | R450 | R600 | PAD | HOLD | SLIP 0.3 s | SLIP 0.7 s | KEEP |
+  |---|---|---|---|---|---|---|---|---|---|
+  | N1 first | won 2.35 tear | won 1.33 tear | won 1.05 | won 0.95 | won 1.01 | lost 3.45, held still | won 1.48, 1 re-grip | lost 1.11, let go | kept 1.16 (71/140) |
+  | N1 second (L-1) | won 2.59 | won 1.41 | won 1.33 | won 1.21 | won 1.05 | lost 2.72, held still | won 2.00, 1 re-grip | lost 1.10, let go | kept 1.23 (71/140) |
+  | N2 first (209) | won 2.52 tear | won 1.44 | won 1.32 | won 1.02 | won 1.03 | lost 2.53, held still | won 2.00, 1 re-grip | lost 1.11, let go | kept 1.20 (75/150) |
+  | N3 Ruth beat | won 2.46 in bin | won 1.32 in bin | won 0.94 in bin | won 0.82 in bin | won 1.06 in bin | lost 2.25, held still | won 1.41 in bin, 1 re-grip | lost 1.10, let go | kept 1.14 (55/110) |
+  | Story N1 (L2) | won 2.18 | won 1.96 | won 1.52 | won 1.43 | won 1.45 | never lost: won 18.50 | won 2.09, 1 re-grip | lost 1.19, let go | kept 1.26 (71/140) |
+
+  - Night 1 and Night 2's finishes were tear lines (their grabs were 240 px or more from the bin).
+  - Holding still loses within 0.3 s of the table times; slips caught at 0.3 s go on and win, slips of 0.7 s lose as `YOU LET GO`.
+  - A grab next to the bin slides back to 110 px: shots `p_n3_*` (`p_n3_strip.png`).
+  - After a win into the bin, the release over Yes clicks nothing: `p_binwin_*`, Confirm Shred stays open with the race line.
+  - *Speed regression (`tugmode speed`, Phase N's 400 px/s row, reaction 0.25 s, pull time to the release):* N1 0.35 / 0.43 s, N2 0.57 /
+    0.56 s, N3 (finale) 0.68 / 0.73 s, all won (Phase N: 0.43 / 0.43, 0.54 / 0.56, 0.71 / 0.64).
+- **Checks.** CoreTests 467 pass (440 before: `ReelTests` 20 and `PhasePTests` 7 are new). CompileCheck: all 8 configurations OK. 0 compiler
+  warnings in the game's scripts.
+- **Regression from the title on a fresh save, the reel as the default** (`phaseP/run_reg.sh`: Phase O's `reg_n1` to `reg_n3` and the three
+  endings, saves `saves/phaseP/reg`, finale copy `reg_finale`). 0 game errors on every run.
+  - Night 1 to its card (`WS-04 went dark at 2:19 AM. The file came back.`; the 450 px/s pull won the reel, torn loose, then dropped on the bin
+    and shredded).
+  - Night 2 to its card (`You shredded employee_209.dat.`; the reel won).
+  - Night 3 to the 6:41 rule, then each ending from that checkpoint: SHRED (`You put employee_017.dat in the bin and shredded it.`, Phase O's
+    forced win, now through the reel's end), LOG OFF (`You logged off with session 017 still open.`), KEEP (`It was 7:05 AM and you were still
+    logged on.`).
+  - The `TIMEOUT` and `ERROR: no element` lines are the same script waits as Phase O's (Night 2: 3, Night 3: 4, log off: 2).
+- **Review** (a code-reviewer pass: no CRITICAL or HIGH). Fixed:
+  - a press inside GET READY's release grace was not swallowed;
+  - a file dragged to her line while the button was up was reported as "pulled harder" rather than "you let go";
+  - the speed model's kept result showed the final lead instead of a full bar;
+  - the bin drop ran before the fight was recorded (a throwing handler would have skipped the records);
+  - the bridge's `TugEnded` handler is removed in a `finally`.
+
+  Left as designed: the Core-only P-b hooks (`ClickLock`, `HoldAssist`, the cap, `BinMode`, the Hold and LetGo variants and their keys).
+- **Judgement calls.**
+  - The strain feel (loop, grain, shake, Phase O's `ChanceAt60` strain glitch with its 0.4 s cooldown) is shared by both models in
+    `ConflictSystem.Feel`, not copied into `Speed.cs`.
+  - Until P-b's `HaulView`, the reel draws the old band and keeps the small file arrow (pointing at the bin), so the fight is never without a
+    visible line.
+  - The reel's ramp delay is the speed settings' `rampDelay` (the same 3.0 / 2.5 / 2.0, and mercy's 99); the plan's field list has none of
+    its own.
+  - In the LetGo hold, a release past half way keeps the file (a win, as everywhere); only below it is `Released`.
+  - `ReelSpeed` is the smoothed stroke (pointer px/s); `MeanReel` and `MeanPull` are track px/s.
+  - Two tests are stated more precisely than the plan's one-line spec:
+    - Story's "100 px/s wins in 2 to 5 s" uses hand-over-hand strokes (a steady 100 px/s stream wins in about 1.6 s at Story's +2);
+    - hold-still times are checked as the median of 20 surge seeds in the plan's band, each seed within 0.3 s of the table time.
+  - The balance chain decides whether a fight happens with the shipped intercept, but plays it on the board's geometry (mid-path, Night 2's
+    lunge, retries). The speed chain's early grab lets the planned drag carry the file in (N3 Fight first-time 83% instead of 37%), which the
+    board never validated.
+  - On the bridge, a slip comes 0.2 s after GET READY (not the plan's 0.8 s), so it is below half way in every row. A blocked stroke swings back
+    in every pattern, as the board's player model does; a lift at the edge would leave the pointer stuck. KEEP uses `tugreel ... keep`
+    (`tughuman`'s straight pull turns away at a near-bin grab).
+  - The task hints, Help and Welcome back still describe the speed tug. They are P4's content rewrite (P-b), with the tests the plan lists as
+    changing with them. The reel's own panel and notices are new and correct.
+- **For P-b (next run), in plan order.**
+  - *P3, look and sound:* `HaulView` (rope, track, her line, tear line, progress fill, covered-bin ring) replacing the band and the small arrow
+    in the reel. Surge telegraph and surge audio and visuals (`SurgeWarned` / `Surged` events). The R1 `TugHud` (2x word, compact meter,
+    placement off the track). `FocusDim`, `Notifications.Hold`. Win and loss beats: bin jolt, whip, `PulseGhost`, flinch flicker, MINE in
+    `NightDirector.Tug.cs`.
+  - *P4, content:* help, Welcome back, the three task hints and `task.017.lost.hint`, `haul.word*`, the hold and LetGo keys
+    (`haul.ready.hold`, `haul.label.hold`, `haul.ready.letgo`, `haul.label.letgo`, `haul.letgo.released`), the PhaseJ / L / N / Night3 test
+    updates, HowToPlay and MarketingPackFull.
+  - *P5, accessibility and the finale:*
+    - A2: `AccessSettings`, the settings fields, the Pause rows, `HoldAssist` at contest start with `assisted` in Speed too, the `ClickLock`
+      filter in `GameRoot` stage 1 with its tip and cursor;
+    - T1: `ConflictSystem.Customize`, `Night3Director.LetGo.cs`, `EntityBrain.LetsGo` with `FollowFile` / `RestOnYes`, `Released` with no
+      defense, `ShredService.Raced`, `KeepByTime` waiting for a hold;
+    - T6: per-file contests per beat, `ResetBeat`, `MercyByCap`.
+  - *P6, verification:* `heldpath`, the full 4.5 table (mercy, hold assist, click lock, the finale LetGo and Fight rows, Deck and Large text
+    shots), the regressions, both builds, smoke tests and the spoiler grep, Expansion 7.7 and BalanceReport 10.
+  - *E8 then P7:* real hands on mouse, trackpad and Deck; set `DeckReelGainScale`; delete the losing model.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -1823,6 +2001,7 @@ tugsteps 30 0.1 8 0.3 | tughuman 400 5 j_ahead   # Phase J: the blind testers' t
 tugangle 90 400 1.2      # Phase K: in a tug, pull at 90 degrees from the arrow at 400 px/s for 1.2 s, then hold; prints the loss reason
 sfx 20 | sfxclear | sfxwait scare_hit 30 | sfxorder sub_swell scare_hit | sfxreport | scares | sfxrecord start | sfxrecord stop D:\...\x.wav | shotsafter m_keep 4.2 4.5   # Phase M
 soundcold | fault beat|app|click 2 | fps 144 | flashrate 150 title60 | flashwatch start tug1 ... flashwatch stop   # Phase O: a cold sound bank start, a deliberate exception at a catch point, a frame rate cap now, flash event counts
+tugmode speed | tugstate | tugreel 300 120 swing | tugreel 420 150 lift 0.25 | tugreel 300 120 keep | tughold 8 | tugslip 0.2 0.3 300   # Phase P: the tug model, the fight in one line, reel patterns with the button held
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

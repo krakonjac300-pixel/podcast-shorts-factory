@@ -142,7 +142,17 @@ namespace SecondCursor.Input
             foreach (var p in _active)
             {
                 if (!_ghosts.TryGetValue(p, out var g) || g == null) continue;
-                if (!p.Contested && p.Holder != null) p.GhostPosition = p.Holder.Position - p.GrabOffset;
+                if (!p.Contested && p.Holder != null)
+                {
+                    Vector2 hand = p.Holder.Position - p.GrabOffset;
+                    if (p.SnapLeft > 0f)
+                    {
+                        p.SnapLeft -= dt;
+                        float k = 1f - Mathf.Clamp01(p.SnapLeft / p.SnapSeconds);
+                        hand = Vector2.Lerp(p.SnapFrom, hand, k * (2f - k));
+                    }
+                    p.GhostPosition = hand;
+                }
                 Place(g, p.GhostPosition);
             }
 
@@ -171,6 +181,25 @@ namespace SecondCursor.Input
             winner.Payload = p;
             p.GrabOffset = winner.Position - p.GhostPosition;
             p.GrabOffset = new Vector2(Mathf.Clamp(p.GrabOffset.x, 4f, 28f), Mathf.Clamp(p.GrabOffset.y, -28f, -4f));
+        }
+
+        /// <summary>Phase P: the ghost flies from <paramref name="from"/> (top-left) to its holder's hand over <paramref name="seconds"/> instead of jumping.</summary>
+        public void SnapGhost(DragPayload p, Vector2 from, float seconds)
+        {
+            p.SnapFrom = from;
+            p.SnapSeconds = p.SnapLeft = seconds;
+        }
+
+        /// <summary>
+        /// Phase P: <paramref name="by"/> drops the payload onto <paramref name="target"/> without letting go of the button (a tug hauled into
+        /// the Disposal bin), exactly as a release over it would: the target takes it and the drag ends.
+        /// </summary>
+        public void DropInto(DragPayload p, CursorAgent by, Interactable target)
+        {
+            if (by.Payload == p) by.Payload = null;
+            p.Dropped = true;
+            target.RaiseDrop(by, p);
+            Finish(p, true, by);
         }
 
         /// <summary>Stops the drag and flies the ghost back to its origin.</summary>

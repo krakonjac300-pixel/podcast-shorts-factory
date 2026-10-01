@@ -20,6 +20,8 @@ namespace SecondCursor.Entity
     /// fight says why (you let go, or she pulled harder), and a file she takes while you are not holding it says so.
     /// Phase J (third blind playtest): the label says what winning looks like (the bar is yours past its line, then letting
     /// go drops the file), the arrow points toward open screen, and the result stays up longer and is also posted as a notice.
+    /// Phase P: the reel's words (haul.*, <see cref="TugText"/>): the arrows point at the bin, the keep line sits at half way, and the
+    /// re-grip window says GRAB IT.
     /// </summary>
     public sealed class TugHud : MonoBehaviour
     {
@@ -35,7 +37,7 @@ namespace SecondCursor.Entity
         int _textH;
         float _resultUntil = -1f;
         Vector2 _anchor;
-        bool _refusedShown, _ahead;
+        bool _refusedShown;
         CursorAgent _winner;
         /// <summary>Pixel-art arrow on the contested file: dark backing squares under bright ones.</summary>
         readonly List<Image> _arrowBack = new List<Image>();
@@ -198,32 +200,44 @@ namespace SecondCursor.Entity
             if (p != null) _first = _g.Tips.Claim("tug");
             _refusedShown = false;
             _resultUntil = -1f;
-            if (_g.Conflict.InReady) ShowReadyText();
-            else ShowFightText(false);
+            ShowFight(FightState());
             _panel.gameObject.SetActive(true);
             GameLog.Info(LogChannel.Entity, "Tug HUD shown");
             Place(_g.Conflict.ObjectPosition);
         }
 
-        /// <summary>Phase N: the GET READY beat is on the label (amber), before the fight's own words.</summary>
-        bool _ready;
+        /// <summary>
+        /// What the label says while a fight runs: Phase N's GET READY (amber), the fight's own words, Phase P's re-grip window (red) and,
+        /// past the keep line, that letting go now keeps the file (green).
+        /// </summary>
+        enum FightText { None, Ready, Pull, Regrip, Ahead }
+        FightText _shown;
         /// <summary>A deep amber that reads on the pale label (the taskbar clock's).</summary>
         static readonly Color32 ReadyText = new Color32(0xA8, 0x62, 0x00, 0xFF);
 
-        void ShowReadyText()
+        /// <summary>Phase P: the words of the model in play (the speed model's tug.*, the reel's haul.*).</summary>
+        TugModel Model => _g.Conflict.CurrentSettings.model;
+        string Key(string part) => TugText.Key(Model, _g.Conflict.Reel != null ? _g.Conflict.Reel.Variant : TugVariant.Fight, part);
+
+        FightText FightState()
         {
-            _ready = true;
-            SetText(F("tug.ready", _g.Conflict.ArrowDirection), ReadyText, true);
+            var c = _g.Conflict;
+            return c.InReady ? FightText.Ready : c.InRegrip ? FightText.Regrip : c.PlayerKeepsOnRelease ? FightText.Ahead : FightText.Pull;
         }
 
-        /// <summary>Phase J: what to do, and once the bar is past its line, that letting go now keeps the file.</summary>
-        void ShowFightText(bool ahead)
+        void ShowFight(FightText state)
         {
-            _ready = false;
-            _ahead = ahead;
-            // Phase K: the label names the arrow's direction ("HOLD AND DRAG DOWN-LEFT UNTIL THE BAR IS YOURS.").
-            SetText(ahead ? T("tug.ahead", "THE BAR IS YOURS.\nLET GO ON THE BIN OR A FOLDER.")
-                : F(_first ? "tug.label.first" : "tug.label", _g.Conflict.ArrowDirection), ahead ? Palette.Green : Palette.Text, true);
+            _shown = state;
+            // Phase K: the speed model's lines name the arrow's direction ("HOLD AND DRAG DOWN-LEFT UNTIL THE BAR IS YOURS.").
+            string way = _g.Conflict.ArrowDirection;
+            bool fight = _g.Conflict.Reel == null || _g.Conflict.Reel.Variant == TugVariant.Fight;
+            switch (state)
+            {
+                case FightText.Ready: SetText(F(Key("ready"), way), ReadyText, true); break;
+                case FightText.Regrip: SetText(F(Key("regrip"), way), Palette.Red, true); break;
+                case FightText.Ahead: SetText(F(Key("ahead"), way), Palette.Green, true); break;
+                default: SetText(F(Key(_first && fight ? "label.first" : "label"), way), Palette.Text, true); break;
+            }
         }
 
         string F(string key, params object[] args) => _g.Content != null ? _g.Content.Format(key, args) : key;
@@ -246,30 +260,46 @@ namespace SecondCursor.Entity
         {
             var c = _g.Conflict;
             _first = false;
+            _shown = FightText.None;
+            _resultUntil = Time.unscaledTime + ResultSeconds;
+            UpdateArrow(_arrowAt, true, 0.45f);
+            UpdateBigArrow(false);
+            if (outcome == TugOutcome.Released)
+            {
+                // Phase P: the finale's LetGo hold was let go early: nobody won, and the file lies where the pointer let go of it.
+                SetText(T("haul.letgo.released", "YOU LET GO. THE FILE IS STILL HERE.\nGRAB IT AGAIN."), Palette.Text, false);
+                _winner = _g.Player;
+                GameLog.Info(LogChannel.Entity, "Tug HUD: released");
+                return;
+            }
             bool won = outcome == TugOutcome.PlayerWins;
             bool letGo = !won && c.LastLostByRelease;
             // Phase I: a lost fight says why. Phase K: from what the pointer really did, with the arrow's direction by name ("YOU
             // PULLED LEFT. THE ARROW POINTED DOWN."), and the bar stays up where it ended, so the player sees how close it was.
-            string reason = won ? "won" : ReasonKey(c.LastLossReason);
-            SetText(won ? T("tug.won", "YOU KEPT THE FILE.") : F("tug.lost." + reason, c.LastArrowDirection, c.LastPlayerDirection),
-                won ? Palette.Green : Palette.Red, true);
-            SetMeter(won ? 1f : c.LastFinalLead);
-            UpdateArrow(_arrowAt, true, 0.45f);
-            UpdateBigArrow(false);
-            _resultUntil = Time.unscaledTime + ResultSeconds;
+            // Phase P, the reel: a win says where the file is (in the bin, torn loose, or kept where it was let go).
+            bool kept = won && Model == TugModel.Reel && c.LastKeptOnRelease;
+            string reason = !won ? ReasonKey(c.LastLossReason) : Model == TugModel.Speed || c.LastWonIntoBin ? "won" : kept ? "kept" : "won.tear";
+            SetText(won ? F(Key(reason)) : F(Key("lost." + reason), c.LastArrowDirection, c.LastPlayerDirection), won ? Palette.Green : Palette.Red, true);
+            SetMeter(won && !kept ? 1f : c.LastFinalLead);
             _winner = won ? _g.Player : _g.EntityAgent;
-            GameLog.Info(LogChannel.Entity, "Tug HUD: " + (won ? "kept" : "taken (" + reason + ")"));
+            if (c.LastWonIntoBin)
+            {
+                // Phase P: the file is in the bin and Confirm Shred is opening under the pointer: the result stays by the bin.
+                _winner = null;
+                _anchor = _g.Desktop.DisposalIcon.Hit.Center;
+            }
+            GameLog.Info(LogChannel.Entity, "Tug HUD: " + (won ? "kept (" + reason + ")" : "taken (" + reason + ")"));
             string name = p != null && !string.IsNullOrEmpty(p.Label) ? p.Label : "the file";
             // Let go over the bin mid-fight: the bin did not ignore the drop, the other session still held the file.
             if (letGo && !_refusedShown && OverDisposal(_g.Conflict.LastEndPlayerPosition))
             {
                 _refusedShown = true;
-                _g.Notifications.Show(T("app.disposal", "Disposal"), _g.Content.Format("tug.refused", name), "icon_error", null, "sys_error");
+                _g.Notifications.Show(T("app.disposal", "Disposal"), _g.Content.Format(Key("refused"), name), "icon_error", null, "sys_error");
                 GameLog.Info(LogChannel.OS, "Disposal refused " + name + ": still held by session 017");
                 return;
             }
             // Phase J: the result is also a notice, for a player who was looking somewhere else when the fight ended.
-            string key = won ? "notify.conflict.won" : reason == "pulled" ? "notify.conflict" : "notify.conflict." + reason;
+            string key = TugText.NoticeKey(Model, reason == "pulled" ? "" : reason);
             _g.Notifications.Show(T("os.name", "NEXUS OS"), _g.Content.Format(key, name, c.LastArrowDirection, c.LastPlayerDirection),
                 won ? "icon_info" : "icon_error", null, won ? "ui_select" : "sys_warning");
         }
@@ -318,7 +348,7 @@ namespace SecondCursor.Entity
             _themText.rectTransform.At(Width - Pad - 30, y - 2, 30, 12);
             _meter.At(Pad + 30, y, inner - 60, MeterH);
             // The keep line stands out above and below the bar.
-            _line.rectTransform.At(Mathf.Round(TugOfWar.ReleaseKeepLead * (inner - 62)), -3, 2, MeterH + 6);
+            _line.rectTransform.At(Mathf.Round(_g.Conflict.KeepLead * (inner - 62)), -3, 2, MeterH + 6);
         }
 
         void SetMeter(float lead)
@@ -389,7 +419,7 @@ namespace SecondCursor.Entity
             if (c != null && c.IsFighting)
             {
                 if (!_meter.gameObject.activeSelf) OnStarted(null);
-                if (_ready ? !c.InReady : c.PlayerKeepsOnRelease != _ahead) ShowFightText(!_ready && !_ahead);
+                if (FightState() != _shown) ShowFight(FightState());
                 SetMeter(c.PlayerLead);
                 Place(c.ObjectPosition);
                 UpdateArrow(c.ObjectPosition, true);

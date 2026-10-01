@@ -17,6 +17,9 @@ namespace SecondCursor.Core.Story
     /// <summary>The three ways Night 3 ends (spec 6.1).</summary>
     public enum Night3Exit { None, Shred, LogOff, Keep }
 
+    /// <summary>Phase P (T1): the finale's fight over 017 at the bin: she holds on and lets it go (LetGo), or she fights it (Fight).</summary>
+    public enum FinaleBinMode { LetGo, Fight }
+
     /// <summary>
     /// Night 3's rules as pure functions (expansion spec 5 and 6), so they are unit-tested: when Log Off works,
     /// what the edited config files say, how trust changes the last fight, the CAM 04 shelf rule, the KEEP
@@ -78,6 +81,23 @@ namespace SecondCursor.Core.Story
 
         /// <summary>Her line when the first tug over 017 starts in the finale.</summary>
         public static string TugLineSet(float trust) => trust >= TrustLetGo ? "n3_tug_letgo" : "n3_tug_refuse";
+
+        /// <summary>Phase P (T1): Fight-mode finale contests she wins before her hand gives up and the mode turns to LetGo.</summary>
+        public const int FightContestsBeforeLetGo = 2;
+        /// <summary>Phase P (T1): the LetGo hold brings 017 to the finish this long after GET READY; after an early release, the shorter one.</summary>
+        public const float LetGoHoldSeconds = 3f, LetGoRetryHoldSeconds = 1.5f;
+        /// <summary>Phase P (T1): her paced Jotter lines start at these shares of the hold's progress.</summary>
+        public static readonly float[] LetGoLineAt = { 0f, 0.4f, 0.73f };
+
+        /// <summary>
+        /// Phase P (T1): she lets 017 go unless trust is very low; a reply asking her to let go, her name, or
+        /// <see cref="FightContestsBeforeLetGo"/> refused contests turn even that into a hold.
+        /// </summary>
+        public static FinaleBinMode BinMode(float trust, bool saidLetGo, bool saidName, int refusedContests) =>
+            trust > TrustHard || saidLetGo || saidName || refusedContests >= FightContestsBeforeLetGo ? FinaleBinMode.LetGo : FinaleBinMode.Fight;
+
+        /// <summary>Phase P (T1): her line when the first finale contest over 017 starts.</summary>
+        public static string TugLineSet(FinaleBinMode mode) => mode == FinaleBinMode.LetGo ? "n3_tug_letgo" : "n3_tug_refuse";
 
         /// <summary>Her last words while 017 is shredded.</summary>
         public static string ShredLastWordsSet(float trust) => trust >= TrustLetGo ? "n3_shred_last_a" : "n3_shred_last_b";

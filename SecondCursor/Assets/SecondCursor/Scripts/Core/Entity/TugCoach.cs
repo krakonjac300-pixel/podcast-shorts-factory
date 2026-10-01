@@ -41,11 +41,18 @@ namespace SecondCursor.Core.Entity
         /// so "too slowly" is judged on the pull after it, never on the reaction.
         /// </summary>
         public const float ReactionSeconds = 0.3f;
+        /// <summary>
+        /// Phase P, the reel: under this share of the path toward the bin the pull went the wrong way (hand over hand moves toward the bin
+        /// about half the time, so it is never wrong); a smoothed stroke under <see cref="ReelStoppedSpeed"/> for <see cref="ReelStoppedFor"/>
+        /// at the end had stopped (a return stroke or a trackpad lift is shorter); her mean pull beat the mean reel by less than
+        /// <see cref="ReelSlowMargin"/>: too slow.
+        /// </summary>
+        public const float ReelWrongWayShare = 0.3f, ReelStoppedSpeed = 40f, ReelStoppedFor = 0.6f, ReelSlowMargin = 30f;
 
         readonly Vec2 _arrow;
         Vec2 _start, _last;
         bool _started;
-        float _held, _along, _path, _still;
+        float _held, _along, _path, _still, _forward, _reelStill;
 
         /// <param name="arrow">The way to drag (need not be normalised).</param>
         public TugCoach(Vec2 arrow)
@@ -77,7 +84,26 @@ namespace SecondCursor.Core.Entity
             _path += delta.Length;
             float along = Vec2.Dot(delta, _arrow);
             _along += along;
+            _forward += Math.Max(0f, along);
             _still = along / dt < PullingSpeed ? _still + dt : 0f;
+        }
+
+        /// <summary>Phase P: one frame of a reel fight, with the reel's smoothed stroke toward the bin (<see cref="TugReel.ReelSpeed"/>).</summary>
+        public void Step(float dt, Vec2 pointer, bool holding, float reelSpeed)
+        {
+            Step(dt, pointer, holding);
+            if (holding && dt > 0f) _reelStill = reelSpeed < ReelStoppedSpeed ? _reelStill + dt : 0f;
+        }
+
+        /// <summary>Phase P: why a reel fight was lost, from the pointer and the reel's means (<see cref="TugReel.MeanReel"/>, MeanPull).</summary>
+        public TugLossReason ClassifyReel(bool letGo, float meanReel, float meanPull)
+        {
+            if (letGo) return TugLossReason.LetGo;
+            if (_path < StillPath) return TugLossReason.HeldStill;
+            if (_forward < _path * ReelWrongWayShare) return TugLossReason.WrongWay;
+            if (_reelStill >= ReelStoppedFor && _held > _reelStill) return TugLossReason.Stopped;
+            if (meanReel < meanPull + ReelSlowMargin) return TugLossReason.TooSlow;
+            return TugLossReason.Overpowered;
         }
 
         /// <param name="letGo">The fight ended because the player released the button below the line.</param>

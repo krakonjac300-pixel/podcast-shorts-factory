@@ -2,7 +2,11 @@ using System;
 
 namespace SecondCursor.Core.Entity
 {
-    public enum TugOutcome { None, PlayerWins, EntityWins }
+    /// <summary>Released (Phase P): the finale's LetGo hold was let go early; nobody won and nothing was taken.</summary>
+    public enum TugOutcome { None, PlayerWins, EntityWins, Released }
+
+    /// <summary>Phase P: which tug the runtime plays. Speed is the Phase N model (an arrow, a bar); Reel is "haul it to the bin" (<see cref="TugReel"/>).</summary>
+    public enum TugModel { Speed, Reel }
 
     /// <summary>Designer-tunable feel parameters for the file tug-of-war.</summary>
     [Serializable]
@@ -44,8 +48,16 @@ namespace SecondCursor.Core.Entity
         /// (the simulations).
         /// </summary>
         public float readySeconds;
+        /// <summary>Phase P: the model this contest plays (the Core default stays Speed; the runtime chooses, <c>GameRoot.TugModel</c>).</summary>
+        public TugModel model = TugModel.Speed;
+        public ReelSettings reel = new ReelSettings();
 
-        public TugOfWarSettings Clone() => (TugOfWarSettings)MemberwiseClone();
+        public TugOfWarSettings Clone()
+        {
+            var c = (TugOfWarSettings)MemberwiseClone();
+            c.reel = reel != null ? reel.Clone() : new ReelSettings();
+            return c;
+        }
     }
 
     /// <summary>
@@ -97,12 +109,8 @@ namespace SecondCursor.Core.Entity
         }
 
         /// <summary>Distance from <paramref name="p"/> along the unit direction <paramref name="d"/> to the edge of the usable screen.</summary>
-        public static float RoomAlong(Vec2 p, Vec2 d, float width, float height, float bottom)
-        {
-            float rx = d.x > 1e-4f ? (width - p.x) / d.x : d.x < -1e-4f ? p.x / -d.x : float.MaxValue;
-            float ry = d.y > 1e-4f ? (height - p.y) / d.y : d.y < -1e-4f ? (p.y - bottom) / -d.y : float.MaxValue;
-            return Math.Max(0f, Math.Min(rx, ry));
-        }
+        public static float RoomAlong(Vec2 p, Vec2 d, float width, float height, float bottom) =>
+            HaulGeometry.RoomAlong(p, d, new ScreenBounds(width, height, bottom));
 
         static Vec2 Rotate(Vec2 v, float degrees)
         {
@@ -118,7 +126,7 @@ namespace SecondCursor.Core.Entity
     /// loses. Positions are inputs; the model outputs who holds how much, where the object sits and a
     /// 0..1 strain value that drives shake/audio. Fully deterministic and unit-tested.
     /// </summary>
-    public sealed class TugOfWar
+    public sealed class TugOfWar : ITugContest
     {
         /// <summary>
         /// Phase J: the meter reading (<see cref="PlayerLead"/>) from which letting go keeps the file (the release is an ordinary

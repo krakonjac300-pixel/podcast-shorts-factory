@@ -55,7 +55,7 @@ namespace SecondCursor.EditorTools
                     if (a.Length > 1 && a[1] == "stop") FlashWatchStop();
                     else FlashWatchStart(a.Length > 2 ? a[2] : "flash");
                     return Done();
-                default: return null;
+                default: return TryGameHaulCommand(g, cmd, a, rest);
             }
         }
 

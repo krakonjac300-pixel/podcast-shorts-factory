@@ -21,7 +21,7 @@ namespace SecondCursor.EditorTools
             "Phase F: dragtug X Y DUR [HOLD] (drag toward X Y, wait there up to HOLD s, stop when a tug starts; prints the grab time) | tugplay SPEED [TIMEOUT] (yank away from her at SPEED px/s until the tug ends; 0 = hold still)\n" +
             "         waitaction NAME [TIMEOUT] (the second cursor's current behaviour, e.g. Lurk) | tugs (tug totals this shift)\n" +
             "Phase I: clockmon start|report|stop (samples the taskbar clock every editor frame and counts steps back) | clockcheck (the clock's own counters)\n" +
-            "Phase J: tugsteps STEP INTERVAL COUNT HOLD (button held: COUNT jumps of STEP px away from her every INTERVAL s, hold HOLD s, let go; prints the result)\n" +
+            "Phase J: tugsteps STEP INTERVAL COUNT HOLD (button held: COUNT jumps of STEP px away from her (the reel: toward the bin) every INTERVAL s, hold HOLD s, let go; prints the result)\n" +
             "         tughuman SPEED [TIMEOUT] [SHOT] (in a tug: pull along the arrow at SPEED px/s until the bar is yours, then let go; prints the result)\n" +
             "Phase K: tugangle DEGREES SPEED [PULLSECONDS] (in a tug: pull at DEGREES from the arrow, 0 = along it, for PULLSECONDS, then hold still until it ends; prints the loss reason)\n";
 
@@ -167,7 +167,8 @@ namespace SecondCursor.EditorTools
                 if (done < count && t >= done * interval)
                 {
                     done++;
-                    Vector2 away = pos - gg.EntityAgent.Position;
+                    // Phase P: in the reel the jumps go toward the bin (the way that fight is won); in the speed model, away from her.
+                    Vector2 away = gg.Conflict.IsFighting && gg.Conflict.IsReel ? gg.Conflict.PullDirection : pos - gg.EntityAgent.Position;
                     return pos + RoomyDirection(pos, away.sqrMagnitude < 1f ? Vector2.left : away.normalized) * step;
                 }
                 return t < count * interval + hold ? pos : (Vector2?)null;
