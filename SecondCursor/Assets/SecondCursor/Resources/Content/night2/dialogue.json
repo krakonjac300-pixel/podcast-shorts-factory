@@ -5,6 +5,7 @@
       "voice": "",
       "entityLines": ["YOU CAME BACK"],
       "responses": [
+        { "keywords": [], "reply": ["{NAME}", "THEY WROTE CASEY AGAIN"], "tag": "myname" },
         { "keywords": ["=ellen", "=ellens", "=marsh", "ellen marsh"], "reply": ["WHO TOLD YOU THAT"], "tag": "name" },
         { "keywords": ["unplug", "=patch", "=pell", "driver", "device", "=hand"], "reply": ["HE PATCHES IT EVERY YEAR", "MY HAND STAYS"], "tag": "" },
         { "keywords": ["fuck off", "fuck you", "piss off", "screw you", "go to hell", "make me", "no way", "nope", "never", "wont", "won't", "will not", "refuse", "not doing"], "reply": ["YOU CAME BACK ANYWAY"], "tag": "" },
@@ -39,6 +40,7 @@
       "voice": "gary",
       "entityLines": ["casey?", "its gary", "i had your chair"],
       "responses": [
+        { "keywords": [], "reply": ["{name}?", "they told me casey"], "tag": "myname" },
         { "keywords": ["=ellen", "=ellens", "=marsh", "ellen marsh"], "reply": ["don't let her hear you", "she forgets it"], "tag": "" },
         { "keywords": ["glasses", "spectacles", "specs"], "reply": ["my glasses", "that's why everything's blurry"], "tag": "glasses" },
         { "keywords": ["=mug", "duck", "ducks"], "reply": ["the duck mug", "keep it"], "tag": "" },
@@ -108,6 +110,12 @@
   "cameraLines": [],
   "recordLines": [],
   "lineSets": [
+    { "id": "n2_back_quote", "voice": "", "lines": ["LAST NIGHT YOU TYPED", "{LINE1}", "I KEPT IT"], "speakers": [] },
+    { "id": "n2_back_quote.unread", "voice": "", "lines": ["YOU TYPED SOMETHING", "I COULD NOT READ IT", "I KEPT IT ANYWAY"], "speakers": [] },
+    { "id": "n2_back_quote.none", "voice": "", "lines": ["YOU DIDNT TYPE ANYTHING", "LAST NIGHT", "I KEPT THAT TOO"], "speakers": [] },
+    { "id": "n2_audit_view", "voice": "", "lines": ["SHE NEVER CALLS"], "speakers": [] },
+    { "id": "n2_audit_covered", "voice": "", "lines": ["SHE WILL ASK AGAIN"], "speakers": [] },
+    { "id": "n2_audit_reported", "voice": "", "lines": ["NOW THEY WATCH HER TOO"], "speakers": [] },
     { "id": "n2_back_mem_shred", "voice": "", "lines": ["I REMEMBER YOUR HAND"], "speakers": [] },
     { "id": "n2_back_mem_agree", "voice": "", "lines": ["YOU LISTENED LAST NIGHT"], "speakers": [] },
     { "id": "n2_back_mem_refuse", "voice": "", "lines": ["YOU FOUGHT ME LAST NIGHT"], "speakers": [] },

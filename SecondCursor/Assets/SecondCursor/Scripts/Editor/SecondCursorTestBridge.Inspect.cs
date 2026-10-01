@@ -103,6 +103,17 @@ namespace SecondCursor.EditorTools
                 + " assist=" + cp.assistLevel + " flags=" + cp.flags.flags.Length);
             Say("memory flags: " + string.Join(" ", d.memory.flags) + " | counters: " + string.Join(" ", d.memory.counterKeys.Select((k, i) => k + "=" + d.memory.counterValues[i])));
             Say("playerLines: " + string.Join(" | ", d.playerLines) + " | nightStarts=" + string.Join(",", d.nightStarts));
+            // Phase Q2: the memory made loud (name, the last run, the demo's handoff, what each night measured, the last record).
+            Say("q2 name=" + d.playerName + " previousLines=" + string.Join(" | ", d.previousLines) + " demoImported=" + d.demoImported
+                + " demoLines=" + string.Join(" | ", d.demoLines) + " ghostPoints=" + d.ghostPath.Length / 2 + " lastRecord=" + d.lastRecord.Length + " rows (" + d.lastRecordEnding + ")");
+            for (int i = 0; i < d.capture.Length; i++)
+            {
+                var c = d.capture[i];
+                if (!c.recorded) continue;
+                Say("capture n" + (i + 1) + ": drag=" + c.dragSeconds.ToString("0.0", CultureInfo.InvariantCulture) + "s pause=" + c.longestPause.ToString("0.0", CultureInfo.InvariantCulture)
+                    + "s (" + c.dragFile + ") mail=" + c.mailReads + " yes=" + c.yesCount + " cam03=" + c.camLooks + "/" + c.camSeconds.ToString("0", CultureInfo.InvariantCulture)
+                    + "s tugs=" + c.tugWins + "W/" + c.tugLosses + "L lines=" + c.lines + " words017=" + c.words017 + " first=" + (c.firstLine.Length > 0 ? "yes" : "none"));
+            }
             Say("checkpoint armed=" + cp.armed + " elapsed=" + cp.elapsed.ToString("0", CultureInfo.InvariantCulture) + " lastCompleted=" + d.lastCompletedNight
                 + " best=" + string.Join(",", d.bestNightSeconds.Select(x => x.ToString("0", CultureInfo.InvariantCulture)))
                 + " seconds=" + string.Join(",", d.nightSeconds.Select(x => x.ToString("0", CultureInfo.InvariantCulture)))

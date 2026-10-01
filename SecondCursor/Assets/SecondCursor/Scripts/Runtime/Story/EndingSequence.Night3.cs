@@ -74,7 +74,37 @@ namespace SecondCursor.Story
             yield return TypeSpoken(room, _spec.Lines ?? System.Array.Empty<string>(), _spec.Speakers);
             if (_spec.Stinger) yield return Cam00Stinger(room);
             _heaterOn = false;
+            if (_spec.RecordPage != null && _spec.RecordPage.Count > 0) yield return ShowRecordPage(room);
             yield return ShowCard(room);
+        }
+
+        /// <summary>
+        /// Phase Q2 (T2): the Retention Record fills the screen until Continue (after the card's own 1.5 s guard, so keys still being
+        /// typed at the Jotter never skip it), and is kept for Records.
+        /// </summary>
+        IEnumerator ShowRecordPage(RectTransform room)
+        {
+            var g = _g;
+            var c = g.Content;
+            g.Audio.Play("end_tone", 0.6f);
+            var page = RecordView.Page(room, _spec.RecordPage, k => c.Text(k));
+            SaveSystem.SaveRecord(_spec.RecordPage, _spec.Id);
+            GameLog.Info(LogChannel.Story, "Retention Record shown (" + _spec.RecordPage.Count + " rows)");
+            g.Player.Enabled = true;
+            g.Player.Visible = true;
+            yield return Waits.Seconds(1.5f);
+            bool done = false;
+            var nav = new MenuNav(g) { RingColor = Palette.BiosBright };
+            var next = UiButton.Create(page, c.Text("record.next"), a => done = true, "button:RecordNext", true);
+            ((RectTransform)next.transform).At((ScreenRig.Width - 150) / 2, 480, 150, 24);
+            nav.Add(next);
+            nav.Focus(next);
+            while (!done)
+            {
+                nav.Tick();
+                yield return null;
+            }
+            Object.Destroy(page.gameObject);
         }
 
         bool _heaterOn;

@@ -170,10 +170,10 @@ namespace SecondCursor.Story
             int guard = 0;
             while (exchange != null && guard++ < 6)
             {
-                yield return TypeLines(s, exchange.entityLines, first ? firstCps : cps);
+                yield return TypeLines(s, Fill(exchange.entityLines), first ? firstCps : cps);
                 // Lines some exchanges add before the player's turn (a memory of an earlier night).
                 var extra = extraLines?.Invoke(exchange);
-                if (extra != null) yield return TypeLines(s, extra, cps);
+                if (extra != null) yield return TypeLines(s, Fill(extra), cps);
                 // Typing back is the game's hook: say so in the OS's own voice, for the first talk of every remote session
                 // (Phase I: a second session that waits for a reply used to give no prompt at all).
                 string hintKey = !string.IsNullOrEmpty(turnHintKey) ? turnHintKey : "notify.jotter.reply";
@@ -205,11 +205,22 @@ namespace SecondCursor.Story
                             if (++turns > maxExtraTurns) break;
                             continue;
                         }
-                        reply = new DialogueReply { Lines = exchange.silence, Category = "silence", IsFallback = true };
+                        reply = new DialogueReply { Lines = Fill(exchange.silence), Category = "silence", IsFallback = true };
                     }
                     else
                     {
                         reply = _g.Dialogue.Respond(exchange, said);
+                        reply.Lines = Fill(reply.Lines);
+                        // Phase Q2 (V3): a name the player gives is answered (and kept) before any keyword.
+                        var named = NameReply(exchange, said, s.Cursor == _g.Entity, out bool kept);
+                        if (named != null)
+                        {
+                            reply.Lines = named;
+                            // A story tag the keywords found ("name" for her name) stays: only a plain line becomes a name reply.
+                            if (kept && string.IsNullOrEmpty(reply.Tag)) reply.Tag = DialogueEngine.NameTag;
+                            reply.IsFallback = false;
+                        }
+                        Meter?.OnTyped(said, s.Cursor == _g.Entity);
                         _g.AchievementWatch?.OnReply(exchange.voice, reply.Tag);
                         _g.Memory.Record(MemoryKind.TypedMessage, reply.Category, Time.time);
                         PlayerLines.Add(said);
@@ -227,7 +238,7 @@ namespace SecondCursor.Story
                     bool again = missed && (misses <= fallbackRetries || steer);
                     if (steer)
                     {
-                        var lines = _g.Content.Lines(lastFallbackSet);
+                        var lines = Fill(_g.Content.Lines(lastFallbackSet));
                         if (lines != null && lines.Length > 0) reply.Lines = lines;
                     }
                     if (last != null && last.Length > 0) last[0] = reply;

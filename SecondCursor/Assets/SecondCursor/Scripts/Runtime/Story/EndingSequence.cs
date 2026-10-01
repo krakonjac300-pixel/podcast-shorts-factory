@@ -57,6 +57,12 @@ namespace SecondCursor.Story
         public string Outcome = "";
         /// <summary>Phase M: a climax's hit already killed the tube: no power down, no second collapse, only the dark.</summary>
         public bool AfterHit;
+        /// <summary>Phase Q2 (V7): "Session 017 kept a copy of: ..." under the outcome ("" = none).</summary>
+        public string KeptLine = "";
+        /// <summary>Phase Q2 (T2): the Retention Record's rows under the card (Nights 1 and 2), or null.</summary>
+        public System.Collections.Generic.List<Core.Game.RecordRow> RecordRows;
+        /// <summary>Phase Q2 (T2): the whole Retention Record, shown on its own page before the card (Night 3), or null.</summary>
+        public System.Collections.Generic.List<Core.Game.RecordRow> RecordPage;
 
         /// <summary>
         /// Night 1: the slice's blackout. The demo keeps the WISHLIST card; the full game shows the night's own card

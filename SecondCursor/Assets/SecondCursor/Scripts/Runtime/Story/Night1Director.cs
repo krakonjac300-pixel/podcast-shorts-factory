@@ -68,6 +68,34 @@ namespace SecondCursor.Story
             g.Shred.RefusedInUse += OnShredRefusedInUse;
             // Phase Q1 (owner 4): a program icon the player moved goes back where it was, once, when they are not looking.
             g.Desktop.AppIconMovedByPlayer += OnAppIconMoved;
+            // Phase Q2 (owner 3): deciding Joan Nakamura's wipe changes her record tonight, whoever decided it.
+            g.Orders.Decided += OnOrderDecided;
+        }
+
+        /// <summary>
+        /// Phase Q2 (owner 3, personal work): WO-3318 is Joan Nakamura's drive (Denise's mail asks you to go easy on her). Either way it
+        /// is decided, her Personnel record changes at once (her review moved up to 3:00 AM tonight), and a notice says so; Night 2
+        /// finds her TERMINATED.
+        /// </summary>
+        void OnOrderDecided(string id, string decision, CursorAgent by)
+        {
+            if (id == ContentIds.Order3318 && !IsPreparing) Note163(decision, true);
+        }
+
+        /// <summary>Joan's record after WO-3318 (a jump or Continue past the order puts the line back without a notice).</summary>
+        void Note163(string decision, bool notify)
+        {
+            if (decision == null) return;
+            var g = _g;
+            var e = g.Content.Employee(ContentIds.Employee163);
+            string note = g.Content.Text(decision == "approve" ? "n1.163.approve" : "n1.163.reject");
+            if (e == null || e.notes.Contains(note)) return;
+            e.notes = e.notes + " " + note;
+            g.Apps.Find<StaffApp>()?.Refresh();
+            if (!notify) return;
+            g.Notifications.Show(g.Content.Text("app.staff"), g.Content.Format("notify.personnel.updated", ContentIds.Employee163, "J. Nakamura"), "icon_info",
+                a => g.Apps.Launch(AppIds.Staff, a), "ui_select");
+            GameLog.Info(LogChannel.Story, "Personnel 163 changed after WO-3318 (" + decision + ")");
         }
 
         /// <summary>
@@ -125,6 +153,10 @@ namespace SecondCursor.Story
                     var spec = EndingSpec.Night1();
                     spec.AfterHit = _afterHit;
                     spec.Outcome = _g.Content.Format(_g.Flags.Has(Flags.File017ShreddedOnce) ? "end.n1.outcome.shredded" : "end.n1.outcome.kept", _g.Clock.Format12());
+                    // Phase Q2: what session 017 kept (V7) and the night's Retention Record (T2), on the demo's card too.
+                    spec.KeptLine = KeptLine();
+                    spec.RecordRows = CardRows();
+                    if (!IsStandIn) Game.DemoHandoffIO.WriteFromDemo(_g.Save, _g.Flags.Has(Flags.File017ShreddedOnce));
                     _ending = new EndingSequence(_g, spec);
                     return _ending.Run();
             }
@@ -149,6 +181,36 @@ namespace SecondCursor.Story
             f.SetCounter(MemoryFlags.N1TugLosses, f.Get(Flags.CounterTugLosses));
         }
 
+        /// <summary>"Session 017 kept a copy of: your first reply and your hand on the bin." from what really carries over ("" = nothing).</summary>
+        string KeptLine()
+        {
+            var c = _g.Content;
+            var parts = new List<string>();
+            if (PlayerLines.Count > 0) parts.Add(c.Text("kept.reply"));
+            if (_g.Flags.Has(Flags.File017ShreddedOnce)) parts.Add(c.Text("kept.bin"));
+            if (_g.Save != null && NameCapture.IsValid(_g.Save.playerName)) parts.Add(c.Text("kept.name"));
+            if (parts.Count == 0) return "";
+            string joined = parts.Count == 1 ? parts[0] : string.Join(", ", parts.GetRange(0, parts.Count - 1)) + c.Text("kept.and") + parts[parts.Count - 1];
+            return c.Format("end.n1.kept", joined);
+        }
+
+        /// <summary>Phase Q2 (T5): the archive drag of the ledger, resampled for the title's second pointer.</summary>
+        protected override int[] GhostPath()
+        {
+            var clip = _ledgerClip;
+            if (clip == null || clip.IsEmpty) return null;
+            int rate = Core.Game.SaveData.GhostRate;
+            int n = Mathf.Min(Core.Game.SaveData.GhostMaxPoints, Mathf.FloorToInt(clip.Duration * rate) + 1);
+            var path = new int[n * 2];
+            for (int i = 0; i < n; i++)
+            {
+                var sample = clip.Sample(i / (float)rate);
+                path[i * 2] = Mathf.RoundToInt(sample.x);
+                path[i * 2 + 1] = Mathf.RoundToInt(sample.y);
+            }
+            return path;
+        }
+
         /// <summary>Put the world in the state a beat expects when jumping straight to it (debug or Continue).</summary>
         protected override void Prepare(int beatIndex)
         {
@@ -169,6 +231,7 @@ namespace SecondCursor.Story
                     var order = g.Content.Order(id);
                     if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
                 }
+                Note163(g.Orders.DecisionFor(ContentIds.Order3318), false);
                 if (g.Apps.FindById(AppIds.WorkQueue) == null) g.Apps.Launch(AppIds.WorkQueue, null);
             }
             if (beatIndex > 2)
@@ -507,6 +570,8 @@ namespace SecondCursor.Story
                 _g.Flags.Set(Flags.File017Returned);
                 yield return Wait(0.6f);
                 _g.Notifications.Show(_g.Content.Text("app.disposal"), _g.Content.Format("error.inuse.body", "employee_017.dat"), "icon_error", null, "sys_error");
+                // Phase Q2 (V7): your hand on the bin carries into the next night.
+                KeptCopy("bin");
                 // A beat of stillness: let the player notice the file is back before it speaks.
                 yield return Wait(3f);
             }
@@ -537,12 +602,18 @@ namespace SecondCursor.Story
             yield return OpenNotepadAs(_ellen);
             _g.Flags.Set(Flags.EntitySpoke);
             RunSide(Note(5, 2.5f), "note-logged-on");
-            yield return RunExchangeChain(_ellen, ContentIds.ExchangeStop, OnEllenReply, turnHintKey: "notify.jotter.reply");
+            // Phase Q2 (V9, V6): after an ending (or the demo's handoff) she remembers the last run's first words: NOT AGAIN.
+            bool again = _g.Save != null && _g.Save.EchoesLastRun;
+            if (again) GameLog.Info(LogChannel.Story, "Night 1 remembers the last run");
+            yield return RunExchangeChain(_ellen, ContentIds.ExchangeStop, OnEllenReply, turnHintKey: "notify.jotter.reply",
+                extraLines: ex => again && ex.id == ContentIds.ExchangeStop ? _g.Content.Lines("n1_again") : null);
         }
 
         /// <summary>What the player's reply tells the story (flags) and the entity (memory).</summary>
         void OnEllenReply(DialogueReply r, string said)
         {
+            // Phase Q2 (V7): the first reply is saved with the night (Night 2 quotes it).
+            KeptCopy("reply");
             switch (r.Category)
             {
                 case "swear": _g.Flags.Set(Flags.PlayerSwore); break;

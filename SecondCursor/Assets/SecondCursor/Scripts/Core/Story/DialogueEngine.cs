@@ -56,7 +56,8 @@ namespace SecondCursor.Core.Story
             for (int i = 0; i < exchange.responses.Length; i++)
             {
                 var r = exchange.responses[i];
-                if (r == null) continue;
+                // Phase Q2: the name group answers only a captured name (NameReply), never a keyword.
+                if (r == null || r.tag == NameTag) continue;
                 foreach (var kw in r.keywords)
                 {
                     if (Matches(norm, kw))
@@ -72,6 +73,18 @@ namespace SecondCursor.Core.Story
             reply.Lines = exchange.fallback;
             reply.IsFallback = true;
             return reply;
+        }
+
+        /// <summary>Phase Q2 (V3): the tag of the response group that answers a name the player gave.</summary>
+        public const string NameTag = "myname";
+
+        /// <summary>The exchange's name group (its reply lines carry {NAME} or {name}), or null if it has none.</summary>
+        public static ResponseData NameResponse(ExchangeData exchange)
+        {
+            if (exchange?.responses == null) return null;
+            foreach (var r in exchange.responses)
+                if (r != null && r.tag == NameTag) return r;
+            return null;
         }
 
         public static string Categorize(string normalized)

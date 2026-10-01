@@ -530,6 +530,7 @@ namespace SecondCursor.Story
             g.Taskbar.PointingDevices = 2;
             yield return Wait(1.2f);
             yield return TypeLines(_ellen, Lines("n2_finished"), 3.5f);
+            KeptCopy("gary");
         }
 
         /// <summary>Kept: the order is suspended and Gary stays, faint (archived: where they put the quiet ones).</summary>
@@ -558,6 +559,7 @@ namespace SecondCursor.Story
                 Gary.FadeTo(GaryFaint, 1f);
             }
             yield return TypeLines(_ellen, Lines("n2_kept"), 3.5f);
+            KeptCopy("gary");
         }
 
         // ------------------------------------------------------------------ ROUNDS
@@ -735,6 +737,8 @@ namespace SecondCursor.Story
                     : g.Content.Text("end.n2.outcome.missed"),
                 DemoCard = false,
                 ContinueNight = 3,
+                // Phase Q2 (T2): tonight's Retention Record rows.
+                RecordRows = CardRows(),
             };
             _ending = new EndingSequence(g, spec);
             yield return _ending.Run();

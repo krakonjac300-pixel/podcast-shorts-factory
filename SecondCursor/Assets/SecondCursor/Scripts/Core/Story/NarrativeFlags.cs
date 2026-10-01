@@ -227,6 +227,9 @@ namespace SecondCursor.Core.Story
         public const string N2Box163Held = "m.n2.wo3320.reject";
         public const string N2TookHand = "m.n2.wo3322.approve";
         public const string N2LeftHand = "m.n2.wo3322.reject";
+        /// <summary>Phase Q2 (D3, WO-3324): the player told Security that Ruth checked in (she did not), or told the truth.</summary>
+        public const string N2CoveredRuth = "m.n2.wo3324.approve";
+        public const string N2ReportedRuth = "m.n2.wo3324.reject";
 
         // Night 3
         public const string N3RestrictedOpen = "m.n3.restricted_open";

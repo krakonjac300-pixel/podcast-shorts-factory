@@ -25,7 +25,7 @@ namespace SecondCursor.Story
     /// </summary>
     public sealed partial class TitleMenu
     {
-        enum Screen { Main, NewGameConfirm, Difficulty, NightSelect, SelectConfirm, Records, Credits }
+        enum Screen { Main, NewGameConfirm, Difficulty, NightSelect, SelectConfirm, Records, Credits, Record }
 
         const int ColumnWidth = 180, RowHeight = 22, RowStep = 26, ColumnTop = 292;
         const float LeaveSeconds = 0.4f;
@@ -48,6 +48,8 @@ namespace SecondCursor.Story
         bool _leaving;
         float _leaveT;
         Action _leaveAction;
+        /// <summary>Phase Q2 (T5, V9): the second pointer on the main screen.</summary>
+        TitleGhost _titleGhost;
 
         /// <summary>The live title menu, or null (none, or its panel was destroyed by a jump).</summary>
         public static TitleMenu Current => _current != null && _current._panel != null ? _current : null;
@@ -72,6 +74,8 @@ namespace SecondCursor.Story
             _g.Player.Enabled = true;
             _g.Player.Visible = true;
             _g.Audio.PlayLoop("drone_tension", 0.35f, 2f);
+            // Phase Q2 (V6): the demo's words, handed over once (the full game only; nothing happens if there are none).
+            DemoHandoffIO.ImportOnce();
             var start = StartScreen;
             StartScreen = TitleScreenId.Main;
             if (start == TitleScreenId.NightSelect && !GameBootstrap.NightSelectAvailable) start = TitleScreenId.Main;
@@ -94,6 +98,7 @@ namespace SecondCursor.Story
                     TickScreen();
                 }
                 AnimateGhost();
+                if (!_leaving) _titleGhost?.Tick(Time.unscaledDeltaTime);
                 yield return null;
             }
         }
@@ -106,9 +111,11 @@ namespace SecondCursor.Story
             var c = _g.Content;
             _ghost = Label("SECOND CURSOR", GhostRed, 0, 206, ScreenRig.Width, 40, TextAlign.Center, true, 4);
             Label("SECOND CURSOR", Palette.BiosBright, 0, 204, ScreenRig.Width, 40, TextAlign.Center, true, 4);
-            Label(c.Text("title.tagline"), Palette.BiosText, 0, 256, ScreenRig.Width, 12);
-
             var d = SaveSystem.Load();
+            // Phase Q2 (T5): after SHRED the tagline names who is logged in.
+            bool shredSeen = Array.IndexOf(d.endingsSeen, "n3_shred") >= 0;
+            Label(c.Text(shredSeen && c.HasText("title.tagline.214") ? "title.tagline.214" : "title.tagline"), Palette.BiosText, 0, 256, ScreenRig.Width, 12);
+
             var items = TitleMenuModel.Items(d, GameBootstrap.IsDemo, SteamBridge.CanOpenStore);
             var focus = TitleMenuModel.DefaultFocus(items, d);
             int y = ColumnTop;
@@ -121,6 +128,10 @@ namespace SecondCursor.Story
                 y += RowStep;
             }
             _nav.Focus(focusButton);
+            // The second pointer: beside the first button, or (after a Night 3 ending) replaying your own Night 1 drag.
+            bool afterNight3 = false;
+            foreach (var id in AchievementIds.Night3Endings) afterNight3 |= Array.IndexOf(d.endingsSeen, id) >= 0;
+            _titleGhost = new TitleGhost(_g, new Vector2((ScreenRig.Width + ColumnWidth) / 2 + 90, ScreenRig.Height - ColumnTop - RowHeight / 2), d.ghostPath, afterNight3);
             if (SaveSystem.CorruptThisLaunch) Label(c.Text("title.corrupt"), Palette.Amber, 0, 482, ScreenRig.Width, 12);
             Label(c.Text("title.headphones"), Faint, 0, 500, ScreenRig.Width, 12);
             Label("v" + Application.version, new Color32(0x4A, 0x4A, 0x46, 0xFF), 8, 522, 200, 12, TextAlign.Left);
@@ -243,6 +254,8 @@ namespace SecondCursor.Story
             _ghost = null;
             _credits = null;
             _screen = screen;
+            _titleGhost?.Hide();
+            _titleGhost = null;
         }
 
         UiButton MenuButton(string label, string id, Action<CursorAgent> click, int x, int y, int w, int h)

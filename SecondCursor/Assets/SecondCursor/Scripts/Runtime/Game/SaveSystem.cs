@@ -214,7 +214,8 @@ namespace SecondCursor.Game
         }
 
         /// <summary>A night ends: memory, trust, assist carry, the ending, unlocks and totals; the checkpoint is cleared.</summary>
-        public static void RecordNightComplete(GameServices g, string endingId, IList<string> playerLines, float seconds, IList<int> lineMinutes = null)
+        public static void RecordNightComplete(GameServices g, string endingId, IList<string> playerLines, float seconds, IList<int> lineMinutes = null,
+            CaptureStats capture = null, int[] ghostPath = null)
         {
             var data = Load();
             data.RecordNightComplete(new NightResult
@@ -228,11 +229,36 @@ namespace SecondCursor.Game
                 PlayerLines = playerLines,
                 PlayerLineMinutes = lineMinutes,
                 Records = g.RecordsArmed,
+                Capture = capture,
+                GhostPath = ghostPath,
             });
             Save(data);
+            // The game's own copy too: tokens read g.Save (a later night of this root, the end card).
+            g.Save = data;
             SaveSettings(g);
             GameLog.Info(LogChannel.System, "Night " + g.Night + " complete, ending '" + endingId + "'"
                                             + (ProgressReadOnly ? " (QA launch: not saved)" : " (unlocked: night " + data.nightUnlocked + ")"));
+        }
+
+        /// <summary>Phase Q2 (V3): a name the player gave is kept at once (and in this root's copy of the save). True if it changed.</summary>
+        public static bool SetPlayerName(GameServices g, string name)
+        {
+            var data = Load();
+            bool changed = data.SetPlayerName(name);
+            if (changed) Save(data);
+            if (g != null && g.Save != null) g.Save.SetPlayerName(name);
+            return changed;
+        }
+
+        /// <summary>Phase Q2 (T2): the Retention Record just shown is kept for Records.</summary>
+        public static void SaveRecord(IList<RecordRow> rows, string endingId)
+        {
+            var data = Load();
+            var packed = new string[rows?.Count ?? 0];
+            for (int i = 0; i < packed.Length; i++) packed[i] = rows[i].Pack();
+            data.lastRecord = packed;
+            data.lastRecordEnding = endingId ?? "";
+            Save(data);
         }
 
         public static void SetDifficulty(DifficultyMode mode)

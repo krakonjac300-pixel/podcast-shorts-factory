@@ -8,6 +8,7 @@ using SecondCursor.Core;
 using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Entity;
 using SecondCursor.Input;
@@ -544,19 +545,24 @@ namespace SecondCursor.Story
             if (exit != Night3Exit.Shred) g.Shred.Abort();
             string id = exit == Night3Exit.Shred ? ContentIds.EndingN3Shred : exit == Night3Exit.LogOff ? ContentIds.EndingN3LogOff : ContentIds.EndingN3Keep;
             CompleteNight(id);
+            // Phase Q2: tokens from the save the night just wrote, with tonight's last input.
+            RefreshTokens();
 
             EndingSpec spec;
             if (exit == Night3Exit.Shred)
             {
                 yield return ShredAftermath();
                 var set = g.Content.LineSet("n3_end_shred");
-                spec = FinalSpec(id, EndingKind.Shred, "end.shred.title", "end.shred.subtitle", set?.lines, set?.speakers);
+                // Phase Q2 (V1, V3): the copy types your first words and the first letter of the name you gave.
+                var lines = NightTemplates.FillLines(set?.lines, Tokens, set?.speakers, out var speakers);
+                spec = FinalSpec(id, EndingKind.Shred, "end.shred.title", "end.shred.subtitle", lines, speakers);
             }
             else if (exit == Night3Exit.LogOff)
             {
                 var set = g.Content.LineSet(g.Flags.Has(MemoryFlags.N3SeatCleared) ? "n3_end_logoff_cleared" : "n3_end_logoff");
                 spec = FinalSpec(id, EndingKind.LogOff, "end.logoff.title", "end.logoff.subtitle", set?.lines, set?.speakers);
                 // Phase L: Gary's box, kept for him, leaves with you.
+                // Phase Q2 (V1): the log's last line is the last thing you typed tonight.
                 var log = new System.Collections.Generic.List<string>(Lines("n3_end_logoff_sys"));
                 if (g.Flags.Has(MemoryFlags.N3Box209Kept)) log.Insert(2, Lines("n3_end_logoff_box")[0]);
                 spec.SystemLines = log.ToArray();
@@ -566,14 +572,29 @@ namespace SecondCursor.Story
                 yield return KeepFinalImage(_keepCause != "confirm");
                 var set = g.Content.LineSet(Night3Rules.KeepLineSet(g.Flags.Has(MemoryFlags.N3SaidStay)));
                 var name = g.Content.LineSet("n3_end_keep_name");
-                Night3Rules.KeepLines(set?.lines, set?.speakers, name?.lines, name?.speakers, MemoryFlags.SaidNameAny(g.Flags), out var lines, out var speakers);
+                Night3Rules.KeepLines(set?.lines, set?.speakers, name?.lines, name?.speakers, MemoryFlags.SaidNameAny(g.Flags), out var keepLines, out var keepSpeakers);
+                // Phase Q2 (V1, V3): YOU SAID (your Night 1 words) and GOODNIGHT (your name), each only when there is one.
+                var lines = NightTemplates.FillLines(keepLines, Tokens, keepSpeakers, out var speakers);
                 spec = FinalSpec(id, EndingKind.Keep, "end.keep.title", Night3Rules.KeepSubtitleKey(_keepCause), lines, speakers);
             }
             // Phase J: the card says what caused this ending (the tester logged off and read "You stayed").
             spec.Outcome = g.Content.Text(Night3Rules.EndingCauseKey(exit, _keepCause, _logOffCut));
             spec.AfterHit = exit == Night3Exit.Keep;
+            // Phase Q2 (T2): the run's Retention Record, before the card (a debug or stand-in ending never replaces the kept one).
+            if (!IsStandIn && g.RecordsArmed) spec.RecordPage = FullRecord(id);
             _ending = new EndingSequence(g, spec);
             yield return _ending.Run();
+        }
+
+        /// <summary>Phase Q2 (T2): the whole Retention Record of this run, from the save the night just wrote.</summary>
+        System.Collections.Generic.List<RecordRow> FullRecord(string endingId)
+        {
+            var g = _g;
+            var correct = new System.Collections.Generic.Dictionary<string, string>();
+            foreach (var o in g.Content.WorkOrders.orders)
+                if (o != null && WorkOrderRules.IsChoice(o)) correct[o.id] = o.correct;
+            var c = g.Content;
+            return RetentionRecord.Full(g.Save ?? new SaveData(), endingId, correct, (k, a) => a == null ? c.Text(k) : c.Format(k, a));
         }
 
         EndingSpec FinalSpec(string id, EndingKind kind, string title, string subtitle, string[] lines, string[] speakers) => new EndingSpec

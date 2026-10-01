@@ -15,7 +15,8 @@ namespace SecondCursor.Story
     {
         public static void ForNight(GameServices g)
         {
-            if (g.Night == 2) ForNight2(g);
+            if (g.Night == 1) ForNight1(g);
+            else if (g.Night == 2) ForNight2(g);
             else if (g.Night == 3) ForNight3(g);
         }
 
@@ -89,7 +90,7 @@ namespace SecondCursor.Story
                 if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
             }
             // Night 2's choice orders are history too, as the player decided them (an order nobody decided stays cancelled).
-            foreach (var id in new[] { ContentIds.Order3320, ContentIds.Order3322 })
+            foreach (var id in new[] { ContentIds.Order3320, ContentIds.Order3322, ContentIds.Order3324 })
             {
                 if (g.Orders.DecisionFor(id) != null) continue;
                 string decision = WorkOrderRules.Remembered(g.Flags, 2, id);
@@ -105,9 +106,7 @@ namespace SecondCursor.Story
 
             // 4. Template tokens (the BIOS line for device 3 too).
             FillTemplates(g);
-            var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
-            var bios = g.Content.Story.biosLines;
-            for (int i = 0; i < bios.Length; i++) bios[i] = NightTemplates.Fill(bios[i], tokens);
+            FillBios(g);
             GameLog.Info(LogChannel.Story, "Night 3 set up (Gary " + (finished ? "finished" : "kept") + ")");
         }
 
@@ -131,6 +130,7 @@ namespace SecondCursor.Story
             // Tonight's choice orders stay out of Work Orders until their tasks are given.
             g.Orders.SetHidden(ContentIds.Order3320, true);
             g.Orders.SetHidden(ContentIds.Order3322, true);
+            g.Orders.SetHidden(ContentIds.Order3324, true);
             // 3. Her record has been open since Night 1. The cameras and Restricted stay locked; the bin is empty.
             g.Flags.Set(Flags.Staff017Revealed);
             // 4. employee_017.dat is "in use" all night.
@@ -140,10 +140,27 @@ namespace SecondCursor.Story
             GameLog.Info(LogChannel.Story, "Night 2 set up (" + g.Save.playerLines.Length + " remembered line(s))");
         }
 
+        /// <summary>
+        /// Phase Q2 (D9, the post-game echo): Night 1's BIOS and nexus.cfg name the second pointing device's owner once SHRED has been
+        /// seen; every other token Night 1 content carries is filled too.
+        /// </summary>
+        public static void ForNight1(GameServices g)
+        {
+            FillTemplates(g);
+            FillBios(g);
+        }
+
+        static void FillBios(GameServices g)
+        {
+            var tokens = NightTemplates.ForSave(g.Flags, g.Save);
+            var bios = g.Content.Story.biosLines;
+            for (int i = 0; i < bios.Length; i++) bios[i] = NightTemplates.Fill(bios[i], tokens);
+        }
+
         /// <summary>Fill the {tokens} of every file tagged "template" (spec 2.4) and of the Personnel notes (Phase L).</summary>
         public static void FillTemplates(GameServices g)
         {
-            var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
+            var tokens = NightTemplates.ForSave(g.Flags, g.Save);
             foreach (var e in g.Content.Employees.employees)
                 if (e != null && e.notes.IndexOf('{') >= 0) e.notes = NightTemplates.Fill(e.notes, tokens);
             // Phase Q1: a mail can carry the player's own words too (Night 2's mail from themselves).

@@ -66,6 +66,8 @@ namespace SecondCursor.Core.Content
         // Phase L: decisions the player can make either way (orders with written results).
         public const string Order3320 = "wo_3320", Order3322 = "wo_3322", Order3332 = "wo_3332", Order3333 = "wo_3333";
         public const string TaskN2Verify3320 = "t2_verify_3320", TaskN2Verify3322 = "t2_verify_3322";
+        /// <summary>Phase Q2 (D3): Security's audit of Ruth's check-in, a choice order on Night 2.</summary>
+        public const string Order3324 = "wo_3324", TaskN2Audit3324 = "t2_audit_3324";
         public const string TaskN3Verify3332 = "t3_verify_3332", TaskN3Verify3333 = "t3_verify_3333";
         /// <summary>Phase Q1: the player's own first Night 1 reply, in their inbox on Night 2, from themselves.</summary>
         public const string MailN2Self = "mail_n2_self";

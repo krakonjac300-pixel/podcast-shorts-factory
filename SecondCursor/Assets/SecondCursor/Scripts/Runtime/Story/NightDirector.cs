@@ -106,6 +106,7 @@ namespace SecondCursor.Story
             g.Orders.Decided += OnChoiceDecided;
             g.Conflict.TugEnded += OnTugEndedForMine;
             _intro = new IntroTips(g, () => IsPreparing);
+            InitMemory();
         }
 
         IntroTips _intro;
@@ -184,6 +185,7 @@ namespace SecondCursor.Story
             CleanUpForJump();
             ResetMine();
             _beatIndex = index;
+            NoteFlowStart(index);
             _flow = new Routine(Flow(index), "story");
             _flow.Tick(Time.time);
         }
@@ -192,6 +194,8 @@ namespace SecondCursor.Story
         {
             try { _intro.Tick(); }
             catch (Exception e) { FaultLog.Report("intro tips", e); }
+            try { Meter?.Tick(); }
+            catch (Exception e) { FaultLog.Report("capture meter", e); }
             // A side routine that throws is logged by its Routine (once) and dropped; the night goes on without it.
             for (int i = _side.Count - 1; i >= 0; i--)
             {
@@ -358,7 +362,7 @@ namespace SecondCursor.Story
             if (_nightRecorded) return;
             _nightRecorded = true;
             RecordNightMemory();
-            SaveSystem.RecordNightComplete(_g, endingId, PlayerLines, NightElapsed, PlayerLineMinutes);
+            SaveSystem.RecordNightComplete(_g, endingId, PlayerLines, NightElapsed, PlayerLineMinutes, NightCapture(), GhostPath());
             _g.AchievementWatch?.OnNightComplete(Night, endingId);
         }
 

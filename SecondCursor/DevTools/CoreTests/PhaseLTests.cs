@@ -212,8 +212,8 @@ namespace SecondCursor.Tests
             if (!Present) return;
             Assert.DoesNotContain(Demo().WorkOrders.orders, WorkOrderRules.IsChoice);
             Assert.DoesNotContain(Night(1).WorkOrders.orders, WorkOrderRules.IsChoice);
-            Assert.Equal(new[] { "wo_3320", "wo_3322" }, Night(2).WorkOrders.orders.Where(WorkOrderRules.IsChoice).Select(o => o.id).ToArray());
-            Assert.Equal(new[] { "wo_3320", "wo_3322", "wo_3332", "wo_3333" }, Night(3).WorkOrders.orders.Where(WorkOrderRules.IsChoice).Select(o => o.id).ToArray());
+            Assert.Equal(new[] { "wo_3320", "wo_3322", "wo_3324" }, Night(2).WorkOrders.orders.Where(WorkOrderRules.IsChoice).Select(o => o.id).ToArray());
+            Assert.Equal(new[] { "wo_3320", "wo_3322", "wo_3324", "wo_3332", "wo_3333" }, Night(3).WorkOrders.orders.Where(WorkOrderRules.IsChoice).Select(o => o.id).ToArray());
             // The base strings (which the demo has) carry no text of the new orders; the shared result strings are full-game only.
             Assert.False(Demo().HasText("workorder.result"));
             Assert.True(Night(2).HasText("workorder.result"));
@@ -231,13 +231,14 @@ namespace SecondCursor.Tests
                 string label = o.id.Replace("wo_", "WO-");
                 Assert.Contains(label + " approved", o.resultApprove);
                 Assert.Contains(label + " rejected", o.resultReject);
-                Assert.Contains("ONLY if the owner's status is TERMINATED", o.instructions);   // the rule is stated in the order
+                // The rule is stated in the order (Phase Q2's WO-3324 states its own: a logged call, not TERMINATED).
+                Assert.Contains(o.rule == "stated" ? "Approve ONLY if" : "ONLY if the owner's status is TERMINATED", o.instructions);
                 Assert.Contains("(" + label + ")", o.noteApprove + o.noteReject);              // the Personnel note names the order
                 // One task decides exactly this order, says either decision is filed, and names where the evidence is.
                 var task = db.Tasks.tasks.Single(t => t.type == "DecideOrder" && t.targets.Length == 1 && t.targets[0] == o.id);
                 Assert.Contains("Either decision is filed.", task.hint);
                 Assert.Contains("Personnel", task.hint);
-                Assert.Contains("approve only if TERMINATED", task.hint);
+                Assert.Contains(o.rule == "stated" ? "approve only if" : "approve only if TERMINATED", task.hint);
                 Assert.NotNull(db.Employee(o.employeeRef));
             }
         }

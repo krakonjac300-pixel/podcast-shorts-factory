@@ -261,7 +261,12 @@ namespace SecondCursor.OS
 
         public event Action<string> Delivered;
         public event Action<string> Read;
+        /// <summary>Phase Q2: a mail was put on screen in Mail (every time, not only the first read): (id, who opened it).</summary>
+        public event Action<string, CursorAgent> Opened;
         public int Revision { get; private set; }
+
+        /// <summary>Phase Q2: Mail shows a message (the capture profile counts how often the player opened the briefing).</summary>
+        public void NoteOpened(string id, CursorAgent by) => Opened?.Invoke(id, by);
 
         public MailService(GameServices g)
         {

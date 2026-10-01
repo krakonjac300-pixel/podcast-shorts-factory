@@ -46,6 +46,10 @@ namespace SecondCursor.Core.Game
         public IList<string> PlayerLines;
         /// <summary>The game clock (minutes since midnight) when each line was typed; same order, may be shorter.</summary>
         public IList<int> PlayerLineMinutes;
+        /// <summary>Phase Q2: what the night measured (null = nothing).</summary>
+        public CaptureStats Capture;
+        /// <summary>Phase Q2 (T5): Night 1's archive drag as x,y pairs at <see cref="SaveData.GhostRate"/> Hz (null = keep the saved one).</summary>
+        public int[] GhostPath;
     }
 
     /// <summary>
@@ -63,6 +67,8 @@ namespace SecondCursor.Core.Game
         public const int MaxPlayerLineLength = 40;
         /// <summary>Shorter "nights" (a test jump straight to an ending) never become a best time.</summary>
         public const float MinRecordedSeconds = 1f;
+        /// <summary>Samples per second of <see cref="ghostPath"/>, and the most it keeps (8 s).</summary>
+        public const int GhostRate = 15, GhostMaxPoints = 120;
 
         public int version = CurrentVersion;
 
@@ -92,6 +98,24 @@ namespace SecondCursor.Core.Game
         public float entityTrust;
         /// <summary>Final adaptive assist level of the last completed night.</summary>
         public int assistCarry;
+
+        // Phase Q2: memory made loud (all additive: an older file loads with them empty, the version is unchanged)
+        /// <summary>A name the player gave in a Jotter (lower case, valid by NameCapture.IsValid), or "". Kept across New Game.</summary>
+        public string playerName = "";
+        /// <summary>The last run's Night 1 lines (New Game moves playerLines here; the demo's lines arrive here too).</summary>
+        public string[] previousLines = Array.Empty<string>();
+        /// <summary>What each night of this run measured (New Game starts a new run).</summary>
+        public CaptureStats[] capture = { new CaptureStats(), new CaptureStats(), new CaptureStats() };
+        /// <summary>The player's own Night 1 archive drag, x,y pairs at <see cref="GhostRate"/> Hz (the title's second pointer replays it).</summary>
+        public int[] ghostPath = Array.Empty<int>();
+        /// <summary>The last Retention Record, rows packed label, tab, value (Records shows it after New Game too).</summary>
+        public string[] lastRecord = Array.Empty<string>();
+        /// <summary>The ending that last Retention Record belongs to (Records' profile line names it).</summary>
+        public string lastRecordEnding = "";
+        /// <summary>The demo's handoff file was read into this save (it is read once).</summary>
+        public bool demoImported;
+        /// <summary>The demo's Night 1 lines, as handed over.</summary>
+        public string[] demoLines = Array.Empty<string>();
 
         // records
         public string[] endingsSeen = Array.Empty<string>();
@@ -184,6 +208,20 @@ namespace SecondCursor.Core.Game
             achievements = achievements ?? Array.Empty<string>();
             secrets = secrets ?? Array.Empty<string>();
             tipsShown = tipsShown ?? Array.Empty<string>();
+            playerName = playerName ?? "";
+            previousLines = previousLines ?? Array.Empty<string>();
+            ghostPath = ghostPath ?? Array.Empty<int>();
+            lastRecord = lastRecord ?? Array.Empty<string>();
+            lastRecordEnding = lastRecordEnding ?? "";
+            demoLines = demoLines ?? Array.Empty<string>();
+            if (capture == null || capture.Length != Nights)
+            {
+                var fixedCapture = new CaptureStats[Nights];
+                for (int i = 0; i < Nights; i++) fixedCapture[i] = capture != null && i < capture.Length && capture[i] != null ? capture[i] : new CaptureStats();
+                capture = fixedCapture;
+                changed = true;
+            }
+            for (int i = 0; i < Nights; i++) if (capture[i] == null) { capture[i] = new CaptureStats(); changed = true; }
             difficulty = string.IsNullOrEmpty(difficulty) ? "normal" : difficulty;
             nightUnlocked = Math.Max(1, Math.Min(Nights + 1, nightUnlocked));
             currentNight = Math.Max(1, Math.Min(Nights, currentNight));
@@ -284,14 +322,51 @@ namespace SecondCursor.Core.Game
                 playerLines = lines.ToArray();
                 playerLineMinutes = minutes.ToArray();
             }
+            if (r.Capture != null)
+            {
+                // A night measured only in part (Continue, a jump) arrives with recorded false and shows nothing.
+                var c = r.Capture.Copy();
+                c.firstLine = SanitizePlayerLine(c.firstLine);
+                capture[i] = c;
+                // A replayed night is a new take of that night: what later nights measured belongs to the old path.
+                for (int k = i + 1; k < Nights; k++) capture[k] = new CaptureStats();
+            }
+            if (r.Night == 1 && r.GhostPath != null && r.GhostPath.Length >= 4)
+                ghostPath = r.GhostPath.Length <= GhostMaxPoints * 2 ? (int[])r.GhostPath.Clone() : SubArray(r.GhostPath, GhostMaxPoints * 2);
+        }
+
+        static int[] SubArray(int[] a, int n)
+        {
+            var r = new int[n];
+            Array.Copy(a, r, n);
+            return r;
+        }
+
+        /// <summary>Phase Q2 (V3): keep a name the player gave (an invalid one is ignored). True if it changed.</summary>
+        public bool SetPlayerName(string name)
+        {
+            name = (name ?? "").Trim().ToLowerInvariant();
+            if (!NameCapture.IsValid(name) || name == playerName) return false;
+            playerName = name;
+            return true;
         }
 
         /// <summary>
+        /// Phase Q2 (V9): a New Game after an ending (or after the demo's handoff) starts Night 1 knowing the last run's first
+        /// line: STOP, NOT THAT FILE, NOT AGAIN.
+        /// </summary>
+        public bool EchoesLastRun => (previousLines?.Length ?? 0) > 0 && EchoFilter.ForVoice(previousLines[0]).Length > 0
+                                     && ((endingsSeen?.Length ?? 0) > 0 || demoImported);
+
+        /// <summary>
         /// New Game: progression starts over; settings, endings seen, achievements, secrets, totals and best times
-        /// stay.
+        /// stay. Phase Q2: the name, the replayed pointer path, the last Retention Record and the demo's handoff stay too, and
+        /// this run's Night 1 lines become the last run's (an empty run keeps the older ones); the measurements start over.
         /// </summary>
         public void NewGame()
         {
+            if (playerLines != null && playerLines.Length > 0) previousLines = (string[])playerLines.Clone();
+            capture = new[] { new CaptureStats(), new CaptureStats(), new CaptureStats() };
             nightUnlocked = 1;
             currentNight = 1;
             lastCompletedNight = 0;

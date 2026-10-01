@@ -140,6 +140,19 @@ namespace SecondCursor.Story
             }
             y += 14;
             Label(c.Format("records.achievements", AchievementIds.CountUnlocked(d.achievements), AchievementIds.All.Length), Palette.BiosBright, left, y, width, 12, TextAlign.Left, true);
+            // Phase Q2 (D9, T2): the profile as the record keeps it, and the last Retention Record.
+            string profile = ProfileValue(d);
+            if (profile.Length > 0)
+            {
+                y += 24;
+                Label(c.Format("records.profile", profile), Palette.BiosText, left, y, width, 12, TextAlign.Left);
+            }
+            if (d.lastRecord.Length > 0)
+            {
+                y += 20;
+                var view = MenuButton(c.Text("records.record"), "records:record", a => ShowRecord(), left, y, 220, RowHeight);
+                view.Label.Align = TextAlign.Left;
+            }
 
             // Right: the 19 achievements in a list box; the focused one's description underneath.
             const int listX = 450, listW = 440, rowH = 16;
@@ -167,6 +180,31 @@ namespace SecondCursor.Story
             _onFocus = b => desc.text = b != null && descriptions.TryGetValue(b, out var text) ? text : "";
             BackButton(496);
             _nav.Focus(first);
+        }
+
+        /// <summary>Retention profile 214: the last record's ending (HOLDER, KEPT, NOT FOUND), else the run's percentage so far ("" = nothing yet).</summary>
+        string ProfileValue(SaveData d)
+        {
+            var c = _g.Content;
+            if (d.lastRecordEnding.Length > 0 && c.HasText("records.profile." + d.lastRecordEnding)) return c.Text("records.profile." + d.lastRecordEnding);
+            int done = Math.Min(d.lastCompletedNight, SaveData.Nights);
+            if (done <= 0) return "";
+            bool hid = Array.IndexOf(d.memory?.flags ?? Array.Empty<string>(), Core.Story.MemoryFlags.N2Hid214) >= 0;
+            return c.Format("record.pct", CaptureProfile.Percent(done, hid, ""));
+        }
+
+        /// <summary>Phase Q2 (T2): the last Retention Record, as it was shown after its ending.</summary>
+        void ShowRecord()
+        {
+            Begin(Screen.Record);
+            var c = _g.Content;
+            var d = SaveSystem.Load();
+            var rows = new List<RecordRow>();
+            foreach (var packed in d.lastRecord) rows.Add(RecordRow.Unpack(packed));
+            RecordView.Page(_content, rows, k => c.Text(k));
+            var back = MenuButton(c.Text("title.back"), "title:back", a => ShowRecords(), (ScreenRig.Width - 120) / 2, 480, 120, RowHeight);
+            _nav.Back = ShowRecords;
+            _nav.Focus(back);
         }
 
         // ------------------------------------------------------------------ Credits

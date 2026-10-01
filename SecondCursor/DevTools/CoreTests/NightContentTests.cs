@@ -182,8 +182,11 @@ namespace SecondCursor.Tests
             if (!Present || !Has(night)) return;
             var d = Read<DialogueData>("night" + night, "dialogue");
             var bad = new List<string>();
-            foreach (var (where, voice, line) in VoiceLines(d))
+            foreach (var (where, voice, raw) in VoiceLines(d))
             {
+                // Phase Q2: a {token} is filled at run time with the player's words made safe for that voice (EchoFilter.ForVoice:
+                // capitals, no punctuation; Gary's lower case), so it counts as one word of the right case here.
+                string line = Regex.Replace(raw, @"\{[^}]*\}", voice == "gary" ? "x" : "X");
                 int words = Words(line);
                 if (words < 1 || words > 6) bad.Add(where + ": " + words + " words: " + line);
                 if (voice == "")

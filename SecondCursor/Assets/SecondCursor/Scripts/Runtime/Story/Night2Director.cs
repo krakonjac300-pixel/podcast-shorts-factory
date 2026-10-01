@@ -71,7 +71,8 @@ namespace SecondCursor.Story
 
         EntityController E => _g.Entity;
         EntityController Gary => _g.Gary;
-        string[] Lines(string id) => _g.Content.Lines(id);
+        string[] Lines(string id) => Fill(_g.Content.Lines(id));
+        protected override string BriefingMailId => ContentIds.MailN2Briefing;
         bool Done(string taskId) => _g.Tasks.IsCompleted(taskId);
         /// <summary>Phase I: the note on a remote request that ran out or whose file is gone; it stays in the queue, struck through.</summary>
         string Expired => _g.Content.Text("workqueue.withdrawn.expired", "expired");
@@ -106,7 +107,21 @@ namespace SecondCursor.Story
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
             // Phase Q1 (T8): after her second close in a round she stops, and says so.
             g.Rounds.EntityGaveUp += () => RunSide(SayDirect(_ellen, new[] { "YOU KNOW NOW", "YOUR CHOICE" }, 5f), "close-giveup");
+            // Phase Q2 (D3): Security's audit of Ruth's check-in. She knows Ruth never calls; she answers what you filed.
+            g.Orders.Viewed += (id, by) =>
+            {
+                if (id != ContentIds.Order3324 || by == null || !by.IsPlayer || _saidAudit || g.Orders.DecisionFor(id) != null || IsPreparing) return;
+                _saidAudit = true;
+                RunSide(SayDirect(_ellen, Lines("n2_audit_view"), 4.5f), "audit-view");
+            };
+            g.Orders.Decided += (id, decision, by) =>
+            {
+                if (id == ContentIds.Order3324 && by != null && by.IsPlayer && !IsPreparing)
+                    RunSide(SayDirect(_ellen, Lines(decision == "approve" ? "n2_audit_covered" : "n2_audit_reported"), 4.5f), "audit-reply");
+            };
         }
+
+        bool _saidAudit;
 
         bool CanLaunch(string appId, CursorAgent by)
         {
@@ -133,6 +148,7 @@ namespace SecondCursor.Story
         {
             base.CleanUpForJump();
             _stopHelping = false;
+            _saidAudit = false;
             _ellenQueue.Clear();
             UnhookFinish();
             UnhookRounds();
@@ -206,6 +222,7 @@ namespace SecondCursor.Story
         void PrepareAsksDone()
         {
             var g = _g;
+            RestoreChoice(ContentIds.TaskN2Audit3324, ContentIds.Order3324, null);
             g.Files.SetHidden(ContentIds.File214, false);
             if (g.Flags.Has(MemoryFlags.N2Hid214)) MoveIfIn(ContentIds.File214, ContentIds.FolderIntake, ContentIds.FolderArchive);
             foreach (var (task, flag) in EntityAsks)
@@ -409,7 +426,7 @@ namespace SecondCursor.Story
             yield return TypeLines(_ellen, Lines("n2_help"), 3f);
             yield return TypeLines(_ellen, Lines("n2_help_more"), 3.5f);
             yield return RunExchangeChain(_ellen, ContentIds.ExchangeN2Back, OnEllenReply, null, 2.6f, 4f, 25f, "DONT",
-                ex => ex.id == ContentIds.ExchangeN2Back ? MemoryLine() : null);
+                ex => ex.id == ContentIds.ExchangeN2Back ? BackLines() : null);
             // Phase L: she answers the pointer patch, now that her first words are said.
             var hand = _g.Flags.Has(MemoryFlags.N2TookHand) ? Lines("n2_hand_took") : _g.Flags.Has(MemoryFlags.N2LeftHand) ? Lines("n2_hand_left") : null;
             if (hand != null) yield return TypeLines(_ellen, hand, 3.5f);
@@ -418,6 +435,22 @@ namespace SecondCursor.Story
             // side routine offers Night Operations' help, and offers it again after "Not now").
             while (!Done(ContentIds.TaskN2Batch46)) yield return null;
             yield return Wait(1f);
+        }
+
+        /// <summary>
+        /// Phase Q2 (V1): her mouth, your words. LAST NIGHT YOU TYPED / your first Night 1 line in her voice / I KEPT IT (or YOU DIDNT
+        /// TYPE ANYTHING), then the one memory of Night 1, before the player's first turn.
+        /// </summary>
+        string[] BackLines()
+        {
+            // Review Q2: a line with nothing her voice can say (only symbols) was still typed: she says she could not read it.
+            var saved = _g.Save != null ? _g.Save.playerLines : null;
+            bool typed = saved != null && saved.Length > 0 && Core.Game.SaveData.SanitizePlayerLine(saved[0]).Length > 0;
+            string set = Tokens["LINE1"].Length > 0 ? "n2_back_quote" : typed ? "n2_back_quote.unread" : "n2_back_quote.none";
+            var lines = new List<string>(Lines(set));
+            var memory = MemoryLine();
+            if (memory != null) lines.AddRange(memory);
+            return lines.ToArray();
         }
 
         /// <summary>One memory of Night 1, typed before the player's first turn (none if nothing stood out).</summary>
@@ -541,6 +574,9 @@ namespace SecondCursor.Story
                 yield return EntityTask(task, flag, reactions[i]);
             }
             yield return FlushEllenQueue();
+            // Phase Q2 (D3): Security asks whether Ruth checked in. Her mails asked you to say she did; Personnel's phone log says no.
+            RevealOrder(ContentIds.TaskN2Audit3324, ContentIds.Order3324, null);
+            yield return WaitOrder(ContentIds.TaskN2Audit3324, ContentIds.Order3324);
         }
 
         /// <summary>Twenty seconds after her first request, Ruth warns you; when you read it, Ellen answers.</summary>
@@ -627,6 +663,8 @@ namespace SecondCursor.Story
                 _g.Flags.Increment(MemoryFlags.N2Obeyed);
                 _g.Flags.Set(doneFlag);
                 yield return TypeLines(_ellen, Lines(reaction), 4f);
+                // Phase Q2 (V7): only 214 in Archive carries into Night 3 (the profile and the round); the other asks do not.
+                if (taskId == ContentIds.TaskE2Hide214) KeptCopy("214");
             }
             else
             {

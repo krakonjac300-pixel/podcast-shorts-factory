@@ -2302,6 +2302,143 @@ outputs: `_work/2026-10-01/phaseQ1/`.
     Deck; settings written by an older build load as before.
   - Blind playtest 6 questions: does the offer feel like help or like the game playing itself; is "Night Operations" read as the company.
 
+### Phase Q2 (memory made loud, personal work)
+
+Input: `_work/2026-10-01/BuildPlan_Q.md` section Q2 and `OwnerFeedback_2026-10-01.md` (strongest recommendation: make ordinary work personal),
+with the board's `C_Virality.md` V1, V3, V5, V6, V7, V9, `A_TenStar.md` T2, T4, T5 (title part), `D_HorrorNarrative.md` D9 and the held-back D3
+of `_work/2026-09-29/launch/EscalationDraft.md`. The owner's rule for this round: code first, no full-night runs, no regression, no builds.
+Scripts and outputs: `_work/2026-10-01/phaseQ2/`.
+
+- **The echo filter (V1, V3, V6).** `Core/Story/EchoFilter.cs`: every echo of the player's own words passes it. A bundled blocklist (slurs, the
+  strongest profanity, self-harm and hate phrases; kept in ROT13 so the source reads clean) and a personal-input check (an e-mail or web
+  address, a street address, seven or more digits) replace a line with `[REDACTED BY RETENTION]` in files and `REDACTED` in her voice.
+  Ordinary swearing stays. Stand-ins (0 1 3 4 5 7 @ $ !), repeated letters and spaced-out letters are caught; "=" entries are whole words only
+  (spicy, raccoon, grape, Niger pass). `ForVoice` makes capitals, no punctuation, cut at a word boundary to 28 characters.
+- **Her mouth, your words (V1, T4).** New tokens (`NightTemplates.ForSave`): `{LINE1..3}` (her voice), `{said1}` (as typed, empty if none),
+  `{lastn3}`, `{PREV1}`; `{line1..3}` and `{logN}` are now filtered too. Directors fill her lines with `NightDirector.Fill` (a line whose tokens
+  all come out empty is dropped, with its speaker). Night 2 `ex2_back`: LAST NIGHT YOU TYPED / {LINE1} / I KEPT IT (or YOU DIDNT TYPE ANYTHING /
+  LAST NIGHT / I KEPT THAT TOO), then the old memory line. Night 3: SHRED types your first Night 1 words (as typed) after IS THIS ON; KEEP adds
+  YOU SAID {LINE1} and GOODNIGHT {NAME} before WE WORK NIGHTS (each only when there is one); LOG OFF's log ends `LAST INPUT (214) ... "..."`
+  (the last thing typed on Night 3, filtered) or `NONE`.
+- **Tell it your name (V3).** `Core/Story/NameCapture.cs`: only "my name is X", "my names X", "call me X", "im called X", "name is X" (not
+  after your/her/his/what), X 2 to 12 letters or digits, not a stop word, not blocked or personal. The story's names are answered and never
+  kept (`name_taken` THAT ONE IS TAKEN for ellen/marsh; `name_casey` YES / THAT IS WHAT THEY WROTE; `name_gary` HE STILL USES IT; `name_voss`
+  DONT; `name_017` THAT IS A NUMBER / SO IS YOURS). A name group (`tag: "myname"`, never matched by keyword) sits first in ex_stop, ex_two,
+  ex_three, ex2_back, ex2_gary_one (Gary: {name}? / they told me casey) and ex3_ruth; never in ex3_final or ex3_confirm, so a name can never
+  stand in for STAY. `SaveData.playerName` (additive, kept across New Game), saved at once. Payoffs: Night 2 `employee_214.dat` `{namerows}`
+  (name given / name on file: ROURKE C / mismatch corrected), SHRED `MY NAME IS {n0}` (C without a name), KEEP `GOODNIGHT {NAME}`, the
+  Retention Record. The log never holds the name (only its length).
+- **A real capture profile (V5).** `Runtime/Story/CaptureMeter.cs` measures each night from the player's input only: the first archive drag
+  (from pick-up to the drop landing in Archive) and its longest stillness (`Core/Game/DragMeter`, under 15 px/s), how often the night's
+  briefing was opened (`MailService.Opened`), seconds from a shred confirm to the player's Yes, CAM 03 on screen (looks and seconds), lines typed,
+  words sent to session 017, the first line, tugs, the night's length. Saved per night in `SaveData.capture` (`CaptureStats`, additive; a
+  replayed night clears the later nights' figures). Night 2's `employee_214.dat` now prints Night 1's real rows (`{dragrow}`, `{mailrow}`,
+  `{yesrow}`, `{camrow}`; "no drag on record", "never opened", "never reached for Yes", "never looked" when nothing was measured) and
+  `SEGMENTS: {segments} OF 4000` from the profile (88% after Night 1, as Personnel already said; 96% after Night 2, 88% with 214 hidden; 100%
+  only after SHRED: `CaptureProfile.Percent`).
+- **The Retention Record (T2).** `Core/Game/RetentionRecord.cs`, `Runtime/Story/RecordView.cs`. Night 1's card (the demo's too) and Night 2's card
+  carry four rows (CAPTURE 214, WORDS TYPED TO 017, LOOKED AT CAM 03, FIRST WORDS on Night 1 / HESITATION BEFORE YES on Night 2). After any Night
+  3 ending a full page (shifts and minutes, words to 017, first words, hesitation before Yes, CAM 03, tugs, orders decided against their rule,
+  the name given, whether her name was said, status, capture, one sealed hint per ending not yet seen) shows before the card until Continue,
+  and is kept (`SaveData.lastRecord`) for Records ("View the last Retention Record"). No ending name and no story noun beyond Night 1's
+  (tested). Statuses: COMPLETE. / RETAINED. SESSION OPEN. / EXIT: NO RECORD.
+- **The memory is visible (V7).** "Session 017 kept a copy." (`NightDirector.KeptCopy`, once per kind per night) only where the input really
+  carries over: Night 1's first reply (quoted on Night 2, in the self mail, the endings, the demo's handoff), the file won into the bin (Night 2's
+  memory line), a name given, Gary finished or kept, 214 put in Archive (the other two asks carry nothing, so they get no notice). Night 1's
+  card: "Session 017 kept a copy of: your first reply, your hand on the bin and your name." built from the same facts.
+- **The title and New Game remember (V9, T5, D9).** `TitleGhost.cs`: the second pointer rests 90 px right of the first menu button at 60%
+  and slides 30 px away over 0.4 s when yours comes within 80 px; after any Night 3 ending it loops your own Night 1 ledger drag
+  (`SaveData.ghostPath`, 15 Hz, at most 8 s, saved when Night 1 ends) scaled into the empty area right of the menu. It never covers a button
+  or clicks. After SHRED the tagline reads "Someone else is logged in. (214)". New Game moves this run's Night 1 lines to `previousLines`
+  (an empty run keeps the older ones); after any ending (or the demo's handoff) Night 1's first exchange adds NOT AGAIN / LAST TIME YOU SAID /
+  {PREV1}. D9: Night 1's BIOS `Pointing Device 2 ... OK{p2own}` and nexus.cfg `POINTER_2_OWNER={p2owner}` read 214 after SHRED (Night 1 now
+  fills its templates, `NightSetup.ForNight1`); Records shows `Retention profile 214:` the run's percentage, or HOLDER (B-7) / KEPT (017) /
+  NOT FOUND for the last record's ending.
+- **The demo keeps a copy (V6).** `Core/Game/DemoHandoff.cs` (format, engine-free) and `Runtime/Game/DemoHandoffIO.cs`. The demo writes
+  `demo_handoff.txt` (header, name, up to three sanitized lines, shredded flag) into its own save folder when Night 1 ends. The full game, on the
+  title, reads that one fixed path (the `SECOND CURSOR Demo` folder beside its own in the company folder; the test folder under `savedir`),
+  at most 4 KB, once per save (`demoImported`), and silently skips anything missing or malformed. The demo's lines become the last run's words
+  (only if the save has none), its name the player's (only if none was given): the full game's first Night 1 conversation then says NOT AGAIN
+  and quotes the demo.
+- **Personal work (owner 3).**
+  - Night 1: Denise's welcome mail adds a P.S. about Joan Nakamura (Accounts, the coffee fund, a wreck about Friday's review). WO-3318 is
+    Joan's drive: however it is decided (player or Night Operations), her Personnel record changes at once ("Retention review moved up to
+    11/18/98 3:00 AM") and a notice says "Personnel record 163 (J. Nakamura) was updated." (restored without a notice on a jump or Continue).
+    No time added.
+  - Night 2: WO-3319's reason reads "Separation (review moved up after WO-3318)": yesterday's rejected wipe is today's approved one. D3 is
+    built: WO-3324 Security Audit (Ruth's check-in) after Ellen's three asks, a choice order with its own stated rule (approve only if Personnel
+    logs a call to WS-04; Night 2's record 118 says no calls), Ruth's mail "If anyone asks, tell them I checked in" pulling the other way; Ellen
+    SHE NEVER CALLS on opening it, SHE WILL ASK AGAIN or NOW THEY WATCH HER TOO after; notice, result line, queue line, 118 note (Phase L system).
+    About 20 to 40 s.
+  - Night 3: 118's record says what you filed (`{118n2}`: confirmed by WS-04, or under review) and Ruth's "one more" mail opens differently
+    (`{ruthask}`: you covered for me / you told them the truth / the plain ask). Existing records already change per Night 2 choice (163, 127,
+    209, 175 on leave).
+- **Bridge.** `saveset lines a_b,c` (comma between lines, `_` for a space), `saveset prevlines ...`, `saveset name X|none`,
+  `saveset demoimported 1|0`; `save` prints the name, previous lines, the demo fields, ghost points, the last record and each night's capture.
+- **Checks.** CoreTests 547 pass (495 before; `PhaseQ2Tests` 52: the filter (swearing passes, slurs in every disguise, whole words, personal
+  input, her voice), name forms and refusals, the forbidden names and their lines in the demo, the name group never answering a keyword and
+  absent from the finale, every token with and without a name or a line, every echo filtered, profile rows only from measured values, the
+  post-game echo, dropped empty-token lines, the SHRED/KEEP/LOG OFF sets, Night 2's quote and 214.dat, the drag meter, the percentages, orders
+  against the rule, the full record's values and spoiler-freedom, the card rows and the demo's strings, New Game carry rules, replay clearing,
+  name validation, an older save, the handoff round trip and bad files, D3's fairness and Night 3 payoffs, Joan's chain; `PhaseLTests` and
+  the voice test updated for WO-3324 and tokens). CompileCheck: all 8 configurations OK (SC_DEMO included). Unity: 0 errors, 0 compiler
+  warnings; `SC_DEMO` off. No U+2013 or U+2014 in touched files.
+- **Bridge checks** (`phaseQ2/*.cmd` and `.out`, shots in `Library/SecondCursorBridge/shots`, looked at): `q2_n2_back` (two saved lines: LAST
+  NIGHT YOU TYPED / WHO ARE YOU / I KEPT IT; "my name is Kosta" answered KOSTA / THEY WROTE CASEY AGAIN, saved, "Kept a copy: name"),
+  `q2_d3` + `q2_d3b` (WO-3324 revealed after the asks, Personnel 118's phone log, SHE NEVER CALLS on opening, Reject filed with result, queue
+  line and NOW THEY WATCH HER TOO), `q2_n1_card` (full Night 1 card with the kept line and four rows, taken before the review fix: a jump now shows no rows; Records'
+  profile line 88%),
+  `q2_n3_record` (the Retention Record page before the KEEP card, saved for Records), `q2_title` (tagline "(214)", the resting second pointer,
+  the record page from Records), `q2_demo` (SC_DEMO card layout with WISHLIST, `demo_handoff.txt` written), `q2_handoff` (a handoff file
+  imported on the title: name and lines; Night 1 then types NOT AGAIN / LAST TIME YOU SAID / LET ME GO), `q2_tagfix` (after the review:
+  a symbols-only line gives YOU TYPED SOMETHING / I COULD NOT READ IT; "my name is Kosta, are you Ellen Marsh?" keeps the name and still sets
+  `m.n2.said_name`). 0 game errors.
+- **Review** (a code-reviewer pass, `_work/2026-10-01/ReviewPhaseQ2.md`: 0 CRITICAL, 2 HIGH, 4 MEDIUM, 3 LOW). Fixed: a name reply no longer
+  overwrites a story tag (her name in the same line still counts); a night not measured from its first beat (Continue, a jump) is saved as
+  not recorded, so the card, 214.dat and the record show nothing of it rather than wrong numbers; a line her voice cannot say (symbols only)
+  gives YOU TYPED SOMETHING / I COULD NOT READ IT / I KEPT IT ANYWAY on Night 2 and is never quoted on Night 1; name forms tightened (a bare
+  "name is" only at the start of the line, more stop words: call me at, now, on...); "kys!" and "nazi!" are caught ("!" and "|" also read as
+  separators); "wait...me" is no longer taken for a web address; "reached again" only after two Yes clicks; a name told to Gary is kept
+  without session 017's notice; a debug or stand-in ending never replaces the kept Retention Record. Not changed: `CaptureMeter` keeps its
+  event handlers for its root's lifetime (the root and its services are rebuilt every night).
+- **Judgement calls.**
+  - One filter for every echo, applied when shown, so saves keep the sanitized line and a better list later fixes old saves too. Personal input
+    (addresses, long numbers) is withheld like slurs: a stream must never show it back.
+  - Names: forbidden names only in her voice (Gary just answers normally); no name capture in the finale's decision exchanges; Night 2's reply
+    is {NAME} / THEY WROTE CASEY AGAIN (the board's YESTERDAY YOU WERE would be false for a name first given on Night 2).
+  - Profile numbers follow the content already in the game (Personnel 88% after Night 1, nexus.cfg 96%), not the board's 34/71%: the fiction
+    must not contradict itself. "remain seated: YES / turned around: NO" stay in 214.dat as the company's claim, not a measurement.
+  - V5's separate BIOS profile screen after each card was folded into T2: four rows on the Night 1 and 2 cards and the full page after Night 3
+    (one artifact instead of two; no extra click between nights). The Steam screenshot button (V5 step 4) is not built (needs Steamworks).
+  - The demo's words are quoted once, in the full game's first Night 1 conversation (NOT AGAIN), rather than also on Night 2 (V6's spot), so the
+    same line is not repeated; Night 2 quotes this run's own Night 1 line (V1).
+  - The handoff is read from the demo's own save folder (the demo never writes outside its folder; the full game reads one fixed path in the
+    same company folder, size-capped, never anything else).
+  - Spoiler-free record statuses (COMPLETE. / RETAINED. SESSION OPEN. / EXIT: NO RECORD.) instead of T2's SEAT RELEASED / ASSIGNED: 214; the
+    sealed hints are T2's.
+  - After SHRED the menu pointer does not wear her palette (V9): two identical pointers on the title would hide which is yours; the tagline
+    and the BIOS carry the echo.
+  - D3 built (it fits: Ruth is met in mail every night, the evidence is one Personnel line, both answers are legitimate, Night 3 shows the
+    result). Night 2 grows about 20 to 40 s plus about 8 s for the quote; no clock rate change. Night 1 gets no new decision (the board's rule:
+    Night 1 teaches the rule) but its tutorial order now changes a known person's record.
+  - Not built: V4 (Q3), V2 chat groups (Q3), V8, V10, the Records "Profile tab" (Records shows the profile line and the last record instead).
+- **For Q5 to verify in play.**
+  - Night 1 to 3 with typed lines and a name: the quote on Night 2, 214.dat's real numbers (drag, mail opens, Yes, CAM 03), SHRED's typed line
+    and initial, KEEP's two lines, LOG OFF's last input; the same with no typing (the `.none` lines, nothing empty typed).
+  - Offensive and personal input (a slur, an e-mail, a phone number) typed on Night 1: REDACTED in her voice, [REDACTED BY RETENTION] in
+    files, the self mail, the record and the demo card.
+  - The kept-a-copy notices fire exactly on the five carry-overs and never during a tug or a dialog in a way that hides something.
+  - The Retention Record after each Night 3 ending (values against what was played), from Records after New Game; the Night 1 demo card at
+    1080p and on the Deck (the four rows and WISHLIST NOW do not overlap).
+  - Title: the resting pointer never covers a button with keyboard and pad navigation; after a Night 3 ending it replays the player's own Night 1
+    drag; the (214) tagline and Night 1 BIOS after SHRED.
+  - The demo build then the full build on one machine: the handoff is picked up once (real persistentDataPath folders), Night 1 says NOT AGAIN
+    with the demo's words; with no demo installed nothing happens.
+  - Night 2 with WO-3324 both ways (and ignored: it lapses), Night 3's 118 note and Ruth's mail opening; Night 1's WO-3318 notice and Joan's
+    Night 2 record; Night 2 length (target within 1 to 2 min of Q1).
+  - Quit mid-night and Continue: that night's card, 214.dat and record rows show nothing measured (not wrong numbers).
+  - Blind playtest 6: does "Session 017 kept a copy." read as the game remembering; does the Joan chain make WO-3319 and WO-3320 feel personal.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -2330,6 +2467,7 @@ soundcold | fault beat|app|click 2 | fps 144 | flashrate 150 title60 | flashwatc
 tugmode speed | tugstate | tugreel 300 120 swing | tugreel 420 150 lift 0.25 | tugreel 300 120 keep | tughold 8 | tugslip 0.2 0.3 300   # Phase P: the tug model, the fight in one line, reel patterns with the button held
 heldpath 300 200 0.5 520 140 0.6 shots=0.3,0.8 release | lockpick | settingsset tugAssist hold | settingsset clickLock on   # Phase P-b: a held drag with shots inside it, a click-locked pick-up, the access options
 settingsset textSize medium | settingsset crt low   # Phase Q1: the reading text size (normal|medium|large) and CRT intensity (off|low|full), saved and applied live
+saveset lines who_are_you,make_me | saveset prevlines hi | saveset name kosta | saveset demoimported 1   # Phase Q2: remembered words (_ = space), the name, the demo handoff flag
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

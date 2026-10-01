@@ -124,6 +124,14 @@ namespace SecondCursor.EditorTools
                     if (value != "clear") { Say("ERROR: saveset checkpoint clear"); return; }
                     d.SetCheckpoint(new Checkpoint());
                     break;
+                // Phase Q2: the remembered words (comma between lines, "_" for a space), the name, and the demo's handoff flag.
+                case "lines":
+                    d.playerLines = list.Select(x => x.Replace('_', ' ')).ToArray();
+                    d.playerLineMinutes = Array.Empty<int>();
+                    break;
+                case "prevlines": d.previousLines = list.Select(x => x.Replace('_', ' ')).ToArray(); break;
+                case "name": d.playerName = value == "none" ? "" : value.ToLowerInvariant(); break;
+                case "demoimported": d.demoImported = value == "1" || value == "true"; break;
                 default: Say("ERROR: unknown save field '" + a[1] + "'"); return;
             }
             SaveSystem.Save(d);

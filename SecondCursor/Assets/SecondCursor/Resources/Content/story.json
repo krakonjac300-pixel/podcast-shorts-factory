@@ -8,7 +8,7 @@
     "Primary Slave: None",
     "Keyboard ................................ OK",
     "Pointing Device 1 ....................... OK",
-    "Pointing Device 2 ....................... OK",
+    "Pointing Device 2 ....................... OK{p2own}",
     "Network: LETHEWORTH.CORP ........... Connected",
     "Capture Service: LWCAP 2.3 ............. Loaded",
     "WARNING: Previous session was not closed.",

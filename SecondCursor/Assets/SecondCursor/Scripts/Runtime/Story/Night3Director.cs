@@ -62,7 +62,15 @@ namespace SecondCursor.Story
 
         EntityController E => _g.Entity;
         EntityController Gary => _g.Gary;
-        string[] Lines(string id) => _g.Content.Lines(id);
+        string[] Lines(string id) => Fill(_g.Content.Lines(id));
+        protected override string BriefingMailId => ContentIds.MailN3Briefing;
+
+        /// <summary>Phase Q2 (V1): LOG OFF's log ends with the last thing typed tonight, quoted (filtered), or NONE.</summary>
+        protected override void AddNightTokens(System.Collections.Generic.Dictionary<string, string> tokens)
+        {
+            string last = PlayerLines.Count > 0 ? EchoFilter.ForFile(PlayerLines[PlayerLines.Count - 1]) : "";
+            tokens["lastn3"] = last.Length > 0 ? "\"" + last + "\"" : NightTemplates.NoLastInput;
+        }
         bool Done(string taskId) => _g.Tasks.IsCompleted(taskId);
         bool GaryFinished => _g.Flags.Has(MemoryFlags.N2FinishedGary);
 
@@ -116,7 +124,7 @@ namespace SecondCursor.Story
             };
             if (g.CameraRig != null)
             {
-                var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
+                var tokens = NightTemplates.ForSave(g.Flags, g.Save);
                 var shelves = new List<string>();
                 foreach (var l in Lines(ContentIds.LineSetShelves)) shelves.Add(NightTemplates.Fill(l, tokens));
                 g.CameraRig.ShelfLabels = shelves.ToArray();

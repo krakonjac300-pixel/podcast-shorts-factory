@@ -62,14 +62,26 @@ namespace SecondCursor.Story
             PixelText cta = null;
             // Phase J: the last night's card has a cause line too, so the thanks and the endings count move down under it.
             int below = string.IsNullOrEmpty(spec.Outcome) ? 0 : 18;
+            // Phase Q2: what session 017 kept (V7) and the night's Retention Record rows (T2) under the outcome.
+            int y = 244 + below;
+            if (!string.IsNullOrEmpty(spec.KeptLine))
+            {
+                var kept = UIBuilder.Text(parent, spec.KeptLine, new Color32(0x8A, 0x8A, 0x84, 0xFF));
+                kept.rectTransform.At(0, y, ScreenRig.Width, 12);
+                kept.Align = TextAlign.Center;
+                GameLog.Info(LogChannel.Story, "End card: " + spec.KeptLine);
+                y += 18;
+            }
+            if (spec.RecordRows != null && spec.RecordRows.Count > 0) y = RecordView.CardRows(parent, spec.RecordRows, y + 4) + 6;
             if (spec.DemoCard)
             {
+                int ctaY = Mathf.Max(290, y + 6);
                 cta = UIBuilder.Text(parent, c.Text("end.card.cta"), new Color32(0xE8, 0xC4, 0x5A, 0xFF), true);
                 cta.Scale = 3;
-                cta.rectTransform.At(0, 290, ScreenRig.Width, 36);
+                cta.rectTransform.At(0, ctaY, ScreenRig.Width, 36);
                 cta.Align = TextAlign.Center;
                 var thanks = UIBuilder.Text(parent, c.Text("end.card.thanks"), Palette.BiosText);
-                thanks.rectTransform.At(0, 350, ScreenRig.Width, 12);
+                thanks.rectTransform.At(0, Mathf.Min(ctaY + 46, ButtonTop - 20), ScreenRig.Width, 12);
                 thanks.Align = TextAlign.Center;
             }
             else if (!string.IsNullOrEmpty(spec.ThanksKey))

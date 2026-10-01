@@ -104,6 +104,7 @@ namespace SecondCursor.Apps
             Layout();
             if (changed) _reader.ScrollTo(0);
             G.Mail.MarkRead(id, by);
+            if (changed) G.Mail.NoteOpened(id, by);
         }
 
         /// <summary>Header and body sized for the reading pane at the Reading text scale.</summary>

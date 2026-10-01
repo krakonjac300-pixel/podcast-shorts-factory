@@ -4,6 +4,7 @@
       "id": "ex_stop",
       "entityLines": ["STOP", "NOT THAT FILE", "PLEASE"],
       "responses": [
+        { "keywords": [], "reply": ["{NAME}", "THE BADGE SAYS CASEY"], "tag": "myname" },
         { "keywords": ["chat", "twitch", "stream", "viewers", "subscribe"], "reply": ["WHO IS CHAT", "ARE THEY WATCHING TOO"] },
         { "keywords": ["i love you", "love you", "ily", "marry me"], "reply": ["DONT SAY THAT HERE"] },
         { "keywords": ["lol", "lmao", "haha", "rofl", "hehe", "xd"], "reply": ["KEEP LAUGHING", "IT HELPS"] },
@@ -38,6 +39,7 @@
       "id": "ex_two",
       "entityLines": ["WHO TOLD YOU", "TO SHRED IT"],
       "responses": [
+        { "keywords": [], "reply": ["{NAME}", "THE BADGE SAYS CASEY"], "tag": "myname" },
         { "keywords": ["chat", "twitch", "stream", "viewers", "subscribe"], "reply": ["WHO IS CHAT", "ARE THEY WATCHING TOO"] },
         { "keywords": ["i love you", "love you", "ily", "marry me"], "reply": ["DONT SAY THAT HERE"] },
         { "keywords": ["lol", "lmao", "haha", "rofl", "hehe", "xd"], "reply": ["KEEP LAUGHING", "IT HELPS"] },
@@ -75,6 +77,7 @@
       "id": "ex_three",
       "entityLines": ["DO YOU WANT TO SEE", "WHAT THEY SEE"],
       "responses": [
+        { "keywords": [], "reply": ["{NAME}", "WATCH THE SCREEN"], "tag": "myname" },
         { "keywords": ["chat", "twitch", "stream", "viewers", "subscribe"], "reply": ["WHO IS CHAT", "ARE THEY WATCHING TOO"] },
         { "keywords": ["i love you", "love you", "ily", "marry me"], "reply": ["DONT SAY THAT HERE"] },
         { "keywords": ["lol", "lmao", "haha", "rofl", "hehe", "xd"], "reply": ["KEEP LAUGHING", "IT HELPS"] },
@@ -127,5 +130,13 @@
     "EVERY MOVE IS KEPT",
     "THEY ARE LEARNING YOU",
     "SO AM I"
+  ],
+  "lineSets": [
+    { "id": "name_taken", "voice": "", "lines": ["THAT ONE IS TAKEN"], "speakers": [] },
+    { "id": "name_casey", "voice": "", "lines": ["YES", "THAT IS WHAT THEY WROTE"], "speakers": [] },
+    { "id": "name_gary", "voice": "", "lines": ["HE STILL USES IT"], "speakers": [] },
+    { "id": "name_voss", "voice": "", "lines": ["DONT"], "speakers": [] },
+    { "id": "name_017", "voice": "", "lines": ["THAT IS A NUMBER", "SO IS YOURS"], "speakers": [] },
+    { "id": "n1_again", "voice": "", "lines": ["NOT AGAIN", "LAST TIME YOU SAID", "{PREV1}"], "speakers": [] }
   ]
 }

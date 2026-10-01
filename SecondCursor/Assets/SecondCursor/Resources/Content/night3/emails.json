@@ -56,7 +56,7 @@
       "to": "Casey Rourke <crourke@letheworth.corp>",
       "subject": "one more",
       "date": "Fri 11/20/98 2:24 AM",
-      "body": "Casey,\n\nI'm asking you to break a rule for me.\n\nThere's a wipe order for my drive in Work Orders (3333). I put it there. Approve it.\n\nI know the rule. I've read it to every night operator since 1985, and I know I'm not TERMINATED. I've read what they keep. I don't want to be kept.\n\nIf you'd rather keep to the rule, reject it. I won't blame you. Nobody ever taught you anything else.\n\nRuth",
+      "body": "Casey,\n\n{ruthask}\n\nThere's a wipe order for my drive in Work Orders (3333). I put it there. Approve it.\n\nI know the rule. I've read it to every night operator since 1985, and I know I'm not TERMINATED. I've read what they keep. I don't want to be kept.\n\nIf you'd rather keep to the rule, reject it. I won't blame you. Nobody ever taught you anything else.\n\nRuth",
       "preload": false,
       "read": false
     }

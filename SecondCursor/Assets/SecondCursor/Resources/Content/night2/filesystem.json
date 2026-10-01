@@ -49,7 +49,7 @@
     },
     {
       "id": "employee_214", "name": "employee_214.dat", "type": "dat", "folder": "intake", "size": "2,871 KB", "modified": "1998-11-19 01:52",
-      "content": "LW-RETAIN 2.3 / SUBJ 214 / SRC WS-04 B-7\nSTATE: IN PROGRESS   SEGMENTS: 2871 OF 4000\n------------------------------------------\n..ledger_1994.dat..drag..1.2s..hesitation 0.4s..\n..the cursor twitched..did i do that..\n..%%..read mail_welcome..read it twice..\n..typed: {line1}..\n..typed: {line2}..\n..reached for Yes..0.6s..reached again..\n..camera 03..looked..looked again..#..\n..remain seated: YES..\n..turned around: NO..\n..~~..is this me..is this me..is this..\n------------------------------------------\n[CAPTURE CONTINUES]",
+      "content": "LW-RETAIN 2.3 / SUBJ 214 / SRC WS-04 B-7\nSTATE: IN PROGRESS   SEGMENTS: {segments} OF 4000\n------------------------------------------\n{dragrow}\n..the cursor twitched..did i do that..\n{mailrow}\n..typed: {line1}..\n..typed: {line2}..\n{namerows}{yesrow}\n{camrow}\n..remain seated: YES..\n..turned around: NO..\n..~~..is this me..is this me..is this..\n------------------------------------------\n[CAPTURE CONTINUES]",
       "hidden": true, "protected": false, "corrupted": false, "tags": ["story", "214", "template"]
     },
     {
