@@ -2439,6 +2439,125 @@ Scripts and outputs: `_work/2026-10-01/phaseQ2/`.
   - Quit mid-night and Continue: that night's card, 214.dat and record rows show nothing measured (not wrong numbers).
   - Blind playtest 6: does "Session 017 kept a copy." read as the game remembering; does the Joan chain make WO-3319 and WO-3320 feel personal.
 
+### Phase Q3 (voice and images)
+
+Input: `_work/2026-10-01/BuildPlan_Q.md` section Q3, with the board's `C_Virality.md` V2, V4, V10, `D_HorrorNarrative.md` D1 to D8 and D10, and
+`A_TenStar.md` T7 and T9. The owner's rule for this round: code first, no full-night runs, no regression, no builds. Scripts and outputs:
+`_work/2026-10-01/phaseQ3/` (`content_dialogue.py`, `content_files.py` and `content_gestures.py` are the content edits as run; `q3_*.cmd` and `.out`
+are the bridge checks; `diff_q3.patch` is the reviewed diff).
+
+- **Chat on every night, six questions, the fourth wall (V2, D2).** All in the dialogue JSON (Night 1 in the base `dialogue.json`, which the demo
+  ships; Nights 2 and 3 in their overlays).
+  - Chat group (`chat twitch stream viewers subscribe youtube audience followers mods`, tag `chat`) is the first keyword group after the name group
+    of every conversation: Night 1's three exchanges (reply unchanged: WHO IS CHAT / ARE THEY WATCHING TOO), `ex2_back` THEY CAME BACK TOO,
+    `ex2_gary_one` there's people watching? / tell them hi, `ex2_gary_two` tell them it's late / they should sleep, `ex3_ruth` TELL THEM / WHAT
+    SHE DID, `ex3_final` LET THEM CHOOSE / THEY WONT BE HERE AT SEVEN (right after STAY, tag `chat`, never an exit).
+  - D2's six groups (H_ELLEN, H_SELF, H_DIE, H_CUSTODIAL, H_DENISE, H_BEFORE) in every Ellen exchange and Gary's first, with the board's replies
+    (Night 1 H_ELLEN carries tag `name`: her name is answered on the demo night and the Her Name achievement can unlock there). Order is tested:
+    name group, chat, (her name on Nights 2 and 3), the three fourth-wall groups, her name on Night 1, the six, then every old group; in
+    `ex3_final` STAY first, then chat and the fourth wall, then go / let go, her name, the six, and only then the bin's own words.
+  - V2's fourth-wall groups (can you see me / my address / webcam: I CANT SEE YOUR ROOM / ONLY THIS ONE, NOT YOUR ROOM / CAM 03 IS ENOUGH, I ONLY EVER
+    SAW THIS DESK / AND WHO SITS THERE; uninstall / alt f4 / refund: YOU CAN CLOSE IT / I STAY OPEN, YOU CLOSED IT LAST NIGHT / HERE WE ARE, CLOSE IT
+    THEN / I KEPT A COPY; what year / the date: THE CLOCK SAYS 98 / I STOPPED AT 87) and the Twitch slang (`=pog poggers kekw =lul omegalul monkas
+    kappa sadge copium =bruh =sus` join the slang group in every Ellen exchange).
+  - Memory: `m.n1.said_name` (also counted by `MemoryFlags.SaidNameAny`, so KEEP's THANK YOU FOR MY NAME and the let-go mode read it),
+    `m.n1.named_chat` and `m.n2.named_chat` (`MemoryFlags.NamedChatAny`). Night 2's first conversation adds ARE THEY STILL WATCHING / TELL THEM HELLO,
+    Night 3's arrival TELL THEM / THIS IS THE LAST NIGHT, and both KEEP endings a `{chatwatch}` line (THEY CAN WATCH, dropped when empty) before
+    YOU SAID.
+- **MOVE YOUR HAND and WHO ELSE IS WATCHING (T7).** Night 1: 3.2 s after the viewer first shows your office (1.2 s of dead arm and 2 s more) she
+  types MOVE YOUR HAND (`n1_move_hand`, base content). The viewer opens over the lower half of her Jotter, so first she drags the Jotter out to the
+  right of the feed with her own pointer (or it is moved if she cannot) and only then types; nothing is typed if her Jotter is closed. Night 2's asks
+  beat: after her three asks and before the audit order she types WHO ELSE IS WATCHING (`ex2_audience`, 12 s of silence at most): chat and friends,
+  family, nobody (THEN WHO IS BREATHING, and a `breath_near` story slot after the reply), you / 017 (ONLY ME), anything else GOOD / KEEP IT THAT WAY.
+- **Full-size scares (V4).** `CameraApp` can be maximized (by the player too: double-click the title bar; the feed grows to 640x480, a whole 4x of
+  the picture, beside the camera buttons). `BeginFullView(caption)` is the scripted version: the buttons hide, the client goes black, the feed sits
+  centred and her line types in at 2x over its lower third (a column about 300 px wide, so it survives a 9:16 crop). `NightDirector.FullView.cs`:
+  `FullSizeFeed` (she double-clicks the viewer's title bar when her pointer is free, otherwise a cut), `FullSizeFeedWhenAllowed`, `EndFullView`.
+  Not allowed when the viewer is not showing CAM 03, a dialog is open (any always-on-top window), a tug or a shred is going, a file is in hand, or the
+  player typed in a Jotter in the last 4 s. Ends at once on the player's click or key (not while the player is disabled for a climax), a dialog, a
+  tug or a shred, when the beat is over, on a jump, or at its time cap; a restore by the player ends the scripted view too. Beats: Night 1 reveal
+  (the doorway, caption DONT LOOK AT IT, from her double-click to the end of the 6 s look, before the panic fight; and the demo's last image, the
+  head turn, without a caption), Night 2's door stage (TOO CLOSE types over the feed, 1.2 s, then the knocks), Night 3's 6:55 feed (DONT TURN AROUND,
+  at most 5 s, scripted: her pointer is guarding 017) and the KEEP climax (full size from its first frame). The Q1 protected first view is
+  untouched (the doorway is at least 16 s later).
+- **The figure types (V10).** `SecurityCameraRig.Operator.cs`: a left arm and hand on the keyboard (new primitives, built with the rest) and
+  `NoteKey()`, called by `GameRoot` on any typed character. A key dips the keyboard hand (alternating hands) and for 1.2 s the mouse hand comes back to
+  the keyboard too. Nothing moves while the head turns, the picture is held still, the feed is quiet or the mouse arm is not the player's (SHRED, KEEP).
+- **Her pointer's body (T9).** `EntityController.Gesture(kind, at)`: nod (two 6 px dips, 0.5 s), shake (three 8 px swings, 0.45 s), tremble (1.5 px
+  noise, 0.7 s) only move how the pointer is drawn; point goes to a spot, circles it twice (14 px) and dabs once. New optional `"gesture"` on a
+  dialogue response (`ResponseData.gesture`, `DialogueReply.Gesture`), played after the think pause and before the typing, only for Ellen and never
+  during a tug, a shred, a dialog or a climax: the yes group nods, the refusal group shakes, how did you die trembles, and on Night 1 a "look" reply
+  points at the Camera Viewer icon (only while her hands are free).
+- **D1, the empty chair.** After SESSION SUSPENDED (both branches) she opens CAM 03 as herself, `SecurityCameraRig.SeatedVisible = false` hides the
+  torso, head, lap and both arms (the CROURKE / WS-04 tag stays where the head would be), the room tone drops to 0.4, the small viewer shows the empty
+  chair for 1.5 s, then it fills the desktop with LOOK AT YOU (also typed in her Jotter), 2 s later the ending as before. A jump resets the chair.
+- **D3, the recovered page.** `recovered_0558.txt` (hidden Desktop file, Night 3) appears 3 s after the "recovered from an unexpected pause" notice
+  with its own notice quoting "is this on" (12 s, click opens it); opened, she says I TYPED THAT TOO (once her turn is free). A checkpoint into the
+  finale restores it.
+- **D4, the offer breathes.** At 6:41 the clock is held, notices wait (`Notifications.HeldByStory`) and the room drops to 0.6 until her five lines are
+  typed and 1.5 s more; then the clock runs, the Phase N end-of-shift task and notice are given (`OfferBreath`), and 3 s later PUT ME IN THE BIN.
+  The offer is typed at 4.2 characters a second (was 2.4, about 35 s: too long to wait with a frozen clock); it now takes about 17 s. Every
+  signpost is still at the same game minute. A fight she wins in Fight mode first says YOU WILL HAVE TO TAKE IT (`n3_tug_hold1`); the second win and
+  the hold's own lines are Phase P's.
+- **D5, D6, D7, D8, D10.** Rewrites: TWENTY SEVEN YEARS; Night 2 ends on TOMORROW THEY WANT YOU (no SEE YOU TOMORROW NIGHT); KEEP WORKING / THEY COUNT
+  THE PAUSES; the let-go replies carry SOMEONE ALWAYS SITS HERE; Gary's notes reply gains i was going to say / don't fight her; `rounds.onit` in
+  the company's voice. LOG OFF's log gets `LOBBY EXIT ... 07:02 (118)` (Ruth's drive approved) or `SEAT A-2 ... OCCUPIED (118)` (rejected) before
+  `LOBBY EXIT ... NO RECORD`. `batch48_b` is an estate record with a pre-need account for ROURKE, C. (214). The Retention FAQ (base mail, so the
+  demo too) teaches QUIET. Night 3's Personnel 088 has not logged in since 11/02/98 and `camview.cfg` says `LAST_OPENED_BY=ADMIN 1 (031)`.
+- **Checks.** CoreTests 606 pass (547 before; `PhaseQ3Tests`: chat in every exchange and its tag, the six questions per exchange, the old groups'
+  words still theirs, her name on Night 1, the fourth wall and the slang, keyword order, name groups first and absent from the finale and the
+  audience question, STAY and let-go in the finale, no echo tokens in new replies, voice rules (Ellen caps without punctuation, 1 to 6 words; Gary
+  lowercase), the demo gets no Night 2 or 3 text, WHO ELSE IS WATCHING, the rewrites, the empty chair line, the recovered page and its notice, the
+  hold line, Ruth's log lines, the estate record, QUIET, the viewer's administrator, gestures, the chat token and KEEP's chat line; `PhaseGTests` and
+  `PhaseJTests` updated: the audience question is a single-question exchange, finale lines may carry digits). CompileCheck: all 8 configurations OK
+  (SC_DEMO included). Unity: 0 errors, 0 compiler warnings; `SC_DEMO` off. No U+2013 or U+2014 in touched files.
+- **Bridge checks** (`phaseQ3/*.cmd` and `.out`, shots in `Library/SecondCursorBridge/shots`, looked at): `q3_n1_reveal` (the Jotter dragged clear of the
+  feed, MOVE YOUR HAND typing next to LOOK AT YOU), `q3_n1_door` and `q3_n1_doorway` (the doorway full size with DONT LOOK AT IT, restored before the
+  panic; the head turn full size), `q3_n2_chair` (the empty chair full size, LOOK AT YOU), `q3_n2_door` (Night 2's door: her double-click, TOO CLOSE full size with the figure in the doorway, the knocks, the full-size NO SIGNAL without the caption), `q3_n3_finale` (6:41 held while she types, the queue empty,
+  the clock and the notices released after; the 6:55 feed full size with DONT TURN AROUND), `q3_n3_keep` (the KEEP climax full size), `q3_typing` and
+  `q3_typing2` (the manual maximize layout; the keys move the operator's hands, small at 160x120), `q3_gesture` (her pointer on the Camera Viewer
+  icon for "show me the camera"), `q3_audience` (WHO ELSE IS WATCHING, "nobody", THEN WHO IS BREATHING and the breath), `q3_lost` (the recovered page
+  and its notice, opened). 0 game errors.
+- **Review** (a code-reviewer pass: 0 CRITICAL, 0 HIGH, 1 MEDIUM, 5 LOW). Fixed: `Night2Director.Gary.cs` passed 800 lines (the ending moved to
+  `Night2Director.Ending.cs`); the audience question missed "only me", "myself", "no", "nope" (now the breath group); `died` and `killed` matched inside
+  other words and took "who killed gary" and "i killed it" from the Gary and delete groups (now `=died`, `=killed you`, whole words); a gesture
+  stopped mid-way left the pointer drawn off its place (`try`/`finally`); the full view's caption stayed over NO SIGNAL at the door (it goes with the
+  picture); the voice test allowed a `?` in her lines; Night 2's door got its bridge check.
+- **Judgement calls.**
+  - "WS-04" has a hyphen, which her voice forbids: I ONLY EVER SAW THIS DESK. "THE CLOCK SAYS 98 / I STOPPED AT 87" keeps its digits (the voice rule
+    allows them); the old finale test now allows digits.
+  - D4's loosening lines: Phase P already made her let go (trust above -0.4, a let-go reply or her name turn the finale into a hold that never
+    loses, and the second Fight win types I CANT STOP MY HAND), so only the first Fight win gets a new line; the trust-based `loss` and `hold2` sets
+    would never be reached and were not kept.
+  - Night 3's full views are cuts, not her double-click: her pointer is defending 017 at 6:55 and the KEEP climax has no free hand; Security opens
+    the viewer with no pointer too. Night 1's doorway and Night 2's door are her double-click.
+  - The empty chair also goes full size (the board lists it separately from V4): a still, empty frame is the one that works as a thumbnail, and the
+    Jotter's copy of the line is still typed.
+  - Night 1: the full-size feed is at the doorway and at the climax, not through the panic fight (she closes the viewer there; a reopened viewer is
+    normal size).
+  - THEY CAN WATCH goes before YOU SAID, not after WE WORK NIGHTS: the ending's last line stays.
+  - Night 1 keeps H_BEFORE with names only (Lundy and the rest are not in the demo's Personnel; a name the player cannot know matches nothing).
+  - Rest (T9) is not built: Phase P-b's let-go pointer already rests on No and Yes beside yours.
+  - Night 2 grows by about 12 to 20 s (the audience question; more when answered), Night 3 by about 17 s (the held offer) and 1.2 s on the door.
+  - The Jotter dragged out to the right covers the Work Queue until the player clicks it (nothing fits beside the viewer without covering something).
+  - A notice that is already up stays over a full view (they are not held), so a thumbnail may carry one; dialogs and the Log Off confirm are always
+    above and end the view.
+- **For Q5 to verify in play.**
+  - Each full view at 1080p and on the Deck: the caption's column, the black margins, a click restoring the window, a Log Off confirm or a shred
+    confirm opened during one, the player typing a reply while the 6:55 feed comes up, a tug started during it, the viewer closed or switched by
+    session 017 or Security meanwhile, a manual maximize and the camera buttons.
+  - MOVE YOUR HAND on a fresh Night 1 with her Jotter in other places (closed, behind the Work Queue, minimized); the wave in the feed answering it.
+  - Night 2: the empty chair after both endings (kept Gary and finished Gary), after the door climax and after a quiet round; Night 3's first CAM 03 view
+    shows the operator seated again.
+  - Night 3 finale: the 6:41 beat's order and length (clock held, notices held, the task, the notice, the request), a jump into the finale, a reply typed
+    during the offer, KEEP's two lines with and without a chat memory, the recovered page and its reaction, LOG OFF's log with Ruth both ways.
+  - Typing on CAM 03 (both hands on the keyboard, no motion during the head turn), her gestures (nod on yes, shake on refusal, tremble on how did you
+    die, the point on Night 1) and that none plays during a tug.
+  - Chat and name typing on every night: "chat" in every exchange, a name and chat in one line, the question groups with the old groups' words, WHO
+    ELSE IS WATCHING with nobody, family, chat and nothing typed.
+  - Blind playtest 6: does the full-size beat read as the game acting or as a window glitch; is the empty chair understood (the door log, Denise's mail
+    and Personnel say so); do the new answers feel like the same Ellen; is THEN WHO IS BREATHING too much.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

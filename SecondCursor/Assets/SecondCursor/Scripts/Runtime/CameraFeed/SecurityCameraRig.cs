@@ -118,7 +118,7 @@ namespace SecondCursor.CameraFeed
         bool _viewing;
 
         // Animated parts
-        Transform _doorHinge, _corridorDoor, _torso, _head, _upperArm, _forearm, _hand, _figure, _clockHand;
+        Transform _doorHinge, _corridorDoor, _torso, _head, _upperArm, _forearm, _hand, _figure, _clockHand, _lap;
         Material _tubeMat, _screenMat, _corridorLampMat, _corridorGapMat, _lobbyLampMat, _lobbyGlassMat;
 
         // Story state as displayed
@@ -153,7 +153,8 @@ namespace SecondCursor.CameraFeed
         public bool OperatorTagViewport(out Vector2 viewport)
         {
             viewport = default;
-            if (_active == null || _active != _office || _head == null || !_head.gameObject.activeInHierarchy) return false;
+            // An empty chair (Phase Q3, D1) keeps the tag where the head would be.
+            if (_active == null || _active != _office || _head == null || (SeatedVisible && !_head.gameObject.activeInHierarchy)) return false;
             var p = _office.Cam.WorldToViewportPoint(_head.position + Vector3.up * 0.32f);
             if (p.z <= 0f) return false;
             viewport = new Vector2(p.x, p.y);
@@ -427,7 +428,7 @@ namespace SecondCursor.CameraFeed
             // The seated operator (the player), facing the monitor (-X). Torso and head pivots are unscaled.
             _torso = Pivot(r, "Operator", new Vector3(SeatX, 0.52f, DeskZ), new Vector3(6f, -90f, 0f));
             Prim(PrimitiveType.Capsule, _torso, "Torso", new Vector3(0f, 0.33f, 0f), Vector3.zero, new Vector3(0.4f, 0.33f, 0.24f), shirt);
-            Box(r, "Lap", new Vector3(SeatX - 0.2f, 0.53f, DeskZ), new Vector3(0.42f, 0.14f, 0.36f), Mat(0.2f));
+            _lap = Box(r, "Lap", new Vector3(SeatX - 0.2f, 0.53f, DeskZ), new Vector3(0.42f, 0.14f, 0.36f), Mat(0.2f));
             _head = Pivot(_torso, "Head Pivot", NeckLocal, Vector3.zero);
             Prim(PrimitiveType.Sphere, _head, "Face", new Vector3(0f, 0.11f, 0.015f), Vector3.zero, new Vector3(0.19f, 0.23f, 0.21f), skin);
             // Dark hair covers the back of the head, so only a turned head shows the pale face.
@@ -435,6 +436,7 @@ namespace SecondCursor.CameraFeed
             _upperArm = Prim(PrimitiveType.Cylinder, r, "Upper Arm", Vector3.zero, Vector3.zero, new Vector3(0.1f, 0.15f, 0.1f), shirt);
             _forearm = Prim(PrimitiveType.Cylinder, r, "Forearm", Vector3.zero, Vector3.zero, new Vector3(0.085f, 0.15f, 0.085f), skin);
             _hand = Prim(PrimitiveType.Sphere, r, "Hand", Vector3.zero, Vector3.zero, new Vector3(0.085f, 0.05f, 0.11f), skin);
+            BuildKeyboardArm(r, shirt, skin);
 
             // Detail: filing cabinet by the door, fluorescent tube, wall clock, a notice on the wall.
             Box(r, "Filing Cabinet", new Vector3(-RoomHalfW + 0.3f, 0.66f, -RoomHalfD + 0.3f), new Vector3(0.6f, 1.32f, 0.5f), Mat(0.44f));
@@ -621,7 +623,9 @@ namespace SecondCursor.CameraFeed
                 : new Vector2((Mathf.PerlinNoise(t * 0.35f, 3.3f) - 0.5f) * 0.6f, (Mathf.PerlinNoise(t * 0.29f, 8.8f) - 0.5f) * 0.5f);
             float follow = mimic && watched < ArmDeadSeconds + ArmLagWindow ? 1f / ArmLagSeconds : 14f;
             _handPos = cut ? target : Vector2.Lerp(_handPos, target, 1f - Mathf.Exp(-dt * follow));
+            UpdateTyping(dt);
             UpdateArm();
+            UpdateKeyboardArm();
 
             _monitorPulse = 1f + 0.04f * Mathf.Sin(t * 1.7f) + 0.05f * (Mathf.PerlinNoise(t * 2.3f, 0.5f) - 0.5f);
         }
@@ -632,6 +636,8 @@ namespace SecondCursor.CameraFeed
             Vector3 shoulder = _torso.TransformPoint(ShoulderLocal);
             // Mouse area right of the keyboard: player x -> the operator's right (+Z), player y -> forward (-X).
             Vector3 wrist = room.TransformPoint(new Vector3(-RoomHalfW + 0.62f - _handPos.y * 0.12f, 0.8f, DeskZ + 0.37f + _handPos.x * 0.17f));
+            // Phase Q3 (V10): while the player types, the mouse hand comes back to the keyboard and dips with the keys.
+            if (_typingBlend > 0f) wrist = Vector3.Lerp(wrist, room.TransformPoint(KeyboardWrist(1f)), _typingBlend);
             Vector3 elbow = SolveElbow(shoulder, ref wrist, room.TransformDirection(ElbowPole));
             SetLimb(_upperArm, shoulder, elbow);
             SetLimb(_forearm, elbow, wrist);

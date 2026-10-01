@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using SecondCursor.Apps;
 using SecondCursor.Core;
+using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
@@ -450,6 +451,8 @@ namespace SecondCursor.Story
             var lines = new List<string>(Lines(set));
             var memory = MemoryLine();
             if (memory != null) lines.AddRange(memory);
+            // Phase Q3 (V2): the viewers she was told about last night.
+            if (_g.Flags.Has(MemoryFlags.N1NamedChat)) lines.AddRange(Lines("n2_back_mem_chat"));
             return lines.ToArray();
         }
 
@@ -466,6 +469,7 @@ namespace SecondCursor.Story
         void OnEllenReply(DialogueReply r, string said)
         {
             if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N2SaidName);
+            if (r.Tag == "chat") _g.Flags.Set(MemoryFlags.N2NamedChat);
         }
 
         /// <summary>
@@ -574,9 +578,27 @@ namespace SecondCursor.Story
                 yield return EntityTask(task, flag, reactions[i]);
             }
             yield return FlushEllenQueue();
+            // Phase Q3 (T7): she asks who else is watching.
+            yield return AudienceExchange();
             // Phase Q2 (D3): Security asks whether Ruth checked in. Her mails asked you to say she did; Personnel's phone log says no.
             RevealOrder(ContentIds.TaskN2Audit3324, ContentIds.Order3324, null);
             yield return WaitOrder(ContentIds.TaskN2Audit3324, ContentIds.Order3324);
+        }
+
+        /// <summary>Phase Q3 (T7): the exchange's id, and how long she waits for an answer (a streamer answers at once; the rest of the night waits).</summary>
+        const string ExchangeAudience = "ex2_audience";
+        const float AudienceSilenceSeconds = 12f;
+
+        /// <summary>
+        /// Phase Q3 (T7, "participation"): after her three asks she types WHO ELSE IS WATCHING. Chat, family and nobody get their own answer
+        /// ("nobody" is answered with THEN WHO IS BREATHING and a breath in the room, a story slot); anything else, GOOD / KEEP IT THAT WAY.
+        /// </summary>
+        IEnumerator AudienceExchange()
+        {
+            var last = new DialogueReply[1];
+            yield return RunExchangeChain(_ellen, ExchangeAudience, OnEllenReply, last, 3f, 4f, AudienceSilenceSeconds, "DONT");
+            if (last[0] != null && last[0].Tag == "breath")
+                Scare("breath_near", 0.45f, 0f, 0.8f, ScareRules.StoryEventWindow, ScareRules.IgnoreAllButStory);
         }
 
         /// <summary>Twenty seconds after her first request, Ruth warns you; when you read it, Ellen answers.</summary>

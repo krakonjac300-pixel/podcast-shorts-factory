@@ -334,6 +334,8 @@ namespace SecondCursor.Core.Content
         public string[] reply = Array.Empty<string>();
         /// <summary>Story tag returned with the reply (stay, letgo, go, name, glasses, confirm, cancel).</summary>
         public string tag = "";
+        /// <summary>Phase Q3 (T9): the body language of her pointer before it types the reply: "nod", "shake", "tremble", "point" (at the Camera Viewer icon), or none.</summary>
+        public string gesture = "";
     }
 
     [Serializable]

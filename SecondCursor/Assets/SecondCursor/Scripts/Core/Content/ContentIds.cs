@@ -84,7 +84,7 @@ namespace SecondCursor.Core.Content
         // ---------------------------------------------------------------- Night 3
         public const string MailN3Briefing = "mail_n3_briefing", MailN3Undeliverable = "mail_n3_undeliverable", MailN3RuthComment = "mail_n3_ruth_comment";
         public const string MailN3SecurityRounds = "mail_n3_security_rounds", MailN3NoSubject = "mail_n3_nosubject";
-        public const string FileBatch47B = "batch47_b", FileCacheN3 = "cache_tmp_n3", FileSessionCfg = "session_cfg", FileCamviewCfg = "camview_cfg", FileSeatB7 = "seat_b7";
+        public const string FileBatch47B = "batch47_b", FileCacheN3 = "cache_tmp_n3", FileSessionCfg = "session_cfg", FileCamviewCfg = "camview_cfg", FileSeatB7 = "seat_b7", FileRecovered = "recovered_0558";
         public const string Order3330 = "wo_3330", Order3331 = "wo_3331", Order3340 = "wo_3340", Order3341 = "wo_3341", Order3342 = "wo_3342";
         public const string TaskN3Briefing = "t3_read_briefing", TaskN3Batch47 = "t3_archive_batch47", TaskN3Verify3330 = "t3_verify_3330",
             TaskN3Verify3331 = "t3_verify_3331", TaskN3Cache = "t3_shred_cache", TaskN3Batch48 = "t3_archive_batch48", TaskN3Shelf = "t3_shelf_check",

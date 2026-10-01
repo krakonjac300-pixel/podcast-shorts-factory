@@ -646,7 +646,11 @@ namespace SecondCursor.Story
             {
                 // It reached the doorway and stood there long enough: it knocks, the door is flung wide and the feed dies (Phase M, 5.4).
                 GameLog.Info(LogChannel.Story, "Rounds: Custodial reached the doorway");
+                // Phase Q3 (V4): she makes the feed big (her double-click) and TOO CLOSE types over it before the knocks.
+                yield return FullSizeFeed(Lines("n2_rounds_door")[0], E, FullViewSeconds);
+                if (_g.Apps.Find<CameraApp>()?.IsFullView == true) yield return Wait(1.2f);
                 yield return DoorClimax(rig);
+                EndFullView();
                 var cam = g.Apps.Find<CameraApp>();
                 if (cam != null) cam.Window.Close(null);
                 rig.SignalLost = false;
@@ -666,6 +670,8 @@ namespace SecondCursor.Story
         }
 
         const float RoundsDrone = 0.12f;
+        /// <summary>Phase Q3 (V4): the longest the door's full-size feed stays (the climax is about 4 s).</summary>
+        const float FullViewSeconds = 10f;
         /// <summary>The door climax: the knocks start this long after it reaches the doorway; the hit lands this long after that.</summary>
         const float KnockAfter = 0.5f, KnockToHit = 1.6f;
 
@@ -708,40 +714,6 @@ namespace SecondCursor.Story
             if (_onTimeUp != null) r.TimeUp -= _onTimeUp;
             _onForcedOpen = null;
             _onPlayerReopen = _onReachedFinal = _onTimeUp = null;
-        }
-
-        // ------------------------------------------------------------------ ENDING
-
-        IEnumerator EndingBeat()
-        {
-            var g = _g;
-            StopSideRoutines();
-            yield return Wait(3f);
-            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("session.suspended"), "icon_warning", null, "sys_warning");
-            yield return Wait(2.5f);
-            bool finished = g.Flags.Has(MemoryFlags.N2FinishedGary);
-            int late = g.Flags.Get(LateShredFlag);
-            string id = finished ? ContentIds.EndingN2Finished : ContentIds.EndingN2Kept;
-            CompleteNight(id);
-            var spec = new EndingSpec
-            {
-                Id = id,
-                Lines = Lines(finished ? "n2_end_finished" : "n2_end_kept"),
-                GaryLines = finished ? null : Lines("g2_goodnight"),
-                TitleKey = "end.n2.title",
-                SubtitleKey = finished ? "end.n2.subtitle.finished" : "end.n2.subtitle.kept",
-                // Phase J: like Night 1's card, one line says what the player's choice about 209 was (Phase K: a late shred too).
-                Outcome = finished ? g.Content.Text("end.n2.outcome.finished")
-                    : g.Flags.Has(MemoryFlags.N2ArchivedGary) ? g.Content.Text("end.n2.outcome.archived")
-                    : late > 0 ? g.Content.Format(late > LateShredMinute ? "end.n2.outcome.late" : "end.n2.outcome.late0", GameClock.Format12(late), late - LateShredMinute)
-                    : g.Content.Text("end.n2.outcome.missed"),
-                DemoCard = false,
-                ContinueNight = 3,
-                // Phase Q2 (T2): tonight's Retention Record rows.
-                RecordRows = CardRows(),
-            };
-            _ending = new EndingSequence(g, spec);
-            yield return _ending.Run();
         }
     }
 }

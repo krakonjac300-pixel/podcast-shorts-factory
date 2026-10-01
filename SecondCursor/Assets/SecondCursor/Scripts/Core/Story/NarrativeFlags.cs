@@ -242,8 +242,14 @@ namespace SecondCursor.Core.Story
         public const string N3SaidStay = "m.n3.said_stay";
         public const string N3Box209Kept = "m.n3.wo3332.reject";
 
+        /// <summary>Phase Q3 (D2): the player said her name on Night 1 (the demo's Her Name beat).</summary>
+        public const string N1SaidName = "m.n1.said_name";
         public const string N2SaidName = "m.n2.said_name";
         public const string N3SaidName = "m.n3.said_name";
+
+        /// <summary>Phase Q3 (V2): the player spoke to chat (a streamer's audience) in a Jotter on Night 1 or Night 2; she addresses the viewers later.</summary>
+        public const string N1NamedChat = "m.n1.named_chat";
+        public const string N2NamedChat = "m.n2.named_chat";
 
         /// <summary>
         /// Legacy key of no night (Phase D saves). Not read any more: it survived replays of the night that set it,
@@ -251,7 +257,10 @@ namespace SecondCursor.Core.Story
         /// </summary>
         public const string SaidName = "m.said_name";
 
-        /// <summary>The player said her name on a night this run remembers (Night 2 or Night 3).</summary>
-        public static bool SaidNameAny(NarrativeFlags f) => f != null && (f.Has(N2SaidName) || f.Has(N3SaidName));
+        /// <summary>The player said her name on a night this run remembers (Night 1, 2 or 3).</summary>
+        public static bool SaidNameAny(NarrativeFlags f) => f != null && (f.Has(N1SaidName) || f.Has(N2SaidName) || f.Has(N3SaidName));
+
+        /// <summary>The player spoke to chat on a night this run remembers (Night 1 or 2).</summary>
+        public static bool NamedChatAny(NarrativeFlags f) => f != null && (f.Has(N1NamedChat) || f.Has(N2NamedChat));
     }
 }

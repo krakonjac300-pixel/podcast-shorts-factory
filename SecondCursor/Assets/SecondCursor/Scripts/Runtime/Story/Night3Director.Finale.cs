@@ -70,7 +70,12 @@ namespace SecondCursor.Story
             _confirmed = _fastForward = _tugLineSaid = _garyGuardSaid = _logOffCut = _logOffAsked = false;
             _garyLogOffTries = 0;
             if (g.Clock.TotalMinutes < Night3Rules.FinaleStart) g.Clock.Set(6, 41);
-            g.Clock.Frozen = false;
+            // Phase Q3 (D4): the offer breathes: at 6:41 the clock waits, nothing is announced and the room is quieter until she has
+            // typed it (OfferBreath gives the clock, the rule and the request back).
+            g.Clock.Frozen = true;
+            g.Notifications.HeldByStory = true;
+            g.Audio.SetAmbienceLevel(OfferAmbience, 1f);
+            _offerTyped = _offerReleased = false;
             g.Clock.Rate = FinaleRate;
             // 017 stays "in use" (every shred refused) until the finale's shred hooks are attached below.
             g.Flags.Set(Flags.CameraUnlocked);
@@ -78,7 +83,6 @@ namespace SecondCursor.Story
             E.Phase = EntityPhase.Interference;
             float start = Time.time;
             _lastTry = null;
-            EndOfShiftRule();
 
             // employee_017.dat comes to the desktop, the way it did on the first night.
             yield return EnsureEllenPresentStill();
@@ -111,6 +115,7 @@ namespace SecondCursor.Story
             // A shred that slipped through before the hooks existed still counts.
             if (g.Files.GetFile(ContentIds.File017)?.Shredded == true) _exit = Night3Exit.Shred;
             RunSide(FinalExchange(), "final-exchange");
+            RunSide(OfferBreath(), "offer-breath");
             RunSide(LetGoRequest(), "letgo-request");
             RunSide(KeepFile017InView(), "keep-017-in-view");
 
@@ -152,6 +157,8 @@ namespace SecondCursor.Story
                     open655 = true;
                     g.Rounds.OpenViewer(ContentIds.Cam03);
                     SayLater(_ellen, "n3_finale_feed", 4.5f);
+                    // Phase Q3 (V4): Security's feed fills the desktop for her line, if nothing the player needs would be covered.
+                    RunSide(FullSizeFeedWhenAllowed(Lines("n3_finale_feed")[0], FinaleFullSeconds, 8f), "full-view-655");
                 }
                 if (!flicker658 && clock >= FeedFlickerTime)
                 {
@@ -308,8 +315,43 @@ namespace SecondCursor.Story
             yield return Say(_gary, Lines(lineSet), GaryCps);
         }
 
-        /// <summary>Seconds into the finale before her request to be put in the bin appears in the queue.</summary>
-        const float LetGoTaskDelay = 4f;
+        /// <summary>Phase Q3 (D4): the room's level while she offers, how long after her last line the clock moves, and the longest the offer is held.</summary>
+        const float OfferAmbience = 0.6f, OfferPause = 1.5f, OfferMaxSeconds = 40f;
+        /// <summary>
+        /// How fast the five offer lines are typed (it was 2.4: about 35 s, which the clock used to run through; with the clock held that is too
+        /// long to wait). 4.2 characters a second is about 17 s, each line still readable as it lands.
+        /// </summary>
+        const float OfferCps = 4.2f;
+        bool _offerTyped, _offerReleased;
+
+        /// <summary>
+        /// Phase Q3 (D4, fifth blind playtest): at 6:41 the offer used to compete with the end-of-shift notice, a task and the Log Off toast.
+        /// The clock stays at 6:41 and every notice waits until her five lines are typed (and 1.5 s after); then the clock runs, the room
+        /// comes back, and the end-of-shift rule is given. Every signpost is still at the same game minute.
+        /// </summary>
+        IEnumerator OfferBreath()
+        {
+            yield return WaitUntil(() => _offerTyped || _exit != Night3Exit.None || CurrentBeat != "finale", OfferMaxSeconds);
+            yield return Wait(OfferPause);
+            ReleaseOffer();
+            if (_exit != Night3Exit.None || CurrentBeat != "finale") yield break;
+            EndOfShiftRule();
+        }
+
+        /// <summary>The offer's hold ends (also when the night leaves the finale): the clock, the notices and the room come back.</summary>
+        void ReleaseOffer()
+        {
+            var g = _g;
+            if (_offerReleased) return;
+            _offerReleased = true;
+            g.Clock.Frozen = false;
+            g.Notifications.HeldByStory = false;
+            g.Audio.SetAmbienceLevel(1f, 2f);
+            GameLog.Info(LogChannel.Story, "Finale: the offer is made, the clock runs");
+        }
+
+        /// <summary>Seconds after the offer is released before her request to be put in the bin appears in the queue.</summary>
+        const float LetGoTaskDelay = 3f;
 
         /// <summary>
         /// Phase I: "or let me go" is something you do, so it is written into the Work Queue in her colours, like her
@@ -318,6 +360,7 @@ namespace SecondCursor.Story
         /// </summary>
         IEnumerator LetGoRequest()
         {
+            yield return WaitUntil(() => _offerReleased || _exit != Night3Exit.None, OfferMaxSeconds + OfferPause + 5f);
             yield return Wait(LetGoTaskDelay);
             if (_exit != Night3Exit.None || CurrentBeat != "finale") yield break;
             if (!_g.Files.Exists(ContentIds.File017) || (_g.Files.GetFile(ContentIds.File017)?.Shredded ?? false)) yield break;
@@ -348,8 +391,9 @@ namespace SecondCursor.Story
             yield return Wait(1.5f);
             var last = new DialogueReply[1];
             // M8: a miss gets another turn; Phase J: from the second miss on she names the two ways out plainly.
-            yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Final, OnFinalReply, last, 2.4f, 4f, 25f, "DONT",
-                fallbackRetries: 1, lastFallbackSet: "n3_final_third", keepListening: r => r.Tag != "stay" && _exit == Night3Exit.None);
+            yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Final, OnFinalReply, last, OfferCps, 4f, 25f, "DONT",
+                fallbackRetries: 1, lastFallbackSet: "n3_final_third", keepListening: r => r.Tag != "stay" && _exit == Night3Exit.None,
+                onLinesTyped: ex => _offerTyped = true);
             if (last[0] == null || last[0].Tag != "stay" || _exit != Night3Exit.None) yield break;
             var confirm = new DialogueReply[1];
             yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Confirm, OnFinalReply, confirm, 3f, 4f, 25f, "DONT",
@@ -525,6 +569,7 @@ namespace SecondCursor.Story
             // Nothing from the finale (her exchange, tug or log-off lines, Gary) may type into the dark ending, and no scare that is still
             // waiting may land in SHRED's silence (Phase M review).
             StopSideRoutines();
+            ReleaseOffer();
             g.Scares.CancelAll();
             g.Scares.ClimaxRunning = true;
             // A stopped fast-forward never restores the clock itself.
@@ -565,6 +610,9 @@ namespace SecondCursor.Story
                 // Phase Q2 (V1): the log's last line is the last thing you typed tonight.
                 var log = new System.Collections.Generic.List<string>(Lines("n3_end_logoff_sys"));
                 if (g.Flags.Has(MemoryFlags.N3Box209Kept)) log.Insert(2, Lines("n3_end_logoff_box")[0]);
+                // Phase Q3 (D6): Ruth's drive order reaches the log: out of the lobby at 7:02 if you wiped it, her seat still taken if you did not.
+                string ruth = WorkOrderRules.Remembered(g.Flags, 3, ContentIds.Order3333);
+                if (ruth != null) log.Insert(log.FindIndex(l => l.StartsWith("LOBBY EXIT", StringComparison.Ordinal)), Lines(ruth == "approve" ? "n3_end_logoff_ruth_out" : "n3_end_logoff_ruth_kept")[0]);
                 spec.SystemLines = log.ToArray();
             }
             else
@@ -665,6 +713,8 @@ namespace SecondCursor.Story
             BeginClimax();
             // Review M5: the feed stays up through the build (the player's pointer is still until the card).
             g.Player.Enabled = false;
+            // Phase Q3 (V4): the game's big climax fills the desktop, DONT TURN AROUND over the feed when she says it.
+            yield return FullSizeFeed(feedLine ? Lines("n3_finale_feed")[0] : null, null, KeepFullSeconds);
             if (rig.Figure == FigureStage.BehindChair) g.Audio.Play("step_near", 1f);
             RunSide(StaticResolve(() => rig.Figure = FigureStage.BehindChair, 0.5f), "keep-resolve");
             yield return Wait(0.3f);
@@ -696,6 +746,9 @@ namespace SecondCursor.Story
             if (!g.Fx.ReduceFlashing) rig.Figure = FigureStage.AtLens;
             yield return TubeDies(true, 0.6f, 0.9f, 0.8f);
         }
+
+        /// <summary>Phase Q3 (V4): how long the 6:55 feed and the KEEP climax's feed stay full size at most.</summary>
+        const float FinaleFullSeconds = 5f, KeepFullSeconds = 12f;
 
         /// <summary>KEEP's build from sub_swell: the whine joins, the head starts to turn, the cut (both build clips end there), the silence.</summary>
         const float KeepWhineAt = 0.5f, KeepTurnAt = 1.05f, KeepBuildToCut = 4f, KeepSilence = 0.45f;

@@ -5,6 +5,7 @@
     { "key": "camera.denied.body", "value": "Camera Viewer access has been restored to Security staff only.\nThis attempt has been logged.\n\nNight Operators: your work is in the Work Queue." },
     { "key": "notify.missedcall", "value": "Missed call: ext. 2118 (R. Hale)" },
     { "key": "rounds.shelf.cancelled", "value": "Office of Retention: shelf check cancelled." },
+    { "key": "lost.recovered", "value": "NEXUS OS recovered 1 unsaved Jotter page.\nUntitled, last edited 5:58 AM by CROURKE: \"is this on\"" },
     { "key": "lost.recover", "value": "NEXUS OS recovered from an unexpected pause.\nDuration: 3 h 10 min." },
     { "key": "shred.closed017", "value": "Session 017 closed (11 years, 263 days)." },
     { "key": "end.shred.title", "value": "SHRED" },

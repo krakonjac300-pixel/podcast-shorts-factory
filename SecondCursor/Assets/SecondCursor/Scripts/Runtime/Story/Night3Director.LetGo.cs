@@ -156,6 +156,8 @@ namespace SecondCursor.Story
             if (outcome != TugOutcome.EntityWins || _binMode != FinaleBinMode.Fight || _g.Conflict.LastOutcomeForced) return;
             _refusedContests++;
             GameLog.Info(LogChannel.Story, "Finale: she won Fight contest " + _refusedContests + " of " + Night3Rules.FightContestsBeforeLetGo);
+            // Phase Q3 (D4): the first win says what the second will mean (the hand is hers until you take it).
+            if (_refusedContests == 1) RunSide(Say(_ellen, Lines("n3_tug_hold1"), 5f), "letgo-hold1");
             if (_refusedContests < Night3Rules.FightContestsBeforeLetGo) return;
             // Her hand gives up: from the next grab on, she lets it go.
             UpdateBinMode("refused contests");

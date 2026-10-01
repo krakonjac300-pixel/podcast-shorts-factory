@@ -190,7 +190,8 @@ namespace SecondCursor.Tests
             var engine = new DialogueEngine(db);
             foreach (var ex in db.Dialogue.exchanges)
             {
-                if (!string.IsNullOrEmpty(ex.voice) || ex.id == "ex3_confirm") continue;
+                // ex3_confirm and ex2_audience (Phase Q3) are single-question exchanges, not conversations.
+                if (!string.IsNullOrEmpty(ex.voice) || ex.id == "ex3_confirm" || ex.id == "ex2_audience") continue;
                 Assert.False(engine.Respond(ex, "the last guy").IsFallback, ex.id + ": 'the last guy' falls back");
                 Assert.False(engine.Respond(ex, "gyatt").IsFallback, ex.id + ": slang falls back");
             }

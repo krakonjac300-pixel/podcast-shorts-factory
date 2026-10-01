@@ -274,6 +274,9 @@ namespace SecondCursor.Story
             // A first-time box left open by the jump no longer holds the clock (Phase N).
             g.Clock.Frozen = false;
             g.Audio.StopLoop("drone_tension", 0.3f);
+            // Phase Q3: no full-size feed and no empty chair outlives the beat that made it.
+            EndFullView();
+            if (g.CameraRig != null) g.CameraRig.SeatedVisible = true;
             // Phase M: nothing a half-finished scare or climax left behind (an in-place jump out of a dip used to leave the room silent).
             g.Scares.CancelAll();
             EndClimax();

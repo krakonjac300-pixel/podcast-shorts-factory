@@ -341,7 +341,11 @@ namespace SecondCursor.Game
             try
             {
                 if (g.CameraRig != null)
+                {
                     g.CameraRig.PlayerHand = new Vector2(g.Player.Position.x / ScreenRig.Width * 2f - 1f, g.Player.Position.y / ScreenRig.Height * 2f - 1f);
+                    // Phase Q3 (V10): the figure on CAM 03 types when the player types.
+                    if (!string.IsNullOrEmpty(g.Input.TypedText)) g.CameraRig.NoteKey();
+                }
             }
             catch (Exception e) { FaultLog.Report("camera", e); }
         }

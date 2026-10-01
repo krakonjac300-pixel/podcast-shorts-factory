@@ -161,6 +161,10 @@ namespace SecondCursor.Story
             UnhookFinale();
             _holdAt = -1;
             _g.Clock.Frozen = false;
+            // Phase Q3 (D4): a jump out of the finale's offer gives the notices and the room back.
+            _g.Notifications.HeldByStory = false;
+            _g.Audio.SetAmbienceLevel(1f, 0.5f);
+            _offerReleased = true;
             _saidShelfYou = false;
             _saidBox = false;
             _ruthReadAt = -1f;
@@ -223,6 +227,7 @@ namespace SecondCursor.Story
                 g.Mail.Deliver(ContentIds.MailN3NoSubject, false);
                 g.Flags.Set(Flags.N3Lost);
                 g.Flags.Set(Flags.LogoffItem);
+                g.Files.SetHidden(ContentIds.FileRecovered, false);
                 if (g.Clock.TotalMinutes < Night3Rules.FinaleStart) g.Clock.Set(6, 41);
             }
         }
@@ -521,6 +526,7 @@ namespace SecondCursor.Story
             var lines = new List<string>(Lines("n3_intro"));
             if (g.Flags.Has(MemoryFlags.N2WatchedToDoor)) lines.AddRange(Lines("n3_intro_mem_watched"));
             if (GaryFinished) lines.AddRange(Lines("n3_intro_mem_finished"));
+            if (MemoryFlags.NamedChatAny(g.Flags)) lines.AddRange(Lines("n3_intro_mem_chat"));
             yield return TypeLines(_ellen, lines, 3f);
             // From here on she talks without leaving what she is doing.
             _ellen.Direct = true;

@@ -614,6 +614,9 @@ namespace SecondCursor.Story
         {
             // Phase Q2 (V7): the first reply is saved with the night (Night 2 quotes it).
             KeptCopy("reply");
+            // Phase Q3 (D2, V2): her name (the demo's Her Name beat) and a word to chat are remembered.
+            if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N1SaidName);
+            if (r.Tag == "chat") _g.Flags.Set(MemoryFlags.N1NamedChat);
             switch (r.Category)
             {
                 case "swear": _g.Flags.Set(Flags.PlayerSwore); break;

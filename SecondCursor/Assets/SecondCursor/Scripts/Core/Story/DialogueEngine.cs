@@ -15,6 +15,8 @@ namespace SecondCursor.Core.Story
         public string Category = "other";
         /// <summary>Story tag of the matched response (content "tag", e.g. "stay"); empty if none or fallback.</summary>
         public string Tag = "";
+        /// <summary>Phase Q3 (T9): the gesture of the matched response ("" = none).</summary>
+        public string Gesture = "";
     }
 
     /// <summary>
@@ -66,6 +68,7 @@ namespace SecondCursor.Core.Story
                         reply.MatchedKeyword = kw;
                         reply.ResponseIndex = i;
                         reply.Tag = r.tag ?? "";
+                        reply.Gesture = r.gesture ?? "";
                         return reply;
                     }
                 }

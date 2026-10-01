@@ -22,6 +22,8 @@ namespace SecondCursor.Core.Story
             // the post-game echo (D9), the last Night 3 input (V1, filled by the director), D3's Ruth payoffs.
             "LINE1", "LINE2", "LINE3", "said1", "PREV1", "name", "NAME", "n0", "namerows", "dragrow", "mailrow", "yesrow", "camrow", "segments",
             "p2own", "p2owner", "lastn3", "118n2", "ruthask",
+            // Phase Q3 (V2): the finale's line to the viewers, only when the player spoke to chat on Night 1 or 2.
+            "chatwatch",
         };
 
         /// <summary>{lastn3} before the director knows the night's last line.</summary>
@@ -79,10 +81,12 @@ namespace SecondCursor.Core.Story
             t["lastn3"] = NoLastInput;
             t["118n2"] = "";
             t["ruthask"] = "";
+            t["chatwatch"] = "";
 #if !SC_DEMO
             // Night 3's tokens (the demo build has no Night 3 content, so their text stays out of it).
             bool finished = flags.Has(MemoryFlags.N2FinishedGary);
             bool hid214 = flags.Has(MemoryFlags.N2Hid214);
+            t["chatwatch"] = MemoryFlags.NamedChatAny(flags) ? "THEY CAN WATCH" : "";
             t["p3"] = finished ? "OK (LETHEWORTH)" : "HELD";
             t["n2_209"] = finished
                 ? "11/19/98 02:58  RECLAIM 209 ... OK (COMPLETE)\n11/19/98 03:00  209 MOVED TO SUBLEVEL C (SHELF 16)"

@@ -348,6 +348,8 @@ namespace SecondCursor.Story
                     g.Audio.Play("ui_select", 0.5f, 0.8f);
                 }
             }
+            // Phase Q3 (D3): the page the pause saved (it seeds what the copy types when the seat is taken).
+            RunSide(RecoveredPage(), "recovered-page");
             yield return Wait(2f);
             yield return EnsureEllenPresentStill();
             yield return Say(_ellen, Lines("n3_lost"), 3.5f);
@@ -360,6 +362,27 @@ namespace SecondCursor.Story
             g.Flags.Set(Flags.LogoffItem);
             GameLog.Info(LogChannel.Story, "Log Off added to the Nexus menu");
             yield return Wait(1f);
+        }
+
+        /// <summary>Phase Q3 (D3): seconds after the recovery notice before the recovered page appears, and how long its notice stays.</summary>
+        const float RecoveredAfter = 3f, RecoveredNoticeSeconds = 12f;
+
+        /// <summary>
+        /// Phase Q3 (D3): three seconds after the recovery notice, an unsaved Jotter page of Casey's from 5:58 AM is on the desktop, and its
+        /// notice quotes the first line, so everyone reads it (SHRED's copy types the rest, and "MY NAME IS C"). Opened, she says she typed it too.
+        /// </summary>
+        IEnumerator RecoveredPage()
+        {
+            var g = _g;
+            yield return Wait(RecoveredAfter);
+            if (!g.Files.Exists(ContentIds.FileRecovered)) yield break;
+            g.Files.SetHidden(ContentIds.FileRecovered, false);
+            float until = Time.time + RecoveredNoticeSeconds;
+            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("lost.recovered"), "icon_info", a => g.Apps.OpenFile(ContentIds.FileRecovered, a), "ui_select",
+                true, () => Time.time < until);
+            GameLog.Info(LogChannel.Story, "Recovered page: recovered_0558.txt is on the desktop");
+            yield return WaitUntil(() => g.Memory.Count(MemoryKind.OpenedFile, ContentIds.FileRecovered) > 0, 900f);
+            if (CurrentBeat == "lost" || CurrentBeat == "finale") SayLater(_ellen, "n3_recovered", 4f, afterTurn: true);
         }
 
         /// <summary>M15: seconds for the 3:31 to 6:41 roll, the pause before the notice's duration line, and how long the notice stays.</summary>

@@ -30,7 +30,12 @@ namespace SecondCursor.Apps
         PixelText _noSignal;
         PixelText _caption;
         PixelText _next;
-        RectTransform _side;
+        RectTransform _side, _screen;
+        PixelText _big;
+        Image _fullBack;
+        string _bigCaption = "";
+        float _bigShown;
+        bool _scripted;
         bool _hiddenShown;
         readonly Dictionary<string, UiButton> _buttons = new Dictionary<string, UiButton>();
         string _current;
@@ -46,14 +51,20 @@ namespace SecondCursor.Apps
 
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
-            CreateWindow(G.Content.Text("app.camera"), "icon_camera", 90, 40, FeedW + 128, FeedH + 60, WindowFlags.CanClose | WindowFlags.CanMinimize, zoomFrom);
+            CreateWindow(G.Content.Text("app.camera"), "icon_camera", 90, 40, FeedW + 128, FeedH + 60, WindowFlags.CanClose | WindowFlags.CanMinimize | WindowFlags.CanMaximize, zoomFrom);
             var client = Window.Client;
 
+            // Phase Q3 (V4): a scripted full view sits on black (the CCTV monitor), not on the window's grey.
+            _fullBack = UIBuilder.Solid(client, new Color32(0x0A, 0x0C, 0x0B, 0xFF), "Full Back");
+            _fullBack.rectTransform.Stretch();
+            _fullBack.raycastTarget = false;
+            _fullBack.enabled = false;
             _side = UIBuilder.Rect("Cameras", client).At(2, 2, 110, FeedH + 26);
             BuildButtons();
 
             var screen = UIBuilder.Bevel(client, BevelStyle.Sunken, "Monitor");
-            screen.rectTransform.At(116, 2, FeedW + 4, FeedH + 4);
+            _screen = screen.rectTransform;
+            _screen.At(116, 2, FeedW + 4, FeedH + 4);
             var black = UIBuilder.Solid(screen.rectTransform, Color.black, "Black");
             black.rectTransform.Stretch(2, 2, 2, 2);
             _feed = UIBuilder.Raw(screen.rectTransform, G.CameraRig != null ? G.CameraRig.Feed : null, "Feed");
@@ -91,6 +102,21 @@ namespace SecondCursor.Apps
             _nameTag.Shadow = true;
             _nameTag.Align = TextAlign.Center;
             _nameTag.enabled = false;
+            // Phase Q3 (V4): her line as a big CCTV caption in the lower third of the feed, over the centre column (it survives a 9:16 crop).
+            _big = UIBuilder.Text(_feed.rectTransform, "", new Color32(0xE4, 0xEA, 0xDE, 0xFF), true, "Big Caption");
+            _big.Shadow = true;
+            _big.Scale = 2;
+            _big.Wrap = true;
+            _big.Align = TextAlign.Center;
+            _big.VAlign = TextVAlign.Bottom;
+            _big.raycastTarget = false;
+            _big.enabled = false;
+            Window.Resized += _ =>
+            {
+                // Restored (by the player, or by the story): the scripted view is over.
+                if (!Window.IsMaximized) _scripted = false;
+                Layout();
+            };
             var recHolder = UIBuilder.Rect("REC", screen.rectTransform).TopRight(10, 8, 40, 12);
             _rec = UIBuilder.Icon(recHolder, "rec_dot", 1);
             _rec.rectTransform.anchoredPosition = new Vector2(0f, -3f);
@@ -188,6 +214,65 @@ namespace SecondCursor.Apps
             CameraSelected?.Invoke(camId, by);
         }
 
+        /// <summary>
+        /// Phase Q3 (V4): a scripted full view. With the window maximized the feed fills the client at its largest whole step and the camera
+        /// buttons hide; <paramref name="caption"/> (her line, 18 characters a line at most) types in over the lower third. The view ends
+        /// when the window is restored or <see cref="EndFullView"/> is called.
+        /// </summary>
+        public void BeginFullView(string caption)
+        {
+            _scripted = true;
+            _bigCaption = caption ?? "";
+            _bigShown = 0f;
+            Layout();
+        }
+
+        /// <summary>The scripted view is over: the buttons and the caption come back (the window itself is restored by whoever maximized it).</summary>
+        public void EndFullView()
+        {
+            _scripted = false;
+            _bigCaption = "";
+            Layout();
+        }
+
+        /// <summary>The viewer fills the desktop for a scripted full view.</summary>
+        public bool IsFullView => _scripted && Window != null && !Window.IsClosed && Window.IsMaximized;
+
+        /// <summary>Whole-step size of the feed in a maximized window: 320x240 grows to 640x480 (a whole 4x of the 160x120 picture).</summary>
+        void Layout()
+        {
+            if (Window == null || Window.IsClosed || _screen == null) return;
+            bool max = Window.IsMaximized;
+            bool full = max && _scripted;
+            _side.gameObject.SetActive(!full);
+            _fullBack.enabled = full;
+            var size = Window.Size;
+            float cw = size.x - 8f, ch = size.y - 8f - OSWindow.CaptionHeight - 1f;
+            float left = full ? 0f : 116f;
+            int step = max ? Mathf.Max(1, Mathf.FloorToInt(Mathf.Min((cw - left - 4f) / FeedW, (ch - 4f) / FeedH))) : 1;
+            float w = FeedW * step + 4f, h = FeedH * step + 4f;
+            if (!max) _screen.At(116f, 2f, FeedW + 4f, FeedH + 4f);
+            else _screen.At(Mathf.Floor(left + (cw - left - w) * 0.5f), Mathf.Floor((ch - h) * 0.5f), w, h);
+            // The caption sits in the middle of the feed's lower third, inside the column a 9:16 crop of the screen keeps (about 300 px).
+            float margin = Mathf.Max(0f, Mathf.Floor((FeedW * step - CaptionColumn) * 0.5f));
+            _big.rectTransform.BottomStrip(Mathf.Floor(FeedH * step * 0.12f), CaptionHeightPx, margin, margin);
+            _big.enabled = full && _bigCaption.Length > 0;
+            if (!full) _big.text = "";
+        }
+
+        /// <summary>The caption types in at a CCTV pace (about 10 characters a second) once the feed is big.</summary>
+        void TickBigCaption(float dt, bool signal)
+        {
+            if (!IsFullView) return;
+            // NO SIGNAL (the door's climax) takes the picture and the caption with it.
+            _big.enabled = signal && _bigCaption.Length > 0;
+            _bigShown = Mathf.Min(_bigCaption.Length, _bigShown + dt * BigCaptionCps);
+            string shown = _bigCaption.Substring(0, Mathf.FloorToInt(_bigShown));
+            if (_big.text != shown) _big.text = shown;
+        }
+
+        const float BigCaptionCps = 10f, CaptionColumn = 300f, CaptionHeightPx = 56f;
+
         void UpdateNameTag(bool signal)
         {
             var rig = G.CameraRig;
@@ -217,6 +302,7 @@ namespace SecondCursor.Apps
             }
             _switchNoise = Mathf.Max(0f, _switchNoise - dt);
             bool signal = G.CameraRig != null && G.CameraRig.HasSignal(_current);
+            TickBigCaption(dt, signal);
             _feed.enabled = signal;
             _noSignal.enabled = !signal;
             // CCTV time only runs while someone watches: close the feed and the clock waits for you (and it stops on a frozen frame).

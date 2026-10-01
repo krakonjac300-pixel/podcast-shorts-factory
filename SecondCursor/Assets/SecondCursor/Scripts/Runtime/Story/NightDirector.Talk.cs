@@ -159,11 +159,12 @@ namespace SecondCursor.Story
         /// <paramref name="keepListening"/> (Phase I): when it returns true for a reply, the speaker keeps reading and takes
         /// another line from the player (up to <paramref name="maxExtraTurns"/>) instead of going deaf: the Night 3 finale
         /// waits for "stay" however many other things are typed first, and the silence lines are typed once.
+        /// <paramref name="onLinesTyped"/> (Phase Q3): called for each exchange once its own lines are typed, before the player's turn.
         /// </summary>
         protected IEnumerator RunExchangeChain(Speaker s, string firstExchangeId, Action<DialogueReply, string> onReply = null,
             DialogueReply[] last = null, float firstCps = 2.2f, float cps = 4f, float silenceSeconds = 25f, string reopenLine = "DONT",
             Func<ExchangeData, IEnumerable<string>> extraLines = null, string turnHintKey = null, int fallbackRetries = 0,
-            string lastFallbackSet = null, Func<DialogueReply, bool> keepListening = null, int maxExtraTurns = 40)
+            string lastFallbackSet = null, Func<DialogueReply, bool> keepListening = null, int maxExtraTurns = 40, Action<ExchangeData> onLinesTyped = null)
         {
             var exchange = _g.Dialogue.Get(firstExchangeId);
             bool first = true;
@@ -174,6 +175,7 @@ namespace SecondCursor.Story
                 // Lines some exchanges add before the player's turn (a memory of an earlier night).
                 var extra = extraLines?.Invoke(exchange);
                 if (extra != null) yield return TypeLines(s, Fill(extra), cps);
+                onLinesTyped?.Invoke(exchange);
                 // Typing back is the game's hook: say so in the OS's own voice, for the first talk of every remote session
                 // (Phase I: a second session that waits for a reply used to give no prompt at all).
                 string hintKey = !string.IsNullOrEmpty(turnHintKey) ? turnHintKey : "notify.jotter.reply";
@@ -325,7 +327,26 @@ namespace SecondCursor.Story
             if (s.Pad != null) s.Pad.ThinkingCaret = hit;
             yield return Wait(hit ? ThinkPauseHit : ThinkPauseFallback);
             if (s.Pad != null) s.Pad.ThinkingCaret = false;
+            if (s.Cursor == _g.Entity && !string.IsNullOrEmpty(reply.Gesture)) yield return GestureBeforeReply(reply.Gesture);
             yield return TypeLines(s, reply.Lines, cps);
+        }
+
+        /// <summary>
+        /// Phase Q3 (T9): her pointer's body language before a reply (a nod for yes, a shake for refusals, a tremble when she is asked how she died,
+        /// a point at the Camera Viewer icon for "look"). Never during a tug, a shred, a dialog or a climax; a point only while her hands are free.
+        /// </summary>
+        IEnumerator GestureBeforeReply(string gesture)
+        {
+            var e = _g.Entity;
+            if (_g.Conflict.IsFighting || _g.Scares.ClimaxRunning || _g.Shred.Busy || AnyDialogOpen()) yield break;
+            Vector2? at = null;
+            if (gesture == EntityController.GesturePoint)
+            {
+                var icon = e.Brain.Enabled ? null : _g.Desktop.IconForApp(AppIds.Camera);
+                if (icon == null) yield break;
+                at = icon.Hit.Center;
+            }
+            yield return e.Gesture(gesture, at);
         }
     }
 }

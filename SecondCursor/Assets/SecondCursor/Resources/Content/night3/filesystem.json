@@ -26,8 +26,13 @@
     },
     {
       "id": "batch48_b", "name": "batch48_b.dat", "type": "dat", "folder": "intake", "size": "66 KB", "modified": "1998-11-19 16:48",
-      "content": "RECLAIMED RECORDS: BATCH 48-B\nSource drive: LW-2100 SN 0091241\nReceived: 11/19/98 from Sublevel C\n------------------------------------------\nClass:     Legacy business records\nRecords:   66\nVerified:  66\nStatus:    Dormant. Ready for archive.\n\nChecked by: V. Pell 11/19/98 (covering)",
+      "content": "RECLAIMED RECORDS: BATCH 48-B\nSource drive: LW-2100 SN 0091241\nReceived: 11/19/98 from Sublevel C\n------------------------------------------\nClass:     Estate records (Continuity)\nRecords:   66\nVerified:  66\nStatus:    Active. Ready for archive.\n\nNote: 1 new Continuity account opened\n11/19/98 (pre-need): ROURKE, C. (214).\nBilled monthly. First payment 12/01/98.\n\nChecked by: V. Pell 11/19/98 (covering)",
       "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch48"]
+    },
+    {
+      "id": "recovered_0558", "name": "recovered_0558.txt", "type": "txt", "folder": "desktop", "size": "1 KB", "modified": "1998-11-20 05:58",
+      "content": "NEXUS JOTTER: RECOVERED PAGE\nUntitled, last edited 11/20/98 05:58 (CROURKE)\n------------------------------------------\nis this on\nthe heater is clicking again\nit is just the heater\nthe door was closed when i sat down\nmy name is c\ni had it a minute ago\n------------------------------------------\n[NOT SAVED]",
+      "hidden": true, "protected": true, "corrupted": false, "tags": ["story", "clue"]
     },
     {
       "id": "cache_tmp_n3", "name": "~nxs0150.tmp", "type": "tmp", "folder": "intake", "size": "2 KB", "modified": "1998-11-20 01:48",
@@ -66,7 +71,7 @@
     },
     {
       "id": "camview_cfg", "name": "camview.cfg", "type": "cfg", "folder": "system", "size": "1 KB", "modified": "1998-11-20 01:52",
-      "content": "[CAMVIEW]\nACCESS=SECURITY\nCAM01=LOBBY\nCAM02=B-LEVEL HALL\nCAM03=OFFICE B-7 (WS-04)\nCAM03_NOTE=DO NOT DISABLE\nCAM04=SUBLEVEL C\nCAM04_STATE=RESTORED 11/20/98\nCAM00=ADMIN 1 (HIDDEN)\nRECORD=ALL\nRETAIN_FOOTAGE=INDEFINITE\nOPERATOR_OVERRIDE=0",
+      "content": "[CAMVIEW]\nACCESS=SECURITY\nCAM01=LOBBY\nCAM02=B-LEVEL HALL\nCAM03=OFFICE B-7 (WS-04)\nCAM03_NOTE=DO NOT DISABLE\nCAM04=SUBLEVEL C\nCAM04_STATE=RESTORED 11/20/98\nCAM00=ADMIN 1 (HIDDEN)\nLAST_OPENED_BY=ADMIN 1 (031)\nRECORD=ALL\nRETAIN_FOOTAGE=INDEFINITE\nOPERATOR_OVERRIDE=0",
       "hidden": false, "protected": true, "corrupted": false, "tags": ["system", "camera", "editable", "secret"]
     },
     {

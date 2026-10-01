@@ -333,6 +333,78 @@ namespace SecondCursor.Entity
             }
         }
 
+        // ------------------------------------------------------------------ gestures (Phase Q3, T9)
+
+        public const string GestureNod = "nod", GestureShake = "shake", GestureTremble = "tremble", GesturePoint = "point";
+
+        /// <summary>
+        /// Body language for a pointer that has no body, shown before a reply is typed: a nod (two dips of 6 px, 0.5 s), a shake (three swings of
+        /// 8 px, 0.45 s) and a tremble (1 to 2 px of noise, 0.7 s) move only how the pointer is drawn; a point goes to <paramref name="at"/>,
+        /// circles it twice (14 px) and dabs once. Nothing here clicks. The caller keeps it out of tugs, dialogs and climaxes.
+        /// </summary>
+        public IEnumerator Gesture(string kind, Vector2? at = null)
+        {
+            if (_view == null || !IsVisible) yield break;
+            switch (kind)
+            {
+                case GestureNod: yield return Sway(new Vector2(0f, -6f), 2, 0.5f, true); break;
+                case GestureShake: yield return Sway(new Vector2(8f, 0f), 3, 0.45f, false); break;
+                case GestureTremble: yield return Tremble(0.7f); break;
+                case GesturePoint:
+                    if (at.HasValue) yield return Point(at.Value);
+                    break;
+            }
+        }
+
+        IEnumerator Sway(Vector2 amplitude, int swings, float seconds, bool dips)
+        {
+            // A routine stopped mid-gesture (a jump, an ending) still puts the pointer back.
+            try
+            {
+                for (float t = 0f; t < seconds && _view != null; t += Time.deltaTime)
+                {
+                    float phase = Mathf.Clamp01(t / seconds) * swings;
+                    float k = dips ? Mathf.Abs(Mathf.Sin(Mathf.PI * phase)) : Mathf.Sin(2f * Mathf.PI * phase);
+                    _view.VisualOffset = amplitude * k;
+                    yield return null;
+                }
+            }
+            finally
+            {
+                if (_view != null) _view.VisualOffset = Vector2.zero;
+            }
+        }
+
+        IEnumerator Tremble(float seconds)
+        {
+            try
+            {
+                for (float t = 0f; t < seconds && _view != null; t += Time.deltaTime)
+                {
+                    _view.VisualOffset = new Vector2(_rng.Range(-1.5f, 1.5f), _rng.Range(-1.5f, 1.5f));
+                    yield return null;
+                }
+            }
+            finally
+            {
+                if (_view != null) _view.VisualOffset = Vector2.zero;
+            }
+        }
+
+        IEnumerator Point(Vector2 at)
+        {
+            yield return MoveTo(ScreenRig.ClampToScreen(at), MovementProfiles.Hesitant, 20f);
+            const float circleSeconds = 0.9f, radius = 14f;
+            for (float t = 0f; t < circleSeconds; t += Time.deltaTime)
+            {
+                float a = t / circleSeconds * 4f * Mathf.PI;
+                _agent.Position = ScreenRig.ClampToScreen(at + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius);
+                yield return null;
+            }
+            _agent.Position = ScreenRig.ClampToScreen(at);
+            yield return Sway(new Vector2(0f, -6f), 1, 0.25f, true);
+        }
+
         // ------------------------------------------------------------------ buttons
 
         public IEnumerator Press()

@@ -46,7 +46,7 @@
       "to": "New Night Staff <nightops@letheworth.corp>",
       "subject": "Reclaimed records: operator FAQ",
       "date": "Mon 11/09/98 8:00 AM",
-      "body": "Q: What is on the drives?\nA: Legacy customer and business records from accounts that have lapsed.\n\nQ: May I open them?\nA: No. The Data Viewer is for integrity checks only.\n\nQ: A file will not shred.\nA: Some records are persistent. Keep trying. Report persistent records to the Office of Retention.\n\nQ: A file has moved on its own.\nA: Files do not move on their own. Report the operator.\n\nOffice of Retention",
+      "body": "Q: What is on the drives?\nA: Legacy customer and business records from accounts that have lapsed.\n\nQ: May I open them?\nA: No. The Data Viewer is for integrity checks only.\n\nQ: A record did not respond to the integrity check.\nA: Flag it QUIET. Most records are quiet.\n\nQ: A QUIET record has started to respond.\nA: Clear the flag. File it with Retention.\n\nQ: A file will not shred.\nA: Some records are persistent. Keep trying. Report persistent records to the Office of Retention.\n\nQ: A file has moved on its own.\nA: Files do not move on their own. Report the operator.\n\nOffice of Retention",
       "preload": true,
       "read": true
     },

@@ -51,6 +51,7 @@ namespace SecondCursor.Story
             }
             E.State = EntityState.Observing;
             float revealStart = Time.time;
+            RunSide(MoveYourHand(), "move-hand");
 
             // 1) The door: it's ajar after a moment of static.
             yield return WaitWatching(8f, 25f);
@@ -58,6 +59,8 @@ namespace SecondCursor.Story
 
             // 2) Someone is standing in the doorway. The office goes quiet.
             yield return WaitWatching(8f, 30f);
+            // Phase Q3 (V4): she double-clicks the viewer's title bar: the feed fills the desktop for the doorway (her line types in over it).
+            yield return FullSizeFeed(_g.Content.Dialogue.panicLines.Length > 0 ? _g.Content.Dialogue.panicLines[0] : null, E, FullViewSeconds);
             yield return StaticCut(() => { rig.DoorOpen = 0.85f; rig.Figure = FigureStage.Doorway; });
             _g.Flags.Set(Flags.FigureSeen);
             _g.Audio.SetAmbience(false, 4f);
@@ -65,6 +68,7 @@ namespace SecondCursor.Story
             _g.Audio.Play("door_distant", 0.5f, 1f, -0.3f);
             // Phase Q1 (owner 5): the figure in the doorway is part of the first reveal: 6 s of looking before she fights for the feed (was 4).
             yield return WaitWatching(FirstViewSeconds, 14f);
+            EndFullView();
 
             // 3) The entity panics and fights to shut the feed. Each time you reopen it, it is closer.
             E.State = EntityState.Panicked;
@@ -160,11 +164,62 @@ namespace SecondCursor.Story
                 _g.Windows.Front(cam.Window);
                 if (cam.CurrentCamera != ContentIds.Cam03) cam.Select(ContentIds.Cam03, null);
             }
+            // Phase Q3 (V4): the demo's last image, full size (no caption: the head turns in silence).
+            yield return FullSizeFeed(null, null, FullViewSeconds);
             yield return RevealClimax(DroneVolume);
             _afterHit = true;
         }
 
         const float DroneVolume = 0.25f;
+
+        /// <summary>
+        /// Phase Q3 (T7): the first time the viewer shows your office, once its arm answers your mouse (after the feed's 1.2 s dead time) and two
+        /// seconds more, she types MOVE YOUR HAND: the game asks for the wave a streamer does anyway. Not if her Jotter is closed (she does not
+        /// go and open it over the feed).
+        /// </summary>
+        IEnumerator MoveYourHand()
+        {
+            float watched = 0f;
+            while (watched < MoveHandAfterSeconds)
+            {
+                var cam = _g.Apps.Find<CameraApp>();
+                if (cam != null && cam.IsShowing(ContentIds.Cam03)) watched += Time.deltaTime;
+                if (CurrentBeat != "reveal") yield break;
+                yield return null;
+            }
+            var pad = EnsurePad(_ellen);
+            if (pad == null) yield break;
+            yield return MoveJotterClearOfTheFeed(pad);
+            if (EnsurePad(_ellen) == null) yield break;
+            yield return TypeLines(_ellen, _g.Content.Lines("n1_move_hand"), 3.5f);
+        }
+
+        /// <summary>
+        /// The viewer opens over the lower half of her Jotter, where her new lines are typed: she drags the Jotter out to the right of the feed
+        /// (her pointer, as a person would), or it is moved there if she cannot. Nothing moves when the two do not overlap.
+        /// </summary>
+        IEnumerator MoveJotterClearOfTheFeed(NotepadApp pad)
+        {
+            var cam = _g.Apps.Find<CameraApp>();
+            if (cam == null || !cam.IsOpen || !pad.Window.WorldRect.Overlaps(cam.Window.WorldRect)) yield break;
+            var win = pad.Window;
+            var from = new Vector2(win.WorldRect.xMin, win.WorldRect.yMax);
+            var to = new Vector2(ScreenRig.Width - win.Size.x - JotterMargin, ScreenRig.Height - JotterTop);
+            if (E.IsVisible)
+            {
+                Vector2 grab = win.CaptionCenter + new Vector2(-30f, 0f);
+                yield return E.DragWindow(win, grab + (to - from), MovementProfiles.Hesitant);
+            }
+            if (pad.IsOpen && win.WorldRect.Overlaps(cam.Window.WorldRect)) win.MoveTo(new Vector2(to.x, JotterTop), E.Agent);
+        }
+
+        const float JotterMargin = 6f, JotterTop = 40f;
+
+        /// <summary>The feed's arm ignores the mouse for 1.2 s after it opens; she speaks 2 s after it starts to answer.</summary>
+        const float MoveHandAfterSeconds = 3.2f;
+
+        /// <summary>Phase Q3 (V4): the longest the doorway's full-size feed stays if nothing ends it first (the look is <see cref="FirstViewSeconds"/>).</summary>
+        const float FullViewSeconds = 12f;
 
         /// <summary>Phase Q1 (owner 5): how long the first view of your own office on CAM 03 is kept in front, uncovered and unswitched.</summary>
         const float FirstViewSeconds = 6f;

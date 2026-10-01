@@ -238,7 +238,7 @@ namespace SecondCursor.Tests
             Assert.Equal(new[] { "SAY STAY", "OR PUT ME IN THE BIN" }, db.LineSet("n3_final_third").lines);
             foreach (var resp in ex.responses)
                 foreach (var line in resp.reply)
-                    Assert.Matches("^[A-Z ]+$", line);
+                    Assert.Matches("^[A-Z0-9 ]+$", line);
         }
 
         // ------------------------------------------------------------------ clarity
