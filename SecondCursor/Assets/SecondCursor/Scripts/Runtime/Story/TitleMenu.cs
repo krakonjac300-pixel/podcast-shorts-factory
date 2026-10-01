@@ -43,6 +43,7 @@ namespace SecondCursor.Story
         Screen _screen;
         Action<UiButton> _onFocus;
         PixelText _ghost;
+        StepTimer _ghostTimer;
         Image _fade;
         bool _leaving;
         float _leaveT;
@@ -264,7 +265,8 @@ namespace SecondCursor.Story
         void AnimateGhost()
         {
             if (_ghost == null) return;
-            // The "second cursor" motif: a red twin of the title slips out of alignment now and then.
+            // The "second cursor" motif: a red twin of the title slips out of alignment now and then (a 3% roll every 1/60 s, held in between).
+            if (!_ghostTimer.Tick(Time.unscaledDeltaTime)) return;
             bool slip = UnityEngine.Random.value < 0.03f;
             _ghost.rectTransform.anchoredPosition = new Vector2(slip ? UnityEngine.Random.Range(-6f, 6f) : 0f, -(slip ? 206f + UnityEngine.Random.Range(-2f, 2f) : 204f));
             _ghost.enabled = slip || UnityEngine.Random.value < 0.3f;

@@ -29,6 +29,10 @@ namespace SecondCursor.Apps
 
         internal void Attach(GameServices g) => G = g;
 
+        /// <summary>Tick exceptions in the current ten-second window (see <see cref="AppManager"/>).</summary>
+        internal int Faults;
+        internal float FaultsSince;
+
         /// <summary>A window the player reads for a while (Mail) opens clear of the notices' column (Phase H).</summary>
         protected virtual bool AvoidsNotices => false;
 
@@ -211,7 +215,44 @@ namespace SecondCursor.Apps
             {
                 var app = _open[i];
                 if (!app.IsOpen) { _open.RemoveAt(i); continue; }
-                app.Tick(dt);
+                try
+                {
+                    FaultInjector.Check("app");
+                    app.Tick(dt);
+                }
+                catch (Exception e)
+                {
+                    FaultLog.Report("app " + app.AppId, e);
+                    CloseIfFailing(app);
+                }
+            }
+        }
+
+        const int FaultsToClose = 3;
+        const float FaultWindowSeconds = 10f;
+
+        /// <summary>An app whose Tick keeps throwing (three times in 10 s) is closed with a notice, so it cannot sit broken on the screen.</summary>
+        void CloseIfFailing(App app)
+        {
+            float now = Time.unscaledTime;
+            if (now - app.FaultsSince > FaultWindowSeconds)
+            {
+                app.FaultsSince = now;
+                app.Faults = 0;
+            }
+            if (++app.Faults < FaultsToClose) return;
+            string title = app.Window.Title;
+            GameLog.Warn(LogChannel.OS, title + " stopped responding: closed");
+            try
+            {
+                app.Window.Close(null, true);
+                _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Format("os.app.stopped", title), "icon_warning", null, "sys_error");
+            }
+            catch (Exception e)
+            {
+                // Its own close handler failed: take the window off the screen anyway.
+                FaultLog.Report("closing " + app.AppId, e);
+                if (app.Window != null) UnityEngine.Object.Destroy(app.Window.gameObject);
             }
         }
 

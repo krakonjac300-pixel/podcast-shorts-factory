@@ -61,7 +61,7 @@ namespace SecondCursor.Tests
             "credits.title", "credits.body", "credits.notices",
             "pause.title", "pause.resume", "pause.quit", "pause.totitle", "pause.totitle.confirm", "pause.restart", "pause.restart.night",
             "pause.yes", "pause.no", "pause.back", "pause.difficulty", "pause.difficulty.note", "pause.difficulty.next", "pause.framerate",
-            "pause.framerate.vsync", "pause.framerate.unlimited", "pause.textsize", "pause.textsize.normal", "pause.textsize.large",
+            "pause.framerate.vsync", "os.app.stopped", "pause.textsize", "pause.textsize.normal", "pause.textsize.large",
             "end.card.continue", "end.card.menu", "end.card.select", "end.card.wishlist", "end.card.quit", "end.card.cta", "end.card.thanks",
             "end.n1.title", "end.n1.subtitle",
         };

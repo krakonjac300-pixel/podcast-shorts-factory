@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Input;
 using SecondCursor.OS;
@@ -36,6 +37,8 @@ namespace SecondCursor.Apps
         float _t;
         float _switchNoise;
         Color32[] _noisePixels;
+        /// <summary>The grain is regenerated every 1/60 s (as it was every frame at 60 Hz), not at the display's rate.</summary>
+        StepTimer _noiseTimer;
 
         public override string AppId => AppIds.Camera;
         public string CurrentCamera => _current;
@@ -202,8 +205,8 @@ namespace SecondCursor.Apps
             string caption = G.CameraRig != null ? G.CameraRig.CaptionFor(_current) : "";
             if (_caption.text != caption)
             {
-                // M10: a shelf label swap is a one-frame static flicker.
-                if (caption.Length > 0 && _caption.text.Length > 0) _captionFlickerFrame = Time.frameCount;
+                // M10: a shelf label swap is a one-step (1/60 s) static flicker.
+                if (caption.Length > 0 && _caption.text.Length > 0) _captionFlicker = true;
                 _caption.text = caption;
                 string next = caption.Length > 0 && G.CameraRig != null ? G.CameraRig.NextShelfFor(_current) : "";
                 _next.text = next.Length > 0 ? string.Format(G.Content.Text("camera.next", "NEXT: {0}"), next) : "";
@@ -239,8 +242,12 @@ namespace SecondCursor.Apps
             // Fine 2x2 speckle: a light constant hiss that never hides the picture, heavier on static cuts.
             float amount = !signal ? 0.9f : Mathf.Max(0.05f, _switchNoise * 3f) + (G.CameraRig != null ? G.CameraRig.ExtraNoise : 0f);
             if (rig != null && rig.FreezeFeed && signal) amount = 0f;
-            if (Time.frameCount == _captionFlickerFrame) amount = Mathf.Max(amount, 0.6f);
+            if (_captionFlicker) amount = Mathf.Max(amount, 0.6f);
             if (G.CameraRig != null && _feed.texture != G.CameraRig.Feed) _feed.texture = G.CameraRig.Feed;
+            bool regenerate = _captionFlicker || _noiseTimer.Tick(Time.unscaledDeltaTime);
+            if (_captionFlicker) _noiseTimer = default;   // the flicker holds for a whole step
+            _captionFlicker = false;
+            if (!regenerate) return;
             if (_noisePixels == null) _noisePixels = new Color32[_noiseTex.width * _noiseTex.height];
             var px = _noisePixels;
             uint threshold = (uint)(Mathf.Clamp01(amount) * 65535f);
@@ -272,7 +279,7 @@ namespace SecondCursor.Apps
         const float FeedHum = 0.12f, DeadChannelHum = 0.4f;
         float _hum;
         bool _visible = true;
-        int _captionFlickerFrame = -1;
+        bool _captionFlicker;
         float _echoAt = -1f;
 
         /// <summary>On CAM 03 your clicks come back a moment later, quiet and dull, as if the room heard them.</summary>

@@ -119,9 +119,9 @@ namespace SecondCursor.Story
                 {
                     cta.enabled = (t % 1.6f) < 1.1f;
                     // The title's second letter pair occasionally doubles, the way the cursor did.
-                    if (UnityEngine.Random.value < 0.01f) g.Fx.Glitch(0.06f, 0.5f);
+                    if (UnityEngine.Random.value < MathUtil.ChanceAt60(0.01f, Time.deltaTime)) g.Fx.Glitch(0.06f, 0.5f);
                 }
-                else if (UnityEngine.Random.value < 0.006f) g.Fx.Glitch(0.05f, 0.4f);
+                else if (UnityEngine.Random.value < MathUtil.ChanceAt60(0.006f, Time.deltaTime)) g.Fx.Glitch(0.05f, 0.4f);
                 yield return null;
             }
         }

@@ -76,7 +76,7 @@ namespace SecondCursor.Entity
             }
         }
 
-        /// <summary>Two quick sideways kicks of a UI element (a blocked button), then back in place.</summary>
+        /// <summary>Two quick sideways kicks of a UI element (a blocked button), then back in place: four steps of 1/60 s at any frame rate.</summary>
         static System.Collections.IEnumerator Rattle(RectTransform rt)
         {
             if (rt == null) yield break;
@@ -85,7 +85,9 @@ namespace SecondCursor.Entity
             {
                 if (rt == null) yield break;
                 rt.anchoredPosition = home + new Vector2(dx, 0f);
-                yield return null;
+                var step = new StepTimer();
+                do yield return null;
+                while (!step.Tick(Time.unscaledDeltaTime));
             }
             if (rt != null) rt.anchoredPosition = home;
         }

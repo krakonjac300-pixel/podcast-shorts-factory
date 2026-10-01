@@ -67,7 +67,7 @@ namespace SecondCursor.EditorTools
                     }
                     else SaveCapture(a.Length > 2 ? rest.Substring(rest.IndexOf(' ') + 1) : "capture.wav");
                     return Done();
-                default: return null;
+                default: return TryGamePhaseOCommand(g, cmd, a, rest);
             }
         }
 

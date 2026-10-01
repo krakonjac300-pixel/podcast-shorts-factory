@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using SecondCursor.Apps;
 using SecondCursor.Audio;
@@ -50,6 +51,8 @@ namespace SecondCursor.Game
 
         bool _built;
         DeckKeyboard _deckKeyboard;
+        /// <summary>The Windows pointer is showing (the operating system's default until the first LateUpdate).</summary>
+        bool _pointerShown = true;
 
         void Awake()
         {
@@ -78,6 +81,12 @@ namespace SecondCursor.Game
                 SaveSystem.SaveSettings(settings);
             }
             DisplaySettings.Apply(settings);
+            if (settings.frameRate != DisplaySettings.FrameRate)
+            {
+                // An old save's "unlimited" (or a value no option has) was mapped to a real option: write that back.
+                settings.frameRate = DisplaySettings.FrameRate;
+                SaveSystem.SaveSettings(settings);
+            }
             if (!string.IsNullOrEmpty(SaveSystem.DirOverride)) GameLog.Warn(LogChannel.System, "Saves are in a test folder: " + SaveSystem.DirOverride);
             if (SteamBridge.SimulateDeck) GameLog.Info(LogChannel.System, "Steam Deck simulated (test bridge)");
             Build();
@@ -264,44 +273,64 @@ namespace SecondCursor.Game
             float dt = Time.deltaTime;
             float unscaledDt = Time.unscaledDeltaTime;
 
+            // One failing stage must not stop the rest of the frame (or fill Player.log): each is caught and reported once (FaultLog).
             // 1. Real input -> the player's cursor.
-            g.Input.Poll();
-            var player = g.Player;
-            if (player.Enabled)
+            try
             {
-                player.Position = ScreenRig.ClampToScreen(g.Screen.ScreenToVirtual(g.Input.MouseScreenPosition));
-                if (DebugOverlay.MouseOverPanel)
+                g.Input.Poll();
+                var player = g.Player;
+                if (player.Enabled)
                 {
-                    player.SetButtonEdges(false, false, player.Held);
+                    player.Position = ScreenRig.ClampToScreen(g.Screen.ScreenToVirtual(g.Input.MouseScreenPosition));
+                    if (DebugOverlay.MouseOverPanel)
+                    {
+                        player.SetButtonEdges(false, false, player.Held);
+                    }
+                    else
+                    {
+                        player.SetButtonEdges(g.Input.LeftHeld, g.Input.LeftDown, g.Input.LeftUp);
+                        player.RightClickEdge(g.Input.RightDown, g.Input.RightUp);
+                        player.Scroll = g.Input.Scroll;
+                    }
                 }
-                else
-                {
-                    player.SetButtonEdges(g.Input.LeftHeld, g.Input.LeftDown, g.Input.LeftUp);
-                    player.RightClickEdge(g.Input.RightDown, g.Input.RightUp);
-                    player.Scroll = g.Input.Scroll;
-                }
+                player.UpdateVelocity(unscaledDt);
+                g.Recorder.Add(Time.time, player.Position.ToCore(), player.Held);
             }
-            player.UpdateVelocity(unscaledDt);
-            g.Recorder.Add(Time.time, player.Position.ToCore(), player.Held);
+            catch (Exception e) { FaultLog.Report("input", e); }
 
             // 2. Pointer routing for both cursors (entity state was set by its coroutines last frame).
-            g.Router.Process(Time.unscaledTime);
+            try { g.Router.Process(Time.unscaledTime); }
+            catch (Exception e) { FaultLog.Report("pointer routing", e); }
 
             // 3. Carried objects and cursor fights.
-            g.DragDrop.Update(dt);
-            g.Conflict.Tick(dt);
+            try { g.DragDrop.Update(dt); }
+            catch (Exception e) { FaultLog.Report("drag and drop", e); }
+            try { g.Conflict.Tick(dt); }
+            catch (Exception e) { FaultLog.Report("tug of war", e); }
 
             // 4. The OS.
-            g.Windows.Update(dt);
-            g.Apps.Tick(dt);
-            g.Shred.Tick(dt);
-            if (!PauseMenu.IsPaused) g.Apps.RouteKeyboard(g.Input, player);
-            _deckKeyboard?.Tick();
-            g.Clock.Tick(dt);
+            try { g.Windows.Update(dt); }
+            catch (Exception e) { FaultLog.Report("windows", e); }
+            try { g.Apps.Tick(dt); }
+            catch (Exception e) { FaultLog.Report("apps", e); }
+            try { g.Shred.Tick(dt); }
+            catch (Exception e) { FaultLog.Report("shred", e); }
+            try
+            {
+                if (!PauseMenu.IsPaused) g.Apps.RouteKeyboard(g.Input, g.Player);
+                _deckKeyboard?.Tick();
+            }
+            catch (Exception e) { FaultLog.Report("keyboard", e); }
+            try { g.Clock.Tick(dt); }
+            catch (Exception e) { FaultLog.Report("clock", e); }
 
             // 5. Feed the security camera the player's hand position (the seated figure mirrors it).
-            if (g.CameraRig != null)
-                g.CameraRig.PlayerHand = new Vector2(player.Position.x / ScreenRig.Width * 2f - 1f, player.Position.y / ScreenRig.Height * 2f - 1f);
+            try
+            {
+                if (g.CameraRig != null)
+                    g.CameraRig.PlayerHand = new Vector2(g.Player.Position.x / ScreenRig.Width * 2f - 1f, g.Player.Position.y / ScreenRig.Height * 2f - 1f);
+            }
+            catch (Exception e) { FaultLog.Report("camera", e); }
         }
 
         void OnApplicationFocus(bool focus)
@@ -311,6 +340,15 @@ namespace SecondCursor.Game
 
         void LateUpdate()
         {
+            // The only place that hides the Windows pointer (the game draws its own): shown for the developer panel and while the window is not focused.
+            bool showPointer = DebugOverlay.PanelOpen || !Application.isFocused;
+            Cursor.visible = showPointer;
+            if (showPointer != _pointerShown)
+            {
+                _pointerShown = showPointer;
+                GameLog.Info(LogChannel.System, showPointer ? "Windows pointer shown (" + (DebugOverlay.PanelOpen ? "developer panel open" : "window not focused") + ")"
+                    : "Windows pointer hidden (the game draws its own)");
+            }
             // A hard tug-of-war yank must not fling the real pointer onto another monitor: while playing,
             // the pointer stays inside the game window (never in the Editor, never while paused).
             var want = !Application.isEditor && Application.isFocused && !PauseMenu.IsPaused ? CursorLockMode.Confined : CursorLockMode.None;

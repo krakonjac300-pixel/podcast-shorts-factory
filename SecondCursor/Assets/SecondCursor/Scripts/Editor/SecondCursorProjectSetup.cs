@@ -52,17 +52,9 @@ namespace SecondCursor.EditorTools
             CreateScene(openAfter: true);
         }
 
+        /// <summary>The same settings as every build gets (one list: this used to set runInBackground the opposite way round).</summary>
         [MenuItem("SECOND CURSOR/Apply Player Settings", priority = 20)]
-        static void ConfigurePlayer()
-        {
-            PlayerSettings.productName = "SECOND CURSOR";
-            PlayerSettings.defaultScreenWidth = 1920;
-            PlayerSettings.defaultScreenHeight = 1080;
-            PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
-            PlayerSettings.resizableWindow = true;
-            PlayerSettings.runInBackground = true;
-            PlayerSettings.visibleInBackground = true;
-        }
+        static void ConfigurePlayer() => SecondCursorBuild.ApplyReleaseSettings();
 
         [MenuItem("SECOND CURSOR/Open README", priority = 40)]
         static void OpenReadme()

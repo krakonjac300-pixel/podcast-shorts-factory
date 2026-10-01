@@ -93,49 +93,90 @@ namespace SecondCursor.Audio
             return s;
         }
 
-        /// <summary>Synthesizes every clip, a few per frame so boot never hitches.</summary>
+        /// <summary>Main-thread time per frame spent making AudioClips from finished samples (with workers), or synthesizing (without).</summary>
+        const float ClipBudget = 0.004f, SequentialBudget = 0.012f;
+
+        /// <summary>
+        /// Makes every clip. The samples are synthesized on worker threads (<see cref="SoundBankBuilder"/>, the longest sounds first); this
+        /// creates the AudioClips from them on the main thread, a few per frame, until the whole bank exists (the story waits for all of it).
+        /// Without threads it synthesizes a few sounds per frame itself, as before.
+        /// </summary>
         public IEnumerator GenerateAll()
         {
-            float budget = 0.012f;
-            float start = Time.realtimeSinceStartup;
+            float began = Time.realtimeSinceStartup;
+            var wanted = new List<KeyValuePair<string, int>>();
             foreach (var id in ProceduralSoundBank.Ids)
             {
                 if (Clips.TryGetValue(id, out var existing) && existing != null) continue;
                 int seeds = Array.IndexOf(VariedIds, id) >= 0 ? VariantCount : 1;
-                var set = new AudioClip[seeds];
-                for (int s = 0; s < seeds; s++)
+                for (int seed = 1; seed <= seeds; seed++) wanted.Add(new KeyValuePair<string, int>(id, seed));
+            }
+            SoundBankBuilder builder = null;
+            bool threaded = false;
+            if (wanted.Count > 0)
+            {
+                builder = new SoundBankBuilder(wanted);
+                threaded = builder.Start();
+            }
+            var sets = new Dictionary<string, AudioClip[]>();
+            var left = new Dictionary<string, int>();
+            foreach (var w in wanted) left[w.Key] = left.TryGetValue(w.Key, out var n) ? n + 1 : 1;
+            int taken = 0, total = builder != null ? builder.Jobs.Length : 0;
+            while (taken < total)
+            {
+                float slice = Time.realtimeSinceStartup;
+                // Without workers this thread synthesizes, a slice at a time.
+                if (!threaded) while (Time.realtimeSinceStartup - slice < SequentialBudget && builder.RunNext()) { }
+                foreach (var job in builder.Jobs)
                 {
-                    set[s] = Synthesize(id, s + 1);
-                    if (Time.realtimeSinceStartup - start > budget)
-                    {
-                        yield return null;
-                        start = Time.realtimeSinceStartup;
-                    }
+                    if (job.Taken || !job.Done) continue;
+                    job.Taken = true;
+                    taken++;
+                    AddClip(sets, job);
+                    if (--left[job.Id] == 0) Publish(job.Id, sets[job.Id]);   // a restart that abandons this loop keeps what is done
+                    if (threaded && Time.realtimeSinceStartup - slice > ClipBudget) break;
                 }
-                if (set[0] == null) continue;
-                Clips[id] = set[0];
-                if (seeds > 1) Variants[id] = Array.FindAll(set, c => c != null);
+                if (taken < total) yield return null;
             }
             Ready = true;
-            GameLog.Info(LogChannel.Audio, "Sound bank ready (" + Clips.Count + " sounds)");
+            float now = Time.realtimeSinceStartup;
+            GameLog.Info(LogChannel.Audio, "Sound bank ready (" + Clips.Count + " sounds) in " + (now - began).ToString("0.00") + " s on "
+                + (threaded ? builder.Workers + " threads" : "the main thread") + ", " + now.ToString("0.00") + " s after launch");
         }
 
-        static AudioClip Synthesize(string id, int seed)
+        static void Publish(string id, AudioClip[] set)
         {
-            float[] data;
-            try
+            if (set[0] == null) return;
+            Clips[id] = set[0];
+            if (set.Length > 1) Variants[id] = Array.FindAll(set, c => c != null);
+        }
+
+        /// <summary>Makes the AudioClip of a finished job (an error is logged once, here, never from a worker thread).</summary>
+        static void AddClip(Dictionary<string, AudioClip[]> sets, SoundBankBuilder.Job job)
+        {
+            if (!sets.TryGetValue(job.Id, out var set)) sets[job.Id] = set = new AudioClip[Array.IndexOf(VariedIds, job.Id) >= 0 ? VariantCount : 1];
+            var data = job.Data;
+            job.Data = null;
+            if (job.Error != null)
             {
-                data = ProceduralSoundBank.Generate(id, seed);
+                GameLog.Error(LogChannel.Audio, "Could not generate '" + job.Id + "': " + job.Error);
+                return;
             }
-            catch (Exception e)
-            {
-                GameLog.Error(LogChannel.Audio, "Could not generate '" + id + "': " + e.Message);
-                return null;
-            }
-            if (data == null || data.Length == 0) return null;
-            var clip = AudioClip.Create(seed == 1 ? id : id + "#" + seed, data.Length, 1, ProceduralSoundBank.SampleRate, false);
+            if (data == null || data.Length == 0) return;
+            var clip = AudioClip.Create(job.Seed == 1 ? job.Id : job.Id + "#" + job.Seed, data.Length, 1, ProceduralSoundBank.SampleRate, false);
             clip.SetData(data, 0);
-            return clip;
+            set[job.Seed - 1] = clip;
+        }
+
+        /// <summary>Test bridge "soundcold": forget every generated clip, so the next start generates the bank again (load-time measurements).</summary>
+        internal static void ClearCache()
+        {
+            foreach (var clip in Clips.Values) if (clip != null) UnityEngine.Object.DestroyImmediate(clip);
+            foreach (var set in Variants.Values) foreach (var clip in set) if (clip != null) UnityEngine.Object.DestroyImmediate(clip);
+            foreach (var clip in OffsetClips.Values) if (clip != null) UnityEngine.Object.DestroyImmediate(clip);
+            Clips.Clear();
+            Variants.Clear();
+            OffsetClips.Clear();
         }
 
         public bool Has(string id) => Clips.TryGetValue(id, out var clip) && clip != null;

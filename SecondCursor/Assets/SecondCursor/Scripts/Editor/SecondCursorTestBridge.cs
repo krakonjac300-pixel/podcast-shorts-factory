@@ -45,6 +45,7 @@ namespace SecondCursor.EditorTools
             BalanceHelp +
             PhaseGHelp +
             AudioHelp +
+            PhaseOHelp +
             "Coordinates are virtual pixels (960x540, origin bottom-left).";
 
         static readonly string Dir = Path.GetFullPath("Library/SecondCursorBridge");
@@ -270,7 +271,7 @@ namespace SecondCursor.EditorTools
                 case "wait": return WaitSeconds(F(a, 1, 1f));
                 case "build": return Build();
             }
-            var progress = TryEditorProgressCommand(cmd, a, rest) ?? TryEditorPhaseGCommand(cmd, a, rest);
+            var progress = TryEditorProgressCommand(cmd, a, rest) ?? TryEditorPhaseGCommand(cmd, a, rest) ?? TryEditorPhaseOCommand(cmd, a, rest);
             return progress ?? GameCommand(cmd, a, rest);
         }
 

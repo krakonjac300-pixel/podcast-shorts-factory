@@ -10,8 +10,11 @@ namespace SecondCursor.Game
     /// </summary>
     public static class DisplaySettings
     {
-        /// <summary>0 = VSync (default), then caps, -1 = unlimited.</summary>
-        public static readonly int[] FrameRates = { 0, 30, 60, 120, 144, -1 };
+        /// <summary>0 = VSync (default), then caps. There is no unlimited option: effects and the tug are tuned in time, not frames.</summary>
+        public static readonly int[] FrameRates = { 0, 30, 60, 120, 144, 240 };
+
+        /// <summary>The cap an old save's "unlimited" (-1) becomes.</summary>
+        const int MigratedUnlimited = 240;
 
         public static int FrameRate { get; private set; }
         public static bool LargeText { get; private set; }
@@ -31,6 +34,7 @@ namespace SecondCursor.Game
 
         public static void ApplyFrameRate(int value)
         {
+            if (value < 0) value = MigratedUnlimited;
             FrameRate = Array.IndexOf(FrameRates, value) >= 0 ? value : 0;
             if (FrameRate == 0)
             {
@@ -54,7 +58,6 @@ namespace SecondCursor.Game
         public static string FrameRateLabel(int value, Core.Content.ContentDatabase c)
         {
             if (value == 0) return c != null ? c.Text("pause.framerate.vsync", "VSync") : "VSync";
-            if (value < 0) return c != null ? c.Text("pause.framerate.unlimited", "Unlimited") : "Unlimited";
             return value.ToString();
         }
 

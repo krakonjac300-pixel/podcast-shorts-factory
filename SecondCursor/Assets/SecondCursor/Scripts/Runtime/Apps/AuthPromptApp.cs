@@ -98,7 +98,7 @@ namespace SecondCursor.Apps
                 return;
             }
             int fails = G.Flags.Increment(Flags.CounterAuthFail);
-            GameLog.Info(LogChannel.Player, "Wrong code '" + typed + "' for " + _folderId + " (" + fails + ")");
+            GameLog.Info(LogChannel.Player, "Wrong code for " + _folderId + " (" + fails + ")");
             _body.text = c.Text("auth.failed");
             _input.Length = 0;
             _field.text = "";

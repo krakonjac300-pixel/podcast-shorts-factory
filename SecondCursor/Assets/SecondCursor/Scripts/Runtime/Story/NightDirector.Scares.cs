@@ -84,9 +84,11 @@ namespace SecondCursor.Story
                 if (shakePx > 0f) _g.Fx.Shake(0.2f, 2f);
                 yield break;
             }
-            if (glitch > 0f) _g.Fx.Glitch(0.25f, glitch);
+            // The glitch and the flash are one flash event (and one verdict from the budget).
+            var verdict = _g.Fx.Decide("hit");
+            if (glitch > 0f) _g.Fx.Glitch(0.25f, glitch, verdict);
             if (shakePx > 0f) _g.Fx.Shake(0.3f, shakePx);
-            if (flash > 0f) _g.Fx.Flash(flash);
+            if (flash > 0f) _g.Fx.Flash(flash, verdict);
         }
 
         /// <summary>
@@ -100,10 +102,18 @@ namespace SecondCursor.Story
             bool reduced = g.Fx.ReduceFlashing;
             yield return Wait(0.12f);
             if (reduced) g.Fx.SetBlack(true);
-            else if (signalLost && rig != null) rig.SignalLost = true;
+            else if (signalLost && rig != null)
+            {
+                g.Fx.Mark("signal lost");   // scripted: always plays, but counts against the flash budget
+                rig.SignalLost = true;
+            }
             yield return Wait(0.08f);
             g.Audio.Play("crt_off", crtVolume);
-            if (!reduced) g.CoroutineHost.StartCoroutine(g.Fx.PowerOff(0.5f, false));
+            if (!reduced)
+            {
+                g.Fx.Mark("tube collapse");
+                g.CoroutineHost.StartCoroutine(g.Fx.PowerOff(0.5f, false));
+            }
             yield return Wait(0.5f);
             g.Fx.SetBlack(true);
             if (rig != null)

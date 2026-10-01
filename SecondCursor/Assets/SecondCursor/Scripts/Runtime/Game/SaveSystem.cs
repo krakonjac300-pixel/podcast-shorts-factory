@@ -21,7 +21,7 @@ namespace SecondCursor.Game
         public bool fullscreen = true;
         /// <summary>False until the player has made the first-launch flashing choice.</summary>
         public bool flashingChosen;
-        /// <summary>0 = VSync (default), -1 = unlimited, else a frame cap (see <see cref="DisplaySettings.FrameRates"/>).</summary>
+        /// <summary>0 = VSync (default), else a frame cap (see <see cref="DisplaySettings.FrameRates"/>); an old save's -1 (unlimited) reads as 240.</summary>
         public int frameRate;
         /// <summary>Reading text at double size in Jotter and Mail (Steam Deck readability).</summary>
         public bool largeText;

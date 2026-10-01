@@ -124,6 +124,34 @@ namespace SecondCursor.EditorTools
             Debug.Log("[SYSTEM] Release settings: " + property + " = " + value);
         }
 
+        /// <summary>
+        /// File > Build Settings (Build, Build And Run) applies the release settings too, like the menu items below. A build started by a
+        /// script (BuildPipeline.BuildPlayer) does not pass here: the build guard refuses it when the settings are not the release ones.
+        /// </summary>
+        [InitializeOnLoadMethod]
+        static void RegisterBuildPlayerHandler()
+        {
+            BuildPlayerWindow.RegisterBuildPlayerHandler(options =>
+            {
+                ApplyReleaseSettings();
+                options.scenes = new[] { SecondCursorProjectSetup.ScenePath };
+                BuildPlayerWindow.DefaultBuildMethods.BuildPlayer(options);
+            });
+        }
+
+        /// <summary>What differs from the release settings that matter most (null: none). The build guard calls this for every build.</summary>
+        internal static string ReleaseSettingsProblem()
+        {
+            if (PlayerSettings.runInBackground)
+                return "Run In Background is on: a built game pauses itself when it loses focus (SECOND CURSOR > Apply Release Settings)";
+            var apis = PlayerSettings.GetGraphicsAPIs(BuildTarget.StandaloneWindows64);
+            if (PlayerSettings.GetUseDefaultGraphicsAPIs(BuildTarget.StandaloneWindows64) || apis.Length != 1 || apis[0] != UnityEngine.Rendering.GraphicsDeviceType.Direct3D11)
+                return "the graphics API is not Direct3D 11 only (SECOND CURSOR > Apply Release Settings)";
+            if (PlayerSettings.enableCrashReportAPI)
+                return "crash reporting is on: the store page says the game has no network code (SECOND CURSOR > Apply Release Settings)";
+            return null;
+        }
+
         [MenuItem("SECOND CURSOR/Build Windows (Steam)", priority = 22)]
         public static void BuildMenu()
         {
@@ -500,8 +528,8 @@ namespace SecondCursor.EditorTools
     }
 
     /// <summary>
-    /// Guards every player build (the menu items, File > Build Settings, a script): outside a demo build, Nights 2 and 3
-    /// must be in Resources and SC_DEMO must not be defined, otherwise the "full" game ships as a broken demo.
+    /// Guards every player build (the menu items, File > Build Settings, a script): the release settings must be on, and outside a demo
+    /// build Nights 2 and 3 must be in Resources and SC_DEMO must not be defined, otherwise the "full" game ships as a broken demo.
     /// </summary>
     sealed class SecondCursorBuildGuard : IPreprocessBuildWithReport
     {
@@ -509,6 +537,8 @@ namespace SecondCursor.EditorTools
 
         public void OnPreprocessBuild(BuildReport report)
         {
+            string settings = SecondCursorBuild.ReleaseSettingsProblem();
+            if (settings != null) throw new BuildFailedException("Release settings: " + settings);
             if (SecondCursorBuild.DemoBuildRunning) return;
             if (AssetDatabase.IsValidFolder(SecondCursorBuild.DemoExcludedFolder))
                 throw new BuildFailedException(SecondCursorBuild.DemoExcludedFolder + " exists (an interrupted demo build): run SECOND CURSOR > Restore Demo-Excluded Content first");

@@ -31,6 +31,8 @@ namespace SecondCursor.Entity
         Vector2 _escapeDir;
         readonly List<Image> _band = new List<Image>();
         float _glitchCooldown;
+        /// <summary>Strain glitches are at least this far apart (0.4 s: the flash budget's 0.34 s gap would refuse a closer one).</summary>
+        const float GlitchCooldownSeconds = 0.4f;
 
         bool _mercy;
         MercyRelease _mercyRelease;
@@ -200,7 +202,8 @@ namespace SecondCursor.Entity
             // At a screen edge her end slides along it (Phase K: the arrow, which is her way reversed, never flips mid-fight).
             if ((entity.Position.x <= 1f && drift.x < 0f) || (entity.Position.x >= ScreenRig.Width - 2f && drift.x > 0f)) drift.x = 0f;
             if ((entity.Position.y <= WindowManager.TaskbarHeight + 1f && drift.y < 0f) || (entity.Position.y >= ScreenRig.Height - 2f && drift.y > 0f)) drift.y = 0f;
-            drift += UnityEngine.Random.insideUnitCircle * (1.5f + _model.Strain * 3f);
+            // The tremble is a random walk: its step shrinks with the frame time, so it spreads the same per second at any frame rate.
+            drift += UnityEngine.Random.insideUnitCircle * ((1.5f + _model.Strain * 3f) * Mathf.Sqrt(dt * 60f));
             entity.Position = ScreenRig.ClampToScreen(entity.Position + drift);
 
             // Phase N: the coach judges the pull from the end of GET READY on.
@@ -230,11 +233,11 @@ namespace SecondCursor.Entity
                 _g.Fx.ExtraGrain = strain * 0.4f;
                 if (strain > 0.7f) _g.Fx.Shake(0.05f, 1f);
                 _glitchCooldown -= dt;
-                if (strain > 0.55f && _glitchCooldown <= 0f && UnityEngine.Random.value < 0.08f)
+                if (strain > 0.55f && _glitchCooldown <= 0f && UnityEngine.Random.value < MathUtil.ChanceAt60(0.08f, dt))
                 {
                     _g.Fx.Glitch(0.08f, strain);
                     _g.Audio?.Play("glitch_burst", 0.3f + strain * 0.4f);
-                    _glitchCooldown = 0.3f;
+                    _glitchCooldown = GlitchCooldownSeconds;
                 }
             }
 

@@ -490,7 +490,7 @@ namespace SecondCursor.Story
                 }
                 else
                 {
-                    Gary.Agent.Position = Vector2.Lerp(Gary.Agent.Position, c + UnityEngine.Random.insideUnitCircle * 1.5f, 0.2f);
+                    Gary.Agent.Position = Vector2.Lerp(Gary.Agent.Position, c + UnityEngine.Random.insideUnitCircle * 1.5f, MathUtil.LerpAt60(0.2f, Time.deltaTime));
                 }
                 yield return null;
             }

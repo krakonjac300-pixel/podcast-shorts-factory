@@ -1,3 +1,4 @@
+using SecondCursor.Core;
 using SecondCursor.Rendering;
 using SecondCursor.UI;
 using UnityEngine;
@@ -24,12 +25,16 @@ namespace SecondCursor.Input
         readonly Image[] _trail = new Image[TrailLength];
         readonly Vector2[] _history = new Vector2[16];
         int _historyIndex;
+        // Per-frame rolls at 60 Hz (the flicker, the jitter, the smear's samples) run on a 1/60 s step: the same at any frame rate.
+        StepTimer _flickerTimer, _jitterTimer, _trailTimer;
+        bool _flickerHidden;
+        Vector2 _jitterOffset;
 
         /// <summary>0..1 visibility multiplier (fade in/out).</summary>
         public float Alpha = 1f;
-        /// <summary>Random per-frame offset amplitude in px (entity agitation).</summary>
+        /// <summary>Random offset amplitude in px, re-rolled every 1/60 s (entity agitation).</summary>
         public float Jitter;
-        /// <summary>0..1 chance per frame of skipping a frame (glitchy flicker).</summary>
+        /// <summary>0..1 chance per 1/60 s of skipping that moment (glitchy flicker).</summary>
         public float Flicker;
         /// <summary>Draw this cursor in the second cursor's palette (M4: the player's arrow for one frame in the SHRED ending).</summary>
         public bool ShowEntityPalette;
@@ -159,19 +164,27 @@ namespace SecondCursor.Input
                 _flinchTime -= Time.deltaTime;
                 p += _flinch * Mathf.Clamp01(_flinchTime / 0.8f);
             }
-            if (Jitter > 0f) p += Random.insideUnitCircle * Jitter;
+            if (Jitter > 0f)
+            {
+                if (_jitterTimer.Tick(Time.unscaledDeltaTime)) _jitterOffset = Random.insideUnitCircle;
+                p += _jitterOffset * Jitter;
+            }
             Vector2 topLeft = new Vector2(Mathf.Floor(p.x - hot.x + 0.5f), Mathf.Floor(p.y + hot.y + 0.5f));
             _rt.anchoredPosition = topLeft;
 
-            bool visible = _agent.Visible && Alpha > 0.01f && !(Flicker > 0f && Random.value < Flicker);
+            if (_flickerTimer.Tick(Time.unscaledDeltaTime)) _flickerHidden = Flicker > 0f && Random.value < Flicker;
+            bool visible = _agent.Visible && Alpha > 0.01f && !(Flicker > 0f && _flickerHidden);
             _image.enabled = visible;
             var c = _image.color;
             c.a = Mathf.Clamp01(Alpha);
             _image.color = c;
 
             if (!_entityStyle) return;
-            _history[_historyIndex] = topLeft;
-            _historyIndex = (_historyIndex + 1) % _history.Length;
+            if (_trailTimer.Tick(Time.unscaledDeltaTime))
+            {
+                _history[_historyIndex] = topLeft;
+                _historyIndex = (_historyIndex + 1) % _history.Length;
+            }
             float speed = _agent.Velocity.magnitude;
             bool trail = visible && speed > 500f;
             for (int i = 0; i < TrailLength; i++)
@@ -180,7 +193,7 @@ namespace SecondCursor.Input
                 if (img == null) continue;
                 img.enabled = trail;
                 if (!trail) continue;
-                // Consecutive recent frames and fading fast: a smear behind the cursor, never extra cursors.
+                // Consecutive recent 1/60 s samples (50 ms in all) fading fast: a smear behind the cursor, never extra cursors.
                 int back = i + 1;
                 var pos = _history[(_historyIndex - 1 - back + _history.Length * 4) % _history.Length];
                 img.rectTransform.anchoredPosition = pos;

@@ -1658,6 +1658,146 @@ timing and every scare budget are unchanged.
 - **Not yet.** A person's hands on the tug (the tables are the bridge's pattern); Night 3's Log Off race is under 0.8 s by the existing
   timing (unchanged, as asked); the PEAT pass; the listening pass from Phase M.
 
+### Phase O (release foundations: crash safety, frame-rate independence, flash budget, faster load, build hygiene)
+
+Input: the review board's `board/ROADMAP.md` (Phase O) with `G_CodeHealth.md` (CH1, CH3, CH5, CH10 and the DebugOverlay note) and `F_Accessibility.md`
+(A1, the flash budget). No gameplay, text or difficulty change: at 60 Hz every effect below looks as before, except the flash changes A1 asks for
+(glitch strips held 0.17 s, at most 4 of 10 torn, softer fringes, 0.4 s between strain glitches).
+
+- **Crash safety (CH1).** One failing step can no longer freeze a night or fill Player.log. Every distinct exception is logged once with its stage
+  (`Core/Util/FaultLog.cs`: keyed by stage, type, message and throw site; a repeat is only counted, `Fault repeated N times in <stage>` at most every
+  30 s; 64 distinct exceptions are kept, after that a changing message shares its stage's entry). The catch points:
+  - *Story beat:* `Routine` records the exception that ended it (`Routine.Fault`, also for the 10,000-step "did not yield" stop). `NightDirector.Update`
+    sees the story flow end with a fault and `RecoverStory` (`Core/Story/BeatRecovery.cs`) restarts that beat once (`JumpTo` the same beat: `Prepare`
+    rebuilds its world), skips it the second time (on to the next beat), and takes the last beat failing twice to the title (the checkpoint stays).
+    Log: `[STORY] Beat 'x' failed (<type>: <message>), restarting it` / `skipping it, on to 'y'` / `back to the title`. Records stay armed (the player did
+    nothing wrong). A restarted ending does not record the night twice (`_nightRecorded`).
+  - *Side routine:* a story side routine that throws is logged once by its `Routine` (the same `FaultLog`) and dropped; the night goes on without it.
+  - *Pointer:* `PointerRouter.Process` catches per cursor and always consumes that cursor's edges (`finally`), so a click handler that throws no longer
+    fires again every frame and no longer starves the cursors after it; the cursor lets go of what it pressed, dragged or carried (`ReleaseAfterFault`:
+    drag end, pointer up, a carried file released as not accepted).
+  - *App:* `AppManager.Tick` catches per app; an app that throws three times in 10 s is closed with a NEXUS toast, `os.app.stopped`: `{0} stopped
+    responding and was closed.` (the only new string; a fault path, never seen in play; the directors reopen a Jotter when they need it).
+  - *Frame:* `GameRoot.Update` has a try/catch per stage (input, pointer routing, drag and drop, tug, windows, apps, shred, keyboard, clock, camera);
+    `NightDirector.Update` catches the intro tips.
+  - *Test hook:* `FaultInjector` (`Runtime/Util`): `[Conditional("UNITY_EDITOR")] Check(site)` sits in the beat flow (`beat`), `AppManager.Tick` (`app`) and
+    `Interactable.RaiseClick` (`click`); the calls are removed from every player build; an armed fault does not outlive its Play session. Bridge
+    `fault beat|app|click [TIMES]` arms the next TIMES passes.
+- **Frame-rate independence (CH3).** `MathUtil.LerpAt60(k, dt)` and `ChanceAt60(p, dt)` (`1 - (1 - p)^(dt * 60)`: exactly the tuned value at 1/60 s) and
+  `StepTimer` (`Core/Util/StepTimer.cs`: fires once per 1/60 s, at most once a frame, an early step is paid back) replace every per-frame roll, lerp and
+  re-roll in: `TitleMenu.AnimateGhost` (a 3% roll per 1/60 s step, held between steps), `VisualFx` (grain offset and the flicker spike per step, shake
+  offset per step, glitch strips per `StripHold`), `EndCard` (`ChanceAt60`), `CursorView` (flicker and jitter held per step; the smear samples the position
+  per step so it spans 50 ms at any rate), `CameraApp` (the grain texture is regenerated per 1/60 s step, not per frame; a caption flicker holds one step),
+  `EntityController.Rattle` (four steps of 1/60 s), the four guard lerps (`NightDirector.GuardElement`, `EntityBrain.RunGuardYes`, `Night2Director.Gary`,
+  `Night3Director.Gary`: `LerpAt60(0.2, deltaTime)`), `CursorAgent.UpdateVelocity` (`LerpAt60(0.5, dt)`), `ConflictSystem` (the strain glitch chance, and
+  the tremble of her end, a random walk whose step now scales with `sqrt(dt * 60)`). Already time-based and unchanged: `GlitchNowAndThen`
+  (`perSecond * deltaTime`, which also covers the finale and climax glitches), the camera lamp's dips, `Notifications`. `DisplaySettings.FrameRates` is
+  `{ VSync, 30, 60, 120, 144, 240 }`: a saved -1 ("Unlimited") reads as 240 and is written back as 240 at the next launch (`GameRoot.Awake`); the
+  `pause.framerate.unlimited` string is gone. Left as they were: `OSWindow`'s shake (a motion cue, not a roll), the jitter of the guard lerps' targets.
+- **Flash budget (A1).** `Core/Game/FlashBudget.cs` (engine-free, tested in `PhaseOTests`): at most 3 flash events start in any second and at least 0.34 s
+  apart; with Reduce flashing at most 1 a second. It is enforced in one place, `VisualFx.Decide(kind)`:
+  - Full effects: an event over the budget is softened (intensity x 0.3, duration x 0.5, flash alpha x 0.2), never dropped. Reduce flashing: the first
+    event of a second is softened as before and the rest are dropped, so Reduce lowers how often as well as how strongly.
+  - What counts: every `Glitch` (whatever its size: one rule), every `Flash` of alpha 0.1 or more (the hit, the power-off flash, the power-on blink), and the
+    camera's static cuts (`StaticCut`, `StaticResolve`, `RoundsSystem.StaticCut`: `VisualFx.StaticLevel(full)`, a third of the noise when over the budget and
+    never none, because the cut hides a change). A climax's hit is one event for its glitch and its flash (`NightDirector.Hit` asks once and passes the
+    verdict to both). The scripted aftermath (NO SIGNAL, the tube collapse) always plays but is recorded (`VisualFx.Mark`), so a random event right after it
+    sees the budget it used; the timing of every climax is unchanged.
+  - Strips: a glitch burst tears its strips on a `StripHold` of 0.17 s (at most 6 patterns a second at any rate) instead of every frame, at most 4 of the
+    10 strips (and at least one), fringes at alpha 0.2 (was 0.3). The strain glitch is `ChanceAt60(0.08)` with a 0.4 s cooldown (was 0.3 s, which the
+    0.34 s gap would refuse).
+  - Bridge: `flashrate SECONDS LABEL` and `flashwatch start LABEL` / `flashwatch stop` count the events (`VisualFx.FlashEvent`: what asked, what the budget
+    said), the most in any second and the frame rate, and write every event to `LABEL.txt`.
+- **Flash events per second (measured in the Editor, Full effects; the events are in `_work/2026-10-01/phaseO/flash/`; not a PEAT result).** The Editor held
+  59 to 60 fps for a 60 target, 126 to 134 fps for 144 and 164 to 199 fps for 240 (it cannot reach 240 with this UI).
+
+  | scene | 60 | 144 | what happens |
+  |---|---|---|---|
+  | Title, 330 s each | 1.77 asked a second (585), 1.12 full | 1.80 a second (593), 1.15 full, 131 fps | the red twin slips (a glitch of 0.05 s); +1.7%. 150 s runs: 1.64 (58.9 fps), 1.66 (133 fps), 1.90 (164 fps), all inside the chance spread of a 1.8 a second roll (plus or minus 6%) |
+  | Title, Reduce flashing, 300 s each | 1.71 asked (514), 0.63 a second played softened, 0 full | 1.85 asked (554), 0.65 softened, 134 fps | at most 1 a second plays (softened), the rest are dropped; +8% asked, chance spread; the first 100 s runs showed 1.57 and 1.99 |
+  | Night 1 reveal (to its card) | hit at 0 s, tube collapse at +0.2 s | the same at 125 fps and at 177 fps | 2 events in the second after the hit; the build's glitches (1.2 a second) come before; one power-on blink 3 s later at the card |
+  | KEEP climax | hit 0 s, NO SIGNAL +0.13 s, tube collapse +0.21 s | the same at 130 fps | 3 events inside 0.21 s: the whole budget of that second |
+  | Tug (bridge pulls, 6 each) | 1 glitch at the end of each 2.6 s tug | the same at 87 to 134 fps | the strain glitch needs strain above 0.55 for long; its cadence is modelled in `PhaseOTests` (1.64 a second at 60, 144 and 240) |
+
+  In every run the most full-strength events in any second were 3 (the budget), at most 8 were asked in one second (softened down). Estimated worst case
+  per scene for the later PEAT pass (code and these runs, not a measurement of luminance): title 3 a second (peaks of the roll; mean 1.1 full-strength);
+  tug 1.6 strain glitches a second (0.4 s cooldown plus a mean wait of 0.2 s) plus one at the start and one at the end; Night 1 reveal 2 inside 0.2 s;
+  KEEP 3 inside 0.21 s; an ending's power-down without a climax hit 1 (the largest single flash, 0.8); the end card 0.36 a second; Reduce flashing at most 1
+  a second anywhere. Not in the budget: the camera lamp's dips (2 to 3 a second in Full on the finale and reveal, clamped to 0.1 in Reduce, in the viewer
+  only) and the Work Queue and file-guide blinks (A1 item 5 is still open).
+- **Faster load (CH5).** `Runtime/Audio/SoundBankBuilder.cs`: worker threads (`ProcessorCount - 2`, at least one, plain background threads) share one job
+  list, the longest sounds first (`drone_tension`, `sys_startup`, `end_tone`, `scare_hit`, `power_down`, `scare_hit_soft`, `metal_scrape`, `hdd_spinup`,
+  then the registry order); a job is `ProceduralSoundBank.Generate(id, seed)` (engine-free and thread-safe:
+  `TheSoundBankMakesTheSameSamplesOnManyThreadsAsOnOne` checks every sound, two seeds each, against one thread) and never touches Unity or `GameLog`.
+  `AudioManager.GenerateAll` creates the AudioClips on the main thread as jobs finish (4 ms a frame), publishes each sound when its last variant exists,
+  and still waits for the whole bank before the story starts (no story sound is dropped). If no thread can start it generates on the main thread as
+  before (12 ms a frame). Log: `Sound bank ready (50 sounds) in 0.92 s on 10 threads, 1.35 s after launch` (this machine has 12 logical cores).
+
+  | where | before (one thread) | after (10 threads) |
+  |---|---|---|
+  | Editor, cold start (bridge `soundcold`, then Play) | 3.51 s (first run after a compile), 1.64 s, 1.76 s | 2.21 s (first run after a compile), 0.46 s, 0.52 s |
+  | Release player, full build, windowed | 1.96 s, 1.93 s, 1.91 s (2.2 to 2.3 s after launch) | 1.06 s, 0.96 s, 0.73 s (1.1 to 1.5 s after launch); the demo 0.92 s, the finale launch 0.98 s |
+
+  The player is JIT-cold on every launch, which the workers share, so it gains about 2x here rather than the 3 to 5x of warm .NET; a Steam Deck (8
+  threads) was not measured.
+- **Build hygiene (CH10).**
+  - File > Build Settings (Build, Build And Run) applies the release settings too (`BuildPlayerWindow.RegisterBuildPlayerHandler`, in `SecondCursorBuild`) and
+    builds the game scene only; the build guard (`SecondCursorBuildGuard`) also refuses any build whose settings are not the release ones
+    (`ReleaseSettingsProblem`: Run In Background on, a graphics API other than D3D11 only, crash reporting on), so a script build cannot skip them.
+    (The Build Profiles window of Unity 6.6 was not clicked: if it does not call the handler, the guard still stops a build with the wrong settings.)
+  - The menu that set the opposite: `SECOND CURSOR > Apply Player Settings` set Run In Background on; it now runs `ApplyReleaseSettings` (one list).
+  - The player's typed replies are no longer logged (`NightDirector.Talk.cs`: `Typed a reply of N characters (category)`); neither are typed code guesses
+    (`AuthPromptApp`: `Wrong code for <folder> (n)`).
+  - The Windows pointer is hidden in one place, `GameRoot.LateUpdate` (`Cursor.visible = DebugOverlay.PanelOpen || !Application.isFocused`), and the change
+    is logged (`[SYSTEM] Windows pointer hidden (the game draws its own)`, or shown, with the reason); `DebugOverlay` only reports `PanelOpen`, so a build
+    that strips the debug panel still never shows the real pointer over the game's cursor. Every smoke log below has the hidden line.
+  - Template leftovers removed from the Unity project (not in the repo, which holds `Assets/SecondCursor` only): `Assets/Scenes/SampleScene`,
+    `Assets/TutorialInfo`, `Assets/Readme.asset`, `Assets/_Recovery`. Kept: `Assets/Settings` (the render pipeline assets reference its volume profile)
+    and `InputSystem_Actions.inputactions` (the Input System settings reference it).
+- **Review of the change set** (a code-reviewer pass, no CRITICAL or HIGH). Fixed: a restarted ending re-recorded the night; a failing app's own close could
+  throw out of `AppManager.Tick`; a faulted cursor left a window drag and a carried file half done; a glitch of one roll could tear no strip (now at
+  least one); the flicker spike could last two frames at 60 Hz (now one step); `FaultLog` keyed two different null references in one stage together (the
+  throw site is in the key); an abandoned `GenerateAll` lost the clips it had made (each sound is published as its last variant exists); File > Build kept
+  the old scene list. Not done: nothing the reviewer left open.
+- **Files.** New: `Core/Game/FlashBudget.cs`, `Core/Story/BeatRecovery.cs`, `Core/Util/FaultLog.cs`, `Core/Util/StepTimer.cs`,
+  `Runtime/Audio/SoundBankBuilder.cs`, `Runtime/Util/FaultInjector.cs`, `Editor/SecondCursorTestBridge.PhaseO.cs`, `DevTools/CoreTests/PhaseOTests.cs`.
+  Changed: `Routine`, `MathUtil`, `GameRoot`, `GameBootstrap`, `DebugOverlay`, `DisplaySettings`, `SaveSystem` (a comment), `PointerRouter`, `Interactable`,
+  `CursorAgent`, `CursorView`, `AppManager`, `CameraApp`, `AuthPromptApp`, `AudioManager`, `VisualFx`, `ConflictSystem`, `EntityBrain`, `EntityController`,
+  `NightDirector` (+ `.Scares`, `.Talk`), `Night2Director.Gary`, `Night3Director.Gary`, `RoundsSystem`, `TitleMenu`, `EndCard`, `SecondCursorBuild`,
+  `SecondCursorProjectSetup`, the bridge dispatch, `strings.json` (`os.app.stopped` added, `pause.framerate.unlimited` removed).
+- **Checks.**
+  - CoreTests 440 pass (398 before: `PhaseOTests` 42 cases for the faulting routine, `FaultLog`, `BeatRecovery`, the 60 Hz equivalence of `LerpAt60`,
+    `ChanceAt60` and `StepTimer`, the strain glitch cadence at 60, 144 and 240, `FlashBudget` at 30, 60, 144 and 240 fps, and the thread-safe sound bank;
+    `PhaseEContentTests`' key list follows the two string changes). CompileCheck: all 8 configurations OK. 0 compiler warnings in the game's scripts.
+  - Fault injection on the bridge (`phaseO/faults.cmd`, outputs `faults.out` and, after the review fixes, `faults2.out`): a beat that throws once is logged
+    once and restarted (`Beat 'anomaly' failed ..., restarting it`, then `Beat: anomaly` again); a beat that throws twice is restarted, then skipped (`... skipping
+    it, on to 'communication'`) and the night goes on; an app tick that throws is logged once (`Fault in app mail`), and with an app that throws on every
+    tick, Mail, Jotter and Work Queue each log once and are closed with `Mail stopped responding and was closed.` (`fault_notice.out`, `o_app_stopped.png`);
+    a click handler that throws is logged once (`Fault in pointer Player`), the button is not left pressed, and 3 more throwing clicks log nothing new.
+  - Regression from the title on a fresh save (`phaseO/reg_n1.cmd` to `reg_n3.cmd`, saves `saves/phaseO/reg`, the bridge error list cleared first): Night 1 to
+    its card (`WS-04 went dark at 2:19 AM. The file came back.`, scares 2/2), Night 2 to its card (`You shredded employee_209.dat.`, scares 1/6), Night 3 to
+    the 6:41 rule and then, in the same session, to its ending (`n3_keep`, `It was 7:05 AM and you were still logged on.`); each Night 3 ending again from the
+    finale checkpoint (`run_endings.sh`): LOG OFF (`You logged off with session 017 still open.`), SHRED (`You put employee_017.dat in the bin and shredded
+    it.`), KEEP (`It was 7:05 AM and you were still logged on.`). 0 game errors on every run (the clock monitor saw no step back); the `TIMEOUT` lines are
+    the same waits for lines already logged as in Phase N (Night 2: 3, Night 3: 4).
+  - Builds (bridge, `phaseO/build.cmd`): full `Builds/Windows/SecondCursor.exe` 76.7 MB by the engine's report (51 s; Phase N 76.6 MB) and demo
+    `Builds/WindowsDemo/SecondCursorDemo.exe` 76.4 MB (38 s), 72.0 and 71.7 MB on disk (the same as Phase N), 0 errors (the engine's usual 2 build warnings),
+    Symbols (5 MB each) and `NotShipped/D3D12` moved to `Builds/Symbols/<build>`, content folders back in Resources, `SC_DEMO` off, `buildguard` passes.
+    Windowed smoke tests (`phaseO/smoke.ps1`: full three times, demo, full with `-scnight 3 -scbeat finale`; logs in `phaseO/smoke`): each reaches its title or
+    the finale (`6:41: end-of-shift rule given`), builds the 50 sounds, logs `Windows pointer hidden`, no exception and no repeated error.
+- **Judgement calls.**
+  - Every `Glitch` counts as a flash event (one rule, one place) even the small ones; in Full effects an event over the budget is softened, not dropped.
+  - A hit's glitch and flash are one event; the scripted aftermath is recorded, not budgeted, so no climax timing changed.
+  - The strain glitch cooldown went 0.3 to 0.4 s (A1 asks for it; the budget's 0.34 s gap would otherwise refuse every glitch that came 0.3 to 0.34 s after
+    the last). The grain of the camera feed is regenerated at 60 Hz, not the 30 Hz CH3 suggests, so a 60 Hz screen is as before.
+  - The sound bank uses plain background threads, not `Task.Run`: no thread-pool warm-up delay and the worker count is exactly the one chosen.
+  - A fault in the story goes to the title only after the last beat fails twice; every other fault is isolated where it happens.
+  - `ConflictSystem`'s tremble (a random walk) got a `sqrt(dt * 60)` step: outside CH3's list but the same bug (it spread 1.5 times faster at 144 Hz).
+  - The pointer log line (hidden or shown) is a small support aid and the way a windowed smoke test sees the pointer without touching the real mouse.
+- **Not yet.** The PEAT pass (the estimates above are for it); A1 item 5 (a steady highlight instead of the Work Queue remote row and file guide blinks under
+  Reduce flashing); a 75-minute soak and a Steam Deck run (CH4, phase T); `OSWindow`'s shake and the guard lerps' random jitter are still per frame; the Build
+  Profiles window's handler was not clicked; the real Windows pointer was never moved by a test (a smoke test only reads the log line).
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -1682,6 +1822,7 @@ clockmon start | clockmon report | clockcheck | hint t_shred_017   # Phase I: th
 tugsteps 30 0.1 8 0.3 | tughuman 400 5 j_ahead   # Phase J: the blind testers' tug input, and a player who lets go once the bar is theirs
 tugangle 90 400 1.2      # Phase K: in a tug, pull at 90 degrees from the arrow at 400 px/s for 1.2 s, then hold; prints the loss reason
 sfx 20 | sfxclear | sfxwait scare_hit 30 | sfxorder sub_swell scare_hit | sfxreport | scares | sfxrecord start | sfxrecord stop D:\...\x.wav | shotsafter m_keep 4.2 4.5   # Phase M
+soundcold | fault beat|app|click 2 | fps 144 | flashrate 150 title60 | flashwatch start tug1 ... flashwatch stop   # Phase O: a cold sound bank start, a deliberate exception at a catch point, a frame rate cap now, flash event counts
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

@@ -310,12 +310,12 @@ namespace SecondCursor.Story
         {
             var rig = _g.CameraRig;
             _g.Audio?.Play("static_burst", 0.9f);
-            float t = 0f;
+            float t = 0f, noise = _g.Fx.StaticLevel(0.9f);
             bool changed = false;
             while (t < 0.45f)
             {
                 t += Time.deltaTime;
-                rig.ExtraNoise = 0.9f;
+                rig.ExtraNoise = noise;
                 if (!changed && t > 0.15f) { change(); changed = true; }
                 yield return null;
             }

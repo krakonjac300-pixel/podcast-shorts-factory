@@ -215,7 +215,8 @@ namespace SecondCursor.Story
                         PlayerLines.Add(said);
                         PlayerLineMinutes.Add(_g.Clock.TotalMinutes);
                         onReply?.Invoke(reply, said);
-                        GameLog.Info(LogChannel.Player, "Typed \"" + said + "\" (" + reply.Category + ")");
+                        // What the player typed is theirs: the log (Player.log) only gets how much, and how the exchange took it.
+                        GameLog.Info(LogChannel.Player, "Typed a reply of " + said.Length + " characters (" + reply.Category + ")");
                     }
                     bool missed = said != null && reply.IsFallback;
                     if (missed) misses++;

@@ -100,7 +100,7 @@ namespace SecondCursor.Game
                 }
             }
             if (input.KeyDown(GameKey.F6)) _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled;
-            Cursor.visible = _open || !Application.isFocused;
+            PanelOpen = _open;
             // Keep clicks on the panel from also clicking the fake OS underneath.
             Vector2 m = input.MouseScreenPosition;
             MouseOverPanel = _open && m.x >= 10f && m.x <= 390f && m.y >= 10f && m.y <= Screen.height - 10f;
@@ -108,6 +108,9 @@ namespace SecondCursor.Game
 
         /// <summary>True while the real mouse is over the open debug panel.</summary>
         public static bool MouseOverPanel { get; private set; }
+
+        /// <summary>The developer panel is open (GameRoot shows the real pointer for it; a build without the panel never does).</summary>
+        public static bool PanelOpen { get; private set; }
 
         public static float CurrentSpeed = 1f;
 

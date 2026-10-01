@@ -71,6 +71,8 @@ namespace SecondCursor.Game
             GameRoot.NextRunArmed = false;
             GameRoot.FromNightSelect = false;
             GameRoot.ForceArmNext = false;
+            Core.FaultLog.Reset();
+            FaultInjector.Arm(null, 0);
             BootSequence.DisclaimerShownThisLaunch = false;
             NightDirector.NightsThisLaunch = 0;
             AudioListener.volume = 1f;

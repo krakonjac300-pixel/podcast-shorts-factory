@@ -29,6 +29,10 @@ namespace SecondCursor.Story
     {
         protected GameServices _g;
         Routine _flow;
+        /// <summary>Index of the beat the flow is running (or setting up): the one a fault is blamed on.</summary>
+        int _beatIndex;
+        BeatRecovery _recovery;
+        bool _nightRecorded;
         readonly List<Routine> _side = new List<Routine>();
         protected BootSequence _boot;
         protected EndingSequence _ending;
@@ -176,13 +180,16 @@ namespace SecondCursor.Story
             foreach (var r in _side) r.Stop();
             _side.Clear();
             CleanUpForJump();
+            _beatIndex = index;
             _flow = new Routine(Flow(index), "story");
             _flow.Tick(Time.time);
         }
 
         protected virtual void Update()
         {
-            _intro.Tick();
+            try { _intro.Tick(); }
+            catch (Exception e) { FaultLog.Report("intro tips", e); }
+            // A side routine that throws is logged by its Routine (once) and dropped; the night goes on without it.
             for (int i = _side.Count - 1; i >= 0; i--)
             {
                 _side[i].Tick(Time.time);
@@ -190,7 +197,45 @@ namespace SecondCursor.Story
             }
             if (_flow == null) return;
             _flow.Tick(Time.time);
-            if (_flow.Done) _flow = null;
+            if (!_flow.Done) return;
+            var fault = _flow.Fault;
+            _flow = null;
+            if (fault != null) RecoverStory(fault);
+        }
+
+        /// <summary>
+        /// A story beat threw: it is restarted once (the world is rebuilt for it, as for a jump), then skipped, and the last beat failing twice
+        /// leaves for the title (the checkpoint stays, so Continue resumes). The records stay armed: the player did nothing wrong.
+        /// </summary>
+        void RecoverStory(Exception fault)
+        {
+            var beats = Beats;
+            string beat = _beatIndex >= 0 && _beatIndex < beats.Length ? beats[_beatIndex] : "?";
+            var step = (_recovery ?? (_recovery = new BeatRecovery(beats.Length))).OnFault(_beatIndex);
+            string failed = "Beat '" + beat + "' failed (" + fault.GetType().Name + ": " + fault.Message + "), ";
+            try
+            {
+                switch (step)
+                {
+                    case BeatRecoveryStep.RestartBeat:
+                        GameLog.Warn(LogChannel.Story, failed + "restarting it");
+                        JumpTo(beat);
+                        break;
+                    case BeatRecoveryStep.SkipBeat:
+                        GameLog.Warn(LogChannel.Story, failed + "skipping it, on to '" + beats[_beatIndex + 1] + "'");
+                        JumpTo(beats[_beatIndex + 1]);
+                        break;
+                    default:
+                        GameLog.Warn(LogChannel.Story, failed + "back to the title (the checkpoint stays)");
+                        GameBootstrap.ToTitle();
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                FaultLog.Report("story recovery", e);
+                GameBootstrap.ToTitle();
+            }
         }
 
         /// <summary>Undo whatever a half-finished beat left on screen before starting another one.</summary>
@@ -262,6 +307,7 @@ namespace SecondCursor.Story
             }
             for (int i = start; i < beats.Length; i++)
             {
+                _beatIndex = i;
                 CurrentBeat = beats[i];
                 BeatStartedAt = Time.time;
                 GameLog.Info(LogChannel.Story, "Beat: " + CurrentBeat);
@@ -270,6 +316,7 @@ namespace SecondCursor.Story
                     ApplyPendingDifficulty();
                     SaveCheckpoint(CurrentBeat);
                 }
+                FaultInjector.Check("beat");
                 yield return RunBeat(beats[i]);
             }
         }
@@ -294,6 +341,9 @@ namespace SecondCursor.Story
                 GameLog.Info(LogChannel.System, "Night " + _g.Night + " stand-in finished: not saved");
                 return;
             }
+            // An ending beat that threw and was restarted (RecoverStory) must not count the night twice.
+            if (_nightRecorded) return;
+            _nightRecorded = true;
             RecordNightMemory();
             SaveSystem.RecordNightComplete(_g, endingId, PlayerLines, NightElapsed, PlayerLineMinutes);
             _g.AchievementWatch?.OnNightComplete(Night, endingId);
@@ -527,7 +577,7 @@ namespace SecondCursor.Story
                 }
                 else
                 {
-                    c.Agent.Position = Vector2.Lerp(c.Agent.Position, target, 0.2f);
+                    c.Agent.Position = Vector2.Lerp(c.Agent.Position, target, MathUtil.LerpAt60(0.2f, Time.deltaTime));
                 }
                 yield return null;
             }
@@ -633,13 +683,13 @@ namespace SecondCursor.Story
         {
             var rig = _g.CameraRig;
             _g.Audio.Play("static_burst", 0.9f);
-            rig.ExtraNoise = 0.95f;
+            float t = 0f, peak = _g.Fx.StaticLevel(0.95f);
+            rig.ExtraNoise = peak;
             change();
-            float t = 0f;
             while (t < seconds)
             {
                 t += Time.deltaTime;
-                rig.ExtraNoise = Mathf.Lerp(0.95f, 0f, t / seconds);
+                rig.ExtraNoise = Mathf.Lerp(peak, 0f, t / seconds);
                 yield return null;
             }
             rig.ExtraNoise = 0f;
@@ -650,12 +700,12 @@ namespace SecondCursor.Story
         {
             var rig = _g.CameraRig;
             _g.Audio.Play("static_burst", 0.9f);
-            float t = 0f;
+            float t = 0f, noise = _g.Fx.StaticLevel(0.9f);
             bool changed = false;
             while (t < 0.45f)
             {
                 t += Time.deltaTime;
-                rig.ExtraNoise = 0.9f;
+                rig.ExtraNoise = noise;
                 if (!changed && t > 0.15f) { change(); changed = true; }
                 yield return null;
             }

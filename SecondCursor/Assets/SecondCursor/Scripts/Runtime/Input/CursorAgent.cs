@@ -90,7 +90,7 @@ namespace SecondCursor.Input
 
         internal void UpdateVelocity(float dt)
         {
-            if (_hasLast && dt > 0f) Velocity = Vector2.Lerp(Velocity, (Position - _lastPosition) / dt, 0.5f);
+            if (_hasLast && dt > 0f) Velocity = Vector2.Lerp(Velocity, (Position - _lastPosition) / dt, Core.MathUtil.LerpAt60(0.5f, dt));
             _lastPosition = Position;
             _hasLast = true;
         }

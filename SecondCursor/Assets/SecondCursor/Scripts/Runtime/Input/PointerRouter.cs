@@ -64,9 +64,43 @@ namespace SecondCursor.Input
             for (int i = 0; i < _agents.Count; i++)
             {
                 var a = _agents[i];
-                ProcessAgent(a, _state[a], time);
-                a.ConsumeEdges();
+                try { ProcessAgent(a, _state[a], time); }
+                catch (Exception e)
+                {
+                    // A handler that throws must not fire again every frame (the press edge is consumed below) or starve the other cursors.
+                    Core.FaultLog.Report("pointer " + a.Name, e);
+                    ReleaseAfterFault(a);
+                }
+                finally
+                {
+                    a.ConsumeEdges();
+                }
             }
+        }
+
+        /// <summary>
+        /// The cursor lets go of what it was pressing, dragging or carrying, as a disabled cursor does (a button must not stay drawn as pressed,
+        /// a window drag must end, a file must not stay glued to the pointer), whatever the handler did.
+        /// </summary>
+        void ReleaseAfterFault(CursorAgent a)
+        {
+            var pressed = a.Pressed;
+            bool dragging = a.IsDragging;
+            a.Pressed = null;
+            a.IsDragging = false;
+            try
+            {
+                if (a.ReleasedThisFrame && a.Payload != null)
+                {
+                    var p = a.Payload;
+                    PayloadReleased?.Invoke(a, p, false);
+                    if (a.Payload == p) a.Payload = null;
+                }
+                if (pressed == null) return;
+                if (dragging) pressed.RaiseDragEnd(a);
+                pressed.RaisePointerUp(a);
+            }
+            catch (Exception e) { Core.FaultLog.Report("pointer " + a.Name + " release", e); }
         }
 
         void ProcessAgent(CursorAgent a, AgentState st, float time)

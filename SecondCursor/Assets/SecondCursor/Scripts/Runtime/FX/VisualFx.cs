@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using SecondCursor.Core;
+using SecondCursor.Core.Game;
 using SecondCursor.Rendering;
 using SecondCursor.UI;
 using UnityEngine;
@@ -16,6 +18,14 @@ namespace SecondCursor.FX
     public sealed class VisualFx : MonoBehaviour
     {
         const int StripCount = 10;
+        /// <summary>A glitch burst re-rolls its strips this often (not every frame): at most 6 patterns a second at any frame rate.</summary>
+        const float StripHold = 0.17f;
+        /// <summary>At most this many of the 10 strips are torn at once.</summary>
+        const int MaxActiveStrips = 4;
+        /// <summary>A flash this bright or more is a flash event (smaller ones, like the power-on blink, are below the photosensitivity threshold).</summary>
+        const float FlashEventAlpha = 0.1f;
+        /// <summary>What a flash event over the budget (or under Reduce flashing) is scaled to.</summary>
+        const float SoftIntensity = 0.3f, SoftDuration = 0.5f, SoftFlash = 0.2f;
 
         ScreenRig _rig;
         RawImage _scanlines;
@@ -34,6 +44,13 @@ namespace SecondCursor.FX
         float _shakeAmp;
         float _flashAlpha;
         bool _crt = true;
+        readonly FlashBudget _budget = new FlashBudget();
+        StepTimer _grainTimer, _shakeTimer, _stripTimer;
+        Vector2 _shakeOffset;
+        bool _spike;
+
+        /// <summary>Test bridge: every flash event (what asked, what the budget said), as it starts.</summary>
+        internal static event Action<string, FlashVerdict> FlashEvent;
 
         /// <summary>Extra grain (0..1) layered on top of the base amount (tension moments).</summary>
         public float ExtraGrain;
@@ -143,13 +160,38 @@ namespace SecondCursor.FX
             }
         }
 
-        public void Glitch(float duration, float intensity = 1f)
+        /// <summary>
+        /// A flash event starts (a glitch burst, a hit's flash, a static cut): the one place the photosensitivity budget is enforced. Full
+        /// effects: at most 3 a second, 0.34 s apart, an event over it is softened; Reduce flashing: at most 1 a second, softened, the rest dropped.
+        /// </summary>
+        public FlashVerdict Decide(string kind)
         {
-            if (ReduceFlashing)
+            var verdict = _budget.Decide(Time.unscaledTime, ReduceFlashing);
+            FlashEvent?.Invoke(kind, verdict);
+            return verdict;
+        }
+
+        /// <summary>A scripted flash that always plays (a climax's own sequence): it counts against the budget but is never refused.</summary>
+        public void Mark(string kind)
+        {
+            _budget.Record(Time.unscaledTime);
+            FlashEvent?.Invoke(kind, ReduceFlashing ? FlashVerdict.Soft : FlashVerdict.Full);
+        }
+
+        /// <summary>A static cut or signal loss on a camera feed starts: the noise it may reach (a third of <paramref name="full"/> over the budget; never none, the cut hides a change).</summary>
+        public float StaticLevel(float full) => Decide("static") == FlashVerdict.Full ? full : full * SoftIntensity;
+
+        /// <summary>A glitch burst. <paramref name="decided"/>: the verdict of an event this burst belongs to (a hit's glitch and flash are one event).</summary>
+        public void Glitch(float duration, float intensity = 1f, FlashVerdict? decided = null)
+        {
+            var verdict = decided ?? Decide("glitch");
+            if (verdict == FlashVerdict.Dropped) return;
+            if (verdict == FlashVerdict.Soft)
             {
-                duration *= 0.5f;
-                intensity *= 0.3f;
+                duration *= SoftDuration;
+                intensity *= SoftIntensity;
             }
+            if (_glitchTime <= 0f) _stripTimer.Prime(StripHold);   // a burst that starts tears its strips now
             _glitchTime = Mathf.Max(_glitchTime, duration);
             _glitchIntensity = Mathf.Max(_glitchIntensity, intensity);
         }
@@ -161,7 +203,17 @@ namespace SecondCursor.FX
             _shakeAmp = Mathf.Max(_shakeAmp, amplitudePx);
         }
 
-        public void Flash(float alpha = 0.6f) => _flashAlpha = Mathf.Max(_flashAlpha, ReduceFlashing ? alpha * 0.2f : alpha);
+        public void Flash(float alpha = 0.6f, FlashVerdict? decided = null)
+        {
+            if (alpha >= FlashEventAlpha || decided.HasValue)
+            {
+                var verdict = decided ?? Decide("flash");
+                if (verdict == FlashVerdict.Dropped) return;
+                if (verdict == FlashVerdict.Soft) alpha *= SoftFlash;
+            }
+            else if (ReduceFlashing) alpha *= SoftFlash;
+            _flashAlpha = Mathf.Max(_flashAlpha, alpha);
+        }
 
         public void SetBlack(bool black)
         {
@@ -218,12 +270,17 @@ namespace SecondCursor.FX
 
             if (_crt)
             {
-                _grain.uvRect = new Rect(UnityEngine.Random.value, UnityEngine.Random.value, _rig.DisplayPixelRect.width / 256f, _rig.DisplayPixelRect.height / 256f);
+                // What was rolled once a frame at 60 Hz is rolled once per 1/60 s: the same look at 144 or 240 Hz.
+                if (_grainTimer.Tick(dt))
+                {
+                    _grain.uvRect = new Rect(UnityEngine.Random.value, UnityEngine.Random.value, _rig.DisplayPixelRect.width / 256f, _rig.DisplayPixelRect.height / 256f);
+                    _spike = UnityEngine.Random.value < 0.004f * FlickerAmount;   // a one-step brightness dip, held until the next step
+                }
                 var gc = _grain.color;
                 gc.a = Mathf.Clamp01(0.55f + ExtraGrain * 2f);
                 _grain.color = gc;
                 float n = Mathf.PerlinNoise(Time.unscaledTime * 7f, 0.3f);
-                float spike = !ReduceFlashing && UnityEngine.Random.value < 0.004f * FlickerAmount ? 0.08f : 0f;
+                float spike = _spike && !ReduceFlashing ? 0.08f : 0f;
                 _flicker.color = new Color(0f, 0f, 0f, FlickerAmount * 0.035f * n + spike);
                 _scanTex.filterMode = Mathf.Approximately(_rig.Scale, Mathf.Round(_rig.Scale)) ? FilterMode.Point : FilterMode.Bilinear;
             }
@@ -235,8 +292,8 @@ namespace SecondCursor.FX
             if (_shakeTime > 0f)
             {
                 _shakeTime -= dt;
-                Vector2 o = UnityEngine.Random.insideUnitCircle * _shakeAmp * _rig.Scale;
-                _rig.DisplayImage.rectTransform.anchoredPosition = new Vector2(_rig.DisplayPixelRect.x + Mathf.Round(o.x), _rig.DisplayPixelRect.y + Mathf.Round(o.y));
+                if (_shakeTimer.Tick(dt)) _shakeOffset = UnityEngine.Random.insideUnitCircle * _shakeAmp * _rig.Scale;
+                _rig.DisplayImage.rectTransform.anchoredPosition = new Vector2(_rig.DisplayPixelRect.x + Mathf.Round(_shakeOffset.x), _rig.DisplayPixelRect.y + Mathf.Round(_shakeOffset.y));
                 if (_shakeTime <= 0f)
                 {
                     _shakeAmp = 0f;
@@ -248,20 +305,33 @@ namespace SecondCursor.FX
             {
                 _glitchTime -= dt;
                 bool on = _glitchTime > 0f;
-                for (int i = 0; i < _strips.Count; i++)
-                {
-                    bool active = on && UnityEngine.Random.value < 0.35f * _glitchIntensity;
-                    var s = _strips[i];
-                    var f = _fringes[i];
-                    s.enabled = active;
-                    f.enabled = active && UnityEngine.Random.value < 0.6f;
-                    if (!active) continue;
-                    float shift = UnityEngine.Random.Range(-0.04f, 0.04f) * _glitchIntensity;
-                    s.uvRect = new Rect(shift, i / (float)StripCount, 1f, 1f / StripCount);
-                    f.uvRect = new Rect(shift + UnityEngine.Random.Range(-0.01f, 0.01f), i / (float)StripCount, 1f, 1f / StripCount);
-                    f.color = UnityEngine.Random.value < 0.5f ? new Color(1f, 0.15f, 0.2f, 0.3f) : new Color(0.1f, 0.9f, 1f, 0.3f);
-                }
+                // The torn strips are held for StripHold, not re-rolled every frame.
+                if (!on) TearStrips(false);
+                else if (_stripTimer.Tick(dt, StripHold)) TearStrips(true);
                 if (!on) _glitchIntensity = 0f;
+            }
+        }
+
+        /// <summary>Rolls which strips are torn (at most <see cref="MaxActiveStrips"/>), how far and in which fringe colour; false clears them all.</summary>
+        void TearStrips(bool on)
+        {
+            int torn = 0;
+            // Starts at a random strip (the cap would favour the low ones) and tears one if the roll tore none: a burst is rolled once now.
+            int start = UnityEngine.Random.Range(0, _strips.Count);
+            for (int k = 0; k < _strips.Count; k++)
+            {
+                int i = (start + k) % _strips.Count;
+                bool active = on && torn < MaxActiveStrips && (UnityEngine.Random.value < 0.35f * _glitchIntensity || (k == _strips.Count - 1 && torn == 0));
+                var s = _strips[i];
+                var f = _fringes[i];
+                s.enabled = active;
+                f.enabled = active && UnityEngine.Random.value < 0.6f;
+                if (!active) continue;
+                torn++;
+                float shift = UnityEngine.Random.Range(-0.04f, 0.04f) * _glitchIntensity;
+                s.uvRect = new Rect(shift, i / (float)StripCount, 1f, 1f / StripCount);
+                f.uvRect = new Rect(shift + UnityEngine.Random.Range(-0.01f, 0.01f), i / (float)StripCount, 1f, 1f / StripCount);
+                f.color = UnityEngine.Random.value < 0.5f ? new Color(1f, 0.15f, 0.2f, 0.2f) : new Color(0.1f, 0.9f, 1f, 0.2f);
             }
         }
     }

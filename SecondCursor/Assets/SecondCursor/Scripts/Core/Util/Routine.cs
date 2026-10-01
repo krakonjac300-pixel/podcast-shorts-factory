@@ -35,6 +35,8 @@ namespace SecondCursor.Core
 
         public bool Done { get; private set; }
         public string Name => _name;
+        /// <summary>The exception that ended this routine (null when it finished, or was stopped, without one).</summary>
+        public Exception Fault { get; private set; }
 
         public Routine(IEnumerator root, string name = null)
         {
@@ -67,6 +69,7 @@ namespace SecondCursor.Core
                 if (++guard > 10000)
                 {
                     GameLog.Error(LogChannel.System, "Routine '" + _name + "' did not yield (infinite loop?) - stopped");
+                    Fault = new InvalidOperationException("routine did not yield");
                     Stop();
                     return;
                 }
@@ -78,7 +81,8 @@ namespace SecondCursor.Core
                 }
                 catch (Exception e)
                 {
-                    GameLog.Error(LogChannel.System, "Routine '" + _name + "' threw: " + e);
+                    FaultLog.Report("routine '" + _name + "'", e);
+                    Fault = e;
                     Stop();
                     return;
                 }

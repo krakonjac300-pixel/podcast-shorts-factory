@@ -109,7 +109,11 @@ namespace SecondCursor.Input
             PointerUp?.Invoke(a);
         }
 
-        internal void RaiseClick(CursorAgent a, int count) => Click?.Invoke(a, count);
+        internal void RaiseClick(CursorAgent a, int count)
+        {
+            FaultInjector.Check("click");
+            Click?.Invoke(a, count);
+        }
         internal void RaiseRightClick(CursorAgent a) => RightClick?.Invoke(a);
         internal void RaiseDragBegin(CursorAgent a) => DragBegin?.Invoke(a);
         internal void RaiseDrag(CursorAgent a, Vector2 delta) => Drag?.Invoke(a, delta);

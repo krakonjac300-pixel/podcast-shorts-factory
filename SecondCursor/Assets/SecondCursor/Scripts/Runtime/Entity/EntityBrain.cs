@@ -445,7 +445,7 @@ namespace SecondCursor.Entity
                 }
                 else
                 {
-                    _c.Agent.Position = Vector2.Lerp(_c.Agent.Position, target, 0.2f);
+                    _c.Agent.Position = Vector2.Lerp(_c.Agent.Position, target, MathUtil.LerpAt60(0.2f, Time.deltaTime));
                 }
                 yield return null;
             }

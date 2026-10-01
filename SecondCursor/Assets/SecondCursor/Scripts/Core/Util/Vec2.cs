@@ -100,6 +100,15 @@ namespace SecondCursor.Core
         /// <summary>Frame-rate independent exponential approach factor.</summary>
         public static float Damp(float sharpness, float dt) => 1f - (float)Math.Exp(-sharpness * dt);
 
+        /// <summary>
+        /// A lerp step <paramref name="k"/> tuned per frame at 60 Hz, as the step for a frame of <paramref name="dt"/> seconds: the same
+        /// approach per second at any frame rate (exactly k at 1/60 s).
+        /// </summary>
+        public static float LerpAt60(float k, float dt) => 1f - (float)Math.Pow(1f - k, Math.Max(0f, dt) * 60f);
+
+        /// <summary>A per-frame chance <paramref name="p"/> tuned at 60 Hz, as the chance for a frame of <paramref name="dt"/> seconds (the same rate per second).</summary>
+        public static float ChanceAt60(float p, float dt) => LerpAt60(p, dt);
+
         public static float MoveTowards(float current, float target, float maxDelta)
         {
             if (Math.Abs(target - current) <= maxDelta) return target;
