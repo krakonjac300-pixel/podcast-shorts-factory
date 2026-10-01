@@ -269,7 +269,9 @@ namespace SecondCursor.Story
         {
             var el = target();
             if (el == null) yield break;
-            Gary.FadeTo(Gary.MaxAlpha, 0.1f);
+            // Phase N: present, not only drawn (after a checkpoint he may not have come yet): a hand on No that holds nothing would
+            // contradict the dialog's line.
+            Gary.SetPresent(true, 0.1f);
             var fast = GaryMove.Clone();
             fast.speed *= 4f;
             fast.reactionDelay = 0.02f;

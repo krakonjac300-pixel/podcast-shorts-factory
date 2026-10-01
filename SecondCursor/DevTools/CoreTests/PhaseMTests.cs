@@ -205,20 +205,23 @@ namespace SecondCursor.Tests
         }
 
         [Fact]
-        public void AStoryMomentIgnoresTheSmallGatesButNeverAPauseAClimaxOrTheBudget()
+        public void AStoryMomentIgnoresTheSmallGatesButWaitsOutAPauseAClimaxTheBudgetATugOrADialog()
         {
             var n = ScareRules.For(3);
             var c = Clear();
-            c.Tug = c.Dragging = c.Typing = c.AwaitingReply = c.Dialog = true;
+            // Review M3 (Phase N): a story moment waits for a tug or a dialog too, like a pause, a climax or the budget.
+            c.Dragging = c.Typing = c.AwaitingReply = true;
             c.SinceEvent = 0.5f;
             c.SinceScare = 1f;
             Assert.Equal(ScareGate.None, ScareRules.Check(c, n, false, ScareRules.IgnoreAllButStory));
-            foreach (var hard in new[] { ScareGate.Paused, ScareGate.Climax, ScareGate.Budget })
+            foreach (var hard in new[] { ScareGate.Paused, ScareGate.Climax, ScareGate.Budget, ScareGate.Tug, ScareGate.Dialog })
             {
                 var h = c;
                 h.Paused = hard == ScareGate.Paused;
                 h.Climax = hard == ScareGate.Climax;
                 h.Played = hard == ScareGate.Budget ? 9 : 0;
+                h.Tug = hard == ScareGate.Tug;
+                h.Dialog = hard == ScareGate.Dialog;
                 Assert.Equal(hard, ScareRules.Check(h, n, false, ScareRules.IgnoreAllButStory));
             }
         }

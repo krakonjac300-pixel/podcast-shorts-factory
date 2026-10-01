@@ -145,7 +145,7 @@ namespace SecondCursor.Story
             var bottom = new Vector2(ScreenRig.Width * 0.5f, WindowManager.TaskbarHeight + 6f);
             Gary.Teleport(bottom);
             // Phase M (N2-3): the third pointer is a held person: he arrives as a breath, not with her swell.
-            Scare("breath_near", 0.45f, 0f, 0.3f, 3f, ScareRules.IgnoreAllButStory);
+            Scare("breath_near", 0.45f, 0f, 0.3f, ScareRules.StoryEventWindow, ScareRules.IgnoreAllButStory);
             yield return Gary.Appear(bottom, 1.4f, false);
             yield return Wait(1.2f);
 
@@ -675,8 +675,7 @@ namespace SecondCursor.Story
         {
             var g = _g;
             BeginClimax();
-            g.Audio.SetAmbienceLevel(0f, 0.8f);
-            g.Audio.StopLoop("drone_tension", 0.8f);
+            DropRoom(0.8f);
             yield return Wait(KnockAfter);
             g.Audio.Play("knock_door", 0.9f, 1f, -0.1f);
             float t = 0f, door = rig.DoorOpen;

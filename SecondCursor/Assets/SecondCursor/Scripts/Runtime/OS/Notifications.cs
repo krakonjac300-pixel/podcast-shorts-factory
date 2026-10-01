@@ -179,6 +179,7 @@ namespace SecondCursor.OS
                 t.Waited += dt;
                 if (t.Waited > Life && !t.Sticky && t.KeepWhile == null) { t.Dismissed = true; continue; }
                 bool room = used == 0f || baseY + used + t.Height <= ceiling;
+                if (!room) GiveWay();
                 // When room comes back, the ones that waited come in one after another, not in a burst.
                 if (!room || Time.time < _nextRelease) continue;
                 _nextRelease = Time.time + Stagger;
@@ -208,6 +209,16 @@ namespace SecondCursor.OS
                 y += t.Height + 4;
                 slot++;
             }
+        }
+
+        /// <summary>
+        /// Phase N: a sticky notice that has been up for a whole notice's time makes room for a newer one that has none (a race's
+        /// result behind Night 3's end-of-shift rule went unseen): the oldest goes, the news is read. Its content stays elsewhere.
+        /// </summary>
+        void GiveWay()
+        {
+            foreach (var t in _toasts)
+                if (t.Shown && !t.Dismissed && t.Sticky && t.Age >= Life - 0.01f) { t.Dismissed = true; return; }
         }
 
         /// <summary>Where the left-hand stack starts (just right of the desktop icon column).</summary>

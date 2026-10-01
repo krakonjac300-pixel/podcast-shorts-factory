@@ -356,7 +356,9 @@ namespace SecondCursor.Tests
             Assert.Equal("Wait", t.type);
             Assert.Equal("7:05 AM", t.deadline);
             Assert.Equal(Night3Rules.KeepTime, TaskDeadline.Minutes(t.deadline));
-            Assert.Contains("keeps you", t.title);
+            // Phase N: the task is given at 6:41 and states the whole rule; at 7:00 its title becomes the "keeps you" countdown.
+            Assert.Contains("keeps you", t.description);
+            Assert.Contains("keeps you", db.Text("task.logoff.now.title"));
             Assert.Contains("Log Off", t.description);
             Assert.Contains("Disposal bin", t.description);
             Assert.Contains("Camera Viewer", t.hint);
@@ -410,10 +412,10 @@ namespace SecondCursor.Tests
         {
             if (!Present) return;
             var db = Demo();
-            Assert.Equal("(not sent)", db.Text("notepad.notsent"));
+            // Phase N: a reply typed ahead is sent when the other side stops (no more grey "(not sent)").
+            Assert.False(db.HasText("notepad.notsent"));
             Assert.Contains("Your turn", db.Text("notepad.status.turn"));
-            Assert.Contains("Your turn", db.Text("notepad.status.away"));
-            foreach (var key in new[] { "notepad.status.typing", "notepad.status.unsent" }) Assert.Contains("{1}", db.Text(key));
+            foreach (var key in new[] { "notepad.status.typing", "notepad.status.held" }) Assert.Contains("{1}", db.Text(key));
             Assert.Equal("Session {0}: {1}", db.Text("notepad.title.person"));
             Assert.Equal("Moved {0} to {1}.", db.Text("files.moved"));
             foreach (var key in new[] { "files.help.by", "files.unhelp.by" })

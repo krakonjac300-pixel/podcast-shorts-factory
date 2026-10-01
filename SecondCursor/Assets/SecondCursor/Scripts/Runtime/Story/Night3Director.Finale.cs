@@ -52,6 +52,7 @@ namespace SecondCursor.Story
         MessageBox _logOffConfirm;
         ProgressDialog _logOffProgress;
         Routine _lastWords;
+        Action<string, CursorAgent> _onFinaleRequested;
         Action<string, MessageBox> _onFinaleConfirm;
         Action<string, ProgressDialog> _onFinaleProgress;
         Action<string, CursorAgent> _onFinaleShredded;
@@ -75,6 +76,8 @@ namespace SecondCursor.Story
             g.Flags.Set(Flags.LogoffItem);
             E.Phase = EntityPhase.Interference;
             float start = Time.time;
+            _lastTry = null;
+            EndOfShiftRule();
 
             // employee_017.dat comes to the desktop, the way it did on the first night.
             yield return EnsureEllenPresentStill();
@@ -179,7 +182,8 @@ namespace SecondCursor.Story
                     // Where to log off: a click on the notice opens the Nexus menu. Phase K: the Work Queue and the taskbar count down to
                     // 7:05 and name what doing nothing means and the ways out (suggestion 5, finding 1).
                     g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("logoff.available"), "icon_info", a => g.Taskbar.StartMenu.OpenFromElsewhere(a), "ui_select");
-                    GiveTask(ContentIds.TaskN3LogOffBy);
+                    // Phase N: the task given at 6:41 now says what to do.
+                    g.Tasks.Rewrite(ContentIds.TaskN3LogOffBy, g.Content.Text("task.logoff.now.title"), null, g.Content.Text("task.logoff.now.hint"));
                     GameLog.Info(LogChannel.Story, "7:00: log off available");
                 }
                 if (!gary700 && at700 > 0f && Time.time - at700 >= GaryAfter700)
@@ -200,7 +204,8 @@ namespace SecondCursor.Story
                     RunSide(IdleFastForward(), "idle-fast-forward");
                 if (_confirmed && clock >= Night3Rules.LogOffTime && !g.Shred.Busy) { _exit = Night3Exit.Keep; _keepCause = "confirm"; break; }
                 if (clock >= Night3Rules.KeepTime && keepSince < 0f) keepSince = Time.time;
-                if (Night3Rules.KeepByTime(clock, running, keepSince < 0f ? 0f : Time.time - keepSince)) { _exit = Night3Exit.Keep; _keepCause = "time"; break; }
+                // Phase N (finding 3): time's KEEP names what the player was trying to do when it came.
+                if (Night3Rules.KeepByTime(clock, running, keepSince < 0f ? 0f : Time.time - keepSince)) { _exit = Night3Exit.Keep; _keepCause = _lastTry ?? "time"; break; }
                 if (Time.time - start > FinaleSafetyCap)
                 {
                     GameLog.Warn(LogChannel.Story, "Finale hit its safety cap");
@@ -279,7 +284,7 @@ namespace SecondCursor.Story
         IEnumerator FeedFlicker()
         {
             GameLog.Info(LogChannel.Story, "Finale: feed flicker");
-            if (!_logOffAsked) Scare("knock_door", 0.9f, -0.1f, 0f, 1f, ScareRules.IgnoreAllButStory);
+            if (!_logOffAsked) Scare("knock_door", 0.9f, -0.1f, 0f, ScareRules.StoryEventWindow, ScareRules.IgnoreAllButStory);
             _g.Fx.Glitch(0.18f, 0.55f);
             var cam = _g.Apps.Find<CameraApp>();
             if (cam != null && cam.IsOpen && !cam.Window.IsMinimized && _g.CameraRig != null) yield return StaticCut(() => { });
@@ -406,8 +411,13 @@ namespace SecondCursor.Story
                 _lastWords?.Stop();
                 _lastWords = null;
             };
+            _onFinaleRequested = (id, by) =>
+            {
+                if (id == ContentIds.File017 && by != null && by.IsPlayer && _exit == Night3Exit.None) _lastTry = "letgo";
+            };
             _onFinaleTug = p =>
             {
+                if (p.FileId == ContentIds.File017 && _exit == Night3Exit.None) _lastTry = "letgo";
                 if (p.FileId != ContentIds.File017 || _tugLineSaid || _exit != Night3Exit.None) return;
                 _tugLineSaid = true;
                 string set = Night3Rules.TugLineSet(g.Memory.Trust);
@@ -421,6 +431,7 @@ namespace SecondCursor.Story
                 _keepCause = "seat";
                 g.Flags.Set(MemoryFlags.N3SeatCleared);
             };
+            g.Shred.Requested += _onFinaleRequested;
             g.Shred.ConfirmShown += _onFinaleConfirm;
             g.Shred.ProgressStarted += _onFinaleProgress;
             g.Shred.Completed += _onFinaleShredded;
@@ -432,6 +443,7 @@ namespace SecondCursor.Story
         void UnhookFinale()
         {
             var g = _g;
+            if (_onFinaleRequested != null) g.Shred.Requested -= _onFinaleRequested;
             if (_onFinaleConfirm != null) g.Shred.ConfirmShown -= _onFinaleConfirm;
             if (_onFinaleProgress != null) g.Shred.ProgressStarted -= _onFinaleProgress;
             if (_onFinaleShredded != null) g.Shred.Completed -= _onFinaleShredded;
@@ -439,6 +451,7 @@ namespace SecondCursor.Story
             if (_onFinaleTug != null) g.Conflict.TugStarted -= _onFinaleTug;
             if (_onFinaleSeat != null && g.Rounds != null) g.Rounds.SeatCleared -= _onFinaleSeat;
             if (g.Rounds != null) g.Rounds.OnItNoticeKey = g.Rounds.NotOnItNoticeKey = g.Rounds.ClosedNoticeKey = null;
+            _onFinaleRequested = null;
             _onFinaleConfirm = null;
             _onFinaleProgress = null;
             _onFinaleShredded = null;
@@ -461,14 +474,21 @@ namespace SecondCursor.Story
             if (progress == null || !progress.IsOpen) yield break;
             string set = Night3Rules.ShredLastWordsSet(_g.Memory.Trust);
             RunSide(SlowLastStretch(progress), "last-stretch");
+            _lastWordsSaying = true;
             yield return Say(_ellen, Lines(set), 5f);
+            _lastWordsSaying = false;
         }
+
+        bool _lastWordsSaying;
 
         void StopLastWords()
         {
+            // Phase N: only last words that were being typed free her pad (a shred cancelled at the confirm used to unlock it under the
+            // exchange she was typing, and her tug line typed into the middle of it).
             _lastWords?.Stop();
             _lastWords = null;
-            _ellen.Typing = false;
+            if (_lastWordsSaying) _ellen.Typing = false;
+            _lastWordsSaying = false;
         }
 
         IEnumerator SlowLastStretch(ProgressDialog progress)
@@ -478,92 +498,6 @@ namespace SecondCursor.Story
                 _g.Shred.SpeedMultiplier = Mathf.Min(_g.Shred.SpeedMultiplier, 0.35f);
                 yield return null;
             }
-        }
-
-        // ------------------------------------------------------------------ log off
-
-        /// <summary>
-        /// Start, Log Off CROURKE...: too early before 7:00, refused while session.cfg says ALLOW_LOGOFF=0,
-        /// otherwise the confirm (Yes, No), then 6 s of "Logging off" with Cancel.
-        /// </summary>
-        public override void RequestLogOff(CursorAgent a)
-        {
-            var g = _g;
-            var c = g.Content;
-            if (CurrentBeat == "ending" || _exit != Night3Exit.None) return;
-            if (LogOffRunning)
-            {
-                var w = _logOffConfirm != null && _logOffConfirm.IsOpen ? _logOffConfirm.Window : _logOffProgress?.Window;
-                if (w != null) { w.Focus(a); w.Shake(0.2f, 2f); }
-                return;
-            }
-            string title = c.Text("logoff.item").TrimEnd('.');
-            var check = Night3Rules.CheckLogOff(g.Clock.TotalMinutes, g.Flags.Has(MemoryFlags.N3LogoffEnabled));
-            GameLog.Info(LogChannel.Player, "Log off requested: " + check);
-            if (check == LogOffCheck.Early)
-            {
-                // Before 7:00 the policy is named too, while there is still time to change it.
-                bool enabled = g.Flags.Has(MemoryFlags.N3LogoffEnabled);
-                Dialogs.Message(g, title, c.Text(enabled ? "logoff.early" : "logoff.early.disabled"), enabled ? "icon_info" : "icon_lock", new[] { "OK" }, null);
-                return;
-            }
-            if (check == LogOffCheck.Disabled)
-            {
-                Dialogs.Message(g, title, c.Text("logoff.disabled"), "icon_lock", new[] { "OK" }, null);
-                return;
-            }
-            // Phase J: with the feed up, Custodial can reach the chair before the log off finishes (the tester's KEEP): say so here.
-            string body = c.Text("logoff.confirm") + (g.Rounds.ViewedCamera() != null ? "\n" + c.Text("logoff.confirm.watched") : "");
-            _logOffConfirm = Dialogs.Message(g, title, body, "icon_question", new[] { "Yes", "No" }, OnLogOffAnswer, 1);
-            // Phase M: from the first confirm on, nothing scary: no scare, and the drone goes.
-            _logOffAsked = true;
-            g.Scares.CancelAll();
-            g.Audio.StopLoop("drone_tension", 1f);
-            var box = _logOffConfirm;
-            RunSide(Say(_ellen, Lines(Night3Rules.LogOffLineSet(g.Memory.Trust)), 4.5f), "logoff-line");
-            if (GaryFinished) Gary.Run(GaryRacesToNo(box), "gary-race-no");
-            else Gary.Run(GaryGuard(() => box.IsOpen ? box.Button("No")?.Hit : null, 3f), "gary-guard-logoff");
-        }
-
-        void OnLogOffAnswer(string result, CursorAgent by)
-        {
-            GameLog.Info(LogChannel.Story, "Log off confirm: " + result + " by " + (by?.Name ?? "System"));
-            var c = _g.Content;
-            // Phase J: another session's No is named, like its Cancel below.
-            if (result == "No" && by != null && by.IsEntity && _exit == Night3Exit.None)
-                _g.Notifications.Show(c.Text("os.name"), c.Format("logoff.cancelled.by", SystemNotices.SessionOf(_g, by)), "icon_shutdown",
-                    x => _g.Taskbar.StartMenu.OpenFromElsewhere(x), "sys_warning");
-            if (result != "Yes" || _exit != Night3Exit.None) return;
-            _logOffProgress = Dialogs.Progress(_g, c.Text("logoff.item").TrimEnd('.'), c.Text("logoff.progress"), "icon_shutdown");
-            var progress = _logOffProgress;
-            bool cancelled = false;
-            progress.Cancelled += a =>
-            {
-                cancelled = true;
-                GameLog.Info(LogChannel.Story, "Log off cancelled by " + (a?.Name ?? "System"));
-                progress.Close(a);
-                // Phase H: another session's Cancel is named, so it never looks like the log off simply failed.
-                if (a != null && a.IsEntity)
-                    _g.Notifications.Show(c.Text("os.name"), c.Format("logoff.cancelled.by", SystemNotices.SessionOf(_g, a)), "icon_shutdown",
-                        x => _g.Taskbar.StartMenu.OpenFromElsewhere(x), "sys_warning");
-            };
-            RunSide(LogOffProgress(progress, () => cancelled), "logoff-progress");
-            if (GaryFinished) Gary.Run(GaryCancelsLogOff(progress), "gary-cancel-logoff");
-        }
-
-        IEnumerator LogOffProgress(ProgressDialog progress, Func<bool> cancelled)
-        {
-            float t = 0f;
-            _g.Audio.Play("hdd_seek", 0.7f);
-            while (progress.IsOpen && !cancelled() && t < LogOffSeconds)
-            {
-                t += Time.deltaTime;
-                progress.Progress = t / LogOffSeconds;
-                yield return null;
-            }
-            if (cancelled() || t < LogOffSeconds || _exit != Night3Exit.None) yield break;
-            progress.Close(null);
-            _exit = Night3Exit.LogOff;
         }
 
         // ------------------------------------------------------------------ ENDING
@@ -624,7 +558,7 @@ namespace SecondCursor.Story
                 var set = g.Content.LineSet(Night3Rules.KeepLineSet(g.Flags.Has(MemoryFlags.N3SaidStay)));
                 var name = g.Content.LineSet("n3_end_keep_name");
                 Night3Rules.KeepLines(set?.lines, set?.speakers, name?.lines, name?.speakers, MemoryFlags.SaidNameAny(g.Flags), out var lines, out var speakers);
-                spec = FinalSpec(id, EndingKind.Keep, "end.keep.title", "end.keep.subtitle", lines, speakers);
+                spec = FinalSpec(id, EndingKind.Keep, "end.keep.title", Night3Rules.KeepSubtitleKey(_keepCause), lines, speakers);
             }
             // Phase J: the card says what caused this ending (the tester logged off and read "You stayed").
             spec.Outcome = g.Content.Text(Night3Rules.EndingCauseKey(exit, _keepCause, _logOffCut));
@@ -678,6 +612,7 @@ namespace SecondCursor.Story
             var cam = g.Apps.Find<CameraApp>();
             if (cam == null) cam = g.Apps.Launch(AppIds.Camera, null) as CameraApp;
             else cam.Window.Restore(null);
+            if (cam != null) g.Windows.Front(cam.Window);
             cam?.Select(ContentIds.Cam03, null);
             var rig = g.CameraRig;
             if (rig == null) return null;
@@ -698,11 +633,12 @@ namespace SecondCursor.Story
             var rig = ShowFinalFeed();
             if (rig == null) yield break;
             BeginClimax();
+            // Review M5: the feed stays up through the build (the player's pointer is still until the card).
+            g.Player.Enabled = false;
             if (rig.Figure == FigureStage.BehindChair) g.Audio.Play("step_near", 1f);
             RunSide(StaticResolve(() => rig.Figure = FigureStage.BehindChair, 0.5f), "keep-resolve");
             yield return Wait(0.3f);
-            g.Audio.SetAmbienceLevel(0f, 1.5f);
-            g.Audio.StopLoop("drone_tension", 1.5f);
+            DropRoom(1.5f);
             yield return Wait(0.1f);
             if (feedLine) yield return Say(_ellen, Lines("n3_finale_feed"), 4f);
             else yield return Wait(0.2f);
@@ -719,7 +655,7 @@ namespace SecondCursor.Story
                 if (turn > 0f) rig.SeatedHeadTurn = Mathf.SmoothStep(0f, 1f, turn / 3.2f);
                 // The last 0.35 s the feed's noise rises instead of glitching, then the cut leaves a clean frame.
                 if (toCut < 0.35f) rig.ExtraNoise = (1f - toCut / 0.35f) * noise;
-                else if (turn > 0f && UnityEngine.Random.value < 0.02f) g.Fx.Glitch(0.05f, 0.6f);
+                else if (turn > 0f) GlitchNowAndThen(1.2f);
                 yield return null;
             }
             CutToSilence(KeepSilence);
@@ -747,7 +683,7 @@ namespace SecondCursor.Story
                 t += Time.deltaTime;
                 rig.SeatedHeadTurn = Mathf.SmoothStep(0f, 1f, t / 3.2f);
                 rig.ExtraNoise = t / 3.2f * 0.5f;
-                if (UnityEngine.Random.value < 0.05f) g.Fx.Glitch(0.05f, 0.6f);
+                GlitchNowAndThen(3f);
                 yield return null;
             }
             yield return Wait(1.2f);

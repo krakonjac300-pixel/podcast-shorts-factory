@@ -38,6 +38,12 @@ namespace SecondCursor.Core.Entity
         /// player's own pull counts from the first frame. 0 = no grace (every contest but a night's first).
         /// </summary>
         public float readGrace;
+        /// <summary>
+        /// Phase N: the GET READY beat at the grab, before anything is scored: neither pull moves the bar, her end holds still and the
+        /// cursors coming apart decide nothing (letting go below the line still loses). The read grace or hitch follows it. 0 = none
+        /// (the simulations).
+        /// </summary>
+        public float readySeconds;
 
         public TugOfWarSettings Clone() => (TugOfWarSettings)MemberwiseClone();
     }
@@ -50,25 +56,41 @@ namespace SecondCursor.Core.Entity
     /// </summary>
     public static class TugGeometry
     {
-        public const float MinPlayerRoom = 200f;
+        /// <summary>Phase N (fifth blind playtest, finding 7): the arrow never points at a screen edge closer than this (was 200).</summary>
+        public const float MinPlayerRoom = 300f;
+        /// <summary>
+        /// Phase N: the room a file's first arrow of the night asks for on top of <see cref="MinPlayerRoom"/>, so a retry grabbed a little
+        /// further along (the bridge's retries were 20 to 60 px further toward the bin) keeps the same way.
+        /// </summary>
+        public const float FirstArrowMargin = 100f;
         static readonly float[] Turns = { 30f, -30f, 60f, -60f, 90f, -90f, 120f, -120f, 150f, -150f, 180f };
 
         /// <param name="bottom">Lowest y the cursors can use (the taskbar's top).</param>
-        public static Vec2 EscapeDirection(Vec2 player, Vec2 entity, Vec2 bin, float width, float height, float bottom)
+        /// <param name="minRoom">The room the player's pull needs (<see cref="MinPlayerRoom"/> unless given).</param>
+        public static Vec2 EscapeDirection(Vec2 player, Vec2 entity, Vec2 bin, float width, float height, float bottom, float minRoom = MinPlayerRoom)
         {
             Vec2 away = (entity - player).Normalized;
             Vec2 fromBin = (entity - bin).Normalized;
             Vec2 dir = (away * 0.7f + fromBin * 0.3f).Normalized;
             if (dir.SqrLength < 0.1f) dir = new Vec2(0f, 1f);
+            return WithRoom(dir, player, width, height, bottom, minRoom);
+        }
+
+        /// <summary>
+        /// <paramref name="dir"/> (her way; the player pulls the opposite way) if the player's pull has <see cref="MinPlayerRoom"/>, else the
+        /// smallest turn of it that does (or the roomiest). Phase N: a retry over the same file keeps its way through this.
+        /// </summary>
+        public static Vec2 WithRoom(Vec2 dir, Vec2 player, float width, float height, float bottom, float minRoom = MinPlayerRoom)
+        {
             float room = RoomAlong(player, dir * -1f, width, height, bottom);
-            if (room >= MinPlayerRoom) return dir;
+            if (room >= minRoom) return dir;
             Vec2 best = dir;
             float bestRoom = room;
             foreach (float deg in Turns)
             {
                 Vec2 d = Rotate(dir, deg);
                 float r = RoomAlong(player, d * -1f, width, height, bottom);
-                if (r >= MinPlayerRoom) return d;
+                if (r >= minRoom) return d;
                 if (r > bestRoom) { bestRoom = r; best = d; }
             }
             return best;
@@ -116,10 +138,12 @@ namespace SecondCursor.Core.Entity
         public float Tension { get; private set; }
         public float Strain { get; private set; }
         public float Elapsed { get; private set; }
-        /// <summary>Seconds of the contest after the read grace (all of it when there is none): what the ramp and the assist count.</summary>
-        public float ActiveElapsed => Math.Max(0f, Elapsed - _s.readGrace);
-        /// <summary>The read grace is still running (the entity's pull is held back).</summary>
-        public bool InReadGrace => !IsOver && _s.readGrace > 0f && Elapsed < _s.readGrace;
+        /// <summary>Seconds of the contest after the GET READY beat and the read grace: what the ramp and the assist count.</summary>
+        public float ActiveElapsed => Math.Max(0f, Elapsed - _s.readySeconds - _s.readGrace);
+        /// <summary>The GET READY beat or the read grace is still running (the entity's pull and drift are held back).</summary>
+        public bool InReadGrace => !IsOver && _s.readySeconds + _s.readGrace > 0f && Elapsed < _s.readySeconds + _s.readGrace;
+        /// <summary>Phase N: the GET READY beat is still running (nothing is scored yet).</summary>
+        public bool InReady => !IsOver && Elapsed < _s.readySeconds;
         public TugOutcome Outcome { get; private set; }
         public Vec2 ObjectPosition { get; private set; }
         public bool IsOver => Outcome != TugOutcome.None;
@@ -183,6 +207,17 @@ namespace SecondCursor.Core.Entity
         {
             if (IsOver || dt <= 0f) return Outcome;
             Elapsed += dt;
+            Tension = Vec2.Distance(playerPos, entityPos);
+            ObjectPosition = Vec2.Lerp(playerPos, entityPos, EntityShare);
+            if (Elapsed <= _s.readySeconds)
+            {
+                // Phase N: GET READY. The pull starts counting when the beat ends (from where the pointer is then).
+                _prevPlayer = playerPos;
+                _hasPrev = true;
+                if (playerHolding) { _releasedFor = 0f; return TugOutcome.None; }
+                _releasedFor += dt;
+                return _releasedFor >= _s.releaseGrace ? Finish(TugOutcome.EntityWins, playerPos, entityPos) : TugOutcome.None;
+            }
 
             // --- player effort: SIGNED speed along the axis away from the entity, smoothed, so only a
             // committed yank counts (shaking back and forth averages to ~0).
@@ -196,7 +231,7 @@ namespace SecondCursor.Core.Entity
             if (_effort > PeakEffort) PeakEffort = _effort;
 
             PlayerStrength = Math.Min(_s.maxPlayerStrength, _s.playerBaseStrength + Math.Max(0f, _effort) + velocity.Length * _s.jiggleCredit);
-            bool grace = _s.readGrace > 0f && Elapsed <= _s.readGrace;
+            bool grace = _s.readGrace > 0f && Elapsed <= _s.readySeconds + _s.readGrace;
             float ramp = Math.Max(0f, ActiveElapsed - _s.rampDelay) * _s.rampPerSecond;
             EntityStrength = Math.Max(0f, entityPull) + ramp;
 
@@ -217,7 +252,6 @@ namespace SecondCursor.Core.Entity
             // Read grace: her pull waits; only the player's pull can move the share.
             if (grace && shift > 0f) shift = 0f;
             EntityShare = MathUtil.Clamp01(EntityShare + shift);
-            Tension = Vec2.Distance(playerPos, entityPos);
             ObjectPosition = Vec2.Lerp(playerPos, entityPos, EntityShare);
 
             float closeness = 1f - Math.Abs(EntityShare - 0.5f) * 2f; // 1 when evenly matched

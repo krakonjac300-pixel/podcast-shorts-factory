@@ -95,8 +95,24 @@ namespace SecondCursor.Apps
             recText.Shadow = true;
             recText.rectTransform.Stretch(9, 0, 0, 0);
 
-            Select(G.CameraRig != null ? (G.CameraRig.ActiveCamera ?? ContentIds.Cam01) : ContentIds.Cam01, by);
+            Select(CameraOnOpen(G), by);
             if (G.CameraRig != null) G.CameraRig.SetViewing(true);
+        }
+
+        /// <summary>
+        /// Phase N (fifth blind playtest, finding 4): the viewer opens on the camera the player picked last, never on Custodial's during a
+        /// round (it used to reopen on Security's camera, which session 017 closed again a second later). Security's opens pick their own.
+        /// </summary>
+        public static string CameraOnOpen(Game.GameServices g)
+        {
+            var rig = g.CameraRig;
+            string pick = rig != null ? rig.PlayerCamera ?? rig.ActiveCamera ?? ContentIds.Cam01 : ContentIds.Cam01;
+            var rounds = g.Rounds;
+            string figure = rounds != null && rounds.Running && rounds.Model != null && !rounds.Model.Finished ? rounds.Model.FigureCamera : null;
+            if (pick != figure) return pick;
+            foreach (var cam in g.Content.Story.cameras)
+                if (cam != null && !cam.hidden && cam.id != figure) return cam.id;
+            return pick;
         }
 
         /// <summary>
@@ -152,7 +168,11 @@ namespace SecondCursor.Apps
             _label.text = cam != null ? cam.label : camId;
             _switchNoise = 0.25f;
             Sfx.Play("camera_switch", by);
-            if (G.CameraRig != null) G.CameraRig.SetCamera(camId);
+            if (G.CameraRig != null)
+            {
+                G.CameraRig.SetCamera(camId);
+                if (by != null && by.IsPlayer) G.CameraRig.PlayerCamera = camId;
+            }
             if (camId == ContentIds.Cam00 && by != null && by.IsPlayer && !G.Flags.Has(Core.Story.Flags.N3Cam00Viewed))
             {
                 // Watch the Watchers: the player found CAM 00 (AchievementWatcher listens for this flag).

@@ -249,6 +249,7 @@ namespace SecondCursor.Story
             var cam = g.Apps.Find<CameraApp>();
             if (cam == null) cam = g.Apps.Launch(AppIds.Camera, null) as CameraApp;
             else cam.Window.Restore(null);
+            if (cam != null) g.Windows.Front(cam.Window);
             cam?.Select(ContentIds.Cam03, null);
             if (rig != null)
             {
@@ -256,8 +257,7 @@ namespace SecondCursor.Story
                 rig.SeatedMimicsPlayer = false;
             }
             g.Rounds.PatchPersonnelFor("BehindChair");
-            g.Audio.SetAmbienceLevel(0f, 0.3f);
-            g.Audio.StopLoop("drone_tension", 0.3f);
+            DropRoom(0.3f);
             yield return Wait(0.2f);
             g.Audio.Play("breath_near", 0.8f);
             yield return Wait(1.3f - StingerPreRoll);
@@ -356,12 +356,10 @@ namespace SecondCursor.Story
                 yield return GaryPresentFor(6f);
                 yield return Say(_gary, Lines("g3_lost"), GaryCps);
             }
+            // Log Off CROURKE... is in the Nexus menu from here; Phase N: the finale's first notice says so with the whole end-of-shift rule.
             g.Flags.Set(Flags.LogoffItem);
-            // Say where it is: a click on the notice opens the Nexus menu.
-            g.Notifications.Show(g.Content.Text("os.name"), g.Content.Text("logoff.added", "Log Off CROURKE... added to the Nexus menu."), "icon_shutdown",
-                a => g.Taskbar.StartMenu.OpenFromElsewhere(a), "ui_select");
             GameLog.Info(LogChannel.Story, "Log Off added to the Nexus menu");
-            yield return Wait(6f);
+            yield return Wait(1f);
         }
 
         /// <summary>M15: seconds for the 3:31 to 6:41 roll, the pause before the notice's duration line, and how long the notice stays.</summary>

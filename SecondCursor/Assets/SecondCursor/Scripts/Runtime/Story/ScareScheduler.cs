@@ -53,7 +53,9 @@ namespace SecondCursor.Story
             var s = go.AddComponent<ScareScheduler>();
             s._g = g;
             s._night = ScareRules.For(g.Night);
-            g.Audio.ClickAnswerAllowed = () => !PauseMenu.IsPaused && !s.ClimaxRunning && !(g.Conflict != null && g.Conflict.IsFighting) && !s.DialogOpen();
+            // Review M7: the answer is checked like any scare when the click comes (the budget, typing, the ending too).
+            g.Audio.ClickAnswerAllowed = () => !PauseMenu.IsPaused && !s.ClimaxRunning && !(g.Conflict != null && g.Conflict.IsFighting) && !s.DialogOpen()
+                && s._played < s._night.Budget && !g.Flags.Has(Flags.Ending) && !(g.Director != null && g.Director.AnySpeakerTyping) && Time.time - g.Audio.LastKeyAt >= 1.5f;
             g.Audio.ClickAnswered += s.OnClickAnswered;
             return s;
         }

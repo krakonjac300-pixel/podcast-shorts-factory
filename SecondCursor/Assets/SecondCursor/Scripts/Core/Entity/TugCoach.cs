@@ -36,6 +36,11 @@ namespace SecondCursor.Core.Entity
         public const float SlowShare = 0.5f;
         /// <summary>Pointer speed (px/s) along the arrow under which a frame counts as not pulling.</summary>
         const float PullingSpeed = 60f;
+        /// <summary>
+        /// Phase N: a person needs this long to start moving once the fight is on (the runtime feeds the coach only after GET READY),
+        /// so "too slowly" is judged on the pull after it, never on the reaction.
+        /// </summary>
+        public const float ReactionSeconds = 0.3f;
 
         readonly Vec2 _arrow;
         Vec2 _start, _last;
@@ -83,7 +88,7 @@ namespace SecondCursor.Core.Entity
             if (_path < StillPath) return TugLossReason.HeldStill;
             if (_along < _path * WrongWayShare) return TugLossReason.WrongWay;
             if (_still >= StoppedFor && _held > _still) return TugLossReason.Stopped;
-            float speed = _held > 0f ? _along / _held : 0f;
+            float speed = _along / Math.Max(0.1f, _held - ReactionSeconds);
             if (speed < fullStrengthSpeed * SlowShare) return TugLossReason.TooSlow;
             return TugLossReason.Overpowered;
         }

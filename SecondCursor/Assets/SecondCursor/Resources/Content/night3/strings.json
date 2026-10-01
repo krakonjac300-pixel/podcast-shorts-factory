@@ -11,6 +11,8 @@
     { "key": "end.shred.subtitle", "value": "You took the seat." },
     { "key": "end.keep.title", "value": "KEEP" },
     { "key": "end.keep.subtitle", "value": "You stayed." },
+    { "key": "end.keep.subtitle.kept", "value": "Session 017 kept you." },
+    { "key": "notify.endofshift", "value": "End of shift at 7:00 AM. Log off between 7:00 and 7:05 AM (Nexus menu, Log Off CROURKE...). Until you leave, keep Custodial off your camera: if it reaches your chair, session 017 keeps you. Still logged on at 7:05 AM: session 017 keeps you." },
     { "key": "end.logoff.title", "value": "LOG OFF" },
     { "key": "end.logoff.subtitle", "value": "The log shows nobody left." },
     { "key": "end.card.thanks", "value": "Thank you for working nights at Letheworth." }

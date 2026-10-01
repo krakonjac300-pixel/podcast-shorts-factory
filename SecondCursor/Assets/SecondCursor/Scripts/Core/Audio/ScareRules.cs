@@ -72,9 +72,13 @@ namespace SecondCursor.Core.Audio
         public const float BeatStartSeconds = 8f, StingerQuietSeconds = 30f, EventNearSeconds = 6f;
         /// <summary>A story sound at this call volume or more counts as an event nothing may crowd.</summary>
         public const float EventMinVolume = 0.4f;
-        /// <summary>A slot that is part of a story event ignores everything but these.</summary>
-        public const ScareGate StoryEventGates = ScareGate.Paused | ScareGate.Climax | ScareGate.Budget;
+        /// <summary>
+        /// A slot that is part of a story event ignores everything but these (Review M3: a tug or a dialog too; such a slot waits up to
+        /// <see cref="StoryEventWindow"/> for them to end).
+        /// </summary>
+        public const ScareGate StoryEventGates = ScareGate.Paused | ScareGate.Climax | ScareGate.Budget | ScareGate.Tug | ScareGate.Dialog;
         public const ScareGate IgnoreAllButStory = ~StoryEventGates;
+        public const float StoryEventWindow = 10f;
 
         static readonly ScareNight[] Nights =
         {

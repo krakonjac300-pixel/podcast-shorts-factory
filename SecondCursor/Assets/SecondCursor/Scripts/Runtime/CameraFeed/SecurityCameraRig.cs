@@ -72,6 +72,8 @@ namespace SecondCursor.CameraFeed
 
         public RenderTexture Feed { get; private set; }
         public string ActiveCamera { get; private set; } = ContentIds.Cam01;
+        /// <summary>Phase N: the camera the player picked last (null = none yet); a reopened viewer comes back on it.</summary>
+        public string PlayerCamera { get; set; }
         public float ExtraNoise { get; set; }
         public float DoorOpen { get => _doorTarget; set => _doorTarget = Mathf.Clamp01(value); }
         public FigureStage Figure { get => _figureStage; set => SetFigure(value); }
@@ -659,10 +661,14 @@ namespace SecondCursor.CameraFeed
             limb.localScale = new Vector3(s.x, length * 0.5f, s.z);
         }
 
+        const float ReducedFlicker = 0.1f;
+
         /// <summary>Fluorescent flicker: random brown-outs while LightFlicker > 0, plus a faint constant shimmer.</summary>
         float Flicker(float dt)
         {
             float f = Mathf.Clamp01(LightFlicker);
+            // Review M2: Reduce flashing keeps the lamp to a rare, shallow dip (the finale's and the reveal's full flicker dipped 2 to 3 times a second).
+            if (_g != null && _g.Fx != null && _g.Fx.ReduceFlashing) f = Mathf.Min(f, ReducedFlicker);
             if (_dipTime > 0f)
             {
                 _dipTime -= dt;

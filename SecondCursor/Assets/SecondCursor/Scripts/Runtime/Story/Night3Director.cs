@@ -521,10 +521,12 @@ namespace SecondCursor.Story
             if (!Dragging() || _g.Files.GetFile(ContentIds.FileBatch47B)?.Corrupted == true) yield break;
             _g.Files.SetCorrupted(ContentIds.FileBatch47B, true);
             _g.Files.SetContent(ContentIds.FileBatch47B, string.Join("\n", Lines("n3_corrupt_content")));
-            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Text("notify.damaged"), "icon_info", null, "sys_warning");
+            // Phase N (finding 15): it names the file and what it means for the task.
+            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Format("notify.damaged", _g.Files.GetFile(ContentIds.FileBatch47B)?.Name ?? "batch47_b.dat"),
+                "icon_info", null, "sys_warning");
             _g.Fx.Glitch(0.12f, 0.5f);
             // Phase M (N3-1): the file was typed over by someone, backwards (heard where you hold it).
-            Scare("key_tap_rev", 0.6f, Audio.AudioManager.PanFor(_g.Player.Position.x), 0.4f, 2f, ScareRules.IgnoreAllButStory);
+            Scare("key_tap_rev", 0.6f, Audio.AudioManager.PanFor(_g.Player.Position.x), 0.4f, ScareRules.StoryEventWindow, ScareRules.IgnoreAllButStory);
             GameLog.Info(LogChannel.Story, "Anomaly: batch47_b damaged");
             if (_saidCorrupt) yield break;
             _saidCorrupt = true;

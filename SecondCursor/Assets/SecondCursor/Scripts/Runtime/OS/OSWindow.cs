@@ -68,6 +68,8 @@ namespace SecondCursor.OS
         /// to the top of the form, where the windows that open next (Personnel) cannot land on them.
         /// </summary>
         [System.NonSerialized] public Rect KeepVisible;
+        /// <summary>Phase N: notices keep off this window even when it is not in use (the Work Queue grown to show a whole hint).</summary>
+        [System.NonSerialized] public bool KeepNoticesOff;
         public bool AlwaysOnTop => (Flags & WindowFlags.AlwaysOnTop) != 0;
         public bool ShowInTaskbar => (Flags & WindowFlags.NoTaskbar) == 0;
 

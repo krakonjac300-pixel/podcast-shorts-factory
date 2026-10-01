@@ -31,24 +31,6 @@ namespace SecondCursor.Rendering
         bool _caretVisible;
         int _caretIndex = -1;
         readonly List<string> _lines = new List<string>();
-        /// <summary>Phase K: character ranges [x, y) of the text drawn in <see cref="_dimColor"/> (a Jotter reply that was not sent).</summary>
-        readonly List<Vector2Int> _dim = new List<Vector2Int>();
-        Color32 _dimColor;
-
-        /// <summary>Draws the given character ranges ([x, y) of <see cref="text"/>) in another colour.</summary>
-        public void SetDimRanges(IReadOnlyList<Vector2Int> ranges, Color32 color)
-        {
-            _dim.Clear();
-            if (ranges != null) _dim.AddRange(ranges);
-            _dimColor = color;
-            SetVerticesDirty();
-        }
-
-        bool IsDim(int index)
-        {
-            foreach (var r in _dim) if (index >= r.x && index < r.y) return true;
-            return false;
-        }
 
         public string text
         {
@@ -143,10 +125,6 @@ namespace SecondCursor.Rendering
             Color32 col = color;
             int caretLine = -1, caretCol = 0;
             if (_caretEnabled && _caretVisible) LocateCaret(first, out caretLine, out caretCol);
-            // Where each wrapped line starts in the text (only needed for dimmed ranges), walked the way LocateCaret does.
-            int src = 0;
-            if (_dim.Count > 0)
-                for (int li = 0; li < first; li++) src = NextLineStart(src, _lines[li]);
 
             for (int li = first; li < _lines.Count; li++)
             {
@@ -174,11 +152,10 @@ namespace SecondCursor.Rendering
                         float gx0 = _monoAdvance > 0 ? cx + Mathf.Floor((_monoAdvance - 1 - g.Width) * 0.5f) * s : cx;
                         float gx1 = gx0 + g.Width * s;
                         if (_shadow) AddQuad(vh, gx0 + s, y - glyphH - s, gx1 + s, y - s, g.Uv, _shadowColor);
-                        AddQuad(vh, gx0, y - glyphH, gx1, y, g.Uv, _dim.Count > 0 && IsDim(src + ci) ? _dimColor : col);
+                        AddQuad(vh, gx0, y - glyphH, gx1, y, g.Uv, col);
                     }
                     cx += Advance(c) * s;
                 }
-                if (_dim.Count > 0) src = NextLineStart(src, line);
                 if (li == caretLine && caretCol >= line.Length)
                 {
                     float px = line.Length == 0 ? cx + 1 : cx;
@@ -191,13 +168,6 @@ namespace SecondCursor.Rendering
                 float x = rect.xMin + snapX + 1;
                 AddQuad(vh, x - 1, top - glyphH, x, top, PixelFont.WhiteUv, col);
             }
-        }
-
-        int NextLineStart(int src, string line)
-        {
-            src += line.Length;
-            if (src < _text.Length && (_text[src] == '\n' || _text[src] == ' ')) src++;
-            return src;
         }
 
         void LocateCaret(int first, out int line, out int column)

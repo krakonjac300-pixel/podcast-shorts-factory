@@ -187,8 +187,8 @@ namespace SecondCursor.Tests
         {
             if (!Present) return;
             var db = Demo();
-            foreach (var key in new[] { "tug.label", "tug.won", "tug.lost.release", "tug.refused", "tug.you", "tug.them", "shred.cancelled.by", "camera.closed.by",
-                                        "window.closed.by", "file.moved.by", "session.entity", "notepad.status.typing", "notepad.status.away",
+            foreach (var key in new[] { "tug.label", "tug.won", "tug.lost.release", "tug.refused", "tug.you", "tug.them", "shred.cancelled.no", "camera.closed.by",
+                                        "window.closed.by", "file.moved.by", "session.entity", "notepad.status.typing", "notepad.status.held",
                                         "workqueue.mail", "workqueue.deadline.left", "taskbar.due", "taskbar.duenow", "mail.more",
                                         "end.n1.outcome.shredded", "end.n1.outcome.kept" })
                 Assert.True(db.HasText(key), "missing base string " + key);

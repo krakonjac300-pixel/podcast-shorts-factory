@@ -108,7 +108,11 @@ namespace SecondCursor.Story
             _g.Audio.Play("low_thump", 0.5f, 0.9f);
             float a = 0f;
             while (a < 1f) { a += Time.deltaTime * 2f; t.color = new Color(1f, 1f, 0.96f, Mathf.Min(1f, a)); yield return null; }
-            yield return WaitOrSkip(2.0f);
+            // Phase N (finding 17): the date is always seen: a click or key skips only after the card has been up a full second.
+            float readable = Time.time + 1f;
+            while (Time.time < readable) yield return null;
+            _clicked = false;
+            yield return WaitOrSkip(1.0f);
             while (a > 0f) { a -= Time.deltaTime * 3f; t.color = new Color(1f, 1f, 0.96f, Mathf.Max(0f, a)); yield return null; }
             GameLog.Info(LogChannel.Story, "Night card: night " + night);
         }

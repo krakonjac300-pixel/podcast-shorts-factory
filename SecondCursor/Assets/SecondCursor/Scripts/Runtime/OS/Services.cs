@@ -119,10 +119,21 @@ namespace SecondCursor.OS
             if (note.Length > 0) body += "\n" + note;
             string late = ConfirmNote?.Invoke(fileId);
             if (!string.IsNullOrEmpty(late)) body += "\n" + late;
+            // Phase N: a file another session defends is a race to No, and the dialog shows it.
+            var brain = _g.Entity != null ? _g.Entity.Brain : null;
+            Raced = brain != null && brain.Enabled && brain.ProtectedFileId == fileId;
             Confirm = Dialogs.Message(_g, c.Text("shred.confirm.title"), body, "icon_question",
-                new[] { "Yes", "No" }, OnConfirm, 0);
+                new[] { "Yes", "No" }, OnConfirm, 0, null, Raced ? RaceStatusHeight : 0);
+            if (Raced) ConfirmRace.Attach(_g, Confirm, _g.Entity, () => true, "race.idle.shred");
             ConfirmShown?.Invoke(fileId, Confirm);
         }
+
+        /// <summary>Phase N: room in a dialog for the race line and its bar.</summary>
+        public const int RaceStatusHeight = 26;
+        /// <summary>Phase N: the shred under way is one another session races (its outcome is always a notice).</summary>
+        public bool Raced { get; private set; }
+        /// <summary>Phase N: the last cancel was an answer to the Confirm Shred (No or closed), not a Cancel during the shred.</summary>
+        public bool CancelledAtConfirm { get; private set; }
 
         bool IsPendingArchive(string fileId)
         {
@@ -143,6 +154,7 @@ namespace SecondCursor.OS
             {
                 GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.OS, "Shred of " + fileId + " declined (" + result + " by " + (by?.Name ?? "System") + ")");
                 PendingFileId = null;
+                CancelledAtConfirm = true;
                 Cancelled?.Invoke(fileId, by);
                 return;
             }
@@ -166,6 +178,7 @@ namespace SecondCursor.OS
             PendingFileId = null;
             _g.Audio?.StopLoop("shred_loop");
             p.Close(by);
+            CancelledAtConfirm = false;
             Cancelled?.Invoke(fileId, by);
         }
 

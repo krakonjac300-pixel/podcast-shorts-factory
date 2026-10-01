@@ -28,6 +28,13 @@ namespace SecondCursor.Story
             _g.Audio.SetAmbienceLevel(1f, fadeIn);
         }
 
+        /// <summary>A climax's dropout (Review M9: one helper for the three): the room and the tension drone fade to nothing.</summary>
+        protected void DropRoom(float fade)
+        {
+            _g.Audio.SetAmbienceLevel(0f, fade);
+            _g.Audio.StopLoop("drone_tension", fade);
+        }
+
         /// <summary>A climax starts: nothing ambient any more, and no toast chimes (the toasts still show).</summary>
         protected void BeginClimax()
         {
@@ -96,7 +103,7 @@ namespace SecondCursor.Story
             else if (signalLost && rig != null) rig.SignalLost = true;
             yield return Wait(0.08f);
             g.Audio.Play("crt_off", crtVolume);
-            if (!reduced) g.CoroutineHost.StartCoroutine(g.Fx.PowerOff(0.5f));
+            if (!reduced) g.CoroutineHost.StartCoroutine(g.Fx.PowerOff(0.5f, false));
             yield return Wait(0.5f);
             g.Fx.SetBlack(true);
             if (rig != null)
@@ -118,6 +125,8 @@ namespace SecondCursor.Story
             var g = _g;
             var rig = g.CameraRig;
             BeginClimax();
+            // Review M5: the feed stays up through the build (the player's pointer is still until the card).
+            g.Player.Enabled = false;
             rig.Figure = FigureStage.BehindChair;
             rig.SeatedMimicsPlayer = false;
             rig.LightFlicker = 1f;
@@ -132,13 +141,19 @@ namespace SecondCursor.Story
                 rig.ExtraNoise = Mathf.Min(1f, t / 3.2f) * 0.5f;
                 g.Audio.SetLoopVolume("drone_tension", Mathf.Lerp(droneVolume, droneVolume * 1.4f, k), 0.05f);
                 g.Audio.SetLoopPitch("drone_tension", Mathf.Lerp(1f, 0.9439f, k));
-                if (t < RevealTurnToCut - 0.4f && Random.value < 0.02f) g.Fx.Glitch(0.05f, 0.6f);
+                if (t < RevealTurnToCut - 0.4f) GlitchNowAndThen(1.2f);
                 yield return null;
             }
             CutToSilence(RevealSilence);
             yield return Wait(RevealSilence - StingerPreRoll);
             yield return Hit(0.75f, 1f, 4f, 0.4f, "crt_off", "ear_ring");
             yield return TubeDies(false, 0.5f, 0.6f, 0.6f);
+        }
+
+        /// <summary>Review M2: a build's random glitches, about <paramref name="perSecond"/> a second at any frame rate, and none with Reduce flashing.</summary>
+        protected void GlitchNowAndThen(float perSecond)
+        {
+            if (!_g.Fx.ReduceFlashing && Random.value < perSecond * Time.deltaTime) _g.Fx.Glitch(0.05f, 0.6f);
         }
 
         /// <summary>Night 1: the turn and hold before the cut (the whine is exactly this long), and the silence before the hit.</summary>

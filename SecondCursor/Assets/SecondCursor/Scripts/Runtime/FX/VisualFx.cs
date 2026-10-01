@@ -169,14 +169,17 @@ namespace SecondCursor.FX
             _black.color = Color.black;
         }
 
-        /// <summary>Classic tube switch-off: the picture collapses to a line, then to a dot, then dark.</summary>
-        public IEnumerator PowerOff(float duration = 0.9f)
+        /// <summary>
+        /// Classic tube switch-off: the picture collapses to a line, then to a dot, then dark. <paramref name="flash"/> false: no white flash of
+        /// its own (Review M1: after a climax's hit it was a second full-screen flash 0.2 s after the first).
+        /// </summary>
+        public IEnumerator PowerOff(float duration = 0.9f, bool flash = true)
         {
             IsPoweredOff = true;
             var rt = _rig.DisplayRect;
             Vector2 pos = rt.anchoredPosition;
             Vector2 size = rt.sizeDelta;
-            Flash(0.8f);
+            if (flash) Flash(0.8f);
             float t = 0f;
             while (t < duration)
             {

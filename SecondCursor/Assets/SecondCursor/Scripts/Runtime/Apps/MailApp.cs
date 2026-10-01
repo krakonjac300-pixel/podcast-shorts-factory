@@ -68,6 +68,7 @@ namespace SecondCursor.Apps
         void Refresh()
         {
             _revision = G.Mail.Revision;
+            _inboxCount = G.Mail.Inbox.Count;
             string selected = _list.Selected?.Tag as string;
             _list.Clear();
             var inbox = G.Mail.Inbox;
@@ -131,9 +132,30 @@ namespace SecondCursor.Apps
         /// <summary>The window was resized since the last frame (the grip fires on every pointer move).</summary>
         bool _resized;
 
+        int _inboxCount = -1;
+
+        /// <summary>Read marks changed, nothing arrived: the rows stay where they are and only their bold and envelope change.</summary>
+        void RefreshMarks()
+        {
+            _revision = G.Mail.Revision;
+            foreach (var row in _list.Rows)
+            {
+                bool unread = !G.Mail.IsRead((string)row.Tag);
+                if (row.Bold != unread) _list.SetBold(row, unread);
+                if (row.Icon != null) UIBuilder.SetIcon(row.Icon, unread ? "icon_mail_unread" : "icon_mail", 1);
+            }
+            _status.text = G.Mail.Inbox.Count + " message(s), " + G.Mail.UnreadCount + " unread";
+        }
+
         public override void Tick(float dt)
         {
-            if (_revision != G.Mail.Revision) Refresh();
+            // Phase N (fifth blind playtest, finding 16): new mail never moves the rows under the pointer (the tester opened the wrong
+            // message): the list takes it in once the pointer leaves the list.
+            if (_revision != G.Mail.Revision)
+            {
+                if (G.Mail.Inbox.Count == _inboxCount) RefreshMarks();
+                else if (!_list.Root.WorldRect().Contains(G.Player.Position)) Refresh();
+            }
             if (_showing != null && (_resized || _body.Scale != Game.DisplaySettings.ReadingScale)) Layout();
             _resized = false;
         }

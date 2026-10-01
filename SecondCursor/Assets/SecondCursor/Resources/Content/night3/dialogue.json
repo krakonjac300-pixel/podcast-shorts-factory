@@ -121,7 +121,7 @@
     { "id": "g3_lost", "voice": "gary", "lines": ["three to seven", "every night"], "speakers": [] },
     { "id": "g3_logoff", "voice": "gary", "lines": ["go home casey", "i can do this one thing"], "speakers": [] },
     { "id": "g3_logoff_done", "voice": "gary", "lines": ["there", "now go"], "speakers": [] },
-    { "id": "g3_guard", "voice": "gary", "lines": ["i've got no", "click yes"], "speakers": [] },
+    { "id": "g3_guard", "voice": "gary", "lines": ["my hand's on no", "you click yes"], "speakers": [] },
     { "id": "g3_finale", "voice": "gary", "lines": ["go", "somebody should"], "speakers": [] },
     { "id": "g3c_intro", "voice": "gary", "lines": ["i can do the rest"], "speakers": [] },
     { "id": "g3c_easier", "voice": "gary", "lines": ["it's easier finished"], "speakers": [] },

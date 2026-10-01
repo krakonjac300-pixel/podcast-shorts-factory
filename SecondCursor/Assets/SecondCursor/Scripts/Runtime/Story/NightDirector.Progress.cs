@@ -29,13 +29,26 @@ namespace SecondCursor.Story
             if (Night <= 1 || NightsThisLaunch > 1 || !_g.RecordsArmed) yield break;
             var box = Dialogs.Message(_g, _g.Content.Text("welcome.title"), _g.Content.Text("welcome.body"), "icon_info", new[] { "Begin" }, null);
             GameLog.Info(LogChannel.Story, "Welcome back refresher shown");
-            float until = Time.time + WelcomeBackSeconds;
-            while (box.IsOpen && Time.time < until) yield return null;
-            if (box.IsOpen) box.Window.Close(null);
+            yield return ClockStillWhile(box, WelcomeBackSeconds);
             yield return Wait(0.6f);
         }
 
         const float WelcomeBackSeconds = 90f;
+
+        /// <summary>
+        /// Phase N (fifth blind playtest, finding 14): the shift clock stands still while a first-time box (Quick Start, Welcome back) is
+        /// open; it closes by itself after <paramref name="seconds"/>.
+        /// </summary>
+        protected IEnumerator ClockStillWhile(MessageBox box, float seconds)
+        {
+            var clock = _g.Clock;
+            bool wasFrozen = clock.Frozen;
+            clock.Frozen = true;
+            float until = Time.time + seconds;
+            while (box.IsOpen && Time.time < until) yield return null;
+            if (box.IsOpen) box.Window.Close(null);
+            clock.Frozen = wasFrozen;
+        }
 
         /// <summary>True while Prepare sets the world up for a jump (nothing it does may unlock an achievement).</summary>
         public bool IsPreparing { get; private set; }

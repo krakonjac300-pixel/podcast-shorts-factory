@@ -87,6 +87,15 @@ namespace SecondCursor.Entity
         /// the pointer shows the way; the night's first contest keeps its longer read grace.
         /// </summary>
         public const float GrabHitchSeconds = 0.3f;
+        /// <summary>
+        /// Phase N (fifth blind playtest, finding 6): every contest opens with a GET READY beat this long, before anything is scored (the
+        /// label says it and the big arrow shows the way); the hitch or the night's read grace follows it.
+        /// </summary>
+        public const float ReadySeconds = 0.4f;
+        /// <summary>The GET READY beat is still running.</summary>
+        public bool InReady => IsFighting && _model.InReady;
+        /// <summary>Phase N: the way each file was fought over tonight: a retry over the same file keeps it (room permitting).</summary>
+        readonly Dictionary<string, Vector2> _escapeByFile = new Dictionary<string, Vector2>();
         /// <summary>Where the player's cursor was when the last contest ended.</summary>
         public Vector2 LastEndPlayerPosition { get; private set; }
         Vector2 _lastObject;
@@ -141,12 +150,18 @@ namespace SecondCursor.Entity
             _readGraceArmed = false;
             CurrentSettings = _g.Difficulty != null ? _g.Difficulty.TugFor(_g.Assist, _mercy, _graceContest) : new TugOfWarSettings();
             CurrentSettings.readGrace = Mathf.Max(CurrentSettings.readGrace, GrabHitchSeconds);
+            CurrentSettings.readySeconds = ReadySeconds;
             _model = new TugOfWar(CurrentSettings);
-            // Away from the player and the bin, turned if the player's pull would have no room (a grab by the bin).
-            _escapeDir = TugGeometry.EscapeDirection(_g.Player.Position.ToCore(), _g.EntityAgent.Position.ToCore(),
-                _g.Desktop.DisposalIcon.Hit.Center.ToCore(), ScreenRig.Width, ScreenRig.Height, WindowManager.TaskbarHeight).ToUnity();
+            // Away from the player and the bin, turned if the player's pull would have no room (a grab by the bin). Phase N: a file fought
+            // over before tonight keeps its way, turned only as far as the room at this grab needs.
+            var player = _g.Player.Position.ToCore();
+            _escapeDir = (_escapeByFile.TryGetValue(p.FileId ?? "", out var before)
+                ? TugGeometry.WithRoom(before.ToCore(), player, ScreenRig.Width, ScreenRig.Height, WindowManager.TaskbarHeight)
+                : TugGeometry.EscapeDirection(player, _g.EntityAgent.Position.ToCore(), _g.Desktop.DisposalIcon.Hit.Center.ToCore(),
+                    ScreenRig.Width, ScreenRig.Height, WindowManager.TaskbarHeight, TugGeometry.MinPlayerRoom + TugGeometry.FirstArrowMargin)).ToUnity();
             if (_escapeDir.sqrMagnitude < 0.1f) _escapeDir = Vector2.up;
             _escapeDir.Normalize();
+            if (p.FileId != null) _escapeByFile[p.FileId] = _escapeDir;
             // Phase K: the arrow is decided once per fight and it is exactly what counts: pulling along it is the pull.
             _model.PullAxis = (-_escapeDir).ToCore();
             _coach = new TugCoach((-_escapeDir).ToCore());
@@ -159,6 +174,7 @@ namespace SecondCursor.Entity
             GameLog.Info(LogChannel.Entity, "Tug-of-war started over " + p.FileId);
             if (_mercy) GameLog.Info(LogChannel.Entity, "Mercy contest");
             if (_graceContest) GameLog.Info(LogChannel.Entity, "Read grace: " + CurrentSettings.readGrace.ToString("0.0") + " s standoff");
+            GameLog.Info(LogChannel.Entity, "Tug arrow " + ArrowDirection + (before != default ? " (same file as before)" : ""));
             TugStarted?.Invoke(p);
         }
 
@@ -187,7 +203,8 @@ namespace SecondCursor.Entity
             drift += UnityEngine.Random.insideUnitCircle * (1.5f + _model.Strain * 3f);
             entity.Position = ScreenRig.ClampToScreen(entity.Position + drift);
 
-            _coach.Step(dt, player.Position.ToCore(), playerGrips);
+            // Phase N: the coach judges the pull from the end of GET READY on.
+            if (!_model.InReady) _coach.Step(dt, player.Position.ToCore(), playerGrips);
             var outcome = _model.Step(dt, player.Position.ToCore(), playerGrips, entity.Position.ToCore(), grip);
             if (outcome == TugOutcome.None) outcome = Overrule(dt, playerGrips);
             float strain = _model.Strain;
@@ -285,7 +302,7 @@ namespace SecondCursor.Entity
             if (p == null) return;
             _payload = null;   // so the PayloadFinished handler does not score the cancelled drag
             // Paused inside the standoff, the player never got to read it: the next fight has its standoff.
-            if (_graceContest && _model.Elapsed < CurrentSettings.readGrace) _readGraceArmed = true;
+            if (_graceContest && _model.InReadGrace) _readGraceArmed = true;
             foreach (var d in _band) d.enabled = false;
             if (_g.PlayerView != null) _g.PlayerView.VisualOffset = Vector2.zero;
             if (_g.EntityView != null) _g.EntityView.Jitter = 0f;

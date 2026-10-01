@@ -25,6 +25,12 @@ namespace SecondCursor.Core.Audio
             {
                 float peak = 0f;
                 for (int c = 0; c < channels; c++) peak = Math.Max(peak, Math.Abs(data[i + c]));
+                // Review M8: a broken sample (NaN, infinity or absurdly loud) is silenced instead of passed on or poisoning the gain.
+                if (!(peak <= 16f))
+                {
+                    for (int c = 0; c < channels; c++) data[i + c] = 0f;
+                    continue;
+                }
                 if (peak > MaxInput) MaxInput = peak;
                 // Release first, then clamp: the gain applied to this frame never lets it pass the ceiling.
                 float g = _gain + (1f - _gain) * _release;

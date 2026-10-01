@@ -267,6 +267,7 @@ namespace SecondCursor.Story
                 // Silence: counted from the last keystroke (or since it finished typing).
                 float lastActivity = Mathf.Max(waitStart, s.Pad != null ? s.Pad.LastPlayerKeyTime : 0f);
                 if (Time.time - lastActivity > silenceSeconds) break;
+                NudgeIfUnseen(s, lastActivity);
                 if (EnsurePad(s) == null && reopened >= 2) break; // keeps closing it: treat as silence
                 if (EnsurePad(s) == null)
                 {
@@ -283,6 +284,26 @@ namespace SecondCursor.Story
             if (s.Pad != null) s.Pad.LineSubmitted -= handler;
             if (s.Pad != null) s.Pad.PlayerCanType = false;
             if (said != null) onSaid(said);
+        }
+
+        /// <summary>Phase N: seconds a turn waits unseen before a notice says so, and the least time between two for one speaker.</summary>
+        const float NudgeAfter = 12f, NudgeEvery = 60f;
+        readonly Dictionary<Speaker, float> _nudgedAt = new Dictionary<Speaker, float>();
+
+        /// <summary>
+        /// Phase N (fifth blind playtest, finding 12): a Jotter waiting for the player's reply behind other windows (or minimized) says so
+        /// in a notice once it has waited a while; a click brings it forward. The tester's chat sat unseen with "Your turn" for minutes.
+        /// </summary>
+        void NudgeIfUnseen(Speaker s, float since)
+        {
+            var pad = s.Pad;
+            if (pad == null || !pad.IsOpen || (pad.Window.IsActive && !pad.Window.IsMinimized) || Time.time - since < NudgeAfter) return;
+            if (_nudgedAt.TryGetValue(s, out float at) && Time.time - at < NudgeEvery) return;
+            _nudgedAt[s] = Time.time;
+            string who = SystemNotices.SessionOf(_g, s.Cursor.Agent);
+            _g.Notifications.Show(_g.Content.Text("os.name"), _g.Content.Format("notify.jotter.waiting", char.ToUpperInvariant(who[0]) + who.Substring(1)), "icon_notepad",
+                a => { if (pad.IsOpen) pad.Window.Focus(a); }, "ui_select");
+            GameLog.Info(LogChannel.Story, "Jotter waiting notice: " + who);
         }
 
         /// <summary>M2: a keyword hit gets a visible think (the caret blinks, no key taps); a miss answers quickly.</summary>

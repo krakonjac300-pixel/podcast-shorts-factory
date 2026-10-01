@@ -17,6 +17,8 @@ namespace SecondCursor.OS
     {
         /// <summary>The same notice at most this often (a fight over the viewer can close it every few seconds).</summary>
         const float Repeat = 6f;
+        /// <summary>Phase N: how long a raced shred's result stays up (unless clicked).</summary>
+        public const float RaceNoticeSeconds = 20f;
 
         public static void Attach(GameServices g)
         {
@@ -30,11 +32,17 @@ namespace SecondCursor.OS
 
             g.Shred.Cancelled += (fileId, by) =>
             {
-                if (by == null || !by.IsEntity) return;
+                // Phase N (finding 2): every end of a raced shred is said, and how (No first, Cancel, or the player's own answer), and it
+                // stays up for a while: the tester looked back 30 s later and found no dialog and no reason.
+                bool other = by != null && by.IsEntity;
+                if (!other && (by == null || !g.Shred.Raced)) return;
                 var file = g.Files.GetFile(fileId);
                 string name = file != null ? file.Name : fileId;
-                g.Notifications.Show(g.Content.Text("app.disposal"), g.Content.Format("shred.cancelled.by", name, SessionOf(g, by)), "icon_error", null, "sys_warning");
-                GameLog.Info(LogChannel.OS, "Notice: shred of " + name + " cancelled by " + SessionOf(g, by));
+                string key = (g.Shred.CancelledAtConfirm ? "shred.cancelled.no" : "shred.cancelled.cancel") + (other ? "" : ".you");
+                float until = Time.time + RaceNoticeSeconds;
+                g.Notifications.Show(g.Content.Text("app.disposal"), g.Content.Format(key, name, SessionOf(g, by)), "icon_error", null, "sys_warning",
+                    true, () => Time.time < until);
+                GameLog.Info(LogChannel.OS, "Notice: shred of " + name + " cancelled by " + (other ? SessionOf(g, by) : "the player") + (g.Shred.CancelledAtConfirm ? " at the confirm" : " during the shred"));
             };
             g.Windows.ClosedEvent += (w, by) =>
             {
@@ -46,8 +54,12 @@ namespace SecondCursor.OS
                 // Phase K: during rounds it says why (it showed Custodial) and how to get the viewer back.
                 var rounds = g.Rounds;
                 bool custodial = camera && rounds != null && rounds.Running && rounds.Model != null && (w.Owner as Apps.CameraApp)?.CurrentCamera == rounds.Model.FigureCamera;
-                g.Notifications.Show(app, camera ? g.Content.Format(custodial ? rounds.ClosedNoticeKey ?? "camera.closed.custodial" : "camera.closed.by", SessionOf(g, by))
-                    : g.Content.Format("window.closed.by", app, SessionOf(g, by)), camera ? "icon_camera" : "icon_info", null, "ui_select");
+                // Phase N (finding 4): where Custodial is now, and the camera a reopen comes back on (never Custodial's).
+                string body = !camera ? g.Content.Format("window.closed.by", app, SessionOf(g, by))
+                    : !custodial ? g.Content.Format("camera.closed.by", SessionOf(g, by))
+                    : g.Content.Format(rounds.ClosedNoticeKey ?? "camera.closed.custodial", SessionOf(g, by),
+                        Story.RoundsSystem.CameraName(g, rounds.Model.FigureCamera), Story.RoundsSystem.CameraName(g, Apps.CameraApp.CameraOnOpen(g)));
+                g.Notifications.Show(app, body, camera ? "icon_camera" : "icon_info", null, "ui_select");
                 GameLog.Info(LogChannel.OS, "Notice: " + app + " closed by " + SessionOf(g, by));
             };
             g.Files.FileMoved += (file, from, to, actor) =>

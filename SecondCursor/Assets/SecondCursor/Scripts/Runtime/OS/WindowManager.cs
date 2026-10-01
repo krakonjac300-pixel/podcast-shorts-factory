@@ -60,9 +60,22 @@ namespace SecondCursor.OS
             _windows.Add(win);
             if (zoomFrom.HasValue) Zoom(zoomFrom.Value, win.WorldRect);
             Opened?.Invoke(win);
-            Focus(win, null);
+            Raise(win, null);
             return win;
         }
+
+        /// <summary>
+        /// Phase N (fifth blind playtest, finding 8): a window the player brought forward (a taskbar button, a click) keeps the front this
+        /// long against the story's own focus changes (a Jotter taking its turn): the other window comes up just under it instead. One
+        /// click on a taskbar button always brings its window forward. A cursor's click, a new window and a dialog are never held back.
+        /// </summary>
+        const float PlayerFocusHold = 2f;
+        OSWindow _playerChoice;
+        float _playerChoiceAt = -100f;
+
+        bool HeldForPlayer(OSWindow win, CursorAgent by) =>
+            by == null && win != _playerChoice && _playerChoice != null && !_playerChoice.IsClosed && !_playerChoice.IsMinimized
+            && !win.AlwaysOnTop && Time.unscaledTime - _playerChoiceAt < PlayerFocusHold;
 
         /// <summary>
         /// Phase H: app windows open right of the desktop icon column (the icons stay reachable: the player's Help, Camera
@@ -205,7 +218,7 @@ namespace SecondCursor.OS
             _noticeAvoid.Clear();
             var hovered = TopmostAt(pointer);
             foreach (var w in _windows)
-                if (w != null && !w.IsClosed && !w.IsMinimized && (w == Active || w == hovered)) _noticeAvoid.Add(w.WorldRect);
+                if (w != null && !w.IsClosed && !w.IsMinimized && (w == Active || w == hovered || w.KeepNoticesOff)) _noticeAvoid.Add(w.WorldRect);
             return _noticeAvoid;
         }
 
@@ -246,6 +259,30 @@ namespace SecondCursor.OS
         {
             if (win == null || win.IsClosed) return;
             if (win.IsMinimized) { win.Restore(by); return; }
+            if (by != null && by.IsPlayer)
+            {
+                _playerChoice = win;
+                _playerChoiceAt = Time.unscaledTime;
+            }
+            else if (HeldForPlayer(win, by))
+            {
+                int under = _playerChoice.transform.GetSiblingIndex();
+                win.transform.SetSiblingIndex(win.transform.GetSiblingIndex() < under ? under - 1 : under);
+                GameLog.Info(LogChannel.OS, win.Title + " came up under " + _playerChoice.Title + " (the player's window keeps the front)");
+                return;
+            }
+            Raise(win, by);
+        }
+
+        /// <summary>A window the story must show now (a climax's feed): the front and the focus, never held back.</summary>
+        public void Front(OSWindow win)
+        {
+            if (win != null && !win.IsClosed && !win.IsMinimized) Raise(win, null);
+        }
+
+        /// <summary>Brings a window to the front and gives it the focus.</summary>
+        void Raise(OSWindow win, CursorAgent by)
+        {
             win.transform.SetAsLastSibling();
             // Keep always-on-top windows above normal ones.
             foreach (var w in _windows)

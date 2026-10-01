@@ -15,6 +15,8 @@ namespace SecondCursor.OS
         public readonly Dictionary<string, UiButton> Buttons = new Dictionary<string, UiButton>();
         public string Result;
         public CursorAgent AnsweredBy;
+        /// <summary>Phase N: a strip between the text and the buttons for a live line (the race to No), or null.</summary>
+        public RectTransform Status;
         public event Action<string, CursorAgent> Answered;
 
         public bool IsOpen => Window != null && !Window.IsClosed;
@@ -83,14 +85,16 @@ namespace SecondCursor.OS
         /// <summary>Seconds after a progress dialog opens during which the player's Cancel click is ignored.</summary>
         public const float CancelGrace = 0.5f;
 
+        /// <param name="statusHeight">Phase N: room for <see cref="MessageBox.Status"/> under the text (0 = none).</param>
         public static MessageBox Message(GameServices g, string title, string text, string icon, string[] buttons,
-            Action<string, CursorAgent> onResult, int defaultIndex = 0, Vector2? desktopTopLeft = null)
+            Action<string, CursorAgent> onResult, int defaultIndex = 0, Vector2? desktopTopLeft = null, int statusHeight = 0)
         {
             buttons = buttons == null || buttons.Length == 0 ? new[] { "OK" } : buttons;
             int textMax = 280;
             var size = PixelFont.Measure(text, textMax, false, 1);
-            int clientW = Mathf.Max(size.x + 62, buttons.Length * (ButtonW + 6) + 20, 200);
-            int clientH = Mathf.Max(size.y, 32) + 22 + ButtonH + 14;
+            // A status line needs room for "Session 209 is holding No for you. Click Yes." in bold.
+            int clientW = Mathf.Max(size.x + 62, buttons.Length * (ButtonW + 6) + 20, statusHeight > 0 ? 380 : 200);
+            int clientH = Mathf.Max(size.y, 32) + 22 + ButtonH + 14 + (statusHeight > 0 ? statusHeight + 6 : 0);
             int w = clientW + 8;
             int h = clientH + OSWindow.CaptionHeight + 9;
             var pos = desktopTopLeft ?? (Vector2)WindowManager.Centered(w, h);
@@ -109,6 +113,7 @@ namespace SecondCursor.OS
             t.Wrap = true;
             t.rectTransform.At(52, 12, clientW - 60, Mathf.Max(size.y, 32) + 4);
             if (size.y < 32) t.VAlign = TextVAlign.Middle;
+            if (statusHeight > 0) box.Status = UIBuilder.Rect("Status", win.Client).At(52, 12 + Mathf.Max(size.y, 32) + 10, clientW - 60, statusHeight);
 
             int total = buttons.Length * ButtonW + (buttons.Length - 1) * 6;
             int bx = (clientW - total) / 2;

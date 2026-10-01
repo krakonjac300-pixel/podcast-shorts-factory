@@ -1482,6 +1482,182 @@ request: every sound works, rare scary sounds, and a real scare when the player 
 - **Not yet.** A listening pass on laptop speakers and headphones by a person (the numbers are measured, the feel is not); a flash-analysis pass
   (PEAT) of the KEEP hit's frames; the Steam Deck's speakers.
 
+### Phase N (final choice, confirm races, tug ready beat, sound review fixes)
+
+Input: `_work/2026-09-29/playtest/BlindPlaytest5.md` (the fifth blind playtest: clarity 7, onboarding 9, tug 4, Night 3 final choice 6,
+scariness 8; findings F1 to F18), `_work/2026-09-29/launch/ReviewPhaseM.md` and the coordinator's decisions. The owner's rules: an average
+person must understand the game from what it shows; the ordinary computer must be dependable so the interference is unmistakable; fresh
+players must understand the final choice (deadline, camera, what staying means). Clearer, not easier: the Phase F/J/K tug values, the race
+timing and every scare budget are unchanged.
+
+- **The end-of-shift rule at 6:41 (F1).** Right after the lost hours the finale gives `t3_logoff_by` (now given at 6:41, not 7:00) and one
+  notice, sticky until 7:00, a click (it opens the Work Queue) or a newer notice that needs its place, both in plain words: log off between
+  7:00 and 7:05 AM (Nexus menu, Log Off CROURKE..., not before 7:00, `session.cfg` must say `ALLOW_LOGOFF=1`); until you have left, keep
+  Custodial off your camera (close the viewer or switch cameras: if it reaches your chair on the feed, session 017 keeps you); still logged
+  on at 7:05 AM, session 017 keeps you (KEEP); the other way out is the bin, and telling her to stay is KEEP too
+  (`Night3Director.LogOff.cs`, `EndOfShiftRule`, `notify.endofshift`). The notice comes 1 s after the task, once the Work Queue has grown to
+  show the rule. The old `logoff.added` notice is gone (this one names the menu). At 7:00 the same task is rewritten to `Log off now: by
+  7:05 AM, or session 017 keeps you` with a how-to hint; it stays in the queue until an exit happens. Ruth's mail adds `They come up to B-7
+  at seven: don't watch them come.`
+- **KEEP says what the player was doing (F3).** `Night3Rules.EndingCauseKey` gains four causes for time's KEEP, from what the player last
+  tried (`_lastTry`): a shred of 017 or a fight over it (`You tried to let her go. Session 017 held on until 7:05 AM, and you were still
+  logged on.`), Log Off refused by `session.cfg`, Log Off tried before 7:00, a log off that did not go through; saying stay, the camera and
+  doing nothing keep their own lines. The KEEP subtitle is `You stayed.` only after saying stay; otherwise `Session 017 kept you.`
+  (`KeepSubtitleKey`).
+- **The race to No, in the dialog (F2, F9).** A Confirm Shred for a file another session defends has a line and a bar under the question
+  (`Runtime/OS/ConfirmRace.cs`, `Dialogs.Message(..., statusHeight)`): `Session 017 is reaching for No.` with a red bar that fills as her
+  pointer closes in on No (from the farthest she has been since she came for it), `Session 209 is holding No for you. Click Yes.` while Gary
+  sits on No, `Session 017 is covering Yes.` while she parks on Yes, and `Click Yes to shred it.` before anyone moves. Night 3's Log Off
+  confirm has the same line: kept Gary holds No (`Session 209 is holding No for you. Click Yes.`), finished Gary races to it (`Session 209
+  is reaching for No.`), else `Click Yes to log off.`. On Night 3 a kept Gary who guards a button is made present first (`GaryGuard` calls
+  `SetPresent`): after a checkpoint Continue his hand could sit on No drawn but not there, holding nothing while the dialog said nothing,
+  and she pressed No through it. Every end of a raced shred is a notice that stays 20 s (or until clicked): `Shred of employee_209.dat
+  cancelled: session 017 reached No before you clicked Yes. The file is where it was: drag it to the bin to try again.`, `... pressed Cancel
+  before it finished ...`, and the player's own No or Cancel. Gary's line is now `my hand's on no / you click yes`. Another session's No or
+  Cancel on the log off stays up the same way: `Log off cancelled by session 209. Try again from the Nexus menu: Log Off CROURKE...`
+  (`CancelledByNotice`). The race timing is unchanged.
+- **Tug: GET READY, one way per file, 300 px of room (F6, F7).** Every contest opens with a 0.4 s GET READY beat
+  (`TugOfWarSettings.readySeconds`, `ConflictSystem.ReadySeconds`): nothing is scored (neither pull moves the bar, her end holds still, the
+  cursors coming apart decide nothing; letting go below the line still loses), the label reads `SESSION 017 GRABBED IT. / GET READY TO DRAG
+  RIGHT.` in amber and the big arrow pulses at the pointer (now until a second after the beat). Then the Phase K fight runs as before: the
+  0.3 s hitch, or the night's 1.2 s read grace on its first contest. The coach judges only from the end of GET READY, and `too slowly` on
+  the pull after a 0.3 s reaction (`TugCoach.ReactionSeconds`). The arrow never points at an edge closer than 300 px
+  (`TugGeometry.MinPlayerRoom`, was 200); a file's first arrow of the night asks for 100 px more (`FirstArrowMargin`), and a retry over the
+  same file keeps that way (`ConflictSystem._escapeByFile`, `TugGeometry.WithRoom`), turning only if the new grab has less than 300 px that
+  way (not seen on the bridge). The log names each arrow (`Tug arrow UP-RIGHT (same file as before)`).
+- **Tug table (bridge, `phaseN/tug_table_both.cmd` from `gen_tug.py`: Phase K's pattern, a pull along the arrow at the speed shown that lets
+  go once the bar is theirs; the second contest right after a won first over the same file; times from the start of the pull to the
+  release).** Reaction 0.25 s from the grab (the pull starts inside GET READY, as in Phase K):
+
+  | Night, contest | 300 px/s | 400 px/s | 500 px/s | 600 px/s |
+  |---|---|---|---|---|
+  | 1, first (1.2 s read grace) | won, 0.57 s | won, 0.43 s | won, 0.35 s | won, 0.36 s |
+  | 1, second (0.3 s hitch) | won, 0.58 s | won, 0.43 s | won, 0.36 s | won, 0.30 s |
+  | 2, first | won, 0.81 s | won, 0.54 s | won, 0.44 s | won, 0.38 s |
+  | 2, second | won, 0.85 s | won, 0.56 s | won, 0.44 s | won, 0.39 s |
+  | 3, first (finale) | won, 1.12 s | won, 0.71 s | won, 0.54 s | won, 0.45 s |
+  | 3, second | won, 0.97 s | won, 0.64 s | won, 0.54 s | won, 0.42 s |
+
+  Reaction 0.7 s from the grab (0.3 s after GET READY ends):
+
+  | Night, contest | 300 px/s | 400 px/s | 500 px/s | 600 px/s |
+  |---|---|---|---|---|
+  | 1, first | won, 0.49 s | won, 0.33 s | won, 0.30 s | won, 0.23 s |
+  | 1, second | won, 0.61 s | won, 0.42 s | won, 0.33 s | won, 0.29 s |
+  | 2, first | won, 0.77 s | won, 0.47 s | won, 0.36 s | won, 0.30 s |
+  | 2, second | won, 0.87 s | won, 0.57 s | won, 0.44 s | won, 0.33 s |
+  | 3, first | won, 1.11 s | won, 0.64 s | won, 0.46 s | won, 0.36 s |
+  | 3, second | lost | won, 0.70 s | won, 0.55 s | won, 0.47 s |
+
+  47 of 48 won (Phase K: the 300 px/s Night 2 second contest won 2 of 4 and Night 3's 0 of 4). The one loss, Night 3's second contest at 300
+  px/s pulled 0.7 s late, says `SESSION 017 PULLED HARDER` (`Tug lost: Overpowered, pulled UP-RIGHT 247 px in 1.18 s`), not `too slowly`:
+  247 px over the 0.88 s after the reaction is 281 px/s, over half of Night 3's 460. Arrows: every retry kept its file's way (Night 1
+  DOWN-RIGHT, Night 2 UP-RIGHT, Night 3 UP-RIGHT or UP); before the first-arrow margin, Night 2's four retries all turned from RIGHT to
+  UP-RIGHT (grabbed 20 to 60 px nearer the bin). `PhaseNTests` reproduces both reaction patterns in the model. GET READY on screen:
+  `n_ready1` (the label and the big arrow); held still through GET READY the bar does not move
+  (`GetReadyScoresNothingButLettingGoStillLoses`).
+- **Cameras (F4, F5).** A viewer opened by the player comes back on the camera they picked last (`SecurityCameraRig.PlayerCamera`,
+  `CameraApp.CameraOnOpen`), never on Custodial's during a round (then the first camera without it). Security's opens still choose their own
+  camera. The close notice names where Custodial is and where a reopen lands: `Camera Viewer closed by session 017: it showed Custodial, now
+  on CAM 01, LOBBY. Double-click Camera Viewer to reopen it: it comes back on CAM 02, B-LEVEL HALL.` (seen on Night 3's round). While the
+  shelf check needs a camera, Security's open takes no focus and keeps clear of the work (`RoundsSystem.KeepClearOfWork`): the viewer goes
+  to the top left corner if it covers Work Orders or the Work Queue, the window the player was in keeps the focus, and a viewer that still
+  overlaps one of them goes under it.
+- **Smaller findings.**
+  - F8, taskbar: a window the player brought forward (a taskbar button, a click) keeps the front for 2 s against the story's own focus
+    changes (a Jotter taking its turn): that window comes up just under it instead (`WindowManager.HeldForPlayer`). New windows, dialogs and
+    a cursor's own clicks are never held; climax feeds use `WindowManager.Front`. Bridge: 90 taskbar double-clicks on the Work Queue 0.15 s
+    apart through Night 1's first Jotter turn logged `Session 017 - Jotter came up under Work Queue` (`n_misc4.out`), and F12's notice named
+    the waiting Jotter 12 s later.
+  - Notices: a sticky notice that has been up for a notice's full 7 s makes room for a newer one that has none (`Notifications.GiveWay`).
+    Found on the bridge: Night 3's race result waited behind the 6:41 rule (sticky until 7:00) and went unseen after 20 s; now it shows
+    (`n_race_n3k_result2`) and the rule stays in the Work Queue.
+  - The tug label in a corner (seen near the bin on the bridge): when every side of the file would cover a pointer or the arrow, her pointer
+    may go under the label, never the player's pointer or the big arrow (`TugHud.FreeSide`; `n_edge_ready3`).
+  - F10, the Work Queue grows to show a PRIORITY task's, a timed task's or a Wait line's whole text (never over the Disposal bin) and gives
+    its size back after; notices keep off it while it is grown (`WorkQueueApp.FitKeyTask`, `OSWindow.KeepNoticesOff`).
+  - F11, Ruth: `It's the minute she stopped. Personnel still has the time: look her up, 017.` (Night 3's Personnel 017 has 02:17.)
+  - F12, a Jotter that waits for a reply behind other windows or minimized says so after 12 s, at most once a minute per session: `Session
+    017 is waiting for your reply in Jotter. Click here to open it...` (`NightDirector.NudgeIfUnseen`). No story beat waits on a reply: the
+    tester's "one more" mail came on its own timer (`RuthDriveOrder`).
+  - F13, a reply typed while the other side types is sent when it stops, at its turn, or as a plain line of yours when no turn comes
+    (`NotepadApp.SendHeld`); the grey `(not sent)` is gone (and `PixelText`'s dim ranges with it). Unfinished typing waits: `Session 017
+    stopped typing. Press Enter to send your reply: ...`.
+  - F14, the shift clock stands still while the Quick Start or the Welcome back box is open (`NightDirector.ClockStillWhile`).
+  - F15, `batch47_b.dat damaged by another user. It still counts: archive it as usual.`
+  - F16, new mail never moves the list under the pointer: it is taken in once the pointer leaves the list; read marks change in place.
+  - F17, the date card: the tester's own Editor.log shows `Night card: night 2` and `night 3`; the card lasted 2.8 s and their first
+    screenshot came later. It now stays at least 1.5 s before a click or key can skip it.
+  - F18, the wheel: no change. The wheel already scrolls every scroll area under the pointer (mail list and body, Jotter, Data Viewer, the
+    Work Queue; `PointerRouter` since Phase K): `n_wheel_before` / `n_wheel_after`, three notches down over Ruth's briefing take it to its
+    signature and `More below` goes away. The tester's bridge `scroll` was positive, which is up (the text was already at its top).
+- **Review of Phase M (`ReviewPhaseM.md`).** 1: `VisualFx.PowerOff(duration, flash)`; `TubeDies` passes false, so a hit has one flash. 2:
+  with Reduce flashing the camera lamp's flicker is clamped to 0.1 (`SecurityCameraRig.Flicker`), and the builds' random glitches are
+  `GlitchNowAndThen(perSecond)` (about 1.2 a second at any frame rate, 3 in SHRED's image, none when reduced). 3: story slots now wait for a
+  tug or a dialog too (`ScareRules.StoryEventGates`) for up to `StoryEventWindow` 10 s. 4: loops keep a normalised `Level`, so a master
+  volume change applies at once. 5: KEEP's and Night 1's climaxes disable the player's pointer for the build and put the viewer in front on
+  CAM 03 (`Night1Director.Reveal`); the pause menu still opens. 6: a clip started part way in plays from a cut copy with a 6 ms fade-in
+  (`AudioManager.FromOffset`, cached per 10 ms). 7: the click answer also checks the budget, typing and the ending. 8: the limiter silences
+  a NaN, infinite or absurd sample. 9: `DropRoom(fade)` for the three climax dropouts.
+- **Flash estimate for the PEAT pass (not measured).** KEEP's hit in Full effects: a 0.3 white overlay at H gone by H+0.12, the lens frame
+  and NO SIGNAL at H+0.12, then the tube's collapse (the picture brightens up to 2x over 0.5 s and goes black at H+0.7), and 0.25 s of
+  glitch strips with red and cyan fringes. That is 2 general flashes inside 0.7 s (3 before Review M1 removed the power-off flash), under 3
+  a second. The riskier part is before the hit: the feed's lamp flicker at `LightFlicker = 1` dips 2 to 3 times a second, 40 to 100% deep,
+  on a viewer that fills about 640x480 px of a 1080p screen, above the 25%-of-central-vision area a general flash is measured on. Reduce
+  flashing now clamps it; PEAT should measure Full effects' KEEP build and Night 1's reveal first.
+- **Files.** New: `Runtime/OS/ConfirmRace.cs`, `Runtime/Story/Night3Director.LogOff.cs` (the log off section moved out of Finale.cs, which
+  was near the 800 line ceiling), `Runtime/Story/Night1Director.Reveal.cs` (Night1Director.cs was 783 lines; now 600).
+- **Checks.** CoreTests 398 pass (`PhaseNTests`: GET READY, both reaction patterns, `too slowly` after the reaction, 300 px room, a retry
+  keeps its way, KEEP causes and subtitles, the end-of-shift content, race and nudge strings, story gates, the limiter; Phase G, H, J, K and
+  M tests updated where their text changed; the log off notice's retry line). CompileCheck: all 8 configurations OK. 0 compiler warnings in
+  the game's scripts.
+- **On the bridge** (scripts and outputs in `_work/2026-09-29/phaseN/`, shots copied to `phaseN/shots/`, saves under `saves/phaseN`):
+  - Night 3 from the title on a fresh save (`reg_n3.cmd`): at 6:41 `t3_logoff_by` and the notice (`n_641_task`, `n_641_notice`), at 7:00 the
+    rewritten task (`n_700_task`). Each ending from that checkpoint (`run_endings.sh`, which puts the save back before `title`): LOG OFF
+    `You logged off with session 017 still open.`; SHRED `You put employee_017.dat in the bin and shredded it.`; KEEP by doing nothing `It
+    was 7:05 AM and you were still logged on.`; KEEP after a lost shred of 017 `You tried to let her go. Session 017 held on until 7:05 AM,
+    and you were still logged on.`; KEEP by the camera `The figure reached your chair while you watched the feed.`; the KEEP subtitle
+    `Session 017 kept you.` (`n_end_*`). All five were played again after the second regression (`end_*.out`); LOG OFF once more after the
+    last change (the log off notice).
+  - Confirm races (`n_race.cmd`, `n_race3.cmd`): Night 1 her approach with the bar (`n_race_n1__0.15` to `__1.20`) and the result notice;
+    Night 2 `Session 209 is holding No for you. Click Yes.` (`n_race_n2_b`) and `Shred of employee_209.dat cancelled: session 017 reached No
+    before you clicked Yes...` (`n_race_n2_result`); Night 3's shred of 017 with kept Gary on No (`n_race_n3k__*`: `Session 209 is holding
+    No for you. Click Yes.`, then the result notice, `n_race_n3k_result2`); the Log Off confirm with kept Gary (`n_logoff_racek__*`, the
+    same line) and with finished Gary from the regression's checkpoint (`n3_end_racegary.cmd`: `Session 209 is reaching for No.`, he clicks
+    No 0.6 s in, then `Log off cancelled by session 209...`, `n_logoff_raceg_notice`).
+  - Tug: the tables above; GET READY and the big arrow (`n_ready1`, `n_ready2`); a retry over the same file keeps its way (`Tug arrow ...
+    (same file as before)` on every retry); a grab next to the bin points into open space, with the label clear of the arrow
+    (`n_edge_ready3`, `n_edge_fight3`).
+  - F4, F5: `n_cam_closed` (the close notice), `n_cam_reopen` (back on the player's camera), `n_shelf_nofocus` (`viewer opened without
+    focus`, Work Orders keeps the focus). F8 `n_focus_hold`, F12 `n_nudge`, F13 `n_held_typing` / `n_held_after`, F16 `n_mail_hover_*`, F18
+    `n_wheel_*`.
+- **Regression from the title on a fresh save** (`reg_n1.cmd` to `reg_n3.cmd`, run twice after the bridge fixes: `reg_n*_final_a.out`, then
+  `reg_n*_final.out` after the notice and kept Gary changes; save `saves/phaseN/reg`): Night 1 to its card (`WS-04 went dark at 2:19 AM. The
+  file came back.`, scares 2/2, the 450 px/s pull won); Night 2 from Continue to its card (`You shredded employee_209.dat.`, the pull won,
+  scares 2/6 with one from the pool; 1/6 on the first run, the pool waited on typing); Night 3 from Continue to the 6:41 rule, then each
+  ending as above. 0 game errors on every run; the clock monitor saw no step back. The `TIMEOUT` lines are waits for lines already logged
+  (the same four and three as Phase M's runs).
+- **Builds.** Full `Builds/Windows/SecondCursor.exe` 76.6 MB and demo `Builds/WindowsDemo/SecondCursorDemo.exe` 76.4 MB by the engine's
+  report (72.0 and 71.7 MB on disk with Symbols and `NotShipped/D3D12` moved to `Builds/Symbols/<build>`), 0 errors (the engine's usual 2
+  build warnings), content folders back in Resources, `SC_DEMO` off. Windowed smoke tests (`phaseN/smoke.ps1`: full, demo, full with
+  `-scnight 3 -scbeat finale`, saves and logs under `phaseN/smoke`): each reaches its title or the finale (`6:41: end-of-shift rule given`),
+  builds its 50 sounds and logs no exception. Demo data grep (`phaseN/spoiler_grep.py`, Phase N terms added): no Phase N text; the one new
+  hit is the code constant `logoffdenied` in `Night3Rules` (a cause key, like Phase M's `end.keep.cause`); the rest are Phase M's kinds.
+- **Judgement calls.**
+  - GET READY holds her end still too: a grab that starts close to the bin cannot be lost before the player can see the arrow.
+  - The first arrow of a night asks for 400 px, so a retry grabbed a little nearer the bin still has 300 px the same way.
+  - A shred cancelled by the player's own No or Cancel only gets a notice when someone else was in the race (a plain No is its own answer).
+  - The end-of-shift task comes at 6:41, silently activated, with its one notice a second later (a task sound and a notice at once read as
+    two events).
+  - Security's quiet open during the shelf check still opens the viewer (the check needs it); it only gives up the focus and the spot.
+  - F8's hold is 2 s after the player's own choice; after that the story may bring a window forward again (a Jotter that talks must be
+    findable), and F12's notice covers a Jotter left behind.
+  - F18: no change (see above).
+  - A notice waiting for room still waits for a non-sticky one to time out (up to 7 s): only sticky notices give way, so a short notice is
+    never cut.
+- **Not yet.** A person's hands on the tug (the tables are the bridge's pattern); Night 3's Log Off race is under 0.8 s by the existing
+  timing (unchanged, as asked); the PEAT pass; the listening pass from Phase M.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does

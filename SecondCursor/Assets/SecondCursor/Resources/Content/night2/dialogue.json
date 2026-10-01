@@ -134,7 +134,7 @@
     { "id": "g2_wiped", "voice": "gary", "lines": ["you wiped my drive", "it's fine", "nothing on it"], "speakers": [] },
     { "id": "g2_plea", "voice": "gary", "lines": ["finish it", "please", "i can't hold on to it"], "speakers": [] },
     { "id": "g2_drop", "voice": "gary", "lines": ["sorry", "hands don't work right"], "speakers": [] },
-    { "id": "g2_help_yes", "voice": "gary", "lines": ["i've got no", "click yes"], "speakers": [] },
+    { "id": "g2_help_yes", "voice": "gary", "lines": ["my hand's on no", "you click yes"], "speakers": [] },
     { "id": "g2_thanks", "voice": "gary", "lines": ["thank y"], "speakers": [] },
     { "id": "g2_kept", "voice": "gary", "lines": ["you didn't", "it's ok", "i'll wait"], "speakers": [] },
     { "id": "g2_archived", "voice": "gary", "lines": ["archive", "ok", "where they put the quiet ones"], "speakers": [] },

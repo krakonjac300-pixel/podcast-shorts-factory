@@ -261,7 +261,8 @@ namespace SecondCursor.Tests
             Assert.Equal("Rounds until 3:30. Nothing to do. Stay seated.", until.title);
             Assert.Null(Demo().Task(ContentIds.TaskN3RoundsUntil));
             Assert.Contains("(4 digits)", n3.Text("auth.body"));
-            Assert.Contains("It's the minute she stopped. Personnel still has the time.", n3.Email(ContentIds.MailN3RuthComment).body);
+            // Phase N (finding 11): Ruth also names whose record has the time.
+            Assert.Contains("It's the minute she stopped. Personnel still has the time: look her up, 017.", n3.Email(ContentIds.MailN3RuthComment).body);
         }
 
         [Fact]

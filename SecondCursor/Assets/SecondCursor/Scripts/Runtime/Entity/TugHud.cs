@@ -155,8 +155,12 @@ namespace SecondCursor.Entity
         void UpdateBigArrow(bool show)
         {
             float pulse = 0.65f + 0.35f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f));
-            DrawArrow(_bigBack, _bigDots, _g.Player.Position, 14f, 2, show && _g.Conflict.PullDirection.sqrMagnitude > 0.5f, pulse);
+            _bigShown = show && _g.Conflict.PullDirection.sqrMagnitude > 0.5f;
+            DrawArrow(_bigBack, _bigDots, _g.Player.Position, 14f, 2, _bigShown, pulse);
         }
+
+        /// <summary>Phase N: the big arrow is up (the label keeps off its shaft, which runs about 90 px from the pointer).</summary>
+        bool _bigShown;
 
         void DrawArrow(List<Image> backs, List<Image> dots, Vector2 from, float start, int scale, bool show, float alpha)
         {
@@ -194,15 +198,28 @@ namespace SecondCursor.Entity
             if (p != null) _first = _g.Tips.Claim("tug");
             _refusedShown = false;
             _resultUntil = -1f;
-            ShowFightText(false);
+            if (_g.Conflict.InReady) ShowReadyText();
+            else ShowFightText(false);
             _panel.gameObject.SetActive(true);
             GameLog.Info(LogChannel.Entity, "Tug HUD shown");
             Place(_g.Conflict.ObjectPosition);
         }
 
+        /// <summary>Phase N: the GET READY beat is on the label (amber), before the fight's own words.</summary>
+        bool _ready;
+        /// <summary>A deep amber that reads on the pale label (the taskbar clock's).</summary>
+        static readonly Color32 ReadyText = new Color32(0xA8, 0x62, 0x00, 0xFF);
+
+        void ShowReadyText()
+        {
+            _ready = true;
+            SetText(F("tug.ready", _g.Conflict.ArrowDirection), ReadyText, true);
+        }
+
         /// <summary>Phase J: what to do, and once the bar is past its line, that letting go now keeps the file.</summary>
         void ShowFightText(bool ahead)
         {
+            _ready = false;
             _ahead = ahead;
             // Phase K: the label names the arrow's direction ("HOLD AND DRAG DOWN-LEFT UNTIL THE BAR IS YOURS.").
             SetText(ahead ? T("tug.ahead", "THE BAR IS YOURS.\nLET GO ON THE BIN OR A FOLDER.")
@@ -320,15 +337,13 @@ namespace SecondCursor.Entity
         {
             _anchor = obj;
             // Both pointers must stay visible (the player pulls away from hers): keep the side that covers neither,
-            // and only move when a pointer comes under the label.
-            if (Covers(Candidate(obj, _side)))
+            // and only move when a pointer comes under the label. Phase N: in a corner where every side covers something,
+            // her pointer may go under the label, never the player's pointer or the arrow.
+            if (Covers(Candidate(obj, _side), true))
             {
-                for (int s = 0; s < 4; s++)
-                {
-                    if (Covers(Candidate(obj, s))) continue;
-                    _side = s;
-                    break;
-                }
+                int free = FreeSide(obj, true);
+                if (free < 0 && Covers(Candidate(obj, _side), false)) free = FreeSide(obj, false);
+                if (free >= 0) _side = free;
             }
             var r = Candidate(obj, _side);
             _panel.anchoredPosition = new Vector2(Mathf.Round(r.center.x), Mathf.Round(r.yMin));
@@ -351,11 +366,20 @@ namespace SecondCursor.Entity
             return new Rect(cx - Width * 0.5f, y, Width, h);
         }
 
-        bool Covers(Rect r)
+        int FreeSide(Vector2 obj, bool herPointer)
+        {
+            for (int s = 0; s < 4; s++)
+                if (!Covers(Candidate(obj, s), herPointer)) return s;
+            return -1;
+        }
+
+        bool Covers(Rect r, bool herPointer)
         {
             var grow = new Rect(r.x - 10f, r.y - 14f, r.width + 20f, r.height + 24f);
-            return grow.Contains(_g.Player.Position) || (_g.EntityAgent.Visible && grow.Contains(_g.EntityAgent.Position))
-                   || (_arrowShown && grow.Contains(_arrowTip));
+            Vector2 way = _g.Conflict.PullDirection.normalized;
+            return grow.Contains(_g.Player.Position) || (herPointer && _g.EntityAgent.Visible && grow.Contains(_g.EntityAgent.Position))
+                   || (_arrowShown && grow.Contains(_arrowTip))
+                   || (_bigShown && (grow.Contains(_g.Player.Position + way * 50f) || grow.Contains(_g.Player.Position + way * 90f)));
         }
 
         void LateUpdate()
@@ -365,11 +389,11 @@ namespace SecondCursor.Entity
             if (c != null && c.IsFighting)
             {
                 if (!_meter.gameObject.activeSelf) OnStarted(null);
-                if (c.PlayerKeepsOnRelease != _ahead) ShowFightText(!_ahead);
+                if (_ready ? !c.InReady : c.PlayerKeepsOnRelease != _ahead) ShowFightText(!_ready && !_ahead);
                 SetMeter(c.PlayerLead);
                 Place(c.ObjectPosition);
                 UpdateArrow(c.ObjectPosition, true);
-                UpdateBigArrow(c.Elapsed < BigArrowSeconds);
+                UpdateBigArrow(c.Elapsed < ConflictSystem.ReadySeconds + BigArrowSeconds);
                 return;
             }
             if (_resultUntil > 0f && Time.unscaledTime < _resultUntil)

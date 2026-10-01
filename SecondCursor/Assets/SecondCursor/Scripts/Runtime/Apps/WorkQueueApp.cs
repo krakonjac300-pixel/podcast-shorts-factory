@@ -295,7 +295,58 @@ namespace SecondCursor.Apps
             if (id != _detailTaskId) { toTop = true; _detailTaskId = id; }
             _detail.text = text;
             LayoutDetail();
+            FitKeyTask(current);
             if (toTop) _detailScroll.ScrollTo(0f);
+        }
+
+        /// <summary>Where the Disposal bin's icon starts (desktop px, y down): a grown Work Queue above it stops short of it.</summary>
+        static readonly Rect BinArea = new Rect(ScreenRig.Width - 92f, ScreenRig.Height - OS.WindowManager.TaskbarHeight - 88f, 92f, 88f);
+        /// <summary>Where the window was and how big before a key task grew it (null = not grown), and its rect as grown.</summary>
+        Rect? _before;
+        Rect _grownTo;
+        /// <summary>The width a key task may widen the window to (leftwards) when the bin stops it growing down (the Deck's width).</summary>
+        const float KeyWidth = 420f;
+
+        /// <summary>
+        /// Phase N (fifth blind playtest, finding 10): the instructions of a PRIORITY task, a timed task or a Wait line (the rounds) are
+        /// shown whole: the window grows down to fit them (never over the Disposal bin), then wider to the left if that is not enough, and
+        /// gets its place back when an ordinary task follows. The tester never saw the end of the rounds hint behind "More below".
+        /// </summary>
+        void FitKeyTask(WorkTask t)
+        {
+            var w = Window;
+            if (w.IsMaximized || w.IsSnapped || w.IsMinimized || w.DraggedBy != null) return;
+            bool key = t != null && t.State == TaskState.Active
+                       && (!string.IsNullOrEmpty(t.Data.deadline) || t.Type == TaskType.Wait || t.Title.StartsWith("PRIORITY", System.StringComparison.Ordinal));
+            if (!key)
+            {
+                if (_before.HasValue && new Rect(w.TopLeft, w.Size) == _grownTo)
+                {
+                    w.SetSize(_before.Value.size);
+                    w.MoveTo(_before.Value.position);
+                }
+                _before = null;
+                w.KeepNoticesOff = false;
+                return;
+            }
+            // The notices stack elsewhere while the whole hint is up (they would sit on its end).
+            w.KeepNoticesOff = _before.HasValue;
+            float need = w.Size.y + _detailScroll.ContentHeight - _detailScroll.Viewport.rect.height;
+            var r = new Rect(w.TopLeft, w.Size);
+            float bottom = r.xMax > BinArea.xMin && r.xMin < BinArea.xMax ? BinArea.yMin - 4f : ScreenRig.Height - OS.WindowManager.TaskbarHeight - 4f;
+            float h = Mathf.Min(need, bottom - r.y);
+            bool wider = need > h + 1f && r.width < KeyWidth && r.xMax - KeyWidth >= OS.WindowManager.IconColumnRight;
+            if (h <= r.height + 1f && !wider) return;
+            if (!_before.HasValue) _before = r;
+            // Wider first: the text reflows, and the next pass sets the height it then needs.
+            if (wider)
+            {
+                w.SetSize(new Vector2(KeyWidth, r.height));
+                w.MoveTo(new Vector2(r.xMax - KeyWidth, r.y));
+            }
+            else w.SetSize(new Vector2(r.width, Mathf.Round(h)));
+            _grownTo = new Rect(w.TopLeft, w.Size);
+            w.KeepNoticesOff = true;
         }
 
         /// <summary>

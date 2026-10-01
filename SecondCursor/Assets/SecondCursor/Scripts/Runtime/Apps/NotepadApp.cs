@@ -40,8 +40,6 @@ namespace SecondCursor.Apps
         public float LastPlayerKeyTime { get; private set; } = -100f;
         /// <summary>Phase K: who is on the other side of a conversation ("session 017"), for its title and status line.</summary>
         public string SessionLabel = "the remote session";
-        /// <summary>Phase K: replies nobody read, drawn grey with "(not sent)" (character ranges of the text).</summary>
-        readonly System.Collections.Generic.List<Vector2Int> _unsent = new System.Collections.Generic.List<Vector2Int>();
 
         /// <summary>
         /// Phase K (suggestion 3): a conversation names its session and person in the title and wears that cursor's colours on its
@@ -144,16 +142,13 @@ namespace SecondCursor.Apps
         int _frameBottom;
         /// <summary>The last moment the other side was typing, thinking, or waiting for your reply (or you sent one).</summary>
         float _remoteActiveAt;
-        float _notReadingUntil = -1f;
         /// <summary>
-        /// Typing into a conversation nobody has answered for this long goes nowhere, and says so. Long enough for a reply
-        /// that is on its way (the think pause and the cursor reaching its pad after you sent a line).
+        /// A conversation nobody has answered for this long is not listening: a reply typed ahead is sent (Phase N). Long enough for a
+        /// reply that is on its way (the think pause and the cursor reaching its pad after you sent a line).
         /// </summary>
-        const float NotListeningAfter = 3f, NotReadingShow = 8f;
+        const float NotListeningAfter = 3f;
 
         bool NobodyListening => ConversationMode && !PlayerCanType && !EntityTyping && !ThinkingCaret && Time.time - _remoteActiveAt > NotListeningAfter;
-        /// <summary>A reply typed to nobody goes on the page as not sent this long after its last key (or at its Enter).</summary>
-        const float FlushUnsentAfter = 2f;
 
         /// <summary>The held reply as the status line shows it: its last line, with a caret.</summary>
         string PendingHeld()
@@ -165,16 +160,17 @@ namespace SecondCursor.Apps
             return h + "_";
         }
 
-        /// <summary>A reply nobody read: on its own line, grey, marked "(not sent)".</summary>
-        void AppendUnsent(string line)
+        /// <summary>Phase N: a reply typed while the other side typed, sent once it stopped: on its own line, like any sent line.</summary>
+        void SendHeld(string line)
         {
             if (_text.Length > 0 && _text[_text.Length - 1] != '\n') _text.Append('\n');
-            int start = _text.Length;
-            _text.Append(line).Append(' ').Append(G.Content.Text("notepad.notsent", "(not sent)")).Append('\n');
-            _unsent.Add(new Vector2Int(start, _text.Length));
+            _text.Append(line).Append('\n');
             _inputStart = _text.Length;
-            _view.SetDimRanges(_unsent, Palette.TextDisabled);
             Changed(true);
+            Sfx.Play("key_enter", _heldBy);
+            _remoteActiveAt = Time.time;
+            GameLog.Info(LogChannel.Player, "Jotter: reply sent after " + SessionLabel + " stopped typing (no turn)");
+            LineSubmitted?.Invoke(line, _heldBy);
         }
 
         void UpdateConversationStatus()
@@ -183,23 +179,20 @@ namespace SecondCursor.Apps
             if (!ConversationMode || PlayerCanType || EntityTyping || ThinkingCaret)
             {
                 _remoteActiveAt = Time.time;
-                _notReadingUntil = -1f;   // someone is there again: the "not reading" line goes at once
             }
-            string held = _held.ToString();
-            if (held.Length > 0 && NobodyListening && (held.IndexOf('\n') >= 0 || Time.time - LastPlayerKeyTime > FlushUnsentAfter))
+            int enter = _held.ToString().IndexOf('\n');
+            if (enter >= 0 && NobodyListening)
             {
-                // The other side stopped without giving you a turn: a reply typed ahead would otherwise be sent much later,
-                // as an answer to something else. Phase K: it is not dropped silently any more: it stays on the page, grey, "(not sent)".
-                _held.Length = 0;
-                foreach (var line in held.Split('\n')) if (line.Trim().Length > 0) AppendUnsent(line.Trim());
-                _notReadingUntil = Time.time + NotReadingShow;
-                GameLog.Info(LogChannel.Player, "Jotter: reply not sent (" + SessionLabel + " is not reading)");
+                // Phase N (fifth blind playtest, finding 13): the other side stopped without giving you a turn: the reply typed while it
+                // typed is sent now, as your line on the page (Phase K kept it grey, "(not sent)"). Whether it is answered is the story's.
+                string line = _held.ToString(0, enter).Trim();
+                _held.Remove(0, enter + 1);
+                if (line.Length > 0) SendHeld(line);
             }
             string text = null;
             // Phase K (finding 4): what you type while it is not your turn is echoed here at once, with why it waits.
             if (ConversationMode && _held.Length > 0)
-                text = G.Content.Format(NobodyListening ? "notepad.status.unsent" : "notepad.status.typing", SessionLabel, PendingHeld());
-            else if (ConversationMode && Time.time < _notReadingUntil) text = G.Content.Format("notepad.status.away", SessionLabel);
+                text = G.Content.Format(NobodyListening ? "notepad.status.held" : "notepad.status.typing", SessionLabel, PendingHeld());
             else if (WaitsForPlayer && PendingInput.Length == 0) text = G.Content.Text("notepad.status.turn");
             if (text != null && text.Length > 0) text = char.ToUpperInvariant(text[0]) + text.Substring(1);
             bool show = text != null;
@@ -332,8 +325,6 @@ namespace SecondCursor.Apps
         public void SetText(string text)
         {
             _text.Length = 0;
-            _unsent.Clear();
-            _view?.SetDimRanges(_unsent, Palette.TextDisabled);
             _text.Append(text ?? "");
             _inputStart = _text.Length;
             Changed(true);

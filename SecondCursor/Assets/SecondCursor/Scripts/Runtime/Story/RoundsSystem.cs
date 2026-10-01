@@ -169,10 +169,15 @@ namespace SecondCursor.Story
         public void ShowOnViewer(string camera, CursorAgent by)
         {
             if (Model == null || Model.Finished) return;
+            // Phase N (finding 5): while a job needs a camera (the shelf check) Security's open takes no focus and keeps clear of the
+            // Work Orders and the Work Queue, where the player is working.
+            bool quiet = PreferredCamera?.Invoke() != null;
+            var focused = _g.Windows.Active;
             var cam = _g.Apps.Find<CameraApp>();
             if (cam == null) cam = _g.Apps.Launch(AppIds.Camera, by) as CameraApp;
             else cam.Window.Restore(by);
             if (cam == null) return;
+            if (quiet) KeepClearOfWork(cam.Window, focused);
             if (cam.CurrentCamera != camera) cam.Select(string.IsNullOrEmpty(camera) ? Model.FigureCamera : camera, by);
             int index = ForcedOpens++;
             var text = _g.Content;
@@ -186,6 +191,25 @@ namespace SecondCursor.Story
             GameLog.Info(LogChannel.Story, "Rounds: viewer forced open (" + (index + 1) + ") on " + cam.CurrentCamera);
             ForcedOpen?.Invoke(index);
         }
+
+        /// <summary>
+        /// The viewer goes to its corner (top left, right of the icons) if it covers the Work Orders or the Work Queue, the window the player
+        /// was in keeps the focus, and if the viewer still overlaps one of them it goes under it.
+        /// </summary>
+        void KeepClearOfWork(OSWindow viewer, OSWindow focused)
+        {
+            var work = new System.Collections.Generic.List<OSWindow>();
+            foreach (var w in _g.Windows.Windows)
+                if (w != null && w != viewer && !w.IsClosed && !w.IsMinimized && (w.AppId == AppIds.WorkOrders || w.AppId == AppIds.WorkQueue)) work.Add(w);
+            if (work.Exists(w => Overlaps(viewer, w))) viewer.MoveTo(new Vector2(WindowManager.IconColumnRight, 0f));
+            if (focused != null && focused != viewer && !focused.IsClosed && !focused.IsMinimized) _g.Windows.Focus(focused, null);
+            foreach (var w in work)
+                if (Overlaps(viewer, w) && viewer.transform.GetSiblingIndex() > w.transform.GetSiblingIndex())
+                    viewer.transform.SetSiblingIndex(w.transform.GetSiblingIndex());
+            GameLog.Info(LogChannel.Story, "Rounds: viewer opened without focus at " + viewer.TopLeft + (focused != null ? " (" + focused.Title + " kept the focus)" : ""));
+        }
+
+        static bool Overlaps(OSWindow a, OSWindow b) => new Rect(a.TopLeft, a.Size).Overlaps(new Rect(b.TopLeft, b.Size));
 
         /// <summary>"CAM 04, SUBLEVEL C": a camera's label for a notice.</summary>
         public static string CameraName(GameServices g, string camId)

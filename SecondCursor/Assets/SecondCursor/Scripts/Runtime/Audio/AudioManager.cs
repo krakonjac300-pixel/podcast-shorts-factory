@@ -36,6 +36,8 @@ namespace SecondCursor.Audio
             public AudioSource Source;
             /// <summary>Call volume x default; ambience is scaled by the room level on top.</summary>
             public float Base, Target;
+            /// <summary>Review M4: where the fade is now, before the master volume (a master change applies at once).</summary>
+            public float Level;
             public float FadeSpeed;
             public bool StopWhenSilent;
         }
@@ -165,12 +167,37 @@ namespace SecondCursor.Audio
             src.pitch = pitch;
             src.panStereo = Mathf.Clamp(pan, -1f, 1f);
             src.volume = v;
-            src.clip = clip;
-            src.time = Mathf.Clamp(startOffset, 0f, Mathf.Max(0f, clip.length - 0.05f));
+            src.clip = startOffset > 0.001f ? FromOffset(clip, Mathf.Min(startOffset, Mathf.Max(0f, clip.length - 0.05f))) : clip;
+            src.time = 0f;
             src.Play();
             Record('P', id, v, pitch, pan);
             if (id.StartsWith("key_", StringComparison.Ordinal)) LastKeyAt = Time.time;
             if (volume >= ScareRules.EventMinVolume && EventIds.Contains(id)) LastEventAt = Time.time;
+        }
+
+        /// <summary>Clips that start part way in, by clip and start sample (see <see cref="FromOffset"/>).</summary>
+        static readonly Dictionary<string, AudioClip> OffsetClips = new Dictionary<string, AudioClip>();
+        const float OffsetFadeIn = 0.006f;
+
+        /// <summary>
+        /// Review M6: a clip started part way in (entity_appear, so its tick lands on the moment) begins with its own 6 ms fade-in instead
+        /// of a step into the middle of the swell. The start is rounded to 10 ms, so only a few such clips are ever made.
+        /// </summary>
+        static AudioClip FromOffset(AudioClip clip, float offset)
+        {
+            int step = Mathf.Max(1, clip.frequency / 100);
+            int start = Mathf.Clamp(Mathf.RoundToInt(offset * clip.frequency / step) * step, 0, clip.samples - 1);
+            string key = clip.name + "@" + start;
+            if (OffsetClips.TryGetValue(key, out var cut) && cut != null) return cut;
+            var data = new float[(clip.samples - start) * clip.channels];
+            clip.GetData(data, start);
+            int ramp = Mathf.Min(data.Length / clip.channels, Mathf.RoundToInt(clip.frequency * OffsetFadeIn));
+            for (int i = 0; i < ramp; i++)
+                for (int c = 0; c < clip.channels; c++) data[i * clip.channels + c] *= (float)i / ramp;
+            cut = AudioClip.Create(key, clip.samples - start, clip.channels, clip.frequency, false);
+            cut.SetData(data, 0);
+            OffsetClips[key] = cut;
+            return cut;
         }
 
         /// <summary>A free source; when all are busy the oldest one that is not playing a protected sound.</summary>
@@ -398,9 +425,9 @@ namespace SecondCursor.Audio
             foreach (var kv in _loops)
             {
                 var l = kv.Value;
-                float v = Mathf.MoveTowards(l.Source.volume / Mathf.Max(0.0001f, MasterVolume), l.Target, l.FadeSpeed * dt);
-                l.Source.volume = v * MasterVolume;
-                if (l.StopWhenSilent && v <= 0.0001f && l.Source.isPlaying) l.Source.Stop();
+                l.Level = Mathf.MoveTowards(l.Level, l.Target, l.FadeSpeed * dt);
+                l.Source.volume = l.Level * MasterVolume;
+                if (l.StopWhenSilent && l.Level <= 0.0001f && l.Source.isPlaying) l.Source.Stop();
             }
         }
 

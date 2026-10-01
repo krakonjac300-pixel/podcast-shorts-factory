@@ -104,7 +104,8 @@ namespace SecondCursor.Tests
             Assert.Contains("7:00 AM", db.Text("logoff.early.disabled"));
             Assert.Contains("Restricted\\session.cfg", db.Text("logoff.disabled"));
             Assert.Contains("Nexus menu", db.Text("logoff.available"));
-            Assert.Contains("Nexus menu", db.Text("logoff.added"));
+            // Phase N: the 6:41 end-of-shift notice replaces "Log Off added to the Nexus menu" and says where it is.
+            Assert.Contains("Nexus menu", db.Text("notify.endofshift"));
         }
 
         [Fact]

@@ -212,6 +212,8 @@ namespace SecondCursor.Story
             g.Player.ShapeOverride = null;
             g.Player.Enabled = true;
             g.Player.Visible = true;
+            // A first-time box left open by the jump no longer holds the clock (Phase N).
+            g.Clock.Frozen = false;
             g.Audio.StopLoop("drone_tension", 0.3f);
             // Phase M: nothing a half-finished scare or climax left behind (an in-place jump out of a dip used to leave the room silent).
             g.Scares.CancelAll();

@@ -171,10 +171,21 @@ namespace SecondCursor.Core.Story
         {
             if (exit == Night3Exit.Shred) return "end.shred.cause";
             if (exit == Night3Exit.LogOff) return "end.logoff.cause";
-            if (keepCause == "confirm") return "end.keep.cause.stay";
-            if (keepCause == "seat") return logOffCut ? "end.keep.cause.seat.logoff" : "end.keep.cause.seat";
-            return "end.keep.cause.time";
+            switch (keepCause)
+            {
+                case "confirm": return "end.keep.cause.stay";
+                case "seat": return logOffCut ? "end.keep.cause.seat.logoff" : "end.keep.cause.seat";
+                // Phase N (fifth blind playtest, finding 3): 7:05 came while the player was trying to leave another way.
+                case "letgo": return "end.keep.cause.letgo";
+                case "logoffdenied": return "end.keep.cause.logoffdenied";
+                case "logoffearly": return "end.keep.cause.logoffearly";
+                case "logofftried": return "end.keep.cause.logofftried";
+                default: return "end.keep.cause.time";
+            }
         }
+
+        /// <summary>Phase N: KEEP's subtitle: "You stayed." only when the player told her to stay; otherwise she kept them.</summary>
+        public static string KeepSubtitleKey(string keepCause) => keepCause == "confirm" ? "end.keep.subtitle" : "end.keep.subtitle.kept";
 
         /// <summary>
         /// Whether time alone ends the night with KEEP: at the hard cap always; at 7:05 unless a shred or log off
