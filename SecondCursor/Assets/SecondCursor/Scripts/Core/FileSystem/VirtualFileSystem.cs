@@ -226,14 +226,15 @@ namespace SecondCursor.Core.FileSystem
             return true;
         }
 
-        /// <param name="by">Phase K: which other session moved it (only for <see cref="Actor.Entity"/>), so the Work Queue can say who did the work.</param>
+        /// <param name="by">Phase K: which other session moved it (for <see cref="Actor.Entity"/>), so the Work Queue can say who did the work.
+        /// Phase Q1: a system move with a name ("Night Operations") is credited to it too; a system move without one is the shift's own setup.</param>
         public bool Move(string fileId, string folderId, Actor actor, string by = null)
         {
             if (!CanMove(fileId, folderId, out _)) return false;
             var file = _files[fileId];
             string from = file.FolderId;
             file.FolderId = folderId;
-            file.MovedBy = actor == Actor.Entity ? (string.IsNullOrEmpty(by) ? "another session" : by) : null;
+            file.MovedBy = actor == Actor.Entity ? (string.IsNullOrEmpty(by) ? "another session" : by) : actor == Actor.System && !string.IsNullOrEmpty(by) ? by : null;
             Revision++;
             GameLog.Info(actor == Actor.Entity ? LogChannel.Entity : LogChannel.OS,
                 (actor == Actor.Player ? "Player" : actor.ToString()) + " moved " + file.Name + " " + from + " -> " + folderId);

@@ -349,7 +349,7 @@ namespace SecondCursor.Apps
             if (_view == null) return;
             _view.text = _text.ToString();
             int width = Mathf.Max(60, Mathf.FloorToInt(_scroll.Viewport.rect.width) - 6);
-            var size = PixelFont.Measure(_view.text + "W", width, false, _view.Scale);
+            var size = PixelFont.Measure(_view.text + "W", width, false, _view.Factor);
             _view.rectTransform.At(3, 3, width, size.y + 4);
             _scroll.ContentHeight = size.y + 10;
             if (scrollToEnd) _scroll.ScrollToBottom();
@@ -595,10 +595,10 @@ namespace SecondCursor.Apps
             _caretBlink += dt;
             // A conversation is shown at double size: it has to read on a phone screen in a clip. Documents follow
             // the Reading text option (Large on a Steam Deck).
-            int scale = ConversationMode ? 2 : Game.DisplaySettings.ReadingScale;
-            if (_view != null && _view.Scale != scale)
+            float scale = ConversationMode ? 2f : Game.DisplaySettings.ReadingFactor;
+            if (_view != null && _view.Factor != scale)
             {
-                _view.Scale = scale;
+                _view.Factor = scale;
                 Changed(true);
             }
             // The status first: it sees the turn that ReleaseHeldKeys may end on this frame (a typed-ahead line sent).

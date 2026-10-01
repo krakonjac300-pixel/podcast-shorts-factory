@@ -39,6 +39,8 @@ namespace SecondCursor.Story
                 cam = (CameraApp)_g.Apps.Launch(AppIds.Camera, E.Agent);
                 cam?.Select(ContentIds.Cam03, E.Agent);
             }
+            // A jump straight here (or a viewer the escalation never showed) still gets the protected first look.
+            if (!_firstViewGuarded) RunSide(GuardFirstView(), "first-view");
             // It is always here for this (a debug jump straight to the reveal skips its arrival).
             if (!E.IsVisible) yield return E.Appear(new Vector2(ScreenRig.Width * 0.62f, ScreenRig.Height * 0.5f), 0.4f, false);
             // It moves aside and waits, still, while you watch yourself.
@@ -61,7 +63,8 @@ namespace SecondCursor.Story
             _g.Audio.SetAmbience(false, 4f);
             _g.Audio.PlayLoop("drone_tension", DroneVolume, 6f);
             _g.Audio.Play("door_distant", 0.5f, 1f, -0.3f);
-            yield return WaitWatching(4f, 12f);
+            // Phase Q1 (owner 5): the figure in the doorway is part of the first reveal: 6 s of looking before she fights for the feed (was 4).
+            yield return WaitWatching(FirstViewSeconds, 14f);
 
             // 3) The entity panics and fights to shut the feed. Each time you reopen it, it is closer.
             E.State = EntityState.Panicked;
@@ -162,6 +165,62 @@ namespace SecondCursor.Story
         }
 
         const float DroneVolume = 0.25f;
+
+        /// <summary>Phase Q1 (owner 5): how long the first view of your own office on CAM 03 is kept in front, uncovered and unswitched.</summary>
+        const float FirstViewSeconds = 6f;
+        bool _firstViewGuarded;
+
+        /// <summary>
+        /// The first time the Camera Viewer shows the player's own office (Night 1): it comes to the front and, for <see cref="FirstViewSeconds"/>,
+        /// no other pointer can close, minimize or switch it, no window the story opens covers it (it is brought back to the front unless the player
+        /// picked another window), and no notice appears over it (they wait, and the ones up dim). The player's own clicks are never blocked.
+        /// Later interruptions keep their aggression.
+        /// </summary>
+        IEnumerator GuardFirstView()
+        {
+            var cam = _g.Apps.Find<CameraApp>();
+            if (_firstViewGuarded || cam == null || !cam.IsOpen) yield break;
+            _firstViewGuarded = true;
+            var w = cam.Window;
+            w.Restore(null);
+            _g.Windows.Front(w);
+            if (cam.CurrentCamera != ContentIds.Cam03) cam.Select(ContentIds.Cam03, null);
+            cam.HeldOn = ContentIds.Cam03;
+            w.GuardedFromOthers = true;
+            _guardedNoticesOff = w.KeepNoticesOff;
+            w.KeepNoticesOff = true;
+            _g.Notifications.HeldByStory = true;
+            _guardedView = cam;
+            float start = Time.time, playerChoice = _g.Windows.PlayerChoiceAt;
+            GameLog.Info(LogChannel.Story, "First CAM 03 view: protected for " + FirstViewSeconds + " s");
+            while (Time.time - start < FirstViewSeconds && cam != null && cam.IsOpen)
+            {
+                var active = _g.Windows.Active;
+                bool playerPicked = _g.Windows.PlayerChoiceAt > playerChoice;
+                if (!playerPicked && !w.IsMinimized && active != w && (active == null || !active.AlwaysOnTop)) _g.Windows.Front(w);
+                yield return null;
+            }
+            EndFirstViewGuard();
+        }
+
+        CameraApp _guardedView;
+        bool _guardedNoticesOff;
+
+        /// <summary>The protection ends (its time is up, or a jump stops the routine that kept it).</summary>
+        void EndFirstViewGuard()
+        {
+            _g.Notifications.HeldByStory = false;
+            var cam = _guardedView;
+            _guardedView = null;
+            if (cam == null) return;
+            if (cam.IsOpen)
+            {
+                cam.HeldOn = null;
+                cam.Window.GuardedFromOthers = false;
+                cam.Window.KeepNoticesOff = _guardedNoticesOff;
+            }
+            GameLog.Info(LogChannel.Story, "First CAM 03 view: protection over");
+        }
         const float ShredDeadAir = 2.4f, BinRattleSeconds = 0.4f;
 
         /// <summary>The Disposal icon shakes on the spot (the shredded file is on its way back).</summary>

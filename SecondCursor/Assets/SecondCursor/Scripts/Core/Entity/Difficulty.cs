@@ -64,7 +64,10 @@ namespace SecondCursor.Core.Entity
         public float TaskHintFirst = 30f;
         public float BriefingHintFirst = 25f;
         public float TaskHintRepeat = 40f;
-        /// <summary>A company task is force-completed this long after its first hint.</summary>
+        /// <summary>
+        /// Phase Q1: nothing is force-completed any more. After "Not now" the offer to finish a task comes back after this many seconds of
+        /// active (not reading) time; a choice order still lapses this long after its first hint.
+        /// </summary>
         public float TaskForceAfterHint = 150f;
         public float EntityTaskNudge = 35f;
         public float EntityTaskWithdraw = 75f;

@@ -146,6 +146,9 @@ namespace SecondCursor.Story
             var tokens = NightTemplates.Tokens(g.Flags, g.Save != null ? g.Save.playerLines : null, g.Save != null ? g.Save.playerLineMinutes : null);
             foreach (var e in g.Content.Employees.employees)
                 if (e != null && e.notes.IndexOf('{') >= 0) e.notes = NightTemplates.Fill(e.notes, tokens);
+            // Phase Q1: a mail can carry the player's own words too (Night 2's mail from themselves).
+            foreach (var m in g.Content.Emails.emails)
+                if (m != null && m.body.IndexOf('{') >= 0) m.body = NightTemplates.Fill(m.body, tokens);
             foreach (var f in g.Files.AllFiles)
             {
                 if (!f.HasTag("template")) continue;

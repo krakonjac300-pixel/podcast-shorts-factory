@@ -94,7 +94,7 @@
     { "id": "n3_intro_mem_watched", "voice": "", "lines": ["YOU WATCHED IT YESTERDAY"], "speakers": [] },
     { "id": "n3_intro_mem_finished", "voice": "", "lines": ["HE WORKS FOR THEM NOW"], "speakers": [] },
     { "id": "n3_corrupt", "voice": "", "lines": ["THAT IS NOT ME"], "speakers": [] },
-    { "id": "n3_corrupt_content", "voice": "system", "lines": ["RECLAIMED RECORDS: BATCH 47-B", "..%%..remain seated..remain seated..#..", "remain seated..remain seated..remain", "..@..seated..remain seated..~..", "[RECORD DAMAGED]"], "speakers": [] },
+    { "id": "n3_corrupt_content", "voice": "system", "lines": ["RECLAIMED RECORDS: BATCH 47-B", "..%%..remain seated..remain seated..#..", "remain seated..remain seated..remain", "..@..seated..remain seated..~..", "[RECORD DAMAGED: WRITTEN BY 000]", "[000: OPERATORS REMAIN SEATED AT 3:00]"], "speakers": [] },
     { "id": "n3_code_hint1", "voice": "", "lines": ["THE MINUTE I STOPPED"], "speakers": [] },
     { "id": "n3_code_hint2", "voice": "", "lines": ["TWO SEVENTEEN"], "speakers": [] },
     { "id": "n3_restricted_open", "voice": "", "lines": ["NOW YOU SEE", "WHAT THEY KEEP"], "speakers": [] },

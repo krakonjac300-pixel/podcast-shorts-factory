@@ -30,9 +30,22 @@ namespace SecondCursor.Story
         /// <summary>Seconds a pool pick keeps waiting for the gate before it is rescheduled; seconds an armed click answer waits for a click.</summary>
         const float PoolWindow = 20f, ClickAnswerWindow = 20f;
 
+        /// <summary>Phase Q1: an action scare waiting for its moment (no sound of its own; the story's <see cref="Fire"/> does the change).</summary>
+        sealed class PendingAction
+        {
+            public string Id;
+            public float At, Until;
+            public Func<bool> Ready;
+            public Action Fire;
+            public ScareGate Ignore, LastBlock;
+        }
+
         GameServices _g;
         ScareNight _night;
         readonly List<Pending> _slots = new List<Pending>();
+        readonly List<PendingAction> _actions = new List<PendingAction>();
+        int _actionsPlayed;
+        float _lastAction = -1000f;
         readonly List<string> _skips = new List<string>();
         float _lastScare = -1000f, _nextPool = -1f, _poolUntil = -1f, _duckUntil = -1f;
         int _played, _poolPlayed;
@@ -74,11 +87,59 @@ namespace SecondCursor.Story
         public void Slot(string id, float volume, float pan, float delay, float window, ScareGate ignore = ScareGate.None) =>
             Slot(id, volume, () => pan, delay, window, ignore);
 
+        /// <summary>
+        /// Phase Q1: an action scare born from what the player did (their icon back where it was, their words in the inbox). Tried after
+        /// <paramref name="delay"/> seconds, then every frame for up to <paramref name="window"/> seconds, until the gate is open
+        /// (<see cref="ScareRules.CheckAction"/>: every no-scare gate and the night's action budget) and <paramref name="ready"/> says the moment
+        /// has come; then <paramref name="fire"/> makes the change. Missed, it is skipped and costs nothing.
+        /// </summary>
+        public void SlotAction(string id, float delay, float window, Func<bool> ready, Action fire, ScareGate ignore = ScareGate.None)
+        {
+            float now = Time.time;
+            _actions.Add(new PendingAction { Id = id, At = now + delay, Until = now + delay + window, Ready = ready, Fire = fire, Ignore = ignore });
+        }
+
+        /// <summary>Phase Q1: action scares played tonight (the bridge's scares line).</summary>
+        public int ActionsPlayed => _actionsPlayed;
+
+        void TickActions(float now)
+        {
+            for (int i = _actions.Count - 1; i >= 0; i--)
+            {
+                var s = _actions[i];
+                if (now < s.At) continue;
+                if (now > s.Until)
+                {
+                    Skipped(s.Id, s.LastBlock);
+                    _actions.RemoveAt(i);
+                    continue;
+                }
+                var block = ScareRules.CheckAction(Context(), _night, _actionsPlayed, now - _lastAction, s.Ignore);
+                if (block != ScareGate.None)
+                {
+                    s.LastBlock = block;
+                    continue;
+                }
+                bool ready;
+                try { ready = s.Ready == null || s.Ready(); }
+                catch (Exception e) { FaultLog.Report("action scare " + s.Id, e); ready = false; s.Until = now; }
+                if (!ready) continue;
+                _actions.RemoveAt(i);
+                _actionsPlayed++;
+                _lastAction = now;
+                GameLog.Info(LogChannel.Story, "Action scare: " + s.Id + " (" + _actionsPlayed + "/" + _night.ActionBudget + ")");
+                try { s.Fire?.Invoke(); }
+                catch (Exception e) { FaultLog.Report("action scare " + s.Id, e); }
+            }
+        }
+
         /// <summary>Drops every waiting slot and the pool's next pick (a climax or an ending is coming), and gives the room back its level.</summary>
         public void CancelAll()
         {
             foreach (var s in _slots) GameLog.Info(LogChannel.Audio, "Scare cancelled: " + s.Id);
             _slots.Clear();
+            foreach (var s in _actions) GameLog.Info(LogChannel.Story, "Action scare cancelled: " + s.Id);
+            _actions.Clear();
             _nextPool = -1f;
             _g.Audio.ArmClickAnswer(0f);
             _answerPending = false;
@@ -122,6 +183,7 @@ namespace SecondCursor.Story
                 s.OnFire?.Invoke();
             }
             TickPool(d.CurrentBeat, now);
+            TickActions(now);
         }
 
         void TickPool(string beat, float now)
@@ -258,7 +320,7 @@ namespace SecondCursor.Story
         internal string Describe()
         {
             float cooldown = (Finale ? _night.FinaleCooldown : _night.Cooldown) - (Time.time - _lastScare);
-            return "night " + _night.Night + ": played " + _played + "/" + _night.Budget + " (pool " + _poolPlayed + "/" + _night.PoolLimit + "), cooldown left "
+            return "night " + _night.Night + ": played " + _played + "/" + _night.Budget + ", actions " + _actionsPlayed + "/" + _night.ActionBudget + " (waiting " + _actions.Count + ")" + " (pool " + _poolPlayed + "/" + _night.PoolLimit + "), cooldown left "
                 + Mathf.Max(0f, cooldown).ToString("0") + " s, waiting " + _slots.Count + ", next pool "
                 + (_nextPool < 0f ? "-" : _nextPool > 1e6f ? "never" : (_nextPool - Time.time).ToString("0") + " s")
                 + (ClimaxRunning ? ", climax" : "") + ", last skips: " + (_skips.Count > 0 ? string.Join("; ", _skips) : "none");

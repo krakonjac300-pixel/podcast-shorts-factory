@@ -268,7 +268,9 @@ namespace SecondCursor.Story
             welcome.Wrap = true;
             welcome.rectTransform.At(90, 34, 250, 28);
 
-            Field(box, "User name:", c.Text("login.username"), 72);
+            // Phase Q1 (A T5, the minute-one hook): on Night 1 the name field already holds 017, and nobody retypes it.
+            bool retype = _night == 1;
+            var user = Field(box, "User name:", retype ? RetypedFrom : c.Text("login.username"), 72);
             Field(box, "Password:", "********", 96);
             Field(box, "Domain:", c.Text("login.domain"), 120);
 
@@ -282,12 +284,21 @@ namespace SecondCursor.Story
             var cancel = UiButton.Create(box, "Cancel", a => { status.text = "You must log on to begin your shift."; Sfx.Play("sys_warning"); }, "button:Cancel");
             ((RectTransform)cancel.transform).At(w - 88, h - 32, 78, 22);
 
+            if (retype)
+            {
+                ok.Enabled = false;
+                yield return Retype(user, c.Text("login.username"));
+                ok.Enabled = true;
+                loggedIn = false; // a click on the greyed button while it typed does not count
+            }
             _clicked = false;
             while (!loggedIn)
             {
                 if (_g.Input.KeyDown(GameKey.Enter)) loggedIn = true;
+                if (retype) user.SetCaret(true, user.text.Length, (Time.time % 1.06f) < 0.53f);
                 yield return null;
             }
+            user.SetCaret(false, -1, false);
             ok.Enabled = false;
             cancel.Enabled = false;
             // Night 1 keeps its original line; later nights restore their settings "from a copy".
@@ -302,7 +313,7 @@ namespace SecondCursor.Story
             GameLog.Info(LogChannel.Player, "Logged on as " + c.Text("login.username"));
         }
 
-        void Field(RectTransform box, string label, string value, int y)
+        PixelText Field(RectTransform box, string label, string value, int y)
         {
             var l = UIBuilder.Text(box, label, Palette.Text);
             l.rectTransform.At(90, y + 4, 70, 12);
@@ -311,6 +322,39 @@ namespace SecondCursor.Story
             var t = UIBuilder.Text(f.rectTransform, value, Palette.Text);
             t.rectTransform.Stretch(4, 0, 4, 0);
             t.VAlign = TextVAlign.Middle;
+            return t;
+        }
+
+        /// <summary>What the Night 1 name field holds before it is retyped (017 is already on screen that night as employee_017.dat).</summary>
+        const string RetypedFrom = "017";
+        const float RetypeHold = 1.0f, RetypeDelete = 0.12f, RetypeType = 0.08f;
+
+        /// <summary>
+        /// Phase Q1 (A T5): 017 sits in the field for a second, is deleted a character at a time (keys played backwards) and CROURKE is typed in
+        /// (about 1.9 s in all) with a caret, by nobody. The pointer moves freely; Log On works once it is done.
+        /// </summary>
+        IEnumerator Retype(PixelText field, string name)
+        {
+            string text = RetypedFrom;
+            field.SetCaret(true, text.Length, true);
+            yield return Waits.Seconds(RetypeHold);
+            while (text.Length > 0)
+            {
+                text = text.Substring(0, text.Length - 1);
+                field.text = text;
+                field.SetCaret(true, text.Length, true);
+                _g.Audio.Play("key_tap_rev", 0.3f, Random.Range(0.95f, 1.05f));
+                yield return Waits.Seconds(RetypeDelete);
+            }
+            foreach (char ch in name)
+            {
+                text += ch;
+                field.text = text;
+                field.SetCaret(true, text.Length, true);
+                _g.Audio.Play("key_tap", 0.3f, Random.Range(0.95f, 1.05f));
+                yield return Waits.Seconds(RetypeType);
+            }
+            GameLog.Info(LogChannel.Story, "Log on: the user name was retyped " + RetypedFrom + " -> " + name + " by nobody");
         }
     }
 }

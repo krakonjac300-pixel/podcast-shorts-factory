@@ -150,13 +150,29 @@ namespace SecondCursor.FX
         public bool CrtEnabled
         {
             get => _crt;
+            set => Crt = value ? (_crtLevel == Core.Game.CrtLevel.Off ? Core.Game.CrtLevel.Full : _crtLevel) : Core.Game.CrtLevel.Off;
+        }
+
+        Core.Game.CrtLevel _crtLevel = Core.Game.CrtLevel.Full;
+        /// <summary>Phase Q1 (owner 7, F A10): how much of the CRT layer shows (0 off, about half on Low, all on Full).</summary>
+        float _crtStrength = 1f;
+
+        /// <summary>Phase Q1: Off, Low or Full. Low keeps the look at about half strength: lighter scanlines, vignette, grain and flicker.</summary>
+        public Core.Game.CrtLevel Crt
+        {
+            get => _crtLevel;
             set
             {
-                _crt = value;
-                _scanlines.enabled = value;
-                _vignette.enabled = value;
-                _grain.enabled = value;
-                _flicker.enabled = value;
+                _crtLevel = value;
+                _crtStrength = Core.Game.DisplayOptions.Strength(value);
+                bool on = value != Core.Game.CrtLevel.Off;
+                _crt = on;
+                _scanlines.enabled = on;
+                _vignette.enabled = on;
+                _grain.enabled = on;
+                _flicker.enabled = on;
+                _scanlines.color = new Color(1f, 1f, 1f, _crtStrength);
+                _vignette.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.55f, 1f, _crtStrength));
             }
         }
 
@@ -277,11 +293,11 @@ namespace SecondCursor.FX
                     _spike = UnityEngine.Random.value < 0.004f * FlickerAmount;   // a one-step brightness dip, held until the next step
                 }
                 var gc = _grain.color;
-                gc.a = Mathf.Clamp01(0.55f + ExtraGrain * 2f);
+                gc.a = Mathf.Clamp01(0.55f * _crtStrength + ExtraGrain * 2f);
                 _grain.color = gc;
                 float n = Mathf.PerlinNoise(Time.unscaledTime * 7f, 0.3f);
                 float spike = _spike && !ReduceFlashing ? 0.08f : 0f;
-                _flicker.color = new Color(0f, 0f, 0f, FlickerAmount * 0.035f * n + spike);
+                _flicker.color = new Color(0f, 0f, 0f, (FlickerAmount * 0.035f * n + spike) * _crtStrength);
                 _scanTex.filterMode = Mathf.Approximately(_rig.Scale, Mathf.Round(_rig.Scale)) ? FilterMode.Point : FilterMode.Bilinear;
             }
 

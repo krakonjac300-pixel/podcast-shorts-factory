@@ -45,7 +45,26 @@ namespace SecondCursor.Rendering
         }
 
         public bool Bold { get => _bold; set { if (_bold != value) { _bold = value; SetVerticesDirty(); } } }
-        public int Scale { get => _scale; set { value = Mathf.Max(1, value); if (_scale != value) { _scale = value; SetVerticesDirty(); } } }
+        public int Scale { get => _scale; set { value = Mathf.Max(1, value); if (_scale != value || _halfStep) { _scale = value; _halfStep = false; SetVerticesDirty(); } } }
+
+        /// <summary>Phase Q1: Medium reading text draws at 1.5 (the screen texture is then 2x, so every font pixel is 3 texture pixels).</summary>
+        bool _halfStep;
+
+        /// <summary>The drawn scale: <see cref="Scale"/>, or Scale + 0.5 for a half step. Setting 1.5 gives the half step; whole values set Scale.</summary>
+        public float Factor
+        {
+            get => _halfStep ? _scale + 0.5f : _scale;
+            set
+            {
+                value = Mathf.Max(1f, value);
+                int whole = Mathf.FloorToInt(value);
+                bool half = value - whole >= 0.25f;
+                if (_scale == whole && _halfStep == half) return;
+                _scale = whole;
+                _halfStep = half;
+                SetVerticesDirty();
+            }
+        }
         public bool Wrap { get => _wrap; set { if (_wrap != value) { _wrap = value; SetVerticesDirty(); } } }
         public TextAlign Align { get => _align; set { if (_align != value) { _align = value; SetVerticesDirty(); } } }
         public TextVAlign VAlign { get => _valign; set { if (_valign != value) { _valign = value; SetVerticesDirty(); } } }
@@ -63,13 +82,16 @@ namespace SecondCursor.Rendering
 
         int Advance(char c) => _monoAdvance > 0 ? _monoAdvance : PixelFont.Advance(c, _bold);
 
-        int MeasureLine(string line)
+        float MeasureLine(string line)
         {
-            if (_monoAdvance <= 0) return PixelFont.MeasureLine(line, _bold, _scale);
-            return string.IsNullOrEmpty(line) ? 0 : (line.Length * _monoAdvance - 1) * _scale;
+            if (_monoAdvance <= 0) return PixelFont.MeasureLine(line, _bold, Factor);
+            return string.IsNullOrEmpty(line) ? 0 : (line.Length * _monoAdvance - 1) * Factor;
         }
 
-        public int LineHeightPx => (PixelFont.LineHeight + _extraLineSpacing) * _scale;
+        public int LineHeightPx => Mathf.CeilToInt((PixelFont.LineHeight + _extraLineSpacing) * Factor - 0.001f);
+
+        /// <summary>The line pitch as drawn (a half-step scale can make it a half pixel).</summary>
+        float LinePitch => (PixelFont.LineHeight + _extraLineSpacing) * Factor;
 
         /// <summary>Caret shown after character index (text length = end). Visibility is toggled by the owner.</summary>
         public void SetCaret(bool enabled, int index, bool visible)
@@ -87,26 +109,26 @@ namespace SecondCursor.Rendering
         public int CountLines()
         {
             int maxW = _wrap ? Mathf.FloorToInt(rectTransform.rect.width) : 0;
-            return PixelFont.Wrap(_text, maxW, _bold, _scale, _lines).Count;
+            return PixelFont.Wrap(_text, maxW, _bold, Factor, _lines).Count;
         }
 
-        public int VisibleLineCapacity => Mathf.Max(1, Mathf.FloorToInt((rectTransform.rect.height + (LineHeightPx - PixelFont.GlyphHeight * _scale)) / Mathf.Max(1, LineHeightPx)));
+        public int VisibleLineCapacity => Mathf.Max(1, Mathf.FloorToInt((rectTransform.rect.height + (LinePitch - PixelFont.GlyphHeight * Factor)) / Mathf.Max(1f, LinePitch)));
 
-        public Vector2Int PreferredSize(int maxWidth = 0) => PixelFont.Measure(_text, maxWidth, _bold, _scale);
+        public Vector2Int PreferredSize(int maxWidth = 0) => PixelFont.Measure(_text, maxWidth, _bold, Factor);
 
         protected override void OnPopulateMesh(VertexHelper vh)
         {
             vh.Clear();
             var rect = rectTransform.rect;
             int maxW = _wrap ? Mathf.FloorToInt(rect.width) : 0;
-            PixelFont.Wrap(_text, maxW, _bold, _scale, _lines);
+            PixelFont.Wrap(_text, maxW, _bold, Factor, _lines);
 
-            int s = _scale;
-            int lineH = LineHeightPx;
-            int glyphH = PixelFont.GlyphHeight * s;
+            float s = Factor;
+            float lineH = LinePitch;
+            float glyphH = PixelFont.GlyphHeight * s;
             int first = Mathf.Min(_firstLine, Mathf.Max(0, _lines.Count - 1));
             int count = _lines.Count - first;
-            int blockH = count <= 0 ? glyphH : (count - 1) * lineH + glyphH;
+            float blockH = count <= 0 ? glyphH : (count - 1) * lineH + glyphH;
 
             // Snap the rect's top-left to whole world pixels so the point-filtered glyphs stay crisp.
             Vector3 worldTopLeft = rectTransform.TransformPoint(new Vector3(rect.xMin, rect.yMax, 0f));
@@ -131,7 +153,7 @@ namespace SecondCursor.Rendering
                 string line = _lines[li];
                 float y = top - (li - first) * lineH;
                 if (y < rect.yMin - lineH) break; // fully below the visible rect
-                int w = MeasureLine(line);
+                float w = MeasureLine(line);
                 float x;
                 switch (_align)
                 {

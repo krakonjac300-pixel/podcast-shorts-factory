@@ -205,6 +205,8 @@ namespace SecondCursor.OS
             _g.Audio?.StopLoop("shred_loop");
             p.Close(null);
             var actor = by != null && by.IsEntity ? Actor.Entity : Actor.Player;
+            // Phase Q1: the Work Queue names whoever shredded a file a task asked for (null: the player). Set first: the shred ticks the task.
+            _g.Credits.Set(TaskType.DeleteFile, fileId, by != null && by.IsEntity ? SystemNotices.SessionOf(_g, by) : null);
             if (_g.Files.Shred(fileId, actor))
             {
                 AnyShredded = true;
@@ -343,10 +345,14 @@ namespace SecondCursor.OS
             }
         }
 
-        public void MarkRead(string id, CursorAgent by)
+        public void MarkRead(string id, CursorAgent by) => MarkRead(id, by, null);
+
+        /// <param name="credit">Phase Q1: who read it for the player ("Night Operations"); another session's agent is named by itself.</param>
+        public void MarkRead(string id, CursorAgent by, string credit)
         {
             if (!_inbox.Contains(id) || !_read.Add(id)) return;
             Revision++;
+            _g.Credits.Set(TaskType.ReadEmail, id, by != null && by.IsEntity ? SystemNotices.SessionOf(_g, by) : credit);
             if (by != null && by.IsPlayer) _g.Memory.Record(MemoryKind.ReadEmail, id, _g.Now);
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.Player, (by?.Name ?? "System") + " read mail " + id);
             Read?.Invoke(id);
@@ -398,11 +404,18 @@ namespace SecondCursor.OS
             _g.Tasks.Evaluate();
         }
 
-        public void Decide(string orderId, string decision, CursorAgent by)
+        public void Decide(string orderId, string decision, CursorAgent by) => Decide(orderId, decision, by, null);
+
+        /// <summary>Phase Q1: who decided an order other than the player ("session 017", "Night Operations"); null = the player or the shift's setup.</summary>
+        public string DecidedBy(string orderId) => _g.Credits.Get(TaskType.DecideOrder, orderId);
+
+        /// <param name="credit">Phase Q1: who decided it for the player ("Night Operations"); another session's agent is named by itself.</param>
+        public void Decide(string orderId, string decision, CursorAgent by, string credit)
         {
             if (DecisionFor(orderId) != null) return;
             _decisions[orderId] = decision;
             Revision++;
+            _g.Credits.Set(TaskType.DecideOrder, orderId, by != null && by.IsEntity ? SystemNotices.SessionOf(_g, by) : credit);
             var order = _g.Content.Order(orderId);
             bool correct = order != null && string.Equals(order.correct, decision, StringComparison.OrdinalIgnoreCase);
             // Phase L: an order the player may decide either way has no wrong answer.
@@ -410,7 +423,7 @@ namespace SecondCursor.OS
             if (!correct && !choice) _g.Flags.Increment(Core.Story.Flags.CounterWrongOrders);
             if (by != null && by.IsPlayer) _g.Memory.Record(MemoryKind.DecidedOrder, orderId, _g.Now);
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.Player,
-                (by?.Name ?? "System") + " " + (decision.EndsWith("e") ? decision + "d " : decision + "ed ") + orderId + (choice ? " (choice)" : correct ? " (correct)" : " (WRONG)"));
+                (by?.Name ?? credit ?? "System") + " " + (decision.EndsWith("e") ? decision + "d " : decision + "ed ") + orderId + (choice ? " (choice)" : correct ? " (correct)" : " (WRONG)"));
             Decided?.Invoke(orderId, decision, by);
             _g.Tasks.Evaluate();
         }
@@ -427,6 +440,7 @@ namespace SecondCursor.OS
         public string DecisionFor(string orderId) => _g.Orders?.DecisionFor(orderId);
         public bool IsFileOpenedByPlayer(string fileId) => _g.Flags.Get(Core.Story.Flags.OpenedByPlayerPrefix + fileId) > 0;
         public bool IsEmployeeViewedByPlayer(string employeeId) => _g.Flags.Get(Core.Story.Flags.ViewedByPlayerPrefix + employeeId) > 0;
-        public string MovedBy(string fileId) => _g.Files.GetFile(fileId)?.MovedBy;
+        public string CreditFor(TaskType type, string targetId) =>
+            type == TaskType.MoveFile ? _g.Files.GetFile(targetId)?.MovedBy : _g.Credits.Get(type, targetId);
     }
 }

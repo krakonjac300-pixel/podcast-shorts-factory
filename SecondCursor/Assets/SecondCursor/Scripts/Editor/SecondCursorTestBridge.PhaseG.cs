@@ -18,7 +18,7 @@ namespace SecondCursor.EditorTools
     {
         const string PhaseGHelp =
             "Phase G: savecheck (test folder: a locked progress.json is retried, a damaged one is set aside) | qaread on|off (progress.json read-only, like a -scnight launch)\n" +
-            "         settingsset frameRate|largeText|volume|reduceFlashing|tugAssist|clickLock VALUE (edit settings.json on disk) | storeart (render Builds/StoreArt) | storeshot NAME (1920x1080 game shot into Builds/StoreArt/screenshots)\n" +
+            "         settingsset frameRate|largeText|textSize|crt|volume|reduceFlashing|tugAssist|clickLock VALUE (edit settings.json on disk) | storeart (render Builds/StoreArt) | storeshot NAME (1920x1080 game shot into Builds/StoreArt/screenshots)\n" +
             "         storeshotafter SECONDS NAME (the same, taken later while the next commands run) | savecheck | buildguard | democrash | contentfolders | reload | steamcheck\n";
 
         static IEnumerator TryEditorPhaseGCommand(string cmd, string[] a, string rest)
@@ -195,7 +195,21 @@ namespace SecondCursor.EditorTools
             switch (field)
             {
                 case "framerate": s.frameRate = int.Parse(value, CultureInfo.InvariantCulture); break;
-                case "largetext": s.largeText = value == "on" || value == "true"; break;
+                case "largetext":
+                    s.largeText = value == "on" || value == "true";
+                    s.textSize = s.largeText ? (int)Core.Game.ReadingSize.Large : (int)Core.Game.ReadingSize.Normal;
+                    break;
+                // Phase Q1: normal|medium|large and off|low|full, saved and applied to the running game.
+                case "textsize":
+                    s.textSize = value == "large" ? 2 : value == "medium" ? 1 : 0;
+                    s.largeText = s.textSize == 2;
+                    DisplaySettings.SetSize((Core.Game.ReadingSize)s.textSize);
+                    break;
+                case "crt":
+                    s.crtLevel = value == "full" ? 2 : value == "low" ? 1 : 0;
+                    s.crtEffects = s.crtLevel > 0;
+                    if (G != null) G.Fx.Crt = (Core.Game.CrtLevel)s.crtLevel;
+                    break;
                 case "volume": s.masterVolume = float.Parse(value, CultureInfo.InvariantCulture); break;
                 case "reduceflashing": s.reduceFlashing = value == "on" || value == "true"; break;
                 // Phase P (A2): saved, and applied to a running game from its next contest (or drag).

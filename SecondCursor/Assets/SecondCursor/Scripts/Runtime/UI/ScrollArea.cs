@@ -91,10 +91,14 @@ namespace SecondCursor.UI
             return sa;
         }
 
+        /// <summary>Phase Q1: when the player last scrolled anything (wheel, arrows, track or thumb), unscaled seconds; reading is not being stuck.</summary>
+        public static float LastPlayerScrollAt { get; private set; } = -1000f;
+
         public void ScrollBy(float delta)
         {
             _offset += delta;
             Clamp();
+            LastPlayerScrollAt = Time.unscaledTime;
         }
 
         public void ScrollTo(float offset)
@@ -127,6 +131,7 @@ namespace SecondCursor.UI
             if (range <= 1f) return;
             // Absolute mapping from where the drag started: no accumulated rounding, thumb stays under the pointer.
             ScrollTo(_dragStartOffset + (_dragStartY - pointerY) * MaxOffset / range);
+            LastPlayerScrollAt = Time.unscaledTime;
         }
 
         void Clamp()

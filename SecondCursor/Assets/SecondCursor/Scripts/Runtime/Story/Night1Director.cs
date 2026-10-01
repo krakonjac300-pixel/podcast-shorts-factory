@@ -66,6 +66,8 @@ namespace SecondCursor.Story
             g.Shred.IsInUse = id => id == ContentIds.File017;
             // Phase I: once the bin has said so, the order in the queue says it too, instead of still asking for the impossible.
             g.Shred.RefusedInUse += OnShredRefusedInUse;
+            // Phase Q1 (owner 4): a program icon the player moved goes back where it was, once, when they are not looking.
+            g.Desktop.AppIconMovedByPlayer += OnAppIconMoved;
         }
 
         /// <summary>
@@ -99,6 +101,9 @@ namespace SecondCursor.Story
         {
             base.CleanUpForJump();
             RemoveConflictHint();
+            EndFirstViewGuard();
+            // The scheduler dropped a waiting icon slot (CancelAll): a later beat may arm it again.
+            _iconBackArmed = false;
         }
 
         protected override IEnumerator RunBeat(string beat)
@@ -283,6 +288,7 @@ namespace SecondCursor.Story
         IEnumerator Anomaly()
         {
             E.Phase = EntityPhase.Ambiguous;
+            ArmIconBack();
             yield return Wait(4f);
             _g.Mail.Deliver(ContentIds.MailIt);
             yield return Wait(3f);
@@ -593,6 +599,8 @@ namespace SecondCursor.Story
                 var button = cam.Window.Element("camera:" + ContentIds.Cam03);
                 if (button != null) yield return E.ClickElement(button, MovementProfiles.HumanLike, null, 3f);
                 if (cam.CurrentCamera != ContentIds.Cam03) cam.Select(ContentIds.Cam03, E.Agent);
+                // Phase Q1 (owner 5): the first look at your own office is protected.
+                RunSide(GuardFirstView(), "first-view");
             }
         }
     }

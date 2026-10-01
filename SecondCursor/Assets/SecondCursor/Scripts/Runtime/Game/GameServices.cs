@@ -46,6 +46,8 @@ namespace SecondCursor.Game
         public VirtualFileSystem Files;
         public NarrativeFlags Flags;
         public WorkTaskManager Tasks;
+        /// <summary>Phase Q1: who other than the player shredded a file, decided an order, read a mail or opened a record for a task.</summary>
+        public readonly TaskCredits Credits = new TaskCredits();
         public GameClock Clock;
         public EntityMemory Memory;
         public CursorRecorder Recorder;

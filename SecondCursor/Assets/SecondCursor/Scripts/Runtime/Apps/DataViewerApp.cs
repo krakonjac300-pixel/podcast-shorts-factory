@@ -106,8 +106,8 @@ namespace SecondCursor.Apps
         /// <summary>The recovered text wraps to the window's width (and the Reading text size).</summary>
         void LayoutRecovered()
         {
-            int scale = Game.DisplaySettings.ReadingScale;
-            _recovered.Scale = scale;
+            float scale = Game.DisplaySettings.ReadingFactor;
+            _recovered.Factor = scale;
             Canvas.ForceUpdateCanvases();
             int width = Mathf.Max(80, Mathf.FloorToInt(_textScroll.Viewport.rect.width) - 12);
             var size = PixelFont.Measure(_recovered.text, width, false, scale);
@@ -155,7 +155,7 @@ namespace SecondCursor.Apps
 
         public override void Tick(float dt)
         {
-            if (_showRecovered && _recovered.Scale != Game.DisplaySettings.ReadingScale) LayoutRecovered();
+            if (_showRecovered && _recovered.Factor != Game.DisplaySettings.ReadingFactor) LayoutRecovered();
             if (_showRecovered || !Unstable || _lines == null || _lines.Length == 0) return;
 
             if (_glitchLine >= 0)

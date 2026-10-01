@@ -41,6 +41,8 @@ namespace SecondCursor.OS
         /// 40% alpha, so nothing competes with the fight. The fight's own result is posted after it ends.
         /// </summary>
         public Func<bool> Hold;
+        /// <summary>Phase Q1: the story holds the notices too (the first CAM 03 view on Night 1 is never covered by one).</summary>
+        [NonSerialized] public bool HeldByStory;
         const float HeldAlpha = 0.4f;
         float _alpha = 1f;
 
@@ -276,7 +278,7 @@ namespace SecondCursor.OS
 
         bool SafeHold()
         {
-            try { return Hold != null && Hold(); }
+            try { return HeldByStory || (Hold != null && Hold()); }
             catch (Exception) { return false; }
         }
 

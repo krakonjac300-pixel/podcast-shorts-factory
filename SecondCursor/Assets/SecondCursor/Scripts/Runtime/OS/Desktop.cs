@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using SecondCursor.Core;
 using SecondCursor.Core.Content;
@@ -283,6 +284,9 @@ namespace SecondCursor.OS
             _attention.Selected = (Time.time * 6f) % 1f < 0.5f;
         }
 
+        /// <summary>Phase Q1: the player dragged a program's icon to a new place (the icon, where it was before).</summary>
+        public event Action<DesktopIcon, Vector2> AppIconMovedByPlayer;
+
         public DesktopIcon IconForApp(string appId)
         {
             foreach (var i in _icons) if (i != null && !i.IsFile && i.AppId == appId) return i;
@@ -299,7 +303,10 @@ namespace SecondCursor.OS
             if (p.Kind == PayloadKind.Other && p.FileId != null && p.FileId.StartsWith("app:"))
             {
                 var icon = IconForApp(p.FileId.Substring(4));
-                if (icon != null) icon.TopLeft = topLeft;
+                if (icon == null) return;
+                var from = icon.TopLeft;
+                icon.TopLeft = topLeft;
+                if (a != null && a.IsPlayer && from != icon.TopLeft) AppIconMovedByPlayer?.Invoke(icon, from);
                 return;
             }
             if (p.Kind != PayloadKind.File) return;

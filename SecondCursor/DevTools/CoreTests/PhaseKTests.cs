@@ -60,7 +60,7 @@ namespace SecondCursor.Tests
             public string DecisionFor(string orderId) => null;
             public bool IsFileOpenedByPlayer(string fileId) => false;
             public bool IsEmployeeViewedByPlayer(string employeeId) => false;
-            public string MovedBy(string fileId) => Files.GetFile(fileId)?.MovedBy;
+            public string CreditFor(TaskType type, string fileId) => type == TaskType.MoveFile ? Files.GetFile(fileId)?.MovedBy : null;
         }
 
         static VirtualFileSystem Batch46()

@@ -60,6 +60,23 @@ namespace SecondCursor.Story
         /// <summary>The round's time ran out (not raised by <see cref="Stop"/>).</summary>
         public event Action TimeUp;
 
+        /// <summary>Phase Q1 (T8): session 017 closes the viewer at most this many times a round; then it is the player's choice.</summary>
+        public const int MaxEntityCloses = 2;
+        /// <summary>How many times session 017 closed the viewer this round.</summary>
+        public int EntityCloses { get; private set; }
+        public bool EntityClosesLeft => EntityCloses < MaxEntityCloses;
+        bool _gaveUp;
+        /// <summary>Phase Q1 (T8): the viewer shows Custodial again after her last allowed close: she says so once and leaves it to the player.</summary>
+        public event Action EntityGaveUp;
+
+        /// <summary>Session 017 closed the viewer (the brain reports a click that closed it).</summary>
+        public void NoteEntityClose()
+        {
+            if (!Running) return;
+            EntityCloses++;
+            GameLog.Info(LogChannel.Story, "Rounds: viewer closed by session 017 (" + EntityCloses + " of " + MaxEntityCloses + ")");
+        }
+
         public static RoundsSystem Create(GameServices g, Transform parent)
         {
             var go = new GameObject("Custodial Rounds");
@@ -88,6 +105,8 @@ namespace SecondCursor.Story
             Elapsed = 0f;
             ForcedOpens = 0;
             PlayerReopens = 0;
+            EntityCloses = 0;
+            _gaveUp = false;
             _nextForced = 0;
             _nextRepeat = -1f;
             _onLaunched = (appId, a) => { if (appId == AppIds.Camera && a != null && a.IsPlayer) OnPlayerReopen(); };
@@ -135,6 +154,12 @@ namespace SecondCursor.Story
                 _nextRepeat = Elapsed + UnityEngine.Random.Range(c.ForcedOpenRepeatMin, c.ForcedOpenRepeatMax);
             }
             Model.Tick(dt, ViewedCamera());
+            if (!_gaveUp && !EntityClosesLeft && IsFigureOnShownCamera && !ShownCameraSpared && _g.Entity != null && _g.Entity.Brain.AllowCloseCamera)
+            {
+                _gaveUp = true;
+                GameLog.Info(LogChannel.Story, "Rounds: session 017 stops closing the viewer");
+                EntityGaveUp?.Invoke();
+            }
             if (Running && c.Duration > 0f && Elapsed >= c.Duration && !Model.Finished)
             {
                 Stop();

@@ -598,6 +598,8 @@ namespace SecondCursor.Entity
         float ScoreCloseCamera()
         {
             if (!AllowCloseCamera || _g.Rounds == null || !_g.Rounds.IsFigureOnShownCamera || _g.Rounds.ShownCameraSpared) return 0f;
+            // Phase Q1 (T8): twice a round at most; after that the viewer is the player's choice.
+            if (!_g.Rounds.EntityClosesLeft) return 0f;
             return 80f;
         }
 
@@ -623,6 +625,7 @@ namespace SecondCursor.Entity
             if (_g.Router.HitTest(close.Hit.Center, _c.Agent) != close.Hit && !_c.IsBlockedByOthers(close.Hit)) cam.Window.Focus(_c.Agent);
             var result = new bool[1];
             yield return _c.ClickElement(close.Hit, MovementProfiles.Panicked, result, 2f);
+            if (result[0] && (cam == null || !cam.IsOpen)) _g.Rounds.NoteEntityClose();
             if (!result[0] && cam.IsOpen && !cam.Window.IsMinimized) CloseCameraBlocked?.Invoke();
             _c.State = Core.Entity.EntityState.Observing;
         }

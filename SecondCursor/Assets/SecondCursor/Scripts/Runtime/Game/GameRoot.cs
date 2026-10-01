@@ -77,6 +77,7 @@ namespace SecondCursor.Game
             {
                 // First launch on a Steam Deck: large reading text (the player can change it in Options).
                 settings.largeText = true;
+                settings.textSize = (int)Core.Game.ReadingSize.Large;
                 settings.largeTextChosen = true;
                 SaveSystem.SaveSettings(settings);
             }
@@ -107,7 +108,7 @@ namespace SecondCursor.Game
             EnsureAudioListener();
             var settings = SaveSystem.LoadSettings();
             g.Audio.MasterVolume = settings.masterVolume;
-            g.Fx.CrtEnabled = settings.crtEffects;
+            g.Fx.Crt = Core.Game.DisplayOptions.CrtFrom(settings.crtLevel, settings.crtEffects);
             g.Fx.ReduceFlashing = settings.reduceFlashing;
             // Phase P (A2): Tug assist and Click lock; a locked drag never outlives its game root.
             AccessSettings.Load(settings);

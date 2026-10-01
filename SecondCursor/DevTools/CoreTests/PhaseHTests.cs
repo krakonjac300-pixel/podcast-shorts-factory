@@ -88,7 +88,7 @@ namespace SecondCursor.Tests
             public string DecisionFor(string orderId) => null;
             public bool IsFileOpenedByPlayer(string fileId) => false;
             public bool IsEmployeeViewedByPlayer(string employeeId) => false;
-            public string MovedBy(string fileId) => null;
+            public string CreditFor(TaskType type, string targetId) => null;
         }
 
         static WorkTaskManager Manager(params TaskData[] tasks) => new WorkTaskManager(tasks, new World());

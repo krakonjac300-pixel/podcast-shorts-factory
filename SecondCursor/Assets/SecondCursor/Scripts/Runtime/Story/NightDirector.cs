@@ -100,6 +100,7 @@ namespace SecondCursor.Story
         {
             var g = _g;
             g.Tasks.TaskCompleted += t => Sfx.Play("ui_select");
+            g.Tasks.TaskCompleted += WatchTaskConsistency;
             g.Clock.Rate = ClockRate;
             g.DragDrop.PayloadFinished += OnDropMissed;
             g.Orders.Decided += OnChoiceDecided;
@@ -274,6 +275,7 @@ namespace SecondCursor.Story
             EndClimax();
             if (g.Flags.Has(Flags.LoggedIn)) g.Audio.SetAmbience(true, 0.5f);
             g.Shred.Abort();
+            CloseOfferForJump();
             g.Shred.SpeedMultiplier = 1f;
             if (g.Fx.IsPoweredOff) g.Fx.PowerOn();
             g.Fx.SetBlack(false);
@@ -377,96 +379,33 @@ namespace SecondCursor.Story
         }
 
         /// <summary>
-        /// Waits for a task. After <paramref name="hintAfter"/> seconds (default: the difficulty's first hint)
-        /// its hint pops up as a toast, and again at the difficulty's repeat interval while the player is
-        /// still stuck. Story difficulty caps every first hint at its own (short) delay. It gives up after the hint and the
-        /// difficulty's patience, and never before <paramref name="minPatience"/> seconds.
-        /// </summary>
-        protected IEnumerator WaitTask(string taskId, float hintAfter = -1f, Action onTimeout = null, float minPatience = 0f)
-        {
-            var d = _g.Difficulty;
-            if (hintAfter < 0f) hintAfter = d.TaskHintFirst;
-            else if (d.Mode == DifficultyMode.Story) hintAfter = Mathf.Min(hintAfter, d.TaskHintFirst);
-            float start = Time.time;
-            float nextHint = start + hintAfter;
-            while (!_g.Tasks.IsCompleted(taskId) && !_g.Tasks.IsWithdrawn(taskId))
-            {
-                // Safety nets: a needed file must never be lost, and no task may block the shift forever.
-                var task = _g.Tasks.Get(taskId);
-                if (task != null && task.Type == TaskType.MoveFile)
-                {
-                    foreach (var target in task.Data.targets)
-                    {
-                        var f = _g.Files.GetFile(target);
-                        if (f != null && f.Shredded) _g.Files.Restore(target, ContentIds.FolderIntake, Actor.System);
-                    }
-                }
-                if (Time.time - start > Mathf.Max(hintAfter + d.TaskForceAfterHint, minPatience))
-                {
-                    // Phase L: an order the player may decide either way lapses instead of being completed for them.
-                    if (onTimeout != null) onTimeout();
-                    else
-                    {
-                        GameLog.Warn(LogChannel.Story, "Task " + taskId + " force-completed after timeout");
-                        FileTheRest(taskId);
-                    }
-                    break;
-                }
-                if (Time.time > nextHint)
-                {
-                    nextHint = Time.time + d.TaskHintRepeat;
-                    ShowTaskHint(taskId);
-                }
-                yield return null;
-            }
-            yield return Wait(0.8f);
-        }
-
-        /// <summary>
-        /// Phase K: a task the story finishes itself (a safety net) moves its remaining files where they belong and says so, so
-        /// the Work Queue never shows a finished batch while one of its files is still in Intake (an "archive mismatch").
-        /// </summary>
-        protected void FileTheRest(string taskId)
-        {
-            var t = _g.Tasks.Get(taskId);
-            if (t != null && t.Type == TaskType.MoveFile && t.State == Core.Tasks.TaskState.Active)
-            {
-                var moved = new List<string>();
-                foreach (var id in t.Data.targets)
-                    if (_g.Files.Exists(id) && _g.Files.FolderOf(id) != t.Data.param && _g.Files.Move(id, t.Data.param, Actor.System)) moved.Add(_g.Files.GetFile(id).Name);
-                if (moved.Count > 0)
-                    _g.Notifications.Show(_g.Content.Text("app.workqueue"), _g.Content.Format("task.filed.rest", t.Title, string.Join(", ", moved),
-                        _g.Files.GetFolder(t.Data.param)?.Name ?? t.Data.param), "icon_task_done", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
-            }
-            _g.Tasks.ForceComplete(taskId);
-        }
-
-        /// <summary>
         /// The Work Queue's hint toast for a task (clicking it opens the Work Queue). It goes away by itself once the task
         /// is done or withdrawn, so a hint never outlives its task (Phase H). Phase I: never while a shred dialog is open
         /// ("Drag it onto the bin" over "Shredding... Do not interrupt" read as if the shred had failed): it waits for the
-        /// dialog to go, and a hint that is showing when the bar starts goes away.
+        /// dialog to go, and a hint that is showing when the bar starts goes away. Phase Q1: <paramref name="next"/> (the repeat hint's
+        /// next step: "Next: batch44_c.dat is in Intake. It goes in Archive.") follows the hint on its own line.
         /// </summary>
-        protected internal void ShowTaskHint(string taskId)
+        protected internal void ShowTaskHint(string taskId, string next = null)
         {
             var t = _g.Tasks.Get(taskId);
             if (t == null || string.IsNullOrEmpty(t.Hint) || t.State != Core.Tasks.TaskState.Active) return;
             if (_g.Shred.Busy)
             {
-                RunSide(ShowTaskHintWhenIdle(taskId), "hint-later:" + taskId);
+                RunSide(ShowTaskHintWhenIdle(taskId, next), "hint-later:" + taskId);
                 return;
             }
             var tasks = _g.Tasks;
             bool shred = t.Type == TaskType.DeleteFile;
-            _g.Notifications.Show(_g.Content.Text("app.workqueue"), t.Hint, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select",
+            string text = string.IsNullOrEmpty(next) ? t.Hint : t.Hint + "\n" + next;
+            _g.Notifications.Show(_g.Content.Text("app.workqueue"), text, "icon_info", a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select",
                 false, () => tasks.IsActive(taskId) && !(shred && _g.Shred.Progress != null && _g.Shred.Progress.IsOpen));
         }
 
-        IEnumerator ShowTaskHintWhenIdle(string taskId)
+        IEnumerator ShowTaskHintWhenIdle(string taskId, string next)
         {
             float end = Time.time + 20f;
             while (_g.Shred.Busy && Time.time < end) yield return null;
-            if (!_g.Shred.Busy) ShowTaskHint(taskId);
+            if (!_g.Shred.Busy) ShowTaskHint(taskId, next);
         }
 
         /// <summary>

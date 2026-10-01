@@ -2174,6 +2174,134 @@ panel, bridge `tugmode`) until P7 after the owner's real-hands test (E8). Script
   and its tests); the JUMPS finding above is for E8's brief. Not built: R1 item 6 (holding both cursors 3 frames at the grab); `DeckReelGainScale`
   stays 1.0. The PEAT pass and A1 item 5 are still open from Phase O.
 
+### Phase Q1 (trustworthy progress, help before takeover, protected reveal, action scares)
+
+Input: `_work/2026-10-01/BuildPlan_Q.md` section Q1 and `OwnerFeedback_2026-10-01.md` (an outside tester's three approaches; the 3317 screenshot),
+with the board's `A_TenStar.md` T5 and T8 and `F_Accessibility.md` A10. The owner's rule for this round: code first, no full-night runs, no
+regression, no builds; compile, CoreTests, CompileCheck, unit tests for the new engine-free logic and a few short bridge checks. Scripts and
+outputs: `_work/2026-10-01/phaseQ1/`.
+
+- **The 3317 bug and trustworthy progress (owner 1).** Cause: the old `WaitTask` timeout called `FileTheRest` and then `ForceComplete`, which
+  ticks a task without touching the world; for a `DecideOrder` task that left WO-3317 Pending in Work Orders while the queue showed it done.
+  - Nothing force-completes a player task any more. `FileTheRest` is gone; Night 2's Batch 46 (240 s cap) and Night 3's Batch 48 (300 s cap)
+    safety nets now wait for the batch (their hints offer help instead). `ForceComplete` remains only for jumps and Continue (`Prepare`), story
+    lines (`Wait` tasks) and the debug panel.
+  - `Core/Tasks/WorkTaskManager.cs`: `ITaskWorld.CreditFor(type, target)` replaces `MovedBy`; the counter credits every task type
+    (moves on the file, shreds, decisions, mail reads and Night Operations' opens in `TaskCredits` on `GameServices.Credits`).
+    `WorkTask.CreditNote` ("finished by Night Operations", "1 of 4 by session 017"); `IsTargetDone`, `Agrees`, `Disagreements` (a ticked task
+    must agree with the world); `MarkFinishedBy`. The director logs `Ticked but not done in the world: ID` (warning) if one ever disagrees
+    outside a jump.
+  - Who did it is visible everywhere: a ticked Work Queue line keeps its credit in brackets (it may wrap to two lines so the name is never cut);
+    the order checklist adds "(session 017)" or "(Night Operations)"; Work Orders' status column is wider (list 218 px, columns 56/162) and reads
+    "Approved (Night Ops)" or "Rejected (session 017)", and the form says "Decided by Night Operations, not by you." A system move with a name
+    is credited (`VirtualFileSystem.Move`); one without (the shift's own setup) is not. Shred credit is set before the shred (the shred ticks
+    the task).
+- **Assistance before takeover (owner 2).** `Core/Tasks/TaskAssist.cs` and `Runtime/Story/NightDirector.Assist.cs`.
+  - The ladder (`TaskAssist`): the task's hint at the difficulty's first-hint time, the hint again with the next step read from the world
+    ("Next: batch44_c.dat is in Intake. It goes in Archive.", `assist.next.*`) one repeat later, then a dialog after one more repeat (Normal
+    30/70/110 s, Story 15/40/65 s, the briefing 25/65/105 s, all active time): "Night Operations can finish this task for you: TITLE. The Work
+    Queue will mark it as finished by Night Operations, not by you." `Finish it` / `Not now` (Enter is Not now; closing the box is Not now;
+    only the player's own click finishes). After Not now the hints go on and the offer returns after `TaskForceAfterHint` active seconds (150,
+    Story 90). Progress restarts the count. The offer waits for a moment a dialog can come up (no tug, shred, other dialog, climax, ending,
+    Jotter typing or reply, nothing in hand).
+  - Reading is not being stuck (`ReadingRule`): a focused Mail, Data Viewer, Jotter, Personnel, Help or Camera Viewer window while the player
+    is present (any pointer move, button, typed text or scroll in the last 30 s), or any scroll in the last 8 s.
+  - `Finish it` (`FinishByNightOperations`) does each missing target through the world (`TaskFinisher.Plan`): moves files (a shredded one is
+    restored first), shreds, decides orders by their own rule (`correct`), marks mail read and puts it in front of the player, all credited to
+    Night Operations; the counter then ticks the task. If the world refuses (a locked folder) nothing is ticked and the offer comes back. The
+    notice: `task.filed.rest` for moves, `assist.done` otherwise.
+  - Choice orders (Phase L) and Night 2's 209 shred never get an offer (hints only); a choice order still lapses after its patience, now
+    counted in active time. Remote (entity-authored) tasks and story lines get nothing. Help (+ Deck) says what the offer is.
+- **The first camera reveal is protected (owner 5).** `Night1Director.Reveal.cs` `GuardFirstView`: the moment CAM 03 first shows the player's
+  office (end of the escalation beat; also when a jump lands in the reveal), the viewer is restored and brought to the front, and for 6 s no
+  other pointer can close, minimize (`OSWindow.GuardedFromOthers`) or switch it (`CameraApp.HeldOn`), windows the story raises are put back
+  under it unless the player picked one, and notices wait and dim (`Notifications.HeldByStory`; the viewer also keeps them off itself). The
+  doorway look before she fights for the feed is 6 s (was 4). Later interruptions are unchanged. A jump ends the guard (`EndFirstViewGuard`).
+- **Scares born from the player's actions (owner 4, A T5), six:**
+  - Night 1, log on (every Night 1 boot; the first unmistakable interference, about 15 s after New Game): the user name field holds `017`,
+    then it is deleted backwards (`key_tap_rev` 0.3) and `CROURKE` typed (`key_tap` 0.3), about 1.9 s, Log On greyed until done, the caret blinks.
+  - Night 1: a program icon the player dragged at least 40 px is back where it was, moved only while something covers it, once, after the
+    tutorial (`Night1Director.Actions.cs`).
+  - Night 2: Shut Down (and the refused Log Off) says `Open sessions on this workstation: 3` from the start of the night, before the third
+    pointer appears (night2 strings; Night 3 inherits it).
+  - Night 2: the player's first Night 1 reply arrives as new mail from Casey Rourke to Casey Rourke, `(no subject)`, dated Wed 11/18/98 2:17 AM,
+    while Batch 45 is worked (`mail_n2_self`, body `{line1}`; `NightSetup.FillTemplates` now fills mail bodies). Nothing if they never replied.
+  - Night 3: a Batch 47 file the player archived appears in Intake as `batch47_X_CR.dat` (same content), while no File Manager shows Intake.
+  - Night 3: once, for 4 s, the tray clock reads `7:05 AM` (`Taskbar.ShowClockOnce`), before 6:00.
+  - All but the log on go through `ScareScheduler.SlotAction` and `ScareRules.CheckAction`: every no-scare gate (tug, dialog, typing, reply,
+    drag, tip, tutorial, climax, beat start, stinger quiet, event near), their own budget (`ScareNight.ActionBudget` 2 a night, separate from
+    the sound budget) and 20 s from any sound scare and from each other. A missed slot is skipped. The bridge's `scares` line shows them.
+- **Chores cut (T8).** Session 017 closes the Camera Viewer at most twice a round (`RoundsSystem.MaxEntityCloses`, counted from the brain's
+  successful clicks); the next time the viewer shows Custodial she types `YOU KNOW NOW` / `YOUR CHOICE` once and leaves it to the player.
+  The Night 3 shelf check is the one order on the player's own shelf (WO-3342, shelf 18; title `Shelf check: Sublevel C (1 order)`); WO-3340
+  and WO-3341 stay in the data, never shown. Its queue line reads `WO-3342 filed: approved/rejected` (no second notice). The `File damaged`
+  notice already named the file and its effect (Phase N); its payoff is in the file: the recovered text now ends `[RECORD DAMAGED: WRITTEN BY
+  000]` / `[000: OPERATORS REMAIN SEATED AT 3:00]` (Custodial, before the 3:00 round).
+- **Reading text and CRT (owner 7, F A10).** Options: `Reading text: Normal / Medium / Large` and `CRT effects: Off / Low / Full` (cycling rows;
+  no new rows). settings.json `textSize` and `crtLevel` (-1 in older files: read from `largeText` / `crtEffects`, which are still written).
+  Medium draws the reading panes (Mail, Data Viewer recovered text, Jotter documents, Help, the Work Queue's instructions) at 1.5x
+  (`PixelText.Factor`, float overloads in `PixelFont`); `ScreenRig` renders the screen texture at 2x while Medium is on and the display is 2x or
+  more, so every font pixel is 3 texture pixels. The Work Queue opens 340x350 with Medium. Low is the CRT layer at 45% (scanlines, grain,
+  flicker; the vignette at 75%). Both apply live. Engine-free rules in `Core/Game/DisplayOptions.cs`.
+- **Bridge.** `settingsset textSize normal|medium|large` and `settingsset crt off|low|full` (saved and applied live); `largeText` also writes
+  `textSize`; `settings` prints both.
+- **Checks.** CoreTests 495 pass (470 before; `PhaseQ1Tests` 25: every task type finished by the offer agrees with the world and is credited,
+  an order task decides its orders by rule, a forced tick is a disagreement, credit for another session on every type, the setup is never
+  credited, credit notes, no offer for remote or story tasks, the ladder's timing, reading pauses it, progress restarts it, Not now and
+  re-offer, choice orders hint only with an active-time lapse clock, the offer waits for a free moment, withdraw and a refused finish re-offer,
+  the reading rule and its idle limit, action scare budget and gates, settings migration, option cycling and factors, the 2x texture rule, and
+  content: demo strings, Night 2's count and mail, the one-order shelf check and the damaged file's line; the five fake task worlds implement
+  `CreditFor`). CompileCheck: all 8 configurations OK. Unity: 0 errors, 0 compiler warnings; `SC_DEMO` off. No U+2013 or U+2014 in touched
+  files.
+- **Bridge checks** (`phaseQ1/*.cmd` and `.out`, shots in `Library/SecondCursorBridge/shots`, looked at): `q1_offer` (Night 1 work at speed 8:
+  the briefing offer at 105 s active, Finish it opens the briefing; the ledger offer, Not now, the second offer 150 s later, Finish it moves the
+  ledger; the 3317 offer decides WO-3317 approve; Work Orders shows `Approved (Night Ops)`, the queue `Verify work order #3317 (finished by
+  Night Operations)`), `q1_row` (the credited line wraps), `q1_boot_reveal` (the log-on retype in three shots; the first CAM 03 view protected
+  56.8 to 62.8 s, the viewer in front, notices dimmed), `q1_display` (Medium mail text, CRT Low, the Options labels), `q1_rounds` (Night 3 rounds:
+  one shelf order, `WO-3342 filed: rejected`; two closes, then `stops closing the viewer` and YOU KNOW NOW / YOUR CHOICE in her Jotter),
+  `q1_n2` (Night 2 with two saved lines: the self mail at about 25 s into Batch 45, its body `who are you`; Shut Down says 3). 0 game errors.
+- **Review** (a code-reviewer pass: no CRITICAL or HIGH). Fixed: the shred credit was set after the shred had already ticked the task; a
+  finish the world refused still force-completed and announced success (now nothing is ticked and the offer returns); a reading window left
+  alone paused the ladder for ever (the 30 s presence rule); the icon scare could not re-arm after an in-place jump; a per-frame array.
+- **Judgement calls.**
+  - The offer is a dialog (the owner's wording, Finish it / Not now), default Not now so Enter cannot accept it by accident.
+  - Reading needs presence: a reading window with no input for 30 s counts as stuck (a hint is only a notice; the offer still asks). Without it
+    a player who reads the briefing and is lost with Mail in front never got a hint. The Camera Viewer counts as reading (it is investigation).
+  - The repeat hint carries the next step from the world rather than new authored text, so it is always true.
+  - Night Operations decides an order by its own rule (`correct`), never a choice order (those lapse as in Phase L, now on active time), and
+    never Night 2's 209 shred or anything the second cursor wrote into the queue. Night 3's Ruth order (3333) still lapses at the beat's 300 s
+    cap (a story deadline, not a takeover).
+  - Finishing the briefing for the player opens it in Mail: being shown the text is the help; the read stays credited to Night Operations.
+  - Beats that need the task wait as long as it takes (the owner allowed it); the offer keeps coming back, so nothing soft-locks. The Night 1
+    clock keeps running while a beat waits (as before for up to 180 s).
+  - Credit names: "Night Operations" (the owner's term; the department already named in the welcome and Help), "Night Ops" only in the narrow
+    Work Orders status column.
+  - Scares: the log on retype is deterministic (T5: every Night 1, not a random glitch) and outside the scheduler; the other five are quiet,
+    deniable and through the scheduler. Not built from the owner's list: Help showing an impossible value (the clock does it once on Night 3);
+    the impatient-gamer hook is the log on, so no Night 1 anomaly was moved earlier and Night 1 is not longer.
+  - Night 2's session count is 3 all night (before Gary's pointer is seen) and stays 3 on Night 3 even if Gary was finished (the question is
+    whose the third is).
+  - T8: the cap is two closes per round (the board's number); she says her two lines once a round. The `File damaged` notice was kept (it
+    already says what it means for the task) and given a payoff inside the file rather than cut.
+  - Medium is crisp only on 2x and 4x displays (1080p, 4K); on the Deck (1.33x) and other non-integer scales it is filtered like everything
+    else there; on a 1x window it is uneven. Notices and tips stay 1x under Medium (their boxes and icons are whole-step).
+  - CRT Low is 45% strength with a 75% vignette (the tube corners still read as a tube).
+- **For Q5 to verify in play.**
+  - A full Night 1 to 3 regression: the scripts' `TIMEOUT`s from the old force-completions are expected to change; any beat that waited on a
+    timeout now waits for the player or the offer (Night 2 Help, Night 3 Ruth, every `WaitTask`). Run a no-input player through a night: every
+    task must reach its offer and be finishable; nothing ticks by itself.
+  - Read optional material for minutes (Mail, Gary's notes, Personnel) during a task: no hint, no offer, nothing done. Then idle 30 s: hints come.
+  - Queue, Work Orders, folders and notices agree after every path (player, session 017, Gary's Batch 48, Night Operations, Continue); no
+    `Ticked but not done in the world` warning in the log.
+  - The first CAM 03 view: 6 s in front with nothing on top, then today's aggression; the doorway look 6 s.
+  - The six action scares: each noticeable when looked for, never during a tug, a dialog or typing, never breaking a task (the Night 1 icon
+    with a few window layouts; the Night 3 copy with Batch 48 and Gary's help; the 7:05 clock).
+  - T8: two closes then the lines, per round on Nights 2 and 3 and in the finale's round; the one-order shelf check reads clearly with the
+    rounds' hints. Update `Docs/Launch/LaunchAudit.md` (its rounds row still says 3 orders) with the next docs pass.
+  - Medium text on a 1080p build, a 4K display and the Deck (crispness, the Work Queue at 340x350, the Help and Mail layouts); CRT Low on the
+    Deck; settings written by an older build load as before.
+  - Blind playtest 6 questions: does the offer feel like help or like the game playing itself; is "Night Operations" read as the company.
+
 ## 6. Editor test bridge (drive the game from outside the Editor)
 
 `Scripts/Editor/SecondCursorTestBridge.cs` is an editor-only tool for repeatable play-testing. It does
@@ -2201,6 +2329,7 @@ sfx 20 | sfxclear | sfxwait scare_hit 30 | sfxorder sub_swell scare_hit | sfxrep
 soundcold | fault beat|app|click 2 | fps 144 | flashrate 150 title60 | flashwatch start tug1 ... flashwatch stop   # Phase O: a cold sound bank start, a deliberate exception at a catch point, a frame rate cap now, flash event counts
 tugmode speed | tugstate | tugreel 300 120 swing | tugreel 420 150 lift 0.25 | tugreel 300 120 keep | tughold 8 | tugslip 0.2 0.3 300   # Phase P: the tug model, the fight in one line, reel patterns with the button held
 heldpath 300 200 0.5 520 140 0.6 shots=0.3,0.8 release | lockpick | settingsset tugAssist hold | settingsset clickLock on   # Phase P-b: a held drag with shots inside it, a click-locked pick-up, the access options
+settingsset textSize medium | settingsset crt low   # Phase Q1: the reading text size (normal|medium|large) and CRT intensity (off|low|full), saved and applied live
 ```
 
 While attached, the player's cursor is driven by a scripted input backend in virtual pixels (960x540,

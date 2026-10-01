@@ -135,7 +135,7 @@ namespace SecondCursor.EditorTools
             var s = SaveSystem.LoadSettings();
             Say("settings volume=" + s.masterVolume.ToString("0.0", CultureInfo.InvariantCulture) + " crt=" + s.crtEffects + " reduceFlashing=" + s.reduceFlashing
                 + " flashingChosen=" + s.flashingChosen + " fullscreen=" + s.fullscreen + " frameRate=" + s.frameRate + " largeText=" + s.largeText
-                + " largeTextChosen=" + s.largeTextChosen);
+                + " largeTextChosen=" + s.largeTextChosen + " textSize=" + s.textSize + " crtLevel=" + s.crtLevel);
             Say("live frameRate=" + DisplaySettings.FrameRate + " vSyncCount=" + QualitySettings.vSyncCount + " targetFrameRate=" + Application.targetFrameRate
                 + " readingScale=" + DisplaySettings.ReadingScale + " folder=" + SaveSystem.Folder);
         }

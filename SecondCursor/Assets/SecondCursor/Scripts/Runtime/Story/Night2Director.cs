@@ -104,6 +104,8 @@ namespace SecondCursor.Story
                 }
             };
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
+            // Phase Q1 (T8): after her second close in a round she stops, and says so.
+            g.Rounds.EntityGaveUp += () => RunSide(SayDirect(_ellen, new[] { "YOU KNOW NOW", "YOUR CHOICE" }, 5f), "close-giveup");
         }
 
         bool CanLaunch(string appId, CursorAgent by)
@@ -272,6 +274,7 @@ namespace SecondCursor.Story
             RunSide(EllenGlimpse(), "ellen-glimpse");
             yield return WaitTask(ContentIds.TaskN2Briefing, _g.Difficulty.BriefingHintFirst);
             GiveTask(ContentIds.TaskN2Batch45);
+            ArmSelfMail();
             yield return WaitTask(ContentIds.TaskN2Batch45);
             GiveTask(ContentIds.TaskN2Verify3319);
             yield return WaitTask(ContentIds.TaskN2Verify3319);
@@ -286,6 +289,21 @@ namespace SecondCursor.Story
             RunSide(ReadItFirst(), "read-it-first");
             yield return WaitTask(ContentIds.TaskN2Cache);
             _g.Flags.Set(Flags.TutorialDone);
+        }
+
+        /// <summary>
+        /// Phase Q1 (owner 4): the player's own first Night 1 reply arrives as new mail, from themselves, dated Night 1 at 2:17, while they
+        /// work through Batch 45. Through the scheduler's action gate; nothing if they never replied.
+        /// </summary>
+        void ArmSelfMail()
+        {
+            var lines = _g.Save != null ? _g.Save.playerLines : null;
+            if (IsStandIn || lines == null || lines.Length == 0 || Core.Game.SaveData.SanitizePlayerLine(lines[0]).Length == 0) return;
+            _g.Scares.SlotAction("self_mail", 25f, 300f, () => _g.Player.Payload == null && !_g.Mail.Has(ContentIds.MailN2Self), () =>
+            {
+                _g.Mail.Deliver(ContentIds.MailN2Self);
+                GameLog.Info(LogChannel.Story, "Anomaly: the player's own Night 1 words arrived as mail from themselves");
+            });
         }
 
         /// <summary>Seconds the cursor rests on ~nxs0149.tmp before she asks you to read it (M3).</summary>
@@ -370,7 +388,6 @@ namespace SecondCursor.Story
             E.Phase = EntityPhase.Presence;
             E.Brain.Enabled = false;
             yield return Wait(3f);
-            float start = Time.time;
             GiveTask(ContentIds.TaskN2Batch46);
             RunSide(TaskHints(ContentIds.TaskN2Batch46), "hints-46");
             _stopHelping = false;
@@ -397,13 +414,9 @@ namespace SecondCursor.Story
             var hand = _g.Flags.Has(MemoryFlags.N2TookHand) ? Lines("n2_hand_took") : _g.Flags.Has(MemoryFlags.N2LeftHand) ? Lines("n2_hand_left") : null;
             if (hand != null) yield return TypeLines(_ellen, hand, 3.5f);
 
-            // The batch is finished by the end of the beat, one way or another (cap 240 s).
-            yield return WaitUntil(() => Done(ContentIds.TaskN2Batch46), Mathf.Max(0f, 240f - (Time.time - start)));
-            if (!Done(ContentIds.TaskN2Batch46))
-            {
-                GameLog.Warn(LogChannel.Story, "Batch 46 archived by the safety net");
-                FileTheRest(ContentIds.TaskN2Batch46);
-            }
+            // Phase Q1: the beat waits for the batch however long it takes; it is never archived for the player without asking (the hints
+            // side routine offers Night Operations' help, and offers it again after "Not now").
+            while (!Done(ContentIds.TaskN2Batch46)) yield return null;
             yield return Wait(1f);
         }
 
@@ -422,21 +435,11 @@ namespace SecondCursor.Story
             if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N2SaidName);
         }
 
-        /// <summary>The company hint toasts for a task, without forcing it (the beat decides what happens next).</summary>
-        IEnumerator TaskHints(string taskId)
-        {
-            var d = _g.Difficulty;
-            float next = Time.time + d.TaskHintFirst;
-            while (!Done(taskId) && !_g.Tasks.IsWithdrawn(taskId))
-            {
-                if (Time.time > next)
-                {
-                    next = Time.time + d.TaskHintRepeat;
-                    ShowTaskHint(taskId);
-                }
-                yield return null;
-            }
-        }
+        /// <summary>
+        /// The company hints for a task the beat waits on itself (Phase Q1: the assist ladder). Batch 46 may be offered to Night Operations;
+        /// employee_209.dat is the player's own choice and only gets hints.
+        /// </summary>
+        IEnumerator TaskHints(string taskId) => AssistLadder(taskId, taskId != ContentIds.TaskN2Shred209);
 
         /// <summary>
         /// Ellen helps with Batch 46 through the real UI: after the player's first move (or 30 s) she comes in

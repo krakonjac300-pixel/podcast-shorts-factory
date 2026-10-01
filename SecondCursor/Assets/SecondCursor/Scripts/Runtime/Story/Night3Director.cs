@@ -45,7 +45,8 @@ namespace SecondCursor.Story
         };
         static readonly string[] Batch47 = { ContentIds.Batch47A, ContentIds.FileBatch47B, ContentIds.Batch47C };
         static readonly string[] Batch48 = { ContentIds.Batch48A, ContentIds.Batch48B };
-        static readonly string[] ShelfOrders = { ContentIds.Order3340, ContentIds.Order3341, ContentIds.Order3342 };
+        /// <summary>Phase Q1 (T8): the shelf check is the order on your own shelf (18); WO-3340 and WO-3341 stay in the data, never shown.</summary>
+        static readonly string[] ShelfOrders = { ContentIds.Order3342 };
 
         Speaker _ellen, _gary;
         /// <summary>Phase P (E9): MINE before the finale only (in the finale her own tug lines take that role).</summary>
@@ -94,6 +95,8 @@ namespace SecondCursor.Story
                 else if (id == ContentIds.Order3333) SayLater(_ellen, decision == "approve" ? "n3_ruth_wiped" : "n3_ruth_kept", afterTurn: true);
             };
             g.Entity.Brain.CloseCameraBlocked = OnCloseCameraBlocked;
+            // Phase Q1 (T8): after her second close in a round she stops, and says so.
+            g.Rounds.EntityGaveUp += () => RunSide(Say(_ellen, new[] { "YOU KNOW NOW", "YOUR CHOICE" }, 5f), "close-giveup");
             g.Rounds.PatchPersonnel = true;
             // Phase H: a saved config file says what it now decides; the shelf check says what it filed; your own shelf
             // order gets her line the first time you open it during the round.
@@ -396,6 +399,15 @@ namespace SecondCursor.Story
                 string d = _g.Orders.DecisionFor(id);
                 if (d == "approve") approved++;
                 else if (d == "reject") rejected++;
+            }
+            // Phase Q1 (T8): the check is one order (your own shelf): its line says what was filed, and its result notice already said it.
+            if (ShelfOrders.Length == 1)
+            {
+                string d = _g.Orders.DecisionFor(ShelfOrders[0]);
+                if (d == "approve" || d == "reject")
+                    _g.Tasks.SetResult(ContentIds.TaskN3Shelf, _g.Content.Format(d == "approve" ? "workqueue.order.approved" : "workqueue.order.rejected", ShelfOrders[0].Replace("wo_", "WO-")));
+                GameLog.Info(LogChannel.Story, "Shelf check filed: " + d);
+                return;
             }
             string note = _g.Content.Format("workorders.shelf.filed", approved, rejected);
             _g.Tasks.SetResult(ContentIds.TaskN3Shelf, note);

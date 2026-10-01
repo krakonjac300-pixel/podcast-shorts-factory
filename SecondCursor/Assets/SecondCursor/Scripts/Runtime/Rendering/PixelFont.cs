@@ -62,7 +62,10 @@ namespace SecondCursor.Rendering
         }
 
         /// <summary>Width in pixels of a single line (no trailing letter spacing).</summary>
-        public static int MeasureLine(string line, bool bold, int scale = 1)
+        public static int MeasureLine(string line, bool bold, int scale = 1) => MeasureLine(line, bold, (float)Mathf.Max(1, scale));
+
+        /// <summary>Phase Q1: the same at a half-step scale (Medium reading text is 1.5); rounded up to whole pixels.</summary>
+        public static int MeasureLine(string line, bool bold, float scale)
         {
             if (string.IsNullOrEmpty(line)) return 0;
             int w = 0;
@@ -71,16 +74,19 @@ namespace SecondCursor.Rendering
                 if (c == '\r' || c == '\n') continue;
                 w += Advance(c, bold);
             }
-            return (w - PixelFontData.LetterSpacing) * Mathf.Max(1, scale);
+            return Mathf.CeilToInt((w - PixelFontData.LetterSpacing) * Mathf.Max(1f, scale) - 0.001f);
         }
 
         /// <summary>Splits on newlines and word-wraps to maxWidth (pixels, already scaled). maxWidth &lt;= 0 disables wrapping.</summary>
-        public static List<string> Wrap(string text, int maxWidth, bool bold, int scale, List<string> into = null)
+        public static List<string> Wrap(string text, int maxWidth, bool bold, int scale, List<string> into = null) =>
+            Wrap(text, maxWidth, bold, (float)scale, into);
+
+        public static List<string> Wrap(string text, int maxWidth, bool bold, float scale, List<string> into = null)
         {
             var lines = into ?? new List<string>();
             lines.Clear();
             if (text == null) return lines;
-            scale = Mathf.Max(1, scale);
+            scale = Mathf.Max(1f, scale);
             var paragraphs = text.Replace("\r", "").Split('\n');
             foreach (var para in paragraphs)
             {
@@ -116,12 +122,15 @@ namespace SecondCursor.Rendering
             return lines;
         }
 
-        public static Vector2Int Measure(string text, int maxWidth, bool bold, int scale)
+        public static Vector2Int Measure(string text, int maxWidth, bool bold, int scale) => Measure(text, maxWidth, bold, (float)scale);
+
+        public static Vector2Int Measure(string text, int maxWidth, bool bold, float scale)
         {
+            scale = Mathf.Max(1f, scale);
             var lines = Wrap(text, maxWidth, bold, scale);
             int w = 0;
             foreach (var l in lines) w = Mathf.Max(w, MeasureLine(l, bold, scale));
-            int h = lines.Count == 0 ? 0 : ((lines.Count - 1) * PixelFontData.LineHeight + PixelFontData.GlyphHeight) * Mathf.Max(1, scale);
+            int h = lines.Count == 0 ? 0 : Mathf.CeilToInt(((lines.Count - 1) * PixelFontData.LineHeight + PixelFontData.GlyphHeight) * scale - 0.001f);
             return new Vector2Int(w, h);
         }
 

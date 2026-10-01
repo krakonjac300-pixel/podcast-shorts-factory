@@ -255,6 +255,9 @@ namespace SecondCursor.OS
             return best;
         }
 
+        /// <summary>Phase Q1: when the player last focused a window themselves (unscaled seconds).</summary>
+        public float PlayerChoiceAt => _playerChoiceAt;
+
         public void Focus(OSWindow win, CursorAgent by)
         {
             if (win == null || win.IsClosed) return;

@@ -26,8 +26,12 @@ namespace SecondCursor.Core.Tasks
         bool IsFileOpenedByPlayer(string fileId);
         /// <summary>The player has looked at this employee's record in Personnel.</summary>
         bool IsEmployeeViewedByPlayer(string employeeId);
-        /// <summary>Phase K: the other session that last moved this file ("session 017"), or null when the player (or the system) did.</summary>
-        string MovedBy(string fileId);
+        /// <summary>
+        /// Phase Q1: who other than the player did this target of a task of <paramref name="type"/> ("session 017", "Night Operations"):
+        /// moved the file, shredded it, decided the order, read the mail, or opened the file or record. Null when the player did it (or the
+        /// shift's own setup did, before the player arrived).
+        /// </summary>
+        string CreditFor(TaskType type, string targetId);
     }
 
     public sealed class WorkTask
@@ -55,6 +59,8 @@ namespace SecondCursor.Core.Tasks
         public readonly List<KeyValuePair<string, int>> HelpedBy = new List<KeyValuePair<string, int>>();
         /// <summary>Phase K: a line the story files under one target (the shelf check says what each decision was checked against).</summary>
         public readonly Dictionary<string, string> TargetNotes = new Dictionary<string, string>(StringComparer.Ordinal);
+        /// <summary>Phase Q1: the player accepted an offer and this one finished the task ("Night Operations"); null = nobody did.</summary>
+        public string FinishedBy;
 
         public WorkTask(TaskData data)
         {
@@ -69,6 +75,8 @@ namespace SecondCursor.Core.Tasks
         public string Hint => HintOverride ?? Data.hint;
         /// <summary>"3/4" or "3/4, 1 by session 017" (see <see cref="TaskProgress.Format"/>).</summary>
         public string ProgressText => TaskProgress.Format(Progress, Goal, HelpedBy);
+        /// <summary>Phase Q1: who else did the work, for the queue line of any task ("finished by Night Operations", "1 of 4 by session 017"); null = the player.</summary>
+        public string CreditNote => TaskProgress.CreditNote(Goal, HelpedBy, FinishedBy);
         public bool IsDone => State == TaskState.Completed;
         public bool IsWithdrawn => State == TaskState.Withdrawn;
         /// <summary>Written into the Work Queue by the second cursor, not by the company.</summary>
@@ -100,6 +108,28 @@ namespace SecondCursor.Core.Tasks
             foreach (var kv in helpedBy)
                 if (kv.Value > 0) s += ", " + kv.Value + " by " + kv.Key;
             return s;
+        }
+
+        /// <summary>
+        /// Phase Q1: work done by someone else stays marked as theirs, also once the task is ticked. One target: "finished by Night Operations";
+        /// several: "1 of 4 by session 017, 2 of 4 by Night Operations". A finisher that did none of the counted targets (it only opened a
+        /// record for the player) is named first. Null when the player did it all.
+        /// </summary>
+        public static string CreditNote(int goal, IReadOnlyList<KeyValuePair<string, int>> helpedBy, string finishedBy)
+        {
+            var parts = new List<string>();
+            bool finisherCounted = false;
+            if (helpedBy != null)
+            {
+                foreach (var kv in helpedBy)
+                {
+                    if (kv.Value <= 0 || string.IsNullOrEmpty(kv.Key)) continue;
+                    if (kv.Key == finishedBy) finisherCounted = true;
+                    parts.Add(goal <= 1 || kv.Value >= goal ? "finished by " + kv.Key : kv.Value + " of " + goal + " by " + kv.Key);
+                }
+            }
+            if (!string.IsNullOrEmpty(finishedBy) && !finisherCounted) parts.Insert(0, "finished by " + finishedBy);
+            return parts.Count == 0 ? null : string.Join(", ", parts);
         }
     }
 
@@ -303,40 +333,62 @@ namespace SecondCursor.Core.Tasks
 
         int Measure(WorkTask t)
         {
-            var targets = t.Data.targets;
+            t.HelpedBy.Clear();
             int n = 0;
-            switch (t.Type)
+            foreach (var id in t.Data.targets)
             {
-                case TaskType.ReadEmail:
-                    foreach (var id in targets) if (_world.IsEmailRead(id)) n++;
-                    break;
-                case TaskType.MoveFile:
-                    t.HelpedBy.Clear();
-                    foreach (var id in targets)
-                    {
-                        if (_world.FolderOf(id) != t.Data.param) continue;
-                        n++;
-                        string by = _world.MovedBy(id);
-                        if (string.IsNullOrEmpty(by)) continue;
-                        int at = t.HelpedBy.FindIndex(kv => kv.Key == by);
-                        if (at < 0) t.HelpedBy.Add(new KeyValuePair<string, int>(by, 1));
-                        else t.HelpedBy[at] = new KeyValuePair<string, int>(by, t.HelpedBy[at].Value + 1);
-                    }
-                    break;
-                case TaskType.DeleteFile:
-                    foreach (var id in targets) if (_world.IsShredded(id)) n++;
-                    break;
-                case TaskType.DecideOrder:
-                    foreach (var id in targets) if (_world.DecisionFor(id) != null) n++;
-                    break;
-                case TaskType.OpenFile:
-                    foreach (var id in targets) if (_world.IsFileOpenedByPlayer(id)) n++;
-                    break;
-                case TaskType.ViewEmployee:
-                    foreach (var id in targets) if (_world.IsEmployeeViewedByPlayer(id)) n++;
-                    break;
+                if (!IsTargetDone(t, id)) continue;
+                n++;
+                string by = _world.CreditFor(t.Type, id);
+                if (string.IsNullOrEmpty(by)) continue;
+                int at = t.HelpedBy.FindIndex(kv => kv.Key == by);
+                if (at < 0) t.HelpedBy.Add(new KeyValuePair<string, int>(by, 1));
+                else t.HelpedBy[at] = new KeyValuePair<string, int>(by, t.HelpedBy[at].Value + 1);
             }
             return n;
+        }
+
+        /// <summary>Whether the world shows one target of a task as done (the same test the counter uses).</summary>
+        public bool IsTargetDone(WorkTask t, string id)
+        {
+            switch (t.Type)
+            {
+                case TaskType.ReadEmail: return _world.IsEmailRead(id);
+                case TaskType.MoveFile: return _world.FolderOf(id) == t.Data.param;
+                case TaskType.DeleteFile: return _world.IsShredded(id);
+                case TaskType.DecideOrder: return _world.DecisionFor(id) != null;
+                case TaskType.OpenFile: return _world.IsFileOpenedByPlayer(id);
+                case TaskType.ViewEmployee: return _world.IsEmployeeViewedByPlayer(id);
+                default: return false;
+            }
+        }
+
+        /// <summary>
+        /// Phase Q1 (the 3317 report): a ticked task agrees with the world: every target is done (the file is in its folder or shredded, the
+        /// order is decided, the mail read). Story lines (<see cref="TaskType.Wait"/>) and tasks that are not ticked always agree.
+        /// </summary>
+        public bool Agrees(WorkTask t)
+        {
+            if (t == null || t.State != TaskState.Completed || t.Type == TaskType.Wait || t.Type == TaskType.Unknown) return true;
+            foreach (var id in t.Data.targets) if (!IsTargetDone(t, id)) return false;
+            return true;
+        }
+
+        /// <summary>Phase Q1: the ticked tasks the world disagrees with (empty when the queue can be trusted).</summary>
+        public List<WorkTask> Disagreements()
+        {
+            var list = new List<WorkTask>();
+            foreach (var t in _tasks) if (!Agrees(t)) list.Add(t);
+            return list;
+        }
+
+        /// <summary>Phase Q1: the player accepted an offer; <paramref name="by"/> finishes the task through the world (the counter then ticks it).</summary>
+        public void MarkFinishedBy(string id, string by)
+        {
+            var t = Get(id);
+            if (t == null || t.FinishedBy == by) return;
+            t.FinishedBy = by;
+            Revision++;
         }
 
         void Complete(WorkTask t)

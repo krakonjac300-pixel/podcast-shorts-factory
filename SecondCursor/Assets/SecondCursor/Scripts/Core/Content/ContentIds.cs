@@ -67,6 +67,8 @@ namespace SecondCursor.Core.Content
         public const string Order3320 = "wo_3320", Order3322 = "wo_3322", Order3332 = "wo_3332", Order3333 = "wo_3333";
         public const string TaskN2Verify3320 = "t2_verify_3320", TaskN2Verify3322 = "t2_verify_3322";
         public const string TaskN3Verify3332 = "t3_verify_3332", TaskN3Verify3333 = "t3_verify_3333";
+        /// <summary>Phase Q1: the player's own first Night 1 reply, in their inbox on Night 2, from themselves.</summary>
+        public const string MailN2Self = "mail_n2_self";
         public const string MailN2CastellJoan = "mail_n2_castell_joan", MailN2PellPatch = "mail_n2_pell_patch", MailN3RuthDrive = "mail_n3_ruth_drive";
         public const string TaskN2Briefing = "t2_read_briefing", TaskN2Batch45 = "t2_archive_batch45", TaskN2Verify3319 = "t2_verify_3319",
             TaskN2Verify3321 = "t2_verify_3321", TaskN2Cache = "t2_shred_cache", TaskN2Batch46 = "t2_archive_batch46",

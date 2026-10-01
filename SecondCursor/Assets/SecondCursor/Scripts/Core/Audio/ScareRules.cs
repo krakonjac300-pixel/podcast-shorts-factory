@@ -60,6 +60,8 @@ namespace SecondCursor.Core.Audio
         public float PoolEveryMin, PoolEveryMax;
         public string[] PoolBeats = Array.Empty<string>();
         public PoolSound[] Pool = Array.Empty<PoolSound>();
+        /// <summary>Phase Q1: quiet scares born from the player's own actions (no sound of their own) that may happen tonight.</summary>
+        public int ActionBudget = 2;
     }
 
     /// <summary>
@@ -127,6 +129,23 @@ namespace SecondCursor.Core.Audio
             if (Blocks(ScareGate.StingerQuiet, c.SinceStinger < StingerQuietSeconds, ignore)) return ScareGate.StingerQuiet;
             if (Blocks(ScareGate.EventNear, c.SinceEvent < EventNearSeconds, ignore)) return ScareGate.EventNear;
             if (Blocks(ScareGate.Cooldown, c.SinceScare < (c.Finale ? n.FinaleCooldown : n.Cooldown), ignore)) return ScareGate.Cooldown;
+            return ScareGate.None;
+        }
+
+        /// <summary>Phase Q1: an action scare keeps at least this far from any ambient scare (it has no cooldown of its own against the sounds).</summary>
+        public const float ActionSeparation = 20f;
+
+        /// <summary>
+        /// Phase Q1: an action scare (the player's own icon back where it was, their own words in the inbox) obeys every no-scare gate and its own
+        /// per-night <see cref="ScareNight.ActionBudget"/>; it does not spend the sound budget and keeps <see cref="ActionSeparation"/> from a
+        /// sound scare and from the last action scare (<paramref name="sinceAction"/>).
+        /// </summary>
+        public static ScareGate CheckAction(in ScareContext c, ScareNight n, int actionsPlayed, float sinceAction, ScareGate ignore = ScareGate.None)
+        {
+            if (actionsPlayed >= n.ActionBudget && (ignore & ScareGate.Budget) == 0) return ScareGate.Budget;
+            var gate = Check(c, n, false, ignore | ScareGate.Budget | ScareGate.Cooldown);
+            if (gate != ScareGate.None) return gate;
+            if (Blocks(ScareGate.Cooldown, c.SinceScare < ActionSeparation || sinceAction < ActionSeparation, ignore)) return ScareGate.Cooldown;
             return ScareGate.None;
         }
 

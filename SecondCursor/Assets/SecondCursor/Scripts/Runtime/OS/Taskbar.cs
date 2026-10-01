@@ -29,6 +29,15 @@ namespace SecondCursor.OS
 
         /// <summary>The tray clock in amber (Night 3: the last five minutes before 7:00).</summary>
         public bool ClockAmber;
+        string _clockOverride;
+        float _clockOverrideUntil;
+
+        /// <summary>Phase Q1 (owner 4): the tray clock reads <paramref name="text"/> for <paramref name="seconds"/>, then the real time again.</summary>
+        public void ShowClockOnce(string text, float seconds)
+        {
+            _clockOverride = text;
+            _clockOverrideUntil = Time.time + seconds;
+        }
         /// <summary>A deep amber that still reads on the grey tray.</summary>
         static readonly Color32 AmberClock = new Color32(0xA8, 0x62, 0x00, 0xFF);
         readonly List<Image> _mice = new List<Image>();
@@ -169,7 +178,8 @@ namespace SecondCursor.OS
         void Update()
         {
             if (_g == null) return;
-            _clock.text = _g.Clock.Format12();
+            if (_clockOverride != null && Time.time >= _clockOverrideUntil) _clockOverride = null;
+            _clock.text = _clockOverride ?? _g.Clock.Format12();
             Color32 clockColor = ClockAmber ? AmberClock : Palette.Text;
             if (!_clock.color.Equals((Color)clockColor)) _clock.color = clockColor;
             // Phase K: the buttons never reflow under the player's pointer (a window opened or closed by another session moved the

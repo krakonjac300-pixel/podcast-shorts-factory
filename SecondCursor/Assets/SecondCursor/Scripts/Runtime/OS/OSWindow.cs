@@ -360,9 +360,19 @@ namespace SecondCursor.OS
             Close(by);
         }
 
+        /// <summary>Phase Q1: another session's pointer cannot close or minimize this window (the first CAM 03 view); the player and the story can.</summary>
+        [System.NonSerialized] public bool GuardedFromOthers;
+
+        bool RefusedToOther(CursorAgent by, string what)
+        {
+            if (!GuardedFromOthers || by == null || by.IsPlayer) return false;
+            GameLog.Info(LogChannel.OS, by.Name + " could not " + what + " " + Title + " (protected view)");
+            return true;
+        }
+
         public void Close(CursorAgent by = null, bool silent = false)
         {
-            if (IsClosed) return;
+            if (IsClosed || RefusedToOther(by, "close")) return;
             IsClosed = true;
             GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.OS, (by != null ? by.Name : "System") + " closed " + Title);
             if (!silent) Sfx.Play("ui_window", by);
@@ -374,7 +384,7 @@ namespace SecondCursor.OS
 
         public void Minimize(CursorAgent by = null)
         {
-            if (IsMinimized || IsClosed) return;
+            if (IsMinimized || IsClosed || RefusedToOther(by, "minimize")) return;
             IsMinimized = true;
             Manager.OnMinimized(this, by);
             gameObject.SetActive(false);

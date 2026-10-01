@@ -72,7 +72,7 @@ namespace SecondCursor.Tests
             public string DecisionFor(string id) => Decisions.TryGetValue(id, out var d) ? d : null;
             public bool IsFileOpenedByPlayer(string id) => false;
             public bool IsEmployeeViewedByPlayer(string id) => false;
-            public string MovedBy(string fileId) => null;
+            public string CreditFor(TaskType type, string targetId) => null;
         }
 
         [Fact]

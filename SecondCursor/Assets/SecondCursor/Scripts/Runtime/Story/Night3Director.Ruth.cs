@@ -74,25 +74,21 @@ namespace SecondCursor.Story
 
             GiveTask(ContentIds.TaskN3Batch48);
             RunSide(BatchHints(ContentIds.TaskN3Batch48), "hints-48");
+            ArmNight3Actions();
             if (GaryFinished) RunSide(GaryDoesBatch48(), "gary-48");
             RunSide(RuthExchange(), "ruth-exchange");
             RunSide(CodeHints(), "code-hints");
             RunSide(WaitForRoundsLine(), "wait-rounds");
             RunSide(RuthDriveOrder(mailAt), "ruth-3333");
 
-            // At least 150 s after the mail (or the wait line's cap), the batch done and her order settled; at 300 s the batch is
-            // done for you and an order nobody decided lapses.
+            // At least 150 s after the mail (or the wait line's cap), the batch done and her order settled; at 300 s an order nobody decided
+            // lapses. Phase Q1: the batch is never archived for the player without asking: the beat waits for it (its hints offer Night
+            // Operations' help, and offer it again after "Not now").
             _waitRoundsSince = -1f;
             while (!(Done(ContentIds.TaskN3Batch48) && Settled(ContentIds.Order3333)
                      && (Time.time - mailAt >= RuthMinSeconds || (_waitRoundsSince > 0f && Time.time - _waitRoundsSince >= WaitRoundsCap))))
             {
-                if (Time.time - mailAt >= RuthMaxSeconds)
-                {
-                    GameLog.Warn(LogChannel.Story, "Batch 48 archived by the safety net");
-                    FileTheRest(ContentIds.TaskN3Batch48);
-                    if (!Settled(ContentIds.Order3333)) LapseOrder(ContentIds.TaskN3Verify3333, ContentIds.Order3333);
-                    break;
-                }
+                if (Time.time - mailAt >= RuthMaxSeconds && !Settled(ContentIds.Order3333)) LapseOrder(ContentIds.TaskN3Verify3333, ContentIds.Order3333);
                 yield return null;
             }
             // Let her finish what she is saying, then the clock runs on to 3:00.
@@ -155,21 +151,11 @@ namespace SecondCursor.Story
             g.Fx.Glitch(0.1f, 0.4f);
         }
 
-        /// <summary>The company hint toasts for a task, without forcing it (the beat decides what happens).</summary>
-        IEnumerator BatchHints(string taskId)
-        {
-            var d = _g.Difficulty;
-            float next = Time.time + d.TaskHintFirst;
-            while (!Done(taskId) && !_g.Tasks.IsWithdrawn(taskId))
-            {
-                if (Time.time > next)
-                {
-                    next = Time.time + d.TaskHintRepeat;
-                    ShowTaskHint(taskId);
-                }
-                yield return null;
-            }
-        }
+        /// <summary>
+        /// The company hints for a task the beat waits on itself (Phase Q1: the assist ladder). Batch 48 may be offered to Night Operations;
+        /// Ruth's order is the player's own decision and only gets hints.
+        /// </summary>
+        IEnumerator BatchHints(string taskId) => AssistLadder(taskId, taskId != ContentIds.TaskN3Verify3333);
 
         /// <summary>When the player reads Ruth's mail, Ellen talks about her (one exchange).</summary>
         IEnumerator RuthExchange()

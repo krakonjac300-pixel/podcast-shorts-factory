@@ -118,6 +118,8 @@ namespace SecondCursor.Rendering
             UpdateLetterbox(true);
         }
 
+        Core.Game.ReadingSize _lastSize;
+
         void LateUpdate()
         {
             UpdateLetterbox(false);
@@ -127,9 +129,11 @@ namespace SecondCursor.Rendering
         {
             int sw = Mathf.Max(1, Screen.width);
             int sh = Mathf.Max(1, Screen.height);
-            if (!force && sw == _lastW && sh == _lastH) return;
+            var size = Game.DisplaySettings.Size;
+            if (!force && sw == _lastW && sh == _lastH && size == _lastSize) return;
             _lastW = sw;
             _lastH = sh;
+            _lastSize = size;
 
             float s = Mathf.Min(sw / (float)Width, sh / (float)Height);
             // Prefer an exact integer scale when it loses little area: perfectly square pixels.
@@ -137,7 +141,8 @@ namespace SecondCursor.Rendering
             bool integer = si >= 1f && si >= s * 0.93f;
             if (integer) s = si;
             Scale = s;
-            SetTextureScale(integer ? 1 : Mathf.Clamp(Mathf.CeilToInt(s), 1, 4));
+            // Phase Q1: Medium reading text (1.5x) needs a 2x texture to keep square pixels.
+            SetTextureScale(Core.Game.DisplayOptions.TextureScale(s, integer, size));
             float w = Width * s, h = Height * s;
             float x = Mathf.Floor((sw - w) * 0.5f), y = Mathf.Floor((sh - h) * 0.5f);
             DisplayPixelRect = new Rect(x, y, w, h);

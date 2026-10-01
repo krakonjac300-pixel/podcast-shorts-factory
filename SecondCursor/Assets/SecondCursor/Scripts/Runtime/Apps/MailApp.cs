@@ -109,9 +109,9 @@ namespace SecondCursor.Apps
         /// <summary>Header and body sized for the reading pane at the Reading text scale.</summary>
         void Layout()
         {
-            int scale = Game.DisplaySettings.ReadingScale;
-            _header.Scale = scale;
-            _body.Scale = scale;
+            float scale = Game.DisplaySettings.ReadingFactor;
+            _header.Factor = scale;
+            _body.Factor = scale;
             Canvas.ForceUpdateCanvases();
             int width = Mathf.Max(100, Mathf.FloorToInt(_reader.Viewport.rect.width) - 8);
             var hs = PixelFont.Measure(_header.text, width, false, scale);
@@ -156,7 +156,7 @@ namespace SecondCursor.Apps
                 if (G.Mail.Inbox.Count == _inboxCount) RefreshMarks();
                 else if (!_list.Root.WorldRect().Contains(G.Player.Position)) Refresh();
             }
-            if (_showing != null && (_resized || _body.Scale != Game.DisplaySettings.ReadingScale)) Layout();
+            if (_showing != null && (_resized || _body.Factor != Game.DisplaySettings.ReadingFactor)) Layout();
             _resized = false;
         }
     }

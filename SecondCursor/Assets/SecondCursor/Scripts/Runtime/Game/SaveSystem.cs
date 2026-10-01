@@ -23,8 +23,12 @@ namespace SecondCursor.Game
         public bool flashingChosen;
         /// <summary>0 = VSync (default), else a frame cap (see <see cref="DisplaySettings.FrameRates"/>); an old save's -1 (unlimited) reads as 240.</summary>
         public int frameRate;
-        /// <summary>Reading text at double size in Jotter and Mail (Steam Deck readability).</summary>
+        /// <summary>Reading text at double size in Jotter and Mail (Steam Deck readability). Phase Q1: kept for older builds (= textSize Large).</summary>
         public bool largeText;
+        /// <summary>Phase Q1: 0 Normal, 1 Medium, 2 Large; -1 = not written yet (read from <see cref="largeText"/>).</summary>
+        public int textSize = -1;
+        /// <summary>Phase Q1: CRT intensity 0 Off, 1 Low, 2 Full; -1 = not written yet (read from <see cref="crtEffects"/>).</summary>
+        public int crtLevel = -1;
         /// <summary>False until the player (or the Deck's first launch) has picked a reading text size.</summary>
         public bool largeTextChosen;
         /// <summary>Phase P (A2): "off" or "hold" (holding the button wins a tug-of-war).</summary>
@@ -254,10 +258,12 @@ namespace SecondCursor.Game
             var s = LoadSettings();
             s.masterVolume = g.Audio.MasterVolume;
             s.crtEffects = g.Fx.CrtEnabled;
+            s.crtLevel = (int)g.Fx.Crt;
             s.reduceFlashing = g.Fx.ReduceFlashing;
             if (!Application.isEditor) s.fullscreen = Screen.fullScreen;
             s.frameRate = DisplaySettings.FrameRate;
             s.largeText = DisplaySettings.LargeText;
+            s.textSize = (int)DisplaySettings.Size;
             s.largeTextChosen = s.largeTextChosen || DisplaySettings.LargeTextChosen;
             AccessSettings.Save(s);
             SaveSettings(s);

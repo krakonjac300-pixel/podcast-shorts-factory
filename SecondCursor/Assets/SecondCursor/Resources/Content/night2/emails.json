@@ -79,6 +79,16 @@
       "body": "Casey,\n\nI've moved the WS-04 pointer patch up from Saturday. It removes the driver for Pointing Device 2, the device behind your input irregularities.\n\nA change to a workstation needs its operator's approval. It's in Work Orders as #3322. Approve it and the second pointer should stop.\n\nRetention says the device has an owner on file. Check it if you have to. I just do drivers.\n\nPlease don't call about it.\n\nVictor Pell\nInformation Systems",
       "preload": false,
       "read": false
+    },
+    {
+      "id": "mail_n2_self",
+      "from": "Casey Rourke <crourke@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "(no subject)",
+      "date": "Wed 11/18/98 2:17 AM",
+      "body": "{line1}",
+      "preload": false,
+      "read": false
     }
   ]
 }

@@ -35,12 +35,13 @@ namespace SecondCursor.Apps
             Window.KeepVisible = new Rect(WindowW - 190f, 24f, 186f, 30f);
             var client = Window.Client;
 
-            _list = new ListView(client, "Orders", new[] { 60, 110 }, new[] { "Order", "Status" }, false);
+            // Phase Q1: the status column is wide enough to say who decided an order that the player did not ("Approved (Night Ops)").
+            _list = new ListView(client, "Orders", new[] { 56, 162 }, new[] { "Order", "Status" }, false);
             _list.Root.anchorMin = new Vector2(0f, 0f);
             _list.Root.anchorMax = new Vector2(0f, 1f);
             _list.Root.pivot = new Vector2(0f, 1f);
             _list.Root.offsetMin = new Vector2(2f, 2f);
-            _list.Root.offsetMax = new Vector2(176f, -2f);
+            _list.Root.offsetMax = new Vector2(ListW, -2f);
             _list.RowSelected += (row, a) =>
             {
                 var order = (WorkOrderData)row.Tag;
@@ -49,7 +50,7 @@ namespace SecondCursor.Apps
             };
 
             var paper = UIBuilder.Bevel(client, BevelStyle.Sunken, "Form");
-            paper.rectTransform.Stretch(180, 32, 2, 2);
+            paper.rectTransform.Stretch((int)ListW + 4, 32, 2, 2);
             _form = UIBuilder.Text(paper.rectTransform, "Select a work order.", Palette.Text);
             _form.Wrap = true;
             _form.rectTransform.Stretch(8, 8, 8, 8);
@@ -82,7 +83,7 @@ namespace SecondCursor.Apps
             {
                 if (o == null || G.Orders.IsHidden(o.id)) continue;
                 string d = G.Orders.DecisionFor(o.id);
-                _list.AddRow(null, o, "order:" + o.id, o.id.Replace("wo_", "WO-"), StatusText(d));
+                _list.AddRow(null, o, "order:" + o.id, o.id.Replace("wo_", "WO-"), StatusWithCredit(o.id, d));
             }
             if (_shown != null && G.Orders.IsHidden(_shown.id)) _shown = null;
             if (sel != null) _list.SelectWhere(r => ((WorkOrderData)r.Tag).id == sel, null);
@@ -100,6 +101,9 @@ namespace SecondCursor.Apps
             string decision = G.Orders.DecisionFor(o.id);
             if (WorkOrderRules.IsChoice(o) && (decision == "approve" || decision == "reject"))
                 sb.Append("\n\n").Append(G.Content.Format("workorder.result", WorkOrderRules.ResultFor(o, decision)));
+            // Phase Q1: an order the player did not decide says who did.
+            string by = decision != null ? G.Orders.DecidedBy(o.id) : null;
+            if (!string.IsNullOrEmpty(by)) sb.Append("\n\n").Append(G.Content.Format("workorder.decidedby", by));
             _form.text = sb.ToString();
             UpdateButtons();
         }
@@ -112,6 +116,17 @@ namespace SecondCursor.Apps
             _reject.Enabled = open;
             _stamp.text = d == null ? "" : StatusText(d).ToUpperInvariant();
             _stamp.color = d == "approve" ? Palette.Green : d == WorkOrderService.Cancelled ? Palette.Shadow : Palette.Red;
+        }
+
+        const float ListW = 218f;
+
+        /// <summary>"Approved", or "Approved (Night Ops)" / "Approved (session 017)" when someone else decided it.</summary>
+        string StatusWithCredit(string orderId, string decision)
+        {
+            string status = StatusText(decision);
+            string by = decision != null ? G.Orders.DecidedBy(orderId) : null;
+            if (string.IsNullOrEmpty(by)) return status;
+            return status + " (" + (by == TaskFinisher.NightOperations ? G.Content.Text("workorder.status.nightops", "Night Ops") : by) + ")";
         }
 
         static string StatusText(string decision)
@@ -156,12 +171,12 @@ namespace SecondCursor.Apps
 
         ScrollArea _scroll;
         PixelText _text;
-        int _scale = -1;
+        float _scale = -1f;
 
         void Layout()
         {
-            _scale = Game.DisplaySettings.ReadingScale;
-            _text.Scale = _scale;
+            _scale = Game.DisplaySettings.ReadingFactor;
+            _text.Factor = _scale;
             int width = Mathf.Max(80, Mathf.FloorToInt(_scroll.Viewport.rect.width) - 12);
             var size = PixelFont.Measure(_text.text, width, false, _scale);
             _text.rectTransform.At(6, 6, width, size.y + 4);
@@ -170,7 +185,7 @@ namespace SecondCursor.Apps
 
         public override void Tick(float dt)
         {
-            if (_text != null && _scale != Game.DisplaySettings.ReadingScale) Layout();
+            if (_text != null && _scale != Game.DisplaySettings.ReadingFactor) Layout();
         }
     }
 

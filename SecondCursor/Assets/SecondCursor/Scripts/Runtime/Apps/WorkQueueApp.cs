@@ -37,8 +37,9 @@ namespace SecondCursor.Apps
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
             // Large reading text (Steam Deck) doubles the task description and hint, so the window opens wider.
-            int scale = Game.DisplaySettings.ReadingScale;
-            int w = scale > 1 ? 420 : 262, h = scale > 1 ? 420 : 290;
+            float scale = Game.DisplaySettings.ReadingFactor;
+            // Phase Q1: Medium text gets a window between the two.
+            int w = scale >= 2f ? 420 : scale > 1f ? 340 : 262, h = scale >= 2f ? 420 : scale > 1f ? 350 : 290;
             CreateWindow(G.Content.Text("app.workqueue"), "icon_workorders", ScreenRig.Width - w - 8, 16, w, h, WindowFlags.Standard, zoomFrom);
             // Phase H: it holds the player's instructions, so windows opened later (the Camera Viewer at 3:00) avoid it.
             Window.CoverCost = 2.5f;
@@ -56,7 +57,7 @@ namespace SecondCursor.Apps
             ((RectTransform)_detailScroll.transform).Stretch(2, 2, 2, 2);
             _detail = UIBuilder.Text(_detailScroll.Content, "", Palette.Text);
             _detail.Wrap = true;
-            _detail.Scale = scale;
+            _detail.Factor = scale;
             MoreBelow.Create(detailFrame.rectTransform, _detailScroll, G.Content.Text("mail.more", "More below"), "morebelow:workqueue");
             // Phase L: the list's titles and the instructions follow the window's width when it is resized or snapped to a half.
             Window.Resized += _ => _resized = true;
@@ -159,8 +160,10 @@ namespace SecondCursor.Apps
             {
                 if (t.State != TaskState.Active && t.State != TaskState.Completed && !WorkTaskManager.IsListedWithdrawn(t)) continue;
                 bool withdrawn = WorkTaskManager.IsListedWithdrawn(t);
-                // Struck-through rows keep one line: the reason sits at their right end.
-                int lines = withdrawn || t.State == TaskState.Completed ? 1 : FitTitle(FullTitle(t), t == current).lines;
+                // Struck-through rows keep one line: the reason sits at their right end. Phase Q1: a ticked row that names who did the work
+                // may take a second line, so the name is never cut off.
+                bool credited = t.State == TaskState.Completed && t.CreditNote != null;
+                int lines = withdrawn || (t.State == TaskState.Completed && !credited) ? 1 : FitTitle(FullTitle(t), t == current).lines;
                 list.Add((t, lines));
             }
             int Total()
@@ -182,6 +185,9 @@ namespace SecondCursor.Apps
             string title = t.State == TaskState.Completed && !string.IsNullOrEmpty(t.ResultNote) ? t.ResultNote
                 : t.Title + (t.Goal > 1 && t.State == TaskState.Active ? " (" + t.ProgressText + ")" : "");
             if (t.IsEntityAuthored) title += " " + G.Content.Text("workqueue.remote");
+            // Phase Q1: work someone else did stays marked as theirs on the ticked line ("(finished by Night Operations)").
+            string credit = t.State == TaskState.Completed ? t.CreditNote : null;
+            if (credit != null) title += " (" + credit + ")";
             return title;
         }
 
@@ -382,6 +388,8 @@ namespace SecondCursor.Apps
                     sb.Append(d != null ? "[x] " : "[ ] ").Append(id.Replace("wo_", "WO-")).Append(": ")
                       .Append(d == null ? c.Text("workqueue.check.pending") : d == "approve" ? c.Text("workqueue.check.approved")
                           : d == WorkOrderService.Cancelled ? c.Text("workqueue.check.cancelled") : c.Text("workqueue.check.rejected"));
+                    string by = d != null ? G.Orders.DecidedBy(id) : null;
+                    if (!string.IsNullOrEmpty(by)) sb.Append(" (").Append(by).Append(')');
                     if (t.TargetNotes.TryGetValue(id, out var note)) sb.Append("\n    ").Append(note);
                 }
             }
@@ -397,8 +405,8 @@ namespace SecondCursor.Apps
 
         void LayoutDetail()
         {
-            int scale = Game.DisplaySettings.ReadingScale;
-            _detail.Scale = scale;
+            float scale = Game.DisplaySettings.ReadingFactor;
+            _detail.Factor = scale;
             Canvas.ForceUpdateCanvases();
             int width = Mathf.Max(60, Mathf.FloorToInt(_detailScroll.Viewport.rect.width) - 10);
             var size = PixelFont.Measure(_detail.text, width, false, scale);
@@ -448,8 +456,8 @@ namespace SecondCursor.Apps
                 else _clockMinute = G.Clock.TotalMinutes;
             }
             FadeRemoteRows();
-            int scale = Game.DisplaySettings.ReadingScale;
-            if (_detail != null && _detail.Scale != scale) LayoutDetail();
+            float scale = Game.DisplaySettings.ReadingFactor;
+            if (_detail != null && _detail.Factor != scale) LayoutDetail();
         }
     }
 }

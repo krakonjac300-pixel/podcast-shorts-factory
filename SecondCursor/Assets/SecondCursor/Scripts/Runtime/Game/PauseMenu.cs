@@ -1,6 +1,7 @@
 using System;
 using SecondCursor.Core;
 using SecondCursor.Core.Entity;
+using SecondCursor.Core.Game;
 using SecondCursor.Input;
 using SecondCursor.Rendering;
 using SecondCursor.Story;
@@ -180,7 +181,8 @@ namespace SecondCursor.Game
             UiButton first;
             if (_settingsOnly) first = Button(box, c.Text("pause.back"), "pause:back", a => Resume(), ref y);
             else first = Button(box, c.Text("pause.resume"), "pause:resume", a => Resume(), ref y);
-            Button(box, CrtLabel(), "pause:crt", a => { _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled; Changed(); }, ref y);
+            // Phase Q1 (owner 7, F A10): Off, Low or Full.
+            Button(box, CrtLabel(), "pause:crt", a => { _g.Fx.Crt = DisplayOptions.Next(_g.Fx.Crt); Changed(); }, ref y);
             Button(box, FlashingLabel(), "pause:flashing", a => { _g.Fx.ReduceFlashing = !_g.Fx.ReduceFlashing; Changed(); }, ref y);
             _fullscreen = Screen.fullScreen || Application.isEditor;
             Button(box, DisplayLabel(), "pause:display", a => ToggleDisplay(), ref y);
@@ -189,9 +191,10 @@ namespace SecondCursor.Game
                 DisplaySettings.ApplyFrameRate(DisplaySettings.NextFrameRate(DisplaySettings.FrameRate));
                 Changed();
             }, ref y);
-            Button(box, c.Format("pause.textsize", c.Text(DisplaySettings.LargeText ? "pause.textsize.large" : "pause.textsize.normal")), "pause:textsize", a =>
+            // Phase Q1: Normal, Medium (1.5x, crisp on a 2x screen texture) or Large.
+            Button(box, c.Format("pause.textsize", c.Text(SizeKey(DisplaySettings.Size))), "pause:textsize", a =>
             {
-                DisplaySettings.SetLargeText(!DisplaySettings.LargeText);
+                DisplaySettings.SetSize(DisplayOptions.Next(DisplaySettings.Size));
                 Changed();
             }, ref y);
             VolumeRow(box, ref y);
@@ -314,7 +317,10 @@ namespace SecondCursor.Game
                 if (b.Hit != null && b.Hit.elementId == focused) _nav.Focus(b);
         }
 
-        string CrtLabel() => "CRT effects: " + (_g.Fx.CrtEnabled ? "On" : "Off");
+        string CrtLabel() => _g.Content.Format("pause.crt", _g.Content.Text(_g.Fx.Crt == CrtLevel.Full ? "pause.crt.full" : _g.Fx.Crt == CrtLevel.Low ? "pause.crt.low" : "pause.crt.off"));
+
+        static string SizeKey(ReadingSize size) =>
+            size == ReadingSize.Large ? "pause.textsize.large" : size == ReadingSize.Medium ? "pause.textsize.medium" : "pause.textsize.normal";
         string FlashingLabel() => "Flashing: " + (_g.Fx.ReduceFlashing ? "Reduced" : "Full");
         string DisplayLabel() => "Display: " + (_fullscreen ? "Fullscreen" : "Windowed");
 

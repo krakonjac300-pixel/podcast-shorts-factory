@@ -1,4 +1,5 @@
 using System;
+using SecondCursor.Core.Game;
 using UnityEngine;
 
 namespace SecondCursor.Game
@@ -17,17 +18,22 @@ namespace SecondCursor.Game
         const int MigratedUnlimited = 240;
 
         public static int FrameRate { get; private set; }
-        public static bool LargeText { get; private set; }
+        /// <summary>Phase Q1: Normal, Medium or Large reading text (settings.json "textSize"; older files: the Large switch).</summary>
+        public static ReadingSize Size { get; private set; }
+        public static bool LargeText => Size == ReadingSize.Large;
         /// <summary>The reading size was picked (by the player, or on the Deck's first launch).</summary>
         public static bool LargeTextChosen { get; private set; }
 
-        /// <summary>Text scale for reading panes (Jotter documents, Mail).</summary>
+        /// <summary>Whole-number scale for things sized in whole steps (notices, tips, window layouts): 2 for Large, else 1.</summary>
         public static int ReadingScale => LargeText ? 2 : 1;
+
+        /// <summary>Phase Q1: the text scale of the reading panes (Mail, documents, Jotter documents, Help, the Work Queue's instructions): 1, 1.5 or 2.</summary>
+        public static float ReadingFactor => DisplayOptions.Factor(Size);
 
         public static void Apply(SettingsData s)
         {
             if (s == null) s = new SettingsData();
-            LargeText = s.largeText;
+            Size = DisplayOptions.SizeFrom(s.textSize, s.largeText);
             LargeTextChosen = s.largeTextChosen;
             ApplyFrameRate(s.frameRate);
         }
@@ -61,9 +67,11 @@ namespace SecondCursor.Game
             return value.ToString();
         }
 
-        public static void SetLargeText(bool on)
+        public static void SetLargeText(bool on) => SetSize(on ? ReadingSize.Large : ReadingSize.Normal);
+
+        public static void SetSize(ReadingSize size)
         {
-            LargeText = on;
+            Size = size;
             LargeTextChosen = true;
         }
     }

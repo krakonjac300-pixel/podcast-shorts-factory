@@ -163,8 +163,12 @@ namespace SecondCursor.Apps
             return s;
         }
 
+        /// <summary>Phase Q1: while set, only the player can switch the viewer away from this camera (the first CAM 03 view).</summary>
+        [System.NonSerialized] public string HeldOn;
+
         public void Select(string camId, CursorAgent by)
         {
+            if (HeldOn != null && camId != HeldOn && (by == null || !by.IsPlayer)) return;
             _current = camId;
             foreach (var kv in _buttons) kv.Value.Toggled = kv.Key == camId;
             var cam = G.Content.Camera(camId);
