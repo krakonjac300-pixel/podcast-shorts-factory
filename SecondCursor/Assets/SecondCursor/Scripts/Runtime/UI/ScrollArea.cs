@@ -94,6 +94,9 @@ namespace SecondCursor.UI
         /// <summary>Phase Q1: when the player last scrolled anything (wheel, arrows, track or thumb), unscaled seconds; reading is not being stuck.</summary>
         public static float LastPlayerScrollAt { get; private set; } = -1000f;
 
+        /// <summary>A new launch or Play session restarts unscaled time at 0: the last scroll of an earlier session must not read as recent.</summary>
+        internal static void ResetLaunchState() { LastPlayerScrollAt = -1000f; }
+
         public void ScrollBy(float delta)
         {
             _offset += delta;

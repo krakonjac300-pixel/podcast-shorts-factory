@@ -123,7 +123,7 @@ namespace SecondCursor.Story
         {
             var p = _g.Player;
             bool input = (p.Position - _lastPointer).sqrMagnitude > 0.25f || p.Held || !string.IsNullOrEmpty(_g.Input.TypedText)
-                         || Time.unscaledTime - ScrollArea.LastPlayerScrollAt < 0.5f;
+                         || (Time.unscaledTime - ScrollArea.LastPlayerScrollAt >= 0f && Time.unscaledTime - ScrollArea.LastPlayerScrollAt < 0.5f);
             _lastPointer = p.Position;
             if (input) _lastInputAt = Time.time;
         }
@@ -135,8 +135,13 @@ namespace SecondCursor.Story
             if (PauseMenu.IsPaused || g.Shred.Busy || (g.Conflict != null && g.Conflict.IsFighting) || g.Player.Payload != null) return false;
             if (g.Scares != null && g.Scares.ClimaxRunning) return false;
             if (g.Flags.Has(Core.Story.Flags.Ending) || AnySpeakerTyping || AwaitingReply) return false;
-            foreach (var w in g.Windows.Windows)
-                if (w != null && !w.IsClosed && !w.IsMinimized && (w.AppId == "dialog" || w.AppId == "progress")) return false;
+            // Any always-on-top window (a dialog, the Restricted code prompt) keeps the offer away: it would take the focus and the player's keys.
+            var open = g.Windows.Windows;
+            for (int i = 0; i < open.Count; i++)
+            {
+                var w = open[i];
+                if (w != null && !w.IsClosed && !w.IsMinimized && (w.AlwaysOnTop || w.AppId == "dialog" || w.AppId == "progress")) return false;
+            }
             return true;
         }
 
@@ -251,7 +256,7 @@ namespace SecondCursor.Story
                         g.Mail.Deliver(step.Target, false);
                         g.Mail.MarkRead(step.Target, null, by);
                         // The mail is put in front of the player (it stays marked as read by Night Operations).
-                        (g.Apps.Launch(AppIds.Mail, g.Player) as MailApp)?.ShowMail(step.Target, g.Player);
+                        (g.Apps.Launch(AppIds.Mail, g.Player) as MailApp)?.ShowMail(step.Target, null);
                         break;
                     case FinishKind.OpenFile:
                         g.Credits.Set(TaskType.OpenFile, step.Target, by);

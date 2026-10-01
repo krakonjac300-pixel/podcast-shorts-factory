@@ -49,7 +49,7 @@ namespace SecondCursor.Core.Util
             }
         }
 
-        /// <summary>Waits until everything asked so far is on disk (or <paramref name="timeoutMilliseconds"/> passes). True if it is.</summary>
+        /// <summary>Waits for pending writes to finish or time out. True means idle, including failed attempts; <see cref="TakeMessages"/> reports failures.</summary>
         public bool Flush(int timeoutMilliseconds = 3000)
         {
             var end = DateTime.UtcNow.AddMilliseconds(timeoutMilliseconds);
@@ -106,19 +106,34 @@ namespace SecondCursor.Core.Util
         public static string WriteAtomic(string path, string text)
         {
             string tmp = path + ".tmp";
-            try
+            for (int attempt = 0; ; attempt++)
             {
-                string dir = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                File.WriteAllText(tmp, text);
-                if (File.Exists(path)) File.Replace(tmp, path, path + ".bak");
-                else File.Move(tmp, path);
-                return null;
+                try
+                {
+                    string dir = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                    File.WriteAllText(tmp, text);
+                    if (File.Exists(path)) File.Replace(tmp, path, path + ".bak");
+                    else File.Move(tmp, path);
+                    return null;
+                }
+                catch (IOException e) when (attempt < 3 && IsSharingViolation(e))
+                {
+                    // A scanner can briefly hold the checkpoint or its backup open. Retry on the
+                    // writer thread, preserving write order and keeping the game thread responsive.
+                    Thread.Sleep(40 * (attempt + 1));
+                }
+                catch (Exception e)
+                {
+                    return "Could not write " + Path.GetFileName(path) + ": " + e.Message;
+                }
             }
-            catch (Exception e)
-            {
-                return "Could not write " + Path.GetFileName(path) + ": " + e.Message;
-            }
+        }
+
+        static bool IsSharingViolation(IOException error)
+        {
+            int code = error.HResult & 0xffff;
+            return code == 32 || code == 33;
         }
     }
 }

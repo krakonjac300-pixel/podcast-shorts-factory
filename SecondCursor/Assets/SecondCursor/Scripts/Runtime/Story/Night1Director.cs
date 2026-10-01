@@ -317,6 +317,8 @@ namespace SecondCursor.Story
             GiveTask(ContentIds.TaskShredCache);
             yield return WaitTask(ContentIds.TaskShredCache);
             _g.Flags.Set(Flags.TutorialDone);
+            // An icon dragged during the tutorial counts too (the scare is armed here, not only by a later drag).
+            ArmIconBack();
         }
 
         /// <summary>Phase 0's single ambiguous oddity: the Staff Directory window shifts a few pixels.</summary>
@@ -597,7 +599,7 @@ namespace SecondCursor.Story
         void OnEllenReply(DialogueReply r, string said)
         {
             // Phase Q2 (V7): the first reply is saved with the night (Night 2 quotes it).
-            KeptCopy("reply");
+            if (r.Tag != DialogueEngine.NameTag) KeptCopy("reply"); // a name reply already announced "name" (one toast, not two)
             // Phase Q3 (D2, V2): her name (the demo's Her Name beat) and a word to chat are remembered.
             if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N1SaidName);
             if (r.Tag == "chat") _g.Flags.Set(MemoryFlags.N1NamedChat);

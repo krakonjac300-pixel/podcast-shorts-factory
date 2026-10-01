@@ -62,7 +62,7 @@ namespace SecondCursor.Game
     public static class SaveSystem
     {
         // Phase Q4 (CH8): the last text of each file this launch read or wrote is kept in memory, so a load never touches the disk again (a read
-        // of a file an antivirus was still scanning slept up to 240 ms on the main thread, at a tug's hit-stop), and every write goes to one
+        // of a file an antivirus was still scanning slept up to 240 ms on the main thread, at a tug's hit-stop), and gameplay writes go to one
         // background thread (coalesced, atomic as before). Only this class reads these files, so the cache is the truth; it is dropped at the
         // start of every launch and by the test bridge when it edits the files itself. Quit, pause and focus loss flush the writer.
         static readonly BackgroundFileWriter Writer = new BackgroundFileWriter();
@@ -478,29 +478,60 @@ namespace SecondCursor.Game
             if (ProgressReadOnly || !File.Exists(legacy)) return;
             try
             {
-                var old = JsonUtility.FromJson<SaveData>(File.ReadAllText(legacy));
-                if (old != null)
+                // Migration happens at startup. Confirm both replacements on disk before removing
+                // their only source; gameplay writes remain on the background writer.
+                if (!Writer.Flush())
                 {
-                    if (!File.Exists(PathOf(SettingsFile)))
-                        Write(SettingsFile, new SettingsData
-                        {
-                            masterVolume = old.masterVolume >= 0f ? old.masterVolume : 0.9f,
-                            crtEffects = old.crtEffects,
-                            flashingChosen = false,
-                        });
-                    if (!File.Exists(PathOf(ProgressFile)))
-                    {
-                        old.version = 2;
-                        old.masterVolume = -1f;
-                        Write(ProgressFile, old);
-                    }
+                    GameLog.Warn(LogChannel.System, "Old save retained: pending writes did not finish");
+                    return;
                 }
+                var old = JsonUtility.FromJson<SaveData>(File.ReadAllText(legacy));
+                if (old == null)
+                {
+                    GameLog.Warn(LogChannel.System, "Old save retained: no readable save data");
+                    return;
+                }
+                var settings = new SettingsData
+                {
+                    masterVolume = old.masterVolume >= 0f ? old.masterVolume : 0.9f,
+                    crtEffects = old.crtEffects,
+                    flashingChosen = false,
+                };
+                old.version = 2;
+                old.masterVolume = -1f;
+                // If either write fails, the retained legacy file still backs this data. Keep
+                // progress available this launch instead of starting from an empty save.
+                if (!File.Exists(PathOf(ProgressFile)) && !Cache.ContainsKey(PathOf(ProgressFile)))
+                    Cache[PathOf(ProgressFile)] = JsonUtility.ToJson(old, true);
+                if (!WriteLegacyReplacement(SettingsFile, settings)) return;
+                if (!WriteLegacyReplacement(ProgressFile, old)) return;
                 File.Delete(legacy);
             }
             catch (Exception e)
             {
                 GameLog.Warn(LogChannel.System, "Could not migrate the old save: " + e.Message);
             }
+        }
+
+        /// <summary>Keep existing split saves; failed writes leave their legacy source available for recovery.</summary>
+        static bool WriteLegacyReplacement(string name, object data)
+        {
+            string path = PathOf(name);
+            if (File.Exists(path)) return true;
+            // A previous attempt may have failed while the player continued. Preserve those
+            // newer choices and settings when retrying, rather than reloading the old version.
+            if (!Cache.TryGetValue(path, out string json))
+            {
+                json = JsonUtility.ToJson(data, true);
+                Cache[path] = json;
+            }
+            string problem = BackgroundFileWriter.WriteAtomic(path, json);
+            if (problem != null)
+            {
+                GameLog.Warn(LogChannel.System, "Old save retained: " + problem);
+                return false;
+            }
+            return true;
         }
     }
 }

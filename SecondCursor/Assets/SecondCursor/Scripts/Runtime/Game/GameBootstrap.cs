@@ -82,6 +82,7 @@ namespace SecondCursor.Game
             TitleMenu.StartScreen = TitleScreenId.Main;
             Entity.ConflictSystem.ForcedOutcome = Core.Entity.TugOutcome.None;
             SaveSystem.ResetLaunchState();
+            UI.ScrollArea.ResetLaunchState();
         }
 
         /// <summary>

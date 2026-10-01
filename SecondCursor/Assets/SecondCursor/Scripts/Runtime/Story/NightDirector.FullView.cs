@@ -54,6 +54,7 @@ namespace SecondCursor.Story
             if (!FullViewAllowed(cam)) yield break;
             EndFullView();
             cam.BeginFullView(caption);
+            _fullCam = cam; // set at once: a jump during the approach below must still end the scripted view
             if (by != null && by.IsVisible && !by.Busy)
             {
                 var clicked = new bool[1];
