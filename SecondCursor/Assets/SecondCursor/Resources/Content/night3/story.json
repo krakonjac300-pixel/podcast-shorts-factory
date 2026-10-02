@@ -1,0 +1,26 @@
+{
+  "biosLines": [
+    "ORRERY BIOS v2.06  (C) 1996 Orrery Computing Corp.",
+    "Asset: LW-WS-04   Location: B-7   Owner: LETHEWORTH",
+    "CPU: OR-586 133MHz",
+    "Memory Test: 32768K OK",
+    "Primary Master: LW-2100 2.1GB .......... OK",
+    "Primary Slave: None",
+    "Keyboard ................................ OK",
+    "Pointing Device 1 ....................... OK",
+    "Pointing Device 2 ....................... OK",
+    "Pointing Device 3 ....................... {p3}",
+    "Network: LETHEWORTH.CORP ........... Connected",
+    "Capture Service: LWCAP 2.3 ............. Loaded",
+    "Capture Profile 214 ..................... 96%",
+    "WARNING: Previous session was not closed.",
+    "Resuming session 214 (copy)...",
+    "Starting NEXUS OS 4.1"
+  ],
+  "splashTagline": "",
+  "cameras": [
+    { "id": "cam00", "label": "CAM 00: ADMIN 1", "location": "Admin 1 (A. Voss)", "hidden": true }
+  ],
+  "endingLines": [],
+  "anomalyNotes": []
+}

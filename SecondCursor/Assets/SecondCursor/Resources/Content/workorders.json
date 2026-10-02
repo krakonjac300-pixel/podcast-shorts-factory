@@ -1,0 +1,34 @@
+{
+  "orders": [
+    {
+      "id": "wo_3317",
+      "title": "Drive Wipe Request #3317",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW-2100 SN 0093317" },
+        { "label": "Owner Emp. No.", "value": "146" },
+        { "label": "Owner Name", "value": "P. Delacroix" },
+        { "label": "Batch", "value": "44" },
+        { "label": "Requested By", "value": "M. Ostrowski, Accounts Receivable" },
+        { "label": "Reason", "value": "Separation" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the wipe ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "approve",
+      "employeeRef": "146"
+    },
+    {
+      "id": "wo_3318",
+      "title": "Drive Wipe Request #3318",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW-2100 SN 0093318" },
+        { "label": "Owner Emp. No.", "value": "163" },
+        { "label": "Owner Name", "value": "J. Nakamura" },
+        { "label": "Batch", "value": "44" },
+        { "label": "Requested By", "value": "Office of Retention" },
+        { "label": "Reason", "value": "Separation (pending)" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the wipe ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "reject",
+      "employeeRef": "163"
+    }
+  ]
+}

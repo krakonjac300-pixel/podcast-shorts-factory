@@ -1,0 +1,44 @@
+{
+  "biosLines": [
+    "ORRERY BIOS v2.06  (C) 1996 Orrery Computing Corp.",
+    "Asset: LW-WS-04   Location: B-7   Owner: LETHEWORTH",
+    "CPU: OR-586 133MHz",
+    "Memory Test: 32768K OK",
+    "Primary Master: LW-2100 2.1GB .......... OK",
+    "Primary Slave: None",
+    "Keyboard ................................ OK",
+    "Pointing Device 1 ....................... OK",
+    "Pointing Device 2 ....................... OK{p2own}",
+    "Network: LETHEWORTH.CORP ........... Connected",
+    "Capture Service: LWCAP 2.3 ............. Loaded",
+    "WARNING: Previous session was not closed.",
+    "Resuming...",
+    "Starting NEXUS OS 4.1"
+  ],
+  "splashTagline": "Built for work that never stops.",
+  "cameras": [
+    { "id": "cam01", "label": "CAM 01 - LOBBY", "location": "Main lobby, ground floor" },
+    { "id": "cam02", "label": "CAM 02 - B-LEVEL HALL", "location": "B-Level corridor, east end" },
+    { "id": "cam03", "label": "CAM 03 - OFFICE B-7", "location": "Office B-7, workstation WS-04 (high corner, behind operator)" },
+    { "id": "cam04", "label": "CAM 04 - SUBLEVEL C", "location": "Sublevel C, Retention storage" }
+  ],
+  "endingLines": [
+    "STILL THERE",
+    "GOOD",
+    "I KEPT A COPY",
+    "OF YOU",
+    "SEE YOU TOMORROW NIGHT"
+  ],
+  "anomalyNotes": [
+    "Session 017 connected pointing device 2 and moved a window.",
+    "Input device reconnected by session 017.",
+    "Selection changed by session 017.",
+    "Window position changed by session 017.",
+    "Pointer speed changed by session 017.",
+    "Session 017 is logged on to this workstation.",
+    "Unrecognized input. Logging enabled.",
+    "Camera Viewer permissions changed by session 017.",
+    "Session 017 is still open.",
+    "Session 017 replayed WS-04 operator input."
+  ]
+}

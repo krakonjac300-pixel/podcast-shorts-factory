@@ -1,0 +1,27 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.pidb
+*.booproj
+*.unityproj
+.vs/
+.idea/
+.vscode/
+# Dev tool outputs
+DevTools/**/bin/
+DevTools/**/obj/
+DevTools/**/out/
+
+# keep the dev harness project files
+!DevTools/**/*.csproj

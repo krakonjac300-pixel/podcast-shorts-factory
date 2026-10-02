@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SecondCursor.Editor</AssemblyName>
+    <DefineConstants>$(UnityDefines);UNITY_EDITOR;UNITY_EDITOR_WIN;ENABLE_LEGACY_INPUT_MANAGER</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Scripts)/Editor/**/*.cs" />
+    <ProjectReference Include="Core.csproj" />
+    <ProjectReference Include="RuntimeEditor.csproj" /><!-- Unity compiles the editor against the in-editor runtime (UNITY_EDITOR) -->
+    <Reference Include="$(Deps)/engine/*.dll" Private="false" />
+    <Reference Include="$(Deps)/ugui/UnityEngine.UI.dll" Private="false" />
+    <Reference Include="$(Deps)/editor/*.dll" Private="false" />
+  </ItemGroup>
+</Project>

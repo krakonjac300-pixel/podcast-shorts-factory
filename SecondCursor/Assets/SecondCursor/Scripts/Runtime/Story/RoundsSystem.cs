@@ -1,0 +1,360 @@
+using System;
+using System.Collections;
+using SecondCursor.Apps;
+using SecondCursor.CameraFeed;
+using SecondCursor.Core;
+using SecondCursor.Core.Content;
+using SecondCursor.Core.Story;
+using SecondCursor.Game;
+using SecondCursor.Input;
+using SecondCursor.OS;
+using UnityEngine;
+
+namespace SecondCursor.Story
+{
+    /// <summary>
+    /// Custodial rounds on the Camera Viewer (expansion spec 7.4). Feeds the engine-free
+    /// <see cref="CustodialRounds"/> watch meter from what the viewer shows, cuts the figure to its next stage
+    /// under a burst of static, forces the viewer open on the figure's camera on schedule (Security), and
+    /// counts the player's own reopens. The night's director decides what an ending round means.
+    /// </summary>
+    public sealed class RoundsSystem : MonoBehaviour
+    {
+        GameServices _g;
+        float _nextRepeat;
+        int _nextForced;
+        Action<string, CursorAgent> _onLaunched;
+        Action<OSWindow, CursorAgent> _onRestored;
+
+        public CustodialRounds Model { get; private set; }
+        public bool Running { get; private set; }
+        public float Elapsed { get; private set; }
+        public int ForcedOpens { get; private set; }
+        public int PlayerReopens { get; private set; }
+        /// <summary>Who performs forced opens (null = Security, no cursor).</summary>
+        [NonSerialized] public CursorAgent ForcedBy;
+        /// <summary>Nights 2 and 3: Personnel follows the figure (spec 5.6; Phase I: Night 2 too, so "check Personnel 000" is true there).</summary>
+        [NonSerialized] public bool PatchPersonnel;
+        /// <summary>
+        /// Called instead of opening the viewer itself when set (finished Gary opens it by hand); the round passes
+        /// the camera to show. The handler must end up calling <see cref="ShowOnViewer"/>.
+        /// </summary>
+        [NonSerialized] public Action<string> ForcedOpenHandler;
+        /// <summary>
+        /// Phase K: the camera Security opens instead of the figure's while this returns one (Night 3's shelf check opens CAM 04),
+        /// so a job that needs a camera can be done by a person who switches at human speed. Null = the figure's camera.
+        /// </summary>
+        [NonSerialized] public Func<string> PreferredCamera;
+        /// <summary>Phase K: the second line of a forced open's notice when Custodial is on that camera (null = the rounds' own).</summary>
+        [NonSerialized] public string OnItNoticeKey, NotOnItNoticeKey;
+        /// <summary>Phase K: the notice when session 017 closes a viewer that showed Custodial (null = the rounds' own, which says to reopen it).</summary>
+        [NonSerialized] public string ClosedNoticeKey;
+
+        /// <summary>Security opened the viewer on the figure: the index of this forced open (0 = the first).</summary>
+        public event Action<int> ForcedOpen;
+        /// <summary>The player opened or restored the viewer themselves.</summary>
+        public event Action PlayerReopened;
+        public event Action<int> StageAdvanced;
+        public event Action ReachedFinal;
+        public event Action SeatCleared;
+        /// <summary>The round's time ran out (not raised by <see cref="Stop"/>).</summary>
+        public event Action TimeUp;
+
+        /// <summary>Phase Q1 (T8): session 017 closes the viewer at most this many times a round; then it is the player's choice.</summary>
+        public const int MaxEntityCloses = 2;
+        /// <summary>How many times session 017 closed the viewer this round.</summary>
+        public int EntityCloses { get; private set; }
+        public bool EntityClosesLeft => EntityCloses < MaxEntityCloses;
+        bool _gaveUp;
+        /// <summary>Phase Q1 (T8): the viewer shows Custodial again after her last allowed close: she says so once and leaves it to the player.</summary>
+        public event Action EntityGaveUp;
+
+        /// <summary>Session 017 closed the viewer (the brain reports a click that closed it).</summary>
+        public void NoteEntityClose()
+        {
+            if (!Running) return;
+            EntityCloses++;
+            GameLog.Info(LogChannel.Story, "Rounds: viewer closed by session 017 (" + EntityCloses + " of " + MaxEntityCloses + ")");
+        }
+
+        public static RoundsSystem Create(GameServices g, Transform parent)
+        {
+            var go = new GameObject("Custodial Rounds");
+            go.transform.SetParent(parent, false);
+            var r = go.AddComponent<RoundsSystem>();
+            r._g = g;
+            return r;
+        }
+
+        /// <summary>The viewer is open, not minimized, and shows the figure's current camera.</summary>
+        public bool IsFigureOnShownCamera => Running && Model != null && !Model.Finished && ViewedCamera() == Model.FigureCamera;
+        /// <summary>Phase K: the viewer shows the camera a job needs (<see cref="PreferredCamera"/>): session 017 leaves it open.</summary>
+        public bool ShownCameraSpared => PreferredCamera != null && ViewedCamera() != null && PreferredCamera() == ViewedCamera();
+
+        /// <summary>How long the second cursor waits before closing a viewer that shows the figure.</summary>
+        public float CloseReaction()
+        {
+            float seconds = Model != null ? Model.Config.CloseReaction(UnityEngine.Random.value) : 1.5f;
+            return Core.Game.RelaxedTiming.CloseReaction(seconds, _g.TimeScale);   // Phase Q4 (A4)
+        }
+
+        public void Begin(RoundsConfig config)
+        {
+            Stop();
+            Model = new CustodialRounds(config);
+            Model.StageAdvanced += OnStageAdvanced;
+            Model.ReachedFinal += () => ReachedFinal?.Invoke();
+            Model.SeatCleared += () => SeatCleared?.Invoke();
+            Running = true;
+            Elapsed = 0f;
+            ForcedOpens = 0;
+            PlayerReopens = 0;
+            EntityCloses = 0;
+            _gaveUp = false;
+            _nextForced = 0;
+            _nextRepeat = -1f;
+            _onLaunched = (appId, a) => { if (appId == AppIds.Camera && a != null && a.IsPlayer) OnPlayerReopen(); };
+            _onRestored = (w, a) => { if (w.AppId == AppIds.Camera && a != null && a.IsPlayer) OnPlayerReopen(); };
+            _g.Apps.Launched += _onLaunched;
+            _g.Windows.Restored += _onRestored;
+            PlaceFigure(false);
+            if (PatchPersonnel) PatchPersonnelFor(Model.FigureStage);
+            GameLog.Info(LogChannel.Story, "Rounds: begin " + config.Id + " at stage " + Model.Stage + " (" + Model.FigureStage + ")");
+        }
+
+        public void Stop()
+        {
+            if (_onLaunched != null) _g.Apps.Launched -= _onLaunched;
+            if (_onRestored != null) _g.Windows.Restored -= _onRestored;
+            _onLaunched = null;
+            _onRestored = null;
+            if (Running) GameLog.Info(LogChannel.Story, "Rounds: stopped after " + Elapsed.ToString("0") + "s at stage " + Model.Stage);
+            Running = false;
+        }
+
+        /// <summary>Debug: put the figure on a stage now.</summary>
+        public void ForceStage(int stage)
+        {
+            if (Model == null) return;
+            Model.ForceStage(stage);
+        }
+
+        void Update()
+        {
+            if (!Running || Model == null) return;
+            float dt = Time.deltaTime;
+            Elapsed += dt;
+            var c = Model.Config;
+            if (_nextForced < c.ForcedOpenTimes.Length && Elapsed >= c.ForcedOpenTimes[_nextForced])
+            {
+                _nextForced++;
+                OpenViewer();
+                if (_nextForced >= c.ForcedOpenTimes.Length && c.ForcedOpenRepeatMax > 0f)
+                    _nextRepeat = Elapsed + UnityEngine.Random.Range(c.ForcedOpenRepeatMin, c.ForcedOpenRepeatMax);
+            }
+            else if (_nextRepeat > 0f && Elapsed >= _nextRepeat)
+            {
+                OpenViewer();
+                _nextRepeat = Elapsed + UnityEngine.Random.Range(c.ForcedOpenRepeatMin, c.ForcedOpenRepeatMax);
+            }
+            Model.Tick(dt, ViewedCamera());
+            if (!_gaveUp && !EntityClosesLeft && IsFigureOnShownCamera && !ShownCameraSpared && _g.Entity != null && _g.Entity.Brain.AllowCloseCamera)
+            {
+                _gaveUp = true;
+                GameLog.Info(LogChannel.Story, "Rounds: session 017 stops closing the viewer");
+                EntityGaveUp?.Invoke();
+            }
+            if (Running && c.Duration > 0f && Elapsed >= c.Duration && !Model.Finished)
+            {
+                Stop();
+                TimeUp?.Invoke();
+            }
+        }
+
+        /// <summary>The camera the viewer shows right now, or null when it is closed or minimized.</summary>
+        public string ViewedCamera()
+        {
+            var cam = _g.Apps.Find<CameraApp>();
+            return cam != null && cam.IsOpen && !cam.Window.IsMinimized ? cam.CurrentCamera : null;
+        }
+
+        /// <summary>Security (or <see cref="ForcedBy"/>) opens or restores the viewer on the figure's camera.</summary>
+        public void OpenViewer() => OpenViewer(null);
+
+        /// <summary>A forced open on a given camera (null = the figure's camera).</summary>
+        public void OpenViewer(string camera)
+        {
+            if (Model == null || Model.Finished) return;
+            string cam = !string.IsNullOrEmpty(camera) ? camera : PreferredCamera?.Invoke() ?? Model.FigureCamera;
+            if (ForcedOpenHandler != null)
+            {
+                ForcedOpenHandler(cam);
+                return;
+            }
+            ShowOnViewer(cam, ForcedBy);
+        }
+
+        /// <summary>The viewer comes up (launched or restored) on <paramref name="camera"/>: counted and announced as a forced open.</summary>
+        public void ShowOnViewer(string camera, CursorAgent by)
+        {
+            if (Model == null || Model.Finished) return;
+            // Phase N (finding 5): while a job needs a camera (the shelf check) Security's open takes no focus and keeps clear of the
+            // Work Orders and the Work Queue, where the player is working.
+            bool quiet = PreferredCamera?.Invoke() != null;
+            var focused = _g.Windows.Active;
+            var cam = _g.Apps.Find<CameraApp>();
+            if (cam == null) cam = _g.Apps.Launch(AppIds.Camera, by) as CameraApp;
+            else cam.Window.Restore(by);
+            if (cam == null) return;
+            if (quiet) KeepClearOfWork(cam.Window, focused);
+            if (cam.CurrentCamera != camera) cam.Select(string.IsNullOrEmpty(camera) ? Model.FigureCamera : camera, by);
+            int index = ForcedOpens++;
+            var text = _g.Content;
+            // Phase K: the notice names the camera and says the one rule, so "restored" is never a mystery: switch away from
+            // Custodial, or (the shelf check's CAM 04) it is not on this one.
+            bool onIt = cam.CurrentCamera == Model.FigureCamera;
+            string body = text.Format(index == 0 ? "rounds.begin" : "rounds.reopen", CameraName(_g, cam.CurrentCamera)) + "\n"
+                + text.Text(onIt ? OnItNoticeKey ?? "rounds.onit" : NotOnItNoticeKey ?? "rounds.notonit");
+            // Phase M: the alarm rings for Security's first open of a round; the repeats (up to 13 in Night 3's) chime softly.
+            _g.Notifications.Show(text.Text("app.camera"), body, "icon_camera", null, index == 0 ? "sys_warning" : "ui_select");
+            GameLog.Info(LogChannel.Story, "Rounds: viewer forced open (" + (index + 1) + ") on " + cam.CurrentCamera);
+            ForcedOpen?.Invoke(index);
+        }
+
+        /// <summary>
+        /// The viewer goes to its corner (top left, right of the icons) if it covers the Work Orders or the Work Queue, the window the player
+        /// was in keeps the focus, and if the viewer still overlaps one of them it goes under it.
+        /// </summary>
+        void KeepClearOfWork(OSWindow viewer, OSWindow focused)
+        {
+            var work = new System.Collections.Generic.List<OSWindow>();
+            foreach (var w in _g.Windows.Windows)
+                if (w != null && w != viewer && !w.IsClosed && !w.IsMinimized && (w.AppId == AppIds.WorkOrders || w.AppId == AppIds.WorkQueue)) work.Add(w);
+            if (work.Exists(w => Overlaps(viewer, w))) viewer.MoveTo(new Vector2(WindowManager.IconColumnRight, 0f));
+            if (focused != null && focused != viewer && !focused.IsClosed && !focused.IsMinimized) _g.Windows.Focus(focused, null);
+            foreach (var w in work)
+                if (Overlaps(viewer, w) && viewer.transform.GetSiblingIndex() > w.transform.GetSiblingIndex())
+                    viewer.transform.SetSiblingIndex(w.transform.GetSiblingIndex());
+            GameLog.Info(LogChannel.Story, "Rounds: viewer opened without focus at " + viewer.TopLeft + (focused != null ? " (" + focused.Title + " kept the focus)" : ""));
+        }
+
+        static bool Overlaps(OSWindow a, OSWindow b) => new Rect(a.TopLeft, a.Size).Overlaps(new Rect(b.TopLeft, b.Size));
+
+        /// <summary>"CAM 04, SUBLEVEL C": a camera's label for a notice.</summary>
+        public static string CameraName(GameServices g, string camId)
+        {
+            var cam = g.Content.Camera(camId);
+            return cam != null && !string.IsNullOrEmpty(cam.label) ? cam.label.Replace(" - ", ", ").Replace(": ", ", ") : camId;
+        }
+
+        void OnPlayerReopen()
+        {
+            if (!Running || Model == null) return;
+            PlayerReopens++;
+            // Looking again brings it closer: the penalty lands on whatever camera the viewer came back on.
+            Model.NotifyReopen(ViewedCamera());
+            PlayerReopened?.Invoke();
+        }
+
+        void OnStageAdvanced(int stage)
+        {
+            GameLog.Info(LogChannel.Story, "Rounds: stage " + stage + " (" + Model.FigureStage + ")");
+            // Far away it is footsteps down the building; in the office the rig's own step (Phase M: closer every time).
+            var at = StageFor(Model.FigureStage);
+            if (at < FigureStage.Doorway || at > FigureStage.BehindChair) _g.Audio?.Play("footstep_distant", 0.45f, 0.9f, 0.2f);
+            StageAdvanced?.Invoke(stage);
+            PlaceFigure(true);
+            if (PatchPersonnel) PatchPersonnelFor(Model.FigureStage);
+        }
+
+        /// <summary>
+        /// Night 3's live Personnel (spec 5.6): Custodial's office follows the figure, 001's last login copies
+        /// 000's, and Ruth goes on leave when it reaches the B-Level hall. The records are patched in memory
+        /// (the content database is rebuilt every shift) and an open Personnel window shows them at once.
+        /// </summary>
+        public void PatchPersonnelFor(string stage)
+        {
+            // Night 3 only: the demo build carries none of its text.
+#if !SC_DEMO
+            var c = _g.Content;
+            var custodial = c.Employee(ContentIds.Employee000);
+            if (custodial == null) return;
+            string office = OfficeFor(stage);
+            if (office == null) return;
+            custodial.office = office;
+            bool night3 = _g.Night >= 3;
+            custodial.lastLogin = (night3 ? "11/20/98" : "11/19/98") + " 3:00 AM (on rounds)";
+            _g.Apps.Find<StaffApp>()?.Refresh();
+            // The rest is Night 3's: 001's login copying 000's, and Ruth leaving when it reaches the hall.
+            if (!night3) return;
+            var twin = c.Employee(ContentIds.Employee001);
+            if (twin != null) twin.lastLogin = custodial.lastLogin;
+            if (stage == "HallFar")
+            {
+                var ruth = c.Employee(ContentIds.Employee118);
+                if (ruth != null && ruth.status != "ON LEAVE")
+                {
+                    ruth.status = "ON LEAVE";
+                    ruth.notes = "Extended leave from 11/20/98. Do not forward calls. Personal effects held by Custodial.";
+                    // Phase L: what she asked for (or was refused) stays on her record.
+                    string drive = WorkOrderRules.NoteFor(c.Order(ContentIds.Order3333), WorkOrderRules.Remembered(_g.Flags, 3, ContentIds.Order3333));
+                    if (drive.Length > 0) ruth.notes += " " + drive;
+                    GameLog.Info(LogChannel.Story, "Personnel: 118 on leave");
+                }
+            }
+            _g.Apps.Find<StaffApp>()?.Refresh();
+#endif
+        }
+
+        /// <summary>Custodial's office as Personnel lists it at each stage.</summary>
+        public static string OfficeFor(string stage)
+        {
+            switch (stage)
+            {
+                case "SublevelC": return "Sublevel C";
+                case "Lobby": return "Lobby";
+                case "HallFar": return "B-Level hall";
+                case "Corridor": return "B-Level hall (B-7)";
+                case "Doorway":
+                case "Middle": return "B-7";
+                case "BehindChair": return "B-7 (WS-04)";
+                default: return null;
+            }
+        }
+
+        /// <summary>Put the figure where the model says; on screen it moves under a burst of static.</summary>
+        void PlaceFigure(bool cut)
+        {
+            var rig = _g.CameraRig;
+            if (rig == null || Model == null) return;
+            var stage = StageFor(Model.FigureStage);
+            if (!cut || ViewedCamera() == null) { rig.Figure = stage; return; }
+            StartCoroutine(StaticCut(() => rig.Figure = stage));
+        }
+
+        public static FigureStage StageFor(string name) =>
+            Enum.TryParse(name, out FigureStage s) ? s : FigureStage.None;
+
+        IEnumerator StaticCut(Action change)
+        {
+            var rig = _g.CameraRig;
+            _g.Audio?.Play("static_burst", 0.9f);
+            float t = 0f, noise = _g.Fx.StaticLevel(0.9f);
+            bool changed = false;
+            while (t < 0.45f)
+            {
+                t += Time.deltaTime;
+                rig.ExtraNoise = noise;
+                if (!changed && t > 0.15f) { change(); changed = true; }
+                yield return null;
+            }
+            if (!changed) change();
+            rig.ExtraNoise = 0f;
+        }
+
+        void OnDestroy()
+        {
+            if (_g != null && _g.Apps != null) Stop();
+        }
+    }
+}
