@@ -201,7 +201,7 @@ namespace SecondCursor.Tests
             Assert.Contains("Options", db.Text("quickstart.body"));
             Assert.Equal("Nexus", db.Text("start.button"));
             Assert.Contains("OPTIONS", db.Text("pause.title"));
-            Assert.Contains("{0}", db.Text("end.n1.outcome.kept"));
+            Assert.Contains("{0}", db.Text("end.n1.shift"));   // Phase R: the time moved to the line that says why the shift ended early
             // Steam Deck wording names the trigger, not the mouse button.
             db.Variant = "deck";
             foreach (var key in new[] { "tug.label", "tug.lost.release", "tug.refused", "notify.conflict" })

@@ -145,7 +145,15 @@ namespace SecondCursor.Story
                     // Phase H: the card says how the night ended (WS-04 went dark; the file came back or never went).
                     var spec = EndingSpec.Night1();
                     spec.AfterHit = _afterHit;
-                    spec.Outcome = _g.Content.Format(_g.Flags.Has(Flags.File017ShreddedOnce) ? "end.n1.outcome.shredded" : "end.n1.outcome.kept", _g.Clock.Format12());
+                    bool shreddedOnce = _g.Flags.Has(Flags.File017ShreddedOnce);
+                    spec.Outcome = _g.Content.Format(shreddedOnce ? "end.n1.outcome.shredded" : "end.n1.outcome.kept", _g.Clock.Format12());
+                    // Phase R: what it means (the order could not be done, and why), why the shift ended before 7:00, and what carries into Night 2.
+                    spec.OutcomeDetail = new[]
+                    {
+                        _g.Content.Text(shreddedOnce ? "end.n1.detail.shredded" : "end.n1.detail.kept"),
+                        _g.Content.Format("end.n1.shift", _g.Clock.Format12()),
+                    };
+                    spec.CarryLine = _g.Content.Text("end.n1.carry");
                     // Phase Q2: what session 017 kept (V7) and the night's Retention Record (T2), on the demo's card too.
                     spec.KeptLine = KeptLine();
                     spec.RecordRows = CardRows();
@@ -330,6 +338,7 @@ namespace SecondCursor.Story
             if (staff == null || !staff.IsOpen || staff.Window.DraggedBy != null) yield break;
             staff.Window.MoveBy(new Vector2(6f, 2f));
             GameLog.Info(LogChannel.Story, "Anomaly: window nudged (tiny)");
+            ShowNote(3);   // Phase R: "Window position changed by session 017." (it used to move with no name on it)
         }
 
         // ------------------------------------------------------------------ PHASE 1: ambiguous
@@ -367,6 +376,9 @@ namespace SecondCursor.Story
                 // Nobody is looking at it, so the file manager opens by itself where the file lives.
                 fm = _g.Apps.OpenFolder(_g.Files.FolderOf(ContentIds.File017), null);
                 GameLog.Info(LogChannel.Story, "Anomaly: File Manager opened itself");
+                // Phase R: nobody's pointer is behind it, so the notice names who it was.
+                _g.Notifications.Show(_g.Content.Text("app.files"), _g.Content.Format("window.opened.by", "Session 017", _g.Content.Text("app.files")), "icon_info",
+                    null, "ui_select", false, null, Core.Game.NoticeKind.Entity);
                 yield return Wait(0.9f);
                 r = fm != null && fm.IsOpen ? fm.RowFor(ContentIds.File017) : null;
             }
@@ -388,8 +400,7 @@ namespace SecondCursor.Story
                 _g.Audio.Play("mouse_release", 0.5f, 1f, Audio.AudioManager.PanFor(target.CaptionCenter.x));
                 GameLog.Info(LogChannel.Story, "Anomaly: window moved 10px");
             }
-            var notes = _g.Content.Story.anomalyNotes;
-            if (notes.Length > 0) _g.Notifications.Show(_g.Content.Text("os.name"), notes[0], "icon_info", null, "ui_select");
+            ShowNote(0);   // Phase R: "Session 017 connected pointing device 2 and moved a window."
 
             yield return WaitTask(ContentIds.TaskArchiveBatch, 40f);
         }
@@ -411,11 +422,12 @@ namespace SecondCursor.Story
             yield return FindDropSpot(new Vector2(600f, 300f));
             Vector2 spot = _dropSpot;
             E.Teleport(start);
+            HoldControl(true);   // Phase R: the wait line, until she has gone
             _g.Audio.SetAmbience(false, 0.15f);
             yield return E.Appear(start, 0.1f, true);
             _g.Taskbar.PointingDevices = 2;
             _g.Taskbar.FlashDevices();
-            _g.Notifications.Show(_g.Content.Text("os.name"), "New pointing device detected.", "icon_info", null, "ui_select", false, null, Core.Game.NoticeKind.Entity);
+            _g.Notifications.Show(_g.Content.Text("os.name"), "Pointing device 2 (session 017) is active.", "icon_info", null, "ui_select", false, null, Core.Game.NoticeKind.Entity);
             _g.Flags.Set(Flags.EntitySeen);
 
             yield return CarryFileIn(E, ContentIds.File017, spot, MovementProfiles.Hesitant);
@@ -424,6 +436,7 @@ namespace SecondCursor.Story
             if (icon != null) yield return E.Loiter(icon.Hit.Center, 14f, 2.2f, MovementProfiles.Hesitant);
             yield return E.MoveTo(new Vector2(-10f, 380f), MovementProfiles.HumanLike, 40f);
             yield return E.Vanish(0.3f);
+            HoldControl(false);
             _g.Audio.SetAmbience(true, 2.5f);
             E.State = EntityState.Observing;
 
@@ -541,6 +554,7 @@ namespace SecondCursor.Story
                 _g.Audio.SetAmbience(false, 0.1f);
                 // M14: 2.4 s of dead air with every sound ducked, the Disposal bin rattles, then the file is back.
                 Audio.AudioManager.Duck(true);
+                HoldControl(true);   // Phase R: 2.4 s of dead air and the bin: the wait line says it is on purpose
                 yield return Wait(ShredDeadAir - BinRattleSeconds);
                 Audio.AudioManager.Duck(false);
                 yield return RattleDisposal(BinRattleSeconds);
@@ -560,6 +574,7 @@ namespace SecondCursor.Story
                 KeptCopy("bin");
                 // A beat of stillness: let the player notice the file is back before it speaks.
                 yield return Wait(3f);
+                HoldControl(false);
             }
             else if (!_g.Flags.Has(Flags.File017Returned))
             {
@@ -571,7 +586,9 @@ namespace SecondCursor.Story
             RemoveConflictHint();
             brain.Enabled = false;
             E.Urgency = 1f;
+            HoldControl(true);   // Phase R: she is finishing her move before she types
             yield return E.WaitIdle();
+            HoldControl(false);
         }
 
         // ------------------------------------------------------------------ PHASE 4: communication
@@ -618,6 +635,7 @@ namespace SecondCursor.Story
         {
             E.Phase = EntityPhase.Escalation;
             E.State = EntityState.Curious;
+            HoldControl(true);   // Phase R: the replay, her lines and the camera are hers: the wait line, until the viewer is open
             if (!E.IsVisible) yield return E.Appear(new Vector2(ScreenRig.Width * 0.5f, ScreenRig.Height * 0.5f), 0.5f, true);
             // Phase L (finding 15): her last line tells you to watch the screen; the replay starts a second later than it did,
             // so you have looked up from the Jotter by then.
@@ -646,14 +664,15 @@ namespace SecondCursor.Story
 
             // It opens what you were not allowed to open: the Restricted folder, then the cameras.
             _g.Files.SetFolderLocked(ContentIds.FolderRestricted, false);
-            _g.Notifications.Show(_g.Content.Text("os.name"), "Permissions on Restricted changed by a remote session.", "icon_lock", a => _g.Apps.OpenFolder(ContentIds.FolderRestricted, a), "ui_select", false, null, Core.Game.NoticeKind.Entity);
+            _g.Notifications.Show(_g.Content.Text("os.name"), "Permissions on Restricted changed by session 017.", "icon_lock", a => _g.Apps.OpenFolder(ContentIds.FolderRestricted, a), "ui_select", false, null, Core.Game.NoticeKind.Entity);
             _g.Flags.Set(Flags.CameraUnlocked);
-            _g.Notifications.Show(_g.Content.Text("app.camera"), "Clearance override accepted: remote session.", "icon_lock", null, "sys_warning", false, null, Core.Game.NoticeKind.Entity);
+            _g.Notifications.Show(_g.Content.Text("app.camera"), "Clearance override accepted: session 017.", "icon_lock", null, "sys_warning", false, null, Core.Game.NoticeKind.Entity);
             yield return Wait(0.8f);
             yield return E.OpenApp(AppIds.Camera, MovementProfiles.HumanLike);
             yield return Wait(0.8f);
             var cam = _g.Apps.Find<CameraApp>();
             if (cam == null) cam = (CameraApp)_g.Apps.Launch(AppIds.Camera, E.Agent);
+            HoldControl(false);
             if (cam != null)
             {
                 var button = cam.Window.Element("camera:" + ContentIds.Cam03);

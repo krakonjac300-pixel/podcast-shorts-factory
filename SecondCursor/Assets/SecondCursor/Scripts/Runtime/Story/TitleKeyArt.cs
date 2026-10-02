@@ -24,13 +24,28 @@ namespace SecondCursor.Story
         Vector2 _fileCenter = new Vector2(480f, 104f), _leftTip = new Vector2(352f, 70f), _rightTip = new Vector2(608f, 70f);
         float _t;
 
-        public static TitleKeyArt Create(RectTransform parent)
+        /// <summary>Phase R: the legend under the pointers (yours is the white arrow, hers the dark one), at this height from the top.</summary>
+        const int LegendTop = 146;
+
+        public static TitleKeyArt Create(RectTransform parent, string youLegend = "", string sessionLegend = "")
         {
             var root = UIBuilder.Rect("Key Art", parent).Stretch();
             root.SetAsFirstSibling();
             var art = root.gameObject.AddComponent<TitleKeyArt>();
             art.Build(root);
+            art.Legend(root, youLegend, art._leftTip.x - 22f, Palette.BiosBright);
+            art.Legend(root, sessionLegend, art._rightTip.x + 24f, Palette.EntityOutline);
             return art;
+        }
+
+        /// <summary>One caption centred on x, in the colour of the pointer it names (nothing when the text is empty).</summary>
+        void Legend(RectTransform root, string text, float centreX, Color32 color)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            int w = PixelFont.MeasureLine(text, true) + 4;
+            var label = UIBuilder.Text(root, text, color, true, "Legend");
+            label.rectTransform.At(centreX - w * 0.5f, LegendTop, w, 12);
+            label.Align = TextAlign.Center;
         }
 
         void Build(RectTransform root)

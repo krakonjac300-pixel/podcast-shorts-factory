@@ -40,6 +40,7 @@ namespace SecondCursor.Story
             g.Shred.ConfirmShown += OnConfirm;
             g.Mail.Opened += OnMailOpened;
             g.DragDrop.PayloadFinished += OnPayloadFinished;
+            g.Windows.Restored += (w, by) => { if (w != null && w.Owner is CameraApp camera) camera.Touch(by); };
         }
 
         /// <summary>Every frame: the drag being carried and the CAM 03 feed.</summary>
@@ -70,7 +71,12 @@ namespace SecondCursor.Story
             }
             var cam = g.Apps?.Find<CameraApp>();
             bool on = cam != null && cam.IsOpen && !cam.Window.IsMinimized && cam.CurrentCamera == ContentIds.Cam03;
-            if (on && !_camOn) _s.camLooks++;
+            if (on && !_camOn)
+            {
+                _s.camLooks++;
+                // Phase R: a look the player brought about (opened the viewer, restored it, switched to CAM 03) is their own; one a session opened is not.
+                if (cam.LastTouchedBy != null && cam.LastTouchedBy.IsPlayer) _s.camOpened++;
+            }
             if (on) _s.camSeconds += Time.deltaTime;
             _camOn = on;
         }

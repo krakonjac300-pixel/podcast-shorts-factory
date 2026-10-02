@@ -208,9 +208,16 @@ namespace SecondCursor.Apps
         /// <summary>Phase Q1: while set, only the player can switch the viewer away from this camera (the first CAM 03 view).</summary>
         [System.NonSerialized] public string HeldOn;
 
+        /// <summary>Phase R: who last opened, restored or switched the viewer (the end card counts only the player's own looks at CAM 03).</summary>
+        public CursorAgent LastTouchedBy { get; private set; }
+
+        /// <summary>Phase R: the viewer was restored from the taskbar by <paramref name="by"/>.</summary>
+        public void Touch(CursorAgent by) => LastTouchedBy = by;
+
         public void Select(string camId, CursorAgent by)
         {
             if (HeldOn != null && camId != HeldOn && (by == null || !by.IsPlayer)) return;
+            LastTouchedBy = by;
             _current = camId;
             foreach (var kv in _buttons) kv.Value.Toggled = kv.Key == camId;
             var cam = G.Content.Camera(camId);

@@ -417,11 +417,13 @@ namespace SecondCursor.Tests
             var db = Demo();
             string title = db.Text("task.blocked.017.title");
             Assert.Equal("PRIORITY: Shred employee_017.dat (blocked: held by session 017)", title);
-            Assert.Contains("Nobody can", db.Text("task.blocked.017.hint"));
+            Assert.Contains("taken over", db.Text("task.blocked.017.hint"));   // Phase R: the order of events: fight at first, then accept it
+            Assert.Contains("Stop dragging", db.Text("task.blocked.017.hint"));
             Assert.Contains("cannot be shredded", db.Text("task.blocked.017.description"));
-            // The card no longer reads as a failure.
+            // The card no longer reads as a failure (Phase R: the headline says the file survives, the next line that nobody can shred it).
             string kept = db.Format("end.n1.outcome.kept", "2:48 AM");
-            Assert.Contains("Nobody could shred it", kept);
+            Assert.Contains("FILE SURVIVES", kept);
+            Assert.Contains("Nobody can shred", db.Text("end.n1.detail.kept"));
             Assert.DoesNotContain("still on the desktop", kept);
         }
 

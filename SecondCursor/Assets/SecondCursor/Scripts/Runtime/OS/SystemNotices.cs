@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using SecondCursor.Core;
 using SecondCursor.Core.Content;
+using SecondCursor.Core.Game;
 using SecondCursor.Game;
 using SecondCursor.Input;
 using UnityEngine;
@@ -43,6 +44,27 @@ namespace SecondCursor.OS
                 g.Notifications.Show(g.Content.Text("app.disposal"), g.Content.Format(key, name, SessionOf(g, by)), "icon_error", null, "sys_warning",
                     true, () => Time.time < until, other ? by.Actor : Core.Game.NoticeKind.Plain);
                 GameLog.Info(LogChannel.OS, "Notice: shred of " + name + " cancelled by " + (other ? SessionOf(g, by) : "the player") + (g.Shred.CancelledAtConfirm ? " at the confirm" : " during the shred"));
+                // Phase R: the race is over and the other session won it: a full-width LOST card, not only the toast.
+                var banner = Banner(g);
+                if (other && banner != null)
+                {
+                    banner.EndStrip();
+                    banner.ShowCard(false, g.Content.Format(ContestCopy.ShredKey(false, g.Shred.CancelledAtConfirm), name, SessionOf(g, by)));
+                }
+            };
+            // Phase R: a raced shred is a contest from the confirm to the last block of the bar (the confirm's own strip is ConfirmRace's).
+            g.Shred.ProgressStarted += (fileId, progress) =>
+            {
+                var banner = Banner(g);
+                if (g.Shred.Raced && banner != null) banner.BeginStrip(ContestCopy.StripCancel, g.EntityAgent.Actor, () => progress.IsOpen);
+            };
+            g.Shred.Completed += (fileId, by) =>
+            {
+                var banner = Banner(g);
+                if (!g.Shred.Raced || banner == null || by == null || !by.IsPlayer) return;
+                var file = g.Files.GetFile(fileId);
+                banner.EndStrip();
+                banner.ShowCard(true, g.Content.Format(ContestCopy.ShredKey(true, false), file != null ? file.Name : fileId));
             };
             g.Windows.ClosedEvent += (w, by) =>
             {
@@ -61,6 +83,16 @@ namespace SecondCursor.OS
                         Story.RoundsSystem.CameraName(g, rounds.Model.FigureCamera), Story.RoundsSystem.CameraName(g, Apps.CameraApp.CameraOnOpen(g)));
                 g.Notifications.Show(app, body, camera ? "icon_camera" : "icon_info", null, "ui_select", false, null, by.Actor);
                 GameLog.Info(LogChannel.OS, "Notice: " + app + " closed by " + SessionOf(g, by));
+            };
+            // Phase R (sixth blind playtest: "Camera Viewer and Personnel opened by themselves with no author"): a program another session
+            // opens is named, like a window it closes. Jotter has its own title and prompt; the code prompt and the viewers are the player's.
+            g.Apps.Launched += (appId, by) =>
+            {
+                if (by == null || !by.IsEntity || !NamesOpening(appId) || !Due("open:" + appId)) return;
+                string app = g.Content.Text("app." + appId, appId);
+                string who = Capital(SessionOf(g, by));
+                g.Notifications.Show(app, g.Content.Format("window.opened.by", who, app), appId == AppIds.Camera ? "icon_camera" : "icon_info", null, "ui_select", false, null, by.Actor);
+                GameLog.Info(LogChannel.OS, "Notice: " + app + " opened by " + who);
             };
             g.Files.FileMoved += (file, from, to, actor) =>
             {
@@ -103,6 +135,15 @@ namespace SecondCursor.OS
                 };
             }
         }
+
+        /// <summary>The programs whose opening by another session is named (not Jotter, the code prompt or the file viewers).</summary>
+        static bool NamesOpening(string appId) =>
+            appId == AppIds.Camera || appId == AppIds.Staff || appId == AppIds.Files || appId == AppIds.Mail
+            || appId == AppIds.WorkOrders || appId == AppIds.WorkQueue || appId == AppIds.Disposal;
+
+        static string Capital(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
+
+        static Entity.ContestBanner Banner(GameServices g) => g.Conflict != null && g.Conflict.Hud != null ? g.Conflict.Hud.Banner : null;
 
         /// <summary>"session 017" for the second cursor, "session 209" for the third, else "a remote session".</summary>
         public static string SessionOf(GameServices g, CursorAgent a)

@@ -76,7 +76,7 @@
       "to": "B-Level Staff <blevel@letheworth.corp>",
       "subject": "Scheduled maintenance: input irregularities",
       "date": "Wed 11/18/98 2:01 AM",
-      "body": "Hi all,\n\nWe're aware of input irregularities on some B-Level workstations: cursors jumping, files selecting themselves, a window shifting a few pixels, phantom clicks.\n\nThis is a known fault in the older pointing-device driver and is not caused by anything you did. A patch is scheduled for Saturday.\n\nIn the meantime:\n- Do not unplug your mouse.\n- Do not restart your workstation.\n- If the pointer moves on its own, take your hand off the mouse and let it finish.\n\nPlease do NOT report irregularities on WS-04. They are already logged.\n\nThanks,\nVictor Pell\nInformation Systems",
+      "body": "Hi all,\n\nWe're aware of input irregularities on some B-Level workstations: cursors jumping, files selecting themselves, a window shifting a few pixels, phantom clicks.\n\nThis is a known fault in the older pointing-device driver and is not caused by anything you did. A patch is scheduled for Saturday.\n\nIn the meantime:\n- Do not unplug your mouse.\n- Do not restart your workstation.\n- If the pointer moves on its own, take your hand off the mouse and let it finish. Do not fight it unless a task in your Work Queue tells you to.\n\nPlease do NOT report irregularities on WS-04. They are already logged.\n\nThanks,\nVictor Pell\nInformation Systems",
       "preload": false,
       "read": false
     },
@@ -96,7 +96,7 @@
       "to": "Casey Rourke <crourke@letheworth.corp>",
       "subject": "Re: employee_017.dat",
       "date": "Wed 11/18/98 2:21 AM",
-      "body": "Casey,\n\nRetention says the file is still on your desktop.\n\nI know. It does that. It did it to Gary too. Keep dragging it to the bin until it takes. Don't let it wear you down, and don't open it.\n\nNo breaks until it's gone. Custodial is coming down to B-Level early tonight.\n\nIf anyone asks, tell them I checked in.\n\nRuth",
+      "body": "Casey,\n\nRetention says the file is still on your desktop.\n\nI know. It does that. It did it to Gary too. Drag it to the bin and try it a few times, and do not open it. If it will not go, stop: nobody can shred it while another session holds it. Let it finish, and watch.\n\nRetention will tell you not to answer it. If it types to you, answer it in Jotter. I would rather you knew what it wants.\n\nCustodial is coming down to B-Level early tonight. I have noted that I checked in on you at 2:21 AM.\n\nRuth",
       "preload": false,
       "read": false
     },

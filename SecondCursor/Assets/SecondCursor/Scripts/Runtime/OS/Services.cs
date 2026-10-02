@@ -123,10 +123,31 @@ namespace SecondCursor.OS
             var brain = _g.Entity != null ? _g.Entity.Brain : null;
             // Phase P (T1): not when she lets it go (the finale's LetGo): she rests on Yes instead.
             Raced = brain != null && brain.Enabled && brain.ProtectedFileId == fileId && !brain.LetsGo;
+            // Phase R (sixth blind playtest: three lost races and no way to learn the rule): the first race of Night 1 says what it is
+            // before it starts, and session 017 waits a little longer for it (RaceGraceSeconds, taken by the brain).
+            if (Raced && _g.Night == 1 && !_ruleShown)
+            {
+                _ruleShown = true;
+                _graceOwed = true;
+                body += "\n" + c.Text("race.rule", "");
+            }
             Confirm = Dialogs.Message(_g, c.Text("shred.confirm.title"), body, "icon_question",
                 new[] { "Yes", "No" }, OnConfirm, 0, null, Raced ? RaceStatusHeight : 0);
             if (Raced) ConfirmRace.Attach(_g, Confirm, _g.Entity, () => true, "race.idle.shred");
             ConfirmShown?.Invoke(fileId, Confirm);
+        }
+
+        /// <summary>Phase R: the night's first raced confirm showed its rule line (and is owed a longer head start, taken once by <see cref="TakeRaceGrace"/>).</summary>
+        bool _ruleShown, _graceOwed;
+        /// <summary>Phase R: extra seconds before session 017 goes for No on the night's first race, so the rule can be read (the countdown shows it).</summary>
+        public const float RaceGraceSeconds = 2.5f;
+
+        /// <summary>The extra head start the first race of Night 1 gets (0 for every later race, and on the other nights).</summary>
+        public float TakeRaceGrace()
+        {
+            if (!_graceOwed) return 0f;
+            _graceOwed = false;
+            return RaceGraceSeconds;
         }
 
         /// <summary>Phase N: room in a dialog for the race line and its bar.</summary>
@@ -162,7 +183,10 @@ namespace SecondCursor.OS
             _confirmedBy = by;
             var c = _g.Content;
             var file = _g.Files.GetFile(fileId);
-            Progress = Dialogs.Progress(_g, c.Text("shred.progress.title"), c.Format("shred.progress.body", file != null ? file.Name : fileId));
+            string progressBody = c.Format("shred.progress.body", file != null ? file.Name : fileId);
+            // Phase R: a raced shred can still be cancelled by the other session; the dialog says so (the bar looked like a win, then it was undone).
+            if (Raced) progressBody += "\n" + c.Text("race.progress", "");
+            Progress = Dialogs.Progress(_g, c.Text("shred.progress.title"), progressBody);
             Progress.Cancelled += a => CancelProgress(a);
             _progressTime = 0f;
             _g.Audio?.PlayLoop("shred_loop", 0.5f);

@@ -46,6 +46,8 @@ namespace SecondCursor.Game
         /// <summary>The third pointer (Gary, Night 2 on). Registered after the second cursor, before the player.</summary>
         public CursorAgent GaryAgent;
         public CursorView GaryView;
+        /// <summary>Phase R: the YOU and SESSION tags that ride the pointers.</summary>
+        public PointerTags Tags;
 
         // Simulation (engine-free core)
         public ContentDatabase Content;

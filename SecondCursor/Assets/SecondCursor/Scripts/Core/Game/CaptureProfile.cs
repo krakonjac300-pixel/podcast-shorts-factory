@@ -28,6 +28,8 @@ namespace SecondCursor.Core.Game
         /// <summary>Times CAM 03 came on screen, and the seconds it was on screen.</summary>
         public int camLooks;
         public float camSeconds;
+        /// <summary>Phase R: how many of those looks the player brought about themselves (opened the viewer, restored it or switched to CAM 03); the story opens it too.</summary>
+        public int camOpened;
         public int tugWins, tugLosses;
         /// <summary>Lines the player sent to any remote session, and words sent to session 017.</summary>
         public int lines, words017;

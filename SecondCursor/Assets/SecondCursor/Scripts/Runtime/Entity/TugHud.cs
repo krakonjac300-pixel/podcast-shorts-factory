@@ -51,6 +51,9 @@ namespace SecondCursor.Entity
         FightText _shown;
         bool _shownSurge, _shownBlink;
 
+        /// <summary>Phase R: the strip and the WON or LOST card of every contest (a tug here, the raced shred's from SystemNotices).</summary>
+        public ContestBanner Banner { get; private set; }
+
         public static TugHud Create(GameServices g, ConflictSystem conflict)
         {
             var root = UIBuilder.Rect("Tug HUD", g.Layers.Effects);
@@ -60,6 +63,9 @@ namespace SecondCursor.Entity
             hud._g = g;
             hud._panel = root;
             hud.Build();
+            hud.Banner = ContestBanner.Create(g);
+            // The panel is drawn over the banner (its reason lines matter more than the card's width): it was created first, so move it up.
+            root.SetAsLastSibling();
             conflict.TugStarted += hud.OnStarted;
             conflict.TugEnded += hud.OnEnded;
             root.gameObject.SetActive(false);
@@ -122,6 +128,8 @@ namespace SecondCursor.Entity
             _small.Hide();
             ShowFight(FightState());
             _panel.gameObject.SetActive(true);
+            // Phase R: the whole fight wears a strip that says who is against whom.
+            Banner.BeginStrip(Core.Game.ContestCopy.StripTug, Core.Game.NoticeKind.Entity, () => C != null && C.IsFighting);
             GameLog.Info(LogChannel.Entity, "Tug HUD shown");
             Place(C.ObjectPosition, true);
         }
@@ -188,6 +196,7 @@ namespace SecondCursor.Entity
         {
             var c = C;
             _first = false;
+            Banner.EndStrip();
             _shown = FightText.None;
             _resultSeconds = ResultSeconds;
             _resultUntil = Time.unscaledTime + _resultSeconds;
@@ -210,6 +219,8 @@ namespace SecondCursor.Entity
             // Phase I: a lost fight says why. Phase K: from what the pointer really did, with the direction by name, and the bar stays up where
             // it ended. Phase P, the reel: a win says where the file is (in the bin, torn loose, or kept where it was let go).
             bool kept = won && Model == TugModel.Reel && c.LastKeptOnRelease;
+            // Phase R: the full-width card says who won and what it means (the panel beside the file keeps the reason).
+            if (Variant != TugVariant.LetGo) Banner.ShowCard(won, F(Core.Game.ContestCopy.TugKey(won, c.LastWonIntoBin, kept), name));
             string reason = !won ? ReasonKey(c.LastLossReason) : Model == TugModel.Speed || c.LastWonIntoBin ? "won" : kept ? "kept" : "won.tear";
             string word = !won ? T("haul.word.lost", "017 HAS IT") : c.LastWonIntoBin ? T("haul.word.won", "IN THE BIN") : T("haul.word.kept", "YOURS");
             string lines = won ? F(Key(reason)) : F(Key("lost." + reason), c.LastArrowDirection, c.LastPlayerDirection);
@@ -413,7 +424,8 @@ namespace SecondCursor.Entity
                 default: x = box.xMax; y = _anchor.y - h * 0.5f; break;
             }
             x = Mathf.Clamp(x, 2f, ScreenRig.Width - w - 2f);
-            y = Mathf.Clamp(y, WindowManager.TaskbarHeight + 2f, ScreenRig.Height - h - 2f);
+            // Phase R: under the contest strip and card.
+            y = Mathf.Clamp(y, WindowManager.TaskbarHeight + 2f, ScreenRig.Height - h - 2f - (Banner != null ? Banner.Occupied : 0));
             return new Rect(x, y, w, h);
         }
 
@@ -449,7 +461,7 @@ namespace SecondCursor.Entity
                 Place(c.ObjectPosition, false);
                 return;
             }
-            if (_resultUntil > 0f && Time.unscaledTime < _resultUntil)
+            if (_resultUntil > 0f && Time.unscaledTime < _resultUntil && !ResultIsStale())
             {
                 // The result follows the file: it is in the winner's hand now. The arrows and the bar stay as the fight ended.
                 Place(_winner != null ? _winner.Position : _anchor, false);
@@ -460,6 +472,19 @@ namespace SecondCursor.Entity
             _bigReady.Hide();
             if (_panel.gameObject.activeSelf) _panel.gameObject.SetActive(false);
             _resultUntil = -1f;
+        }
+
+        /// <summary>
+        /// Phase R (a "YOURS" banner stayed over the next dialog): a result goes the moment the Confirm Shred or the shred's own dialog opens,
+        /// or any other dialog opens: it was about the fight, and the next thing on screen is not the fight.
+        /// </summary>
+        bool ResultIsStale()
+        {
+            if (_g.Shred != null && _g.Shred.Busy) return true;
+            if (_g.Windows == null) return false;
+            foreach (var w in _g.Windows.Windows)
+                if (w != null && !w.IsClosed && !w.IsMinimized && w.AlwaysOnTop) return true;
+            return false;
         }
 
         /// <summary>

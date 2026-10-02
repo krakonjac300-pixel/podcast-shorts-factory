@@ -5,7 +5,7 @@
     { "key": "camera.denied.body", "value": "Camera Viewer access has been restored to Security staff only.\nThis attempt has been logged.\n\nNight Operators: your work is in the Work Queue." },
     { "key": "shred.confirm.note.employee_209", "value": "Record owner: 209 (held)." },
     { "key": "shred.confirm.late", "value": "Too late. Reclamation already started.\nShredding now releases only part of the record." },
-    { "key": "notify.pointer2.back", "value": "Pointing device 2 connected." },
+    { "key": "notify.pointer2.back", "value": "Pointing device 2 connected by session 017." },
     { "key": "shutdown.denied.body", "value": "WS-04 cannot be shut down while a session is open.\n\nOpen sessions on this workstation: 3" }
   ]
 }

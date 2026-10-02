@@ -82,13 +82,36 @@ namespace SecondCursor.Story
             int below = string.IsNullOrEmpty(spec.Outcome) ? 0 : 18;
             // Phase Q2: what session 017 kept (V7) and the night's Retention Record rows (T2) under the outcome.
             int y = 244 + below;
+            // Phase R: what the outcome means, in plain words (the demo's card keeps room for WISHLIST NOW: its first line only).
+            if (spec.OutcomeDetail != null)
+            {
+                int shown = 0;
+                foreach (var key in spec.OutcomeDetail)
+                {
+                    if (string.IsNullOrEmpty(key) || (spec.DemoCard && shown >= 1)) continue;
+                    var detail = UIBuilder.Text(parent, key, Palette.BiosText);
+                    detail.rectTransform.At(0, y, ScreenRig.Width, 12);
+                    detail.Align = TextAlign.Center;
+                    GameLog.Info(LogChannel.Story, "End card: " + key);
+                    y += 14;
+                    shown++;
+                }
+            }
             if (!string.IsNullOrEmpty(spec.KeptLine))
             {
                 var kept = UIBuilder.Text(parent, spec.KeptLine, new Color32(0x8A, 0x8A, 0x84, 0xFF));
                 kept.rectTransform.At(0, y, ScreenRig.Width, 12);
                 kept.Align = TextAlign.Center;
                 GameLog.Info(LogChannel.Story, "End card: " + spec.KeptLine);
-                y += 18;
+                y += spec.OutcomeDetail == null ? 18 : 14;
+            }
+            if (!string.IsNullOrEmpty(spec.CarryLine) && !spec.DemoCard)
+            {
+                var carry = UIBuilder.Text(parent, spec.CarryLine, new Color32(0x8A, 0x8A, 0x84, 0xFF));
+                carry.rectTransform.At(0, y, ScreenRig.Width, 12);
+                carry.Align = TextAlign.Center;
+                GameLog.Info(LogChannel.Story, "End card: " + spec.CarryLine);
+                y += 14;
             }
             if (spec.RecordRows != null && spec.RecordRows.Count > 0) y = RecordView.CardRows(parent, spec.RecordRows, y + 4) + 6;
             if (spec.DemoCard)

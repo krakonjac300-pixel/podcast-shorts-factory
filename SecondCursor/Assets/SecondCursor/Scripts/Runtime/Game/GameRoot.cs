@@ -165,6 +165,7 @@ namespace SecondCursor.Game
             g.GaryView = CursorView.Create(g.Layers.Cursors, g.GaryAgent, true, CursorView.GaryVariant);
             g.EntityView = CursorView.Create(g.Layers.Cursors, g.EntityAgent, true);
             g.PlayerView = CursorView.Create(g.Layers.Cursors, g.Player, false);
+            g.Tags = PointerTags.Create(g);   // Phase R: YOU on yours, SESSION 017 and 209 on theirs
 
             // Fake OS
             g.Windows = new WindowManager(g.Layers.Windows, g.Layers.Effects, g.Router);
@@ -206,6 +207,7 @@ namespace SecondCursor.Game
             g.Rounds = RoundsSystem.Create(g, transform);
             NightSetup.ForNight(g);
             g.Director = NightDirector.Create(g, transform, g.Night);
+            WaitLine.Create(g);   // Phase R: "Something is happening. You cannot act yet." while a story beat has the stage
             g.Scares = ScareScheduler.Create(g, transform);
             SystemNotices.Attach(g);
             // After the world set-up (which may set memory flags): only what happens from here can unlock anything.

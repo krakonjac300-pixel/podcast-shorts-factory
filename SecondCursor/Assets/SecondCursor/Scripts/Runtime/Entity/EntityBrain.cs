@@ -57,6 +57,8 @@ namespace SecondCursor.Entity
         public bool Enabled;
         /// <summary>The file it will not let the player destroy.</summary>
         public string ProtectedFileId = ContentIds.File017;
+        /// <summary>Phase R: when (Time.time) she goes for No on the race in progress; -1 when no race is waiting (the confirm's countdown reads it).</summary>
+        public float RaceNoAt { get; private set; } = -1f;
         /// <summary>How many times it has stopped the player (drives escalation).</summary>
         public int Defenses { get; private set; }
         /// <summary>Tugs the player has lost to it (only these make its grip grow).</summary>
@@ -399,9 +401,13 @@ namespace SecondCursor.Entity
             _c.State = Core.Entity.EntityState.Aggressive;
             // A beat of reaction time: the player gets a real chance to click Yes first.
             // Phase Q4 (A4): Story mode and Relaxed timing give the player a longer head start.
-            yield return Waits.Seconds(Profile.RaceToNoDelay(UnityEngine.Random.value, Assist) + Core.Game.RelaxedTiming.RaceDelayAdd(_g.TimeScale));
+            // Phase R: the night's first race also waits out the rule line (ShredService.TakeRaceGrace), and the confirm's countdown reads RaceNoAt.
+            float delay = Profile.RaceToNoDelay(UnityEngine.Random.value, Assist) + Core.Game.RelaxedTiming.RaceDelayAdd(_g.TimeScale) + _g.Shred.TakeRaceGrace();
+            RaceNoAt = Time.time + delay;
+            yield return Waits.Seconds(delay);
             var result = new bool[1];
             yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 1.5f);
+            RaceNoAt = -1f;
             if (result[0] && box.Result == "No") RegisterDefense("no");
         }
 

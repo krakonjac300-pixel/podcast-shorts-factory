@@ -15,7 +15,7 @@ namespace SecondCursor.OS
     /// </summary>
     public sealed class ConfirmRace : MonoBehaviour
     {
-        const int Blocks = 26, BarH = 8;
+        const int Blocks = 26, BarH = 8, CountWidth = 44;
         /// <summary>The bar's full length in px of pointer travel at least.</summary>
         const float BarSpan = 240f;
 
@@ -24,7 +24,7 @@ namespace SecondCursor.OS
         EntityController _racer;
         Func<bool> _racing;
         string _idleKey;
-        PixelText _line;
+        PixelText _line, _count;
         UnityEngine.UI.Image _icon;
         Core.Game.NoticeKind _iconKind = (Core.Game.NoticeKind)(-1);
         RectTransform _bar;
@@ -57,7 +57,17 @@ namespace SecondCursor.OS
             r._icon.enabled = false;
             var frame = UIBuilder.Bevel(box.Status, BevelStyle.Sunken, "Race Bar");
             r._bar = frame.rectTransform;
-            r._bar.TopStrip(Mathf.RoundToInt(14 * f), BarH + 4, 0, 0);
+            // Phase R: the number beside the bar is when the racer is expected to reach No (the bar leaves it room on the right).
+            int countW = Mathf.RoundToInt(CountWidth * f);
+            r._bar.TopStrip(Mathf.RoundToInt(14 * f), BarH + 4, 0, countW);
+            r._count = UIBuilder.Text(box.Status, "", Palette.Red, true, "Race Count");
+            r._count.Factor = f;
+            r._count.rectTransform.TopRight(0, Mathf.RoundToInt(14 * f), countW, Mathf.RoundToInt(12 * f));
+            r._count.Align = TextAlign.Right;
+            r._count.enabled = false;
+            // Phase R: the dialog is a contest: the strip at the top says who is against whom while it is open (the racer is the other side).
+            if (racer != null && racer.Agent != null)
+                g.Conflict?.Hud?.Banner?.BeginStrip(Core.Game.ContestCopy.StripRace, racer.Agent.Actor, () => box.IsOpen);
             for (int i = 0; i < Blocks; i++)
             {
                 r._blocks[i] = UIBuilder.Solid(r._bar, Palette.Red, "Block " + i);
@@ -80,6 +90,15 @@ namespace SecondCursor.OS
         static string Capital(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
 
         string Session(EntityController c) => Capital(SystemNotices.SessionOf(_g, c.Agent));
+
+        /// <summary>Seconds until the racer clicks No: what is left of her reaction delay (session 017's brain knows it) and the trip across.</summary>
+        float EtaToNo(UiButton no)
+        {
+            float readyAt = _racer == _g.Entity && _g.Entity.Brain != null ? _g.Entity.Brain.RaceNoAt : -1f;
+            float delayLeft = readyAt > 0f ? readyAt - Time.time : 0f;
+            float distance = no.Hit.WorldRect.Contains(_racer.Agent.Position) ? 0f : Vector2.Distance(_racer.Agent.Position, no.Hit.Center);
+            return Core.Game.RaceCountdown.Eta(delayLeft, distance);
+        }
 
         void LateUpdate()
         {
@@ -110,7 +129,9 @@ namespace SecondCursor.OS
             ShowIcon(text != null ? kind : Core.Game.NoticeKind.Plain);
             _line.color = fill >= 0f ? (Color)Palette.Red : (Color)Palette.Text;
             _bar.gameObject.SetActive(fill >= 0f);
+            _count.enabled = fill >= 0f;
             if (fill < 0f) return;
+            _count.text = Core.Game.RaceCountdown.Format(EtaToNo(no));
             float w = _bar.rect.width - 4f, step = w / Blocks;
             int lit = Mathf.FloorToInt(Mathf.Clamp01(fill) * Blocks + 0.001f);
             for (int i = 0; i < Blocks; i++)

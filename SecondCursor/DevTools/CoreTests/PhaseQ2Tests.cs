@@ -355,7 +355,7 @@ namespace SecondCursor.Tests
         static SaveData Run()
         {
             var d = new SaveData { playerName = "kosta", endingsSeen = new[] { "n1_blackout", "n3_keep" } };
-            d.capture[0] = new CaptureStats { recorded = true, words017 = 6, camLooks = 3, firstLine = "who are you", seconds = 600f, yesSeconds = 1f, yesCount = 1, tugWins = 1 };
+            d.capture[0] = new CaptureStats { recorded = true, words017 = 6, camLooks = 3, camOpened = 1, firstLine = "who are you", seconds = 600f, yesSeconds = 1f, yesCount = 1, tugWins = 1 };
             d.capture[1] = new CaptureStats { recorded = true, words017 = 10, camLooks = 2, seconds = 900f, yesSeconds = 2f, yesCount = 2, tugLosses = 2 };
             d.capture[2] = new CaptureStats { recorded = true, words017 = 4, camLooks = 5, seconds = 1200f };
             d.memory = new FlagSnapshot { flags = new[] { "m.n2.wo3320.reject", "m.n2.wo3322.reject", "m.n3.wo3333.approve", MemoryFlags.N3SaidName } };
@@ -390,7 +390,7 @@ namespace SecondCursor.Tests
             Assert.Contains("ORDERS AGAINST THE RULE 2   (WO-3320, WO-3333)", all);
             Assert.Contains("NAME GIVEN \"kosta\"", all);
             Assert.Contains("SAID HER NAME YES", all);
-            Assert.Contains("CAPTURE 214 100%", all);
+            Assert.Contains("COPY OF YOU (CAPTURE 214) 100% MADE", all);
             // KEEP was seen and SHRED is this one: only LOG OFF is sealed, with its hint.
             Assert.Contains("1 SEALED", all);
             Assert.Contains("SEVEN O'CLOCK", all);
@@ -410,10 +410,10 @@ namespace SecondCursor.Tests
             var d = Run();
             var n1 = RetentionRecord.Card(1, d, Fmt(demo));
             Assert.Equal(4, n1.Count);
-            Assert.Equal(new[] { "CAPTURE 214", "WORDS TYPED TO 017", "LOOKED AT CAM 03", "FIRST WORDS" }, n1.Select(r => r.Label).ToArray());
-            Assert.Equal(new[] { "88%", "6", "3 TIMES", "\"who are you\"" }, n1.Select(r => r.Value).ToArray());
+            Assert.Equal(new[] { "COPY OF YOU (CAPTURE 214)", "WORDS TYPED TO 017", "CAM 03 OPENED BY YOU", "FIRST WORDS" }, n1.Select(r => r.Label).ToArray());
+            Assert.Equal(new[] { "88% MADE", "6", "ONCE", "\"who are you\"" }, n1.Select(r => r.Value).ToArray());
             var n2 = RetentionRecord.Card(2, d, Fmt(Night(2)));
-            Assert.Equal("96%", n2[0].Value);
+            Assert.Equal("96% MADE", n2[0].Value);
             Assert.Equal("HESITATION BEFORE YES", n2[3].Label);
             Assert.Empty(RetentionRecord.Card(1, new SaveData(), Fmt(demo)));   // nothing measured, nothing shown
             Assert.Equal("NEVER", RetentionRecord.Card(1, new SaveData { capture = new[] { new CaptureStats { recorded = true }, new CaptureStats(), new CaptureStats() } }, Fmt(demo))[2].Value);

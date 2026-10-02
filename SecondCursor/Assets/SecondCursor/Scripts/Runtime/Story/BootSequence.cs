@@ -314,6 +314,9 @@ namespace SecondCursor.Story
             {
                 ok.Enabled = false;
                 yield return Retype(user, c.Text("login.username"));
+                // Phase R (sixth blind playtest: "the game typed for me, I did not know who"): once the scare has landed, the box says who it was.
+                status.rectTransform.At(14, 144, 330, 12);
+                status.text = c.Text("login.autofill", "");
                 ok.Enabled = true;
                 loggedIn = false; // a click on the greyed button while it typed does not count
             }

@@ -55,6 +55,13 @@ namespace SecondCursor.Story
         public int ContinueNight;
         /// <summary>Phase H: one line under the subtitle saying how the night ended for you ("" = none).</summary>
         public string Outcome = "";
+        /// <summary>
+        /// Phase R: lines under the outcome that say what it means (Night 1: the file survives and why the order could not be done; why the shift
+        /// ended early). The demo's card shows only the first, to keep room for WISHLIST NOW. Null or empty = none.
+        /// </summary>
+        public string[] OutcomeDetail;
+        /// <summary>Phase R: what carries into the next night ("" = none). Never on the demo's card (it has no next night).</summary>
+        public string CarryLine = "";
         /// <summary>Phase M: a climax's hit already killed the tube: no power down, no second collapse, only the dark.</summary>
         public bool AfterHit;
         /// <summary>Phase Q2 (V7): "Session 017 kept a copy of: ..." under the outcome ("" = none).</summary>

@@ -45,7 +45,8 @@ namespace SecondCursor.Core.Game
             bool hid = d.memory != null && HasFlag(d.memory, MemoryFlags.N2Hid214);
             rows.Add(new RecordRow(fmt("record.capture", null), fmt("record.pct", new object[] { CaptureProfile.Percent(night, hid, "") })));
             rows.Add(new RecordRow(fmt("record.words", null), s.words017.ToString()));
-            rows.Add(new RecordRow(fmt("record.cam", null), Times(s.camLooks, fmt)));
+            // Phase R: the card counts the player's own openings of CAM 03 (the story opens the viewer too, and the page said "looked at"); the full page keeps the looks.
+            rows.Add(new RecordRow(fmt("record.camopen", null), Times(s.camOpened, fmt)));
             if (night == 1) rows.Add(new RecordRow(fmt("record.first", null), Quote(s.firstLine, fmt)));
             else rows.Add(new RecordRow(fmt("record.yes", null), Yes(s.yesSeconds, s.yesCount, fmt)));
             return rows;

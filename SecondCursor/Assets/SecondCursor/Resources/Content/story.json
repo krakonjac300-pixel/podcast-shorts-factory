@@ -30,15 +30,15 @@
     "SEE YOU TOMORROW NIGHT"
   ],
   "anomalyNotes": [
-    "Pointing device 2 connected.",
-    "Input device reconnected.",
-    "Selection changed by another user.",
-    "Window position restored.",
-    "Pointer speed changed by another user.",
-    "Another user is logged on to this workstation.",
+    "Session 017 connected pointing device 2 and moved a window.",
+    "Input device reconnected by session 017.",
+    "Selection changed by session 017.",
+    "Window position changed by session 017.",
+    "Pointer speed changed by session 017.",
+    "Session 017 is logged on to this workstation.",
     "Unrecognized input. Logging enabled.",
-    "Camera Viewer permissions changed.",
+    "Camera Viewer permissions changed by session 017.",
     "Session 017 is still open.",
-    "Playback complete: WS-04 operator input."
+    "Session 017 replayed WS-04 operator input."
   ]
 }

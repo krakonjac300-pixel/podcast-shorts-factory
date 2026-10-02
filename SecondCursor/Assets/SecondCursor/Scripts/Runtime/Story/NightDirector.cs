@@ -249,6 +249,7 @@ namespace SecondCursor.Story
         protected virtual void CleanUpForJump()
         {
             var g = _g;
+            _holds = 0;
             g.Entity.Interrupt();
             g.Entity.Brain.Enabled = false;
             g.Entity.Brain.AllowCloseCamera = false;
@@ -451,9 +452,25 @@ namespace SecondCursor.Story
         protected void ShowNote(int index)
         {
             var notes = _g.Content.Story.anomalyNotes;
+            // Phase R: every note is about the other session, and says so (its pointer and stripe, and "session 017" in the words).
             if (notes != null && index >= 0 && index < notes.Length)
-                _g.Notifications.Show(_g.Content.Text("os.name"), notes[index], "icon_info", null, "ui_select");
+                _g.Notifications.Show(_g.Content.Text("os.name"), notes[index], "icon_info", null, "ui_select", false, null, Core.Game.NoticeKind.Entity);
         }
+
+        // ------------------------------------------------------------------ Phase R: the wait line
+
+        int _holds;
+
+        /// <summary>
+        /// Phase R (sixth blind playtest: "nothing says wait, nothing says this is the story now"): a story beat that has the stage says so. The
+        /// wait line shows while a beat holds control and nothing else needs the player: no reply to type, no fight, no shred or dialog, no file
+        /// in hand. Holds are counted; <see cref="CleanUpForJump"/> drops them.
+        /// </summary>
+        public bool PlayerMustWait =>
+            _holds > 0 && !IsPreparing && !AwaitingReply && !_g.Conflict.IsFighting && !_g.Shred.Busy && !AnyDialogOpen() && _g.Player.Payload == null;
+
+        /// <summary>A beat starts (<paramref name="on"/>) or stops holding the stage.</summary>
+        protected void HoldControl(bool on) => _holds = Mathf.Max(0, _holds + (on ? 1 : -1));
 
         protected IEnumerator Note(int index, float delay)
         {
