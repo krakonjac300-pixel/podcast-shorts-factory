@@ -70,6 +70,15 @@ namespace SecondCursor.Story
             }
 
             var room = Room();
+            yield return ShowResolution(room);
+            if (Core.Game.EndingResult.For(_spec.Id) == Core.Game.EndingResultKind.Lost)
+            {
+                // Keep the record available from the title, without delaying the retry behind an epilogue.
+                if (_spec.RecordPage != null && _spec.RecordPage.Count > 0) SaveSystem.SaveRecord(_spec.RecordPage, _spec.Id);
+                g.Entity.SetPresent(false, 0f);
+                yield return ShowCard(room);
+                yield break;
+            }
             if (_spec.SystemLines != null && _spec.SystemLines.Length > 0) yield return TypeSystemLines(room, _spec.SystemLines);
             yield return TypeSpoken(room, _spec.Lines ?? System.Array.Empty<string>(), _spec.Speakers);
             if (_spec.Stinger) yield return Cam00Stinger(room);

@@ -6,6 +6,8 @@
       "entityLines": ["YOU CAME BACK"],
       "responses": [
         { "keywords": [], "reply": ["{NAME}", "THEY WROTE CASEY AGAIN"], "tag": "myname" },
+        { "keywords": ["=i dont trust you", "=i do not trust you", "=i cant trust you", "=i cannot trust you", "=i dont believe you", "=i do not believe you"], "reply": ["THEN CHECK", "THE DOOR LOG IS STILL THERE"], "tag": "distrust" },
+        { "keywords": ["=i trust you", "=i believe you", "=i am on your side", "=im on your side", "=you can trust me"], "reply": ["YOU SHOULD BE CAREFUL", "BUT I HEARD YOU"], "tag": "trust", "gesture": "nod" },
         { "keywords": ["chat", "twitch", "stream", "viewers", "subscribe", "youtube", "audience", "followers", "mods"], "reply": ["THEY CAME BACK TOO"], "tag": "chat" },
         { "keywords": ["=ellen", "=ellens", "=marsh", "ellen marsh"], "reply": ["WHO TOLD YOU THAT"], "tag": "name" },
         { "keywords": ["see me", "see my face", "webcam", "my camera", "my room", "my house", "where i live", "my address", "ip address", "=dox", "doxx"], "reply": ["NOT YOUR ROOM", "CAM 03 IS ENOUGH"], "tag": "" },
@@ -151,7 +153,7 @@
     { "id": "n2_back_mem_refuse", "voice": "", "lines": ["YOU FOUGHT ME LAST NIGHT"], "speakers": [] },
     { "id": "n2_back_mem_chat", "voice": "", "lines": ["ARE THEY STILL WATCHING", "TELL THEM HELLO"], "speakers": [] },
     { "id": "n2_empty_chair", "voice": "", "lines": ["LOOK AT YOU"], "speakers": [] },
-    { "id": "n2_help", "voice": "", "lines": ["LET ME", "I KNOW THIS JOB"], "speakers": [] },
+    { "id": "n2_help", "voice": "", "lines": ["I KNOW THIS JOB", "I CAN HELP SORT", "YOU CHOOSE WHO GETS ERASED"], "speakers": [] },
     { "id": "n2_help_more", "voice": "", "lines": ["TWENTY SEVEN YEARS", "SAME FOLDERS"], "speakers": [] },
     { "id": "n2_ask_intro", "voice": "", "lines": ["YOUR TURN", "DO SOMETHING FOR ME"], "speakers": [] },
     { "id": "n2_door", "voice": "", "lines": ["YOU NEVER CAME IN", "NEITHER DID I"], "speakers": [] },

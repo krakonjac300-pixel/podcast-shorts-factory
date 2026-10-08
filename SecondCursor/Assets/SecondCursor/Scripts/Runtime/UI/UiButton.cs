@@ -124,6 +124,18 @@ namespace SecondCursor.UI
         {
             Refresh();
             LayoutGlyph();
+            LayoutLabel();
+        }
+
+        void LayoutLabel()
+        {
+            if (Label == null || _content == null) return;
+            float factor = Game.DisplaySettings.ReadingFactor;
+            var size = _content.rect.size;
+            // Compact taskbar and caption controls keep their available space. Ordinary actions and settings use the requested size.
+            while (factor > 1f && (PixelFont.MeasureLine(Label.text, Label.Bold, factor) > size.x
+                                  || PixelFont.GlyphHeight * factor > size.y)) factor -= 0.5f;
+            Label.Factor = factor;
         }
 
         /// <summary>Centre the glyph on whole pixels (odd/even sizes would otherwise land on half pixels).</summary>

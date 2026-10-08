@@ -13,9 +13,13 @@ namespace SecondCursor.UI
     {
         ScrollArea _area;
         RectTransform _chip;
+        PixelText _label;
+        RectTransform _arrow;
+        int _width, _right, _bottom;
+        float _factor = -1f;
+        float _strip = 16f;
         /// <summary>Phase Q4 (R7): while the chip shows, a strip at the bottom of the area is reserved for it, so it never lies over the last visible line.</summary>
         bool _reserved;
-        const float Strip = 16f;
 
         /// <param name="frame">The frame around the scroll area (the chip sits at its bottom right, left of the scroll bar).</param>
         /// <param name="elementId">Logical id for the pointer system and the test bridge, e.g. "morebelow:mail".</param>
@@ -39,20 +43,35 @@ namespace SecondCursor.UI
             var watcher = frame.gameObject.AddComponent<MoreBelow>();
             watcher._area = area;
             watcher._chip = chip;
+            watcher._label = label;
+            watcher._arrow = arrow.rectTransform;
+            watcher._width = width;
+            watcher._right = right;
+            watcher._bottom = bottom;
             return watcher;
         }
 
         void Update()
         {
             if (_area == null || _chip == null) return;
+            float factor = Game.DisplaySettings.ReadingFactor;
+            if (_factor != factor)
+            {
+                _factor = factor;
+                _strip = Mathf.Ceil(16f * factor);
+                _chip.BottomRight(_right, _bottom, Mathf.Ceil(_width * factor), Mathf.Ceil(14f * factor));
+                _label.Factor = factor;
+                _arrow.anchoredPosition = new Vector2(4f, -Mathf.Floor((_chip.rect.height - 8f) / 2f));
+                if (_reserved) _area.Viewport.offsetMin = new Vector2(_area.Viewport.offsetMin.x, _strip);
+            }
             // The end is judged against the whole viewport (with the strip given back), so reserving the strip cannot flip the answer.
-            float full = _area.Viewport.rect.height + (_reserved ? Strip : 0f);
+            float full = _area.Viewport.rect.height + (_reserved ? _strip : 0f);
             float fullMax = Mathf.Max(0f, _area.ContentHeight - full);
             bool more = fullMax > 2f && _area.Offset < fullMax - 2f;
             if (more != _reserved)
             {
                 _reserved = more;
-                _area.Viewport.offsetMin = new Vector2(_area.Viewport.offsetMin.x, more ? Strip : 0f);
+                _area.Viewport.offsetMin = new Vector2(_area.Viewport.offsetMin.x, more ? _strip : 0f);
             }
             if (_chip.gameObject.activeSelf != more) _chip.gameObject.SetActive(more);
         }

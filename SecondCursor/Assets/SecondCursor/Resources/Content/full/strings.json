@@ -161,6 +161,12 @@
     { "key": "caption.whisper_burst", "value": "[a whisper]" },
     { "key": "caption.metal_scrape", "value": "[metal scraping]" },
     { "key": "caption.sub_swell", "value": "[a low rumble swells]" },
-    { "key": "caption.footstep_distant", "value": "[footsteps, far off]" }
+    { "key": "caption.footstep_distant", "value": "[footsteps, far off]" },
+    { "key": "result.escaped", "value": "YOU ESCAPED" },
+    { "key": "result.n2_finished", "value": "Night 2 is complete. Gary's file was released. Your session continues into Night 3." },
+    { "key": "result.n2_kept", "value": "Night 2 is complete. Gary is still held. You can continue into Night 3." },
+    { "key": "result.n3_keep", "value": "You did not escape. Session 017 kept you inside NEXUS. Your shift will never end." },
+    { "key": "result.n3_shred", "value": "You freed session 017, but took her place. You are trapped inside NEXUS." },
+    { "key": "result.n3_logoff", "value": "You closed your session and escaped WS-04. What the company kept behind is still unknown." }
   ]
 }

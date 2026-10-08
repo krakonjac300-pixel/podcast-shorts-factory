@@ -31,6 +31,8 @@ namespace SecondCursor.UI
     {
         const int RowHeight = 18;
         const int SepHeight = 8;
+        int _rowHeight = RowHeight;
+        float _factor = 1f;
 
         public event Action Closed;
         public RectTransform Rect { get; private set; }
@@ -62,10 +64,24 @@ namespace SecondCursor.UI
 
         void OnDestroy() => Open.Remove(this);
 
-        public static PopupMenu Show(RectTransform layer, Vector2 topLeft, IList<MenuItem> items, int width = 150, int leftGutter = 0)
+        public static PopupMenu Show(RectTransform layer, Vector2 topLeft, IList<MenuItem> items, int width = 150, int leftGutter = 0,
+            int maxHeight = ScreenRig.Height)
         {
+            int rowCount = 0, separators = 0;
+            foreach (var it in items) { if (it.Separator) separators++; else rowCount++; }
+            float factor = Game.DisplaySettings.ReadingFactor;
+            // Long menus use the largest readable half step that keeps every choice on the desktop.
+            int availableHeight = Mathf.Clamp(maxHeight, RowHeight + 4, ScreenRig.Height);
+            while (factor > 1f && 4 + rowCount * Mathf.CeilToInt(RowHeight * factor) + separators * SepHeight > availableHeight)
+                factor -= 0.5f;
+            int rowHeight = Mathf.CeilToInt(RowHeight * factor);
             int h = 4;
-            foreach (var it in items) h += it.Separator ? SepHeight : RowHeight;
+            foreach (var it in items)
+            {
+                h += it.Separator ? SepHeight : rowHeight;
+                if (!it.Separator) width = Mathf.Max(width, PixelFont.MeasureLine(it.Label, it.Bold, factor) + leftGutter + 34);
+            }
+            width = Mathf.Min(width, ScreenRig.Width);
 
             var rt = UIBuilder.Rect("Popup Menu", layer);
             rt.anchorMin = rt.anchorMax = Vector2.zero;
@@ -78,6 +94,8 @@ namespace SecondCursor.UI
 
             var menu = rt.gameObject.AddComponent<PopupMenu>();
             menu.Rect = rt;
+            menu._rowHeight = rowHeight;
+            menu._factor = factor;
             Open.Add(menu);
             var frame = rt.gameObject.AddComponent<BevelGraphic>();
             frame.Style = BevelStyle.Window;
@@ -96,14 +114,14 @@ namespace SecondCursor.UI
                     continue;
                 }
                 menu.AddRow(rt, item, yy, leftGutter);
-                yy += RowHeight;
+                yy += rowHeight;
             }
             return menu;
         }
 
         void AddRow(RectTransform parent, MenuItem item, int y, int leftGutter)
         {
-            var row = UIBuilder.Rect("Item " + item.Label, parent).TopStrip(y, RowHeight, 3 + leftGutter, 3);
+            var row = UIBuilder.Rect("Item " + item.Label, parent).TopStrip(y, _rowHeight, 3 + leftGutter, 3);
             var bg = UIBuilder.Solid(row, Palette.Selection, "Highlight");
             bg.rectTransform.Stretch();
             bg.enabled = false;
@@ -112,10 +130,11 @@ namespace SecondCursor.UI
             if (!string.IsNullOrEmpty(item.Icon))
             {
                 icon = UIBuilder.Icon(row, item.Icon, 1);
-                icon.rectTransform.anchoredPosition = new Vector2(2f, -1f);
+                icon.rectTransform.anchoredPosition = new Vector2(2f, -Mathf.Floor((_rowHeight - 16f) / 2f));
                 textX = 22;
             }
             var label = UIBuilder.Text(row, item.Label, item.Enabled ? Palette.Text : Palette.TextDisabled, item.Bold);
+            label.Factor = _factor;
             label.rectTransform.Stretch(textX, 0, 2, 0);
             label.VAlign = TextVAlign.Middle;
 

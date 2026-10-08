@@ -25,6 +25,7 @@ namespace SecondCursor.Apps
         PixelText _recovered;
         UiButton _toggle;
         string _clean;
+        string _loadedContent;
         string[] _lines;
         float _glitchTimer;
         int _glitchLine = -1;
@@ -32,6 +33,7 @@ namespace SecondCursor.Apps
         bool _showRecovered;
 
         public override string AppId => AppIds.DataViewer;
+        public string FileId => _fileId;
 
         public DataViewerApp(string fileId)
         {
@@ -65,12 +67,12 @@ namespace SecondCursor.Apps
             _dump = UIBuilder.Text(_scroll.Content, "", Palette.Text);
             _dump.MonospaceAdvance = 6;
 
-            if (Unstable && RecoveredText.IsGlitched(file.Content))
+            if (file != null && !string.IsNullOrWhiteSpace(file.Content))
             {
                 // A button row above the text: the toggle sits at the right, the hex header at the left.
                 frame.rectTransform.Stretch(0, 20, 0, 0);
                 _header.rectTransform.TopStrip(4, 12, 6, 110);
-                _toggle = UiButton.Create(Window.Client, "Recovered text", a => SetRecovered(!_showRecovered), "button:Recovered");
+                _toggle = UiButton.Create(Window.Client, RecoveredText.IsGlitched(file.Content) ? "Recovered text" : "Text view", a => SetRecovered(!_showRecovered), "button:Recovered");
                 ((RectTransform)_toggle.transform).TopRight(2, 1, 104, 17);
                 _textScroll = ScrollArea.Create(frame.rectTransform, "Recovered Scroll");
                 ((RectTransform)_textScroll.transform).Stretch(2, 2, 2, 2);
@@ -92,7 +94,7 @@ namespace SecondCursor.Apps
             _scroll.gameObject.SetActive(!on);
             _textScroll.gameObject.SetActive(on);
             _header.gameObject.SetActive(!on);
-            _toggle.Label.text = on ? "Hex view" : "Recovered text";
+            _toggle.Label.text = on ? "Hex view" : (RecoveredText.IsGlitched(G.Files.GetFile(_fileId)?.Content) ? "Recovered text" : "Text view");
             if (on)
             {
                 var file = G.Files.GetFile(_fileId);
@@ -117,6 +119,7 @@ namespace SecondCursor.Apps
 
         void Build(string content)
         {
+            _loadedContent = content ?? "";
             var bytes = Encoding.ASCII.GetBytes(content ?? "");
             int rows = Mathf.Max(1, (bytes.Length + BytesPerRow - 1) / BytesPerRow);
             _lines = new string[rows];
@@ -131,6 +134,25 @@ namespace SecondCursor.Apps
             _dump.text = _clean;
             _dump.rectTransform.At(4, 3, 460, rows * PixelFont.LineHeight + 4);
             _scroll.ContentHeight = rows * PixelFont.LineHeight + 8;
+        }
+
+        /// <summary>Reopening a changed file refreshes its evidence without losing the reader's place.</summary>
+        public void RefreshFile()
+        {
+            string content = G.Files.GetFile(_fileId)?.Content ?? "";
+            if (content == _loadedContent) return;
+            float hexOffset = _scroll.Offset;
+            float textOffset = _textScroll != null ? _textScroll.Offset : 0f;
+            Build(content);
+            _scroll.ScrollTo(hexOffset);
+            if (_toggle != null)
+                _toggle.Label.text = _showRecovered ? "Hex view" : (RecoveredText.IsGlitched(content) ? "Recovered text" : "Text view");
+            if (_showRecovered)
+            {
+                _recovered.text = RecoveredText.From(content);
+                LayoutRecovered();
+                _textScroll.ScrollTo(textOffset);
+            }
         }
 
         static string RowString(byte[] bytes, int start)

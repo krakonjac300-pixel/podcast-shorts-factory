@@ -423,7 +423,8 @@ namespace SecondCursor.Tests
             var engine = new DialogueEngine(db);
             var final = db.Exchange(ContentIds.ExchangeN3Final);
             Assert.Equal("stay", engine.Respond(final, "i will stay").Tag);
-            Assert.Equal("stay", engine.Respond(final, "yes").Tag);
+            // The finale commits "stay" only on a short explicit statement; a bare yes is not a choice.
+            Assert.NotEqual("stay", engine.Respond(final, "yes").Tag);
             Assert.Equal("letgo", engine.Respond(final, "let you go").Tag);
             Assert.Equal("letgo", engine.Respond(final, "shred it").Tag);
             Assert.Equal("go", engine.Respond(final, "i want to go home").Tag);

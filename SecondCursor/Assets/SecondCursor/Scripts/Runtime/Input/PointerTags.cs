@@ -11,7 +11,7 @@ namespace SecondCursor.Input
 {
     /// <summary>
     /// Phase R (sixth blind playtest: "two pointers, I could not tell which one was me"): small name tags that follow the pointers. A cream
-    /// YOU tag rides the player's pointer for the first 30 s of each shift and again for 6 s when a second pointer first shows in a night;
+    /// YOU tag rides the player's pointer for the first 30 s of each shift and throughout any shared-cursor scene;
     /// SESSION 017 (and, on the nights Gary exists, SESSION 209) rides that session's pointer in its own colours whenever it is on screen.
     /// The tags sit to the right of the arrow's tip (to the left near the screen edge), under the pointers, and never take a click.
     /// </summary>
@@ -93,7 +93,9 @@ namespace SecondCursor.Input
 
             string you = g.Content.Text("pointer.tag.you", "YOU");
             // Not while the story has taken the pointer (a climax) or the ending's screens are up: it only helps where the player can act.
-            Show(_you, g.Player, null, you, g.Player.Visible && g.Player.Enabled ? PointerTagRules.YouAlpha(_youLeft) : 0f);
+            bool playing = g.Flags != null && g.Flags.Has(Flags.LoggedIn) && !g.Flags.Has(Flags.Ending);
+            Show(_you, g.Player, null, you, g.Player.Visible && g.Player.Enabled
+                ? PointerTagRules.VisibleYouAlpha(_youLeft, playing && (entityOn || garyOn)) : 0f);
             Show(_entity, g.EntityAgent, g.EntityView, g.Content.Text("pointer.tag.entity", "SESSION 017"), entityOn ? Opacity(g.EntityView) : 0f);
             // Session 209 is a Night 2 and 3 string: no text, no tag (Night 1 and the demo never show one).
             Show(_gary, g.GaryAgent, g.GaryView, g.Content.Text("pointer.tag.gary", ""), garyOn ? Opacity(g.GaryView) : 0f);

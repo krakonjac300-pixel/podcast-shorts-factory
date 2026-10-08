@@ -30,13 +30,14 @@ namespace SecondCursor.Story
             "boot", "work", "anomaly", "presence", "conflict", "communication", "escalation", "reveal", "ending",
         };
 
-        static readonly string[] Checkpoints = { "work", "conflict", "escalation" };
+        static readonly string[] Checkpoints = { "work", "anomaly", "conflict", "escalation", "reveal" };
 
         CursorRecording _ledgerClip;
         Speaker _ellen;
         int _cameraReopens;
         /// <summary>Phase M: the reveal ended on its hit (the ending skips its own power down).</summary>
         bool _afterHit;
+        bool _caught;
 
         public override string[] Beats => BeatList;
         public override int Night => 1;
@@ -50,7 +51,11 @@ namespace SecondCursor.Story
             g.Tasks.TaskCompleted += t =>
             {
                 // Keep the footage of the player archiving the ledger: the entity replays it later.
-                if (t.Id == ContentIds.TaskArchiveLedger) _ledgerClip = g.Recorder.Extract(Time.time - 6.5f, Time.time + 0.1f);
+                if (t.Id == ContentIds.TaskArchiveLedger)
+                {
+                    _ledgerClip = g.Recorder.Extract(Time.time - 6.5f, Time.time + 0.1f);
+                    if (!IsPreparing) DeliverFirstShiftMail("mail_ledger_receipt");
+                }
             };
             g.Apps.CanLaunch = CanLaunch;
             g.Apps.Launched += (appId, a) =>
@@ -70,6 +75,7 @@ namespace SecondCursor.Story
             g.Desktop.AppIconMovedByPlayer += OnAppIconMoved;
             // Phase Q2 (owner 3): deciding Joan Nakamura's wipe changes her record tonight, whoever decided it.
             g.Orders.Decided += OnOrderDecided;
+            WatchOpeningProgress();
         }
 
         /// <summary>
@@ -79,13 +85,17 @@ namespace SecondCursor.Story
         /// </summary>
         void OnOrderDecided(string id, string decision, CursorAgent by)
         {
-            if (id == ContentIds.Order3318 && !IsPreparing) Note163(decision, true);
+            if (IsPreparing) return;
+            if (id != ContentIds.Order3317 && id != ContentIds.Order3318) return;
+            _g.Flags.Set(WorkOrderRules.MemoryKey(1, id, decision));
+            if (id == ContentIds.Order3318) Note163(decision, true);
+            DeliverFirstShiftMail("mail_" + id + "_" + decision);
         }
 
         /// <summary>Joan's record after WO-3318 (a jump or Continue past the order puts the line back without a notice).</summary>
         void Note163(string decision, bool notify)
         {
-            if (decision == null) return;
+            if (decision != "approve" && decision != "reject") return;
             var g = _g;
             var e = g.Content.Employee(ContentIds.Employee163);
             string note = g.Content.Text(decision == "approve" ? "n1.163.approve" : "n1.163.reject");
@@ -116,7 +126,16 @@ namespace SecondCursor.Story
         }
 
         // Night 1: a launch with no pointer behind it is denied too (the shift's own world has no reason to open the viewer).
-        bool CanLaunch(string appId, CursorAgent by) => CameraGate(appId, by, false);
+        bool CanLaunch(string appId, CursorAgent by)
+        {
+            if (appId == AppIds.Camera && _g.Flags.Has(CameraDeclined))
+            {
+                Dialogs.Message(_g, "Camera 03: offline", "Live video was declined for this shift. Session 017 is watching the door.",
+                    "icon_camera", new[] { "OK" }, null);
+                return false;
+            }
+            return CameraGate(appId, by, false);
+        }
 
         protected override void CleanUpForJump()
         {
@@ -141,12 +160,18 @@ namespace SecondCursor.Story
                 case "reveal": return Reveal();
                 default:
                     StopSideRoutines();
+                    if (_caught)
+                    {
+                        _ending = new EndingSequence(_g, EndingSpec.Capture());
+                        return _ending.Run();
+                    }
                     CompleteNight(ContentIds.EndingN1Blackout);
                     // Phase H: the card says how the night ended (WS-04 went dark; the file came back or never went).
                     var spec = EndingSpec.Night1();
                     spec.AfterHit = _afterHit;
                     bool shreddedOnce = _g.Flags.Has(Flags.File017ShreddedOnce);
                     spec.Outcome = _g.Content.Format(shreddedOnce ? "end.n1.outcome.shredded" : "end.n1.outcome.kept", _g.Clock.Format12());
+                    if (_g.Flags.Has(CameraDeclined)) spec.Outcome = _g.Content.Text("end.n1.outcome.offline");
                     // Phase R: what it means (the order could not be done, and why), why the shift ended before 7:00, and what carries into Night 2.
                     spec.OutcomeDetail = new[]
                     {
@@ -215,8 +240,11 @@ namespace SecondCursor.Story
         /// <summary>Put the world in the state a beat expects when jumping straight to it (debug or Continue).</summary>
         protected override void Prepare(int beatIndex)
         {
+            _caught = false;
+            _afterHit = false;
             var g = _g;
             ShowDesktop();
+            if ((beatIndex == 1 || beatIndex == 2) && RestoreOpeningWork()) return;
             // Complete earlier tasks and deliver their mail.
             if (beatIndex > 1)
             {
@@ -227,7 +255,9 @@ namespace SecondCursor.Story
                 g.Mail.MarkRead(ContentIds.MailWelcome, null);
                 MoveIfIn(ContentIds.FileLedger, ContentIds.FolderIntake, ContentIds.FolderArchive);
                 if (g.Files.Exists(ContentIds.FileCache) && g.Files.Shred(ContentIds.FileCache, Actor.System)) g.Shred.MarkShredded();
-                DecideByRule(ContentIds.Order3317, ContentIds.Order3318);
+                RestoreFirstShiftOrder(ContentIds.Order3317);
+                RestoreFirstShiftOrder(ContentIds.Order3318);
+                DeliverFirstShiftMail("mail_ledger_receipt", false);
                 Note163(g.Orders.DecisionFor(ContentIds.Order3318), false);
                 if (g.Apps.FindById(AppIds.WorkQueue) == null) g.Apps.Launch(AppIds.WorkQueue, null);
             }
@@ -303,27 +333,25 @@ namespace SecondCursor.Story
             _g.Apps.Launch(AppIds.WorkQueue, null);
             yield return Wait(1.2f);
             // How to play, in the OS's own words: the first shift starts with a Quick Start the player dismisses.
-            var quick = Dialogs.Message(_g, _g.Content.Text("quickstart.title"), _g.Content.Text("quickstart.body"), "icon_info", new[] { "Begin" }, null);
-            yield return ClockStillWhile(quick, 120f);
-            yield return Wait(0.6f);
-            GiveTask(ContentIds.TaskReadBriefing);
-            yield return Wait(1.5f);
-            if (_g.Mail.UnreadCount > 0)
-                _g.Notifications.Show(_g.Content.Text("app.mail"), _g.Content.Format("notify.newmail", _g.Mail.UnreadCount), "icon_mail_unread",
-                    a => _g.Apps.Launch(AppIds.Mail, a));
-            yield return WaitTask(ContentIds.TaskReadBriefing, _g.Difficulty.BriefingHintFirst);
-
-            GiveTask(ContentIds.TaskArchiveLedger);
-            yield return WaitTask(ContentIds.TaskArchiveLedger);
-
-            GiveTask(ContentIds.TaskVerify3317);
-            RunSide(TinyNudge(), "tiny-nudge");
-            yield return WaitTask(ContentIds.TaskVerify3317);
-            GiveTask(ContentIds.TaskVerify3318);
-            yield return WaitTask(ContentIds.TaskVerify3318);
-
-            GiveTask(ContentIds.TaskShredCache);
-            yield return WaitTask(ContentIds.TaskShredCache);
+            if (!_quickStartDismissed)
+            {
+                yield return QuickStartWithComfort();
+                _quickStartDismissed = true;
+                SaveCurrentProgress();
+            }
+            foreach (var id in new[] { ContentIds.TaskReadBriefing, ContentIds.TaskArchiveLedger,
+                         ContentIds.TaskVerify3317, ContentIds.TaskVerify3318, ContentIds.TaskShredCache })
+            {
+                if (_g.Tasks.IsCompleted(id))
+                {
+                    if (id == ContentIds.TaskArchiveLedger) yield return LedgerAcknowledgement();
+                    continue;
+                }
+                GiveTask(id);
+                if (id == ContentIds.TaskVerify3317) RunSide(TinyNudge(), "tiny-nudge");
+                yield return WaitTask(id, id == ContentIds.TaskReadBriefing ? _g.Difficulty.BriefingHintFirst : -1f);
+                if (id == ContentIds.TaskArchiveLedger) yield return LedgerAcknowledgement();
+            }
             _g.Flags.Set(Flags.TutorialDone);
             // An icon dragged during the tutorial counts too (the scare is armed here, not only by a later drag).
             ArmIconBack();
@@ -332,13 +360,15 @@ namespace SecondCursor.Story
         /// <summary>Phase 0's single ambiguous oddity: the Staff Directory window shifts a few pixels.</summary>
         IEnumerator TinyNudge()
         {
+            if (_g.Flags.Has("n1.personnel_nudge")) yield break;
             yield return WaitUntil(() => _g.Apps.FindById(AppIds.Staff) != null, 90f);
             yield return Wait(UnityEngine.Random.Range(6f, 9f));
             var staff = _g.Apps.FindById(AppIds.Staff);
             if (staff == null || !staff.IsOpen || staff.Window.DraggedBy != null) yield break;
             staff.Window.MoveBy(new Vector2(6f, 2f));
+            _g.Flags.Set("n1.personnel_nudge");
+            SaveCurrentProgress();
             GameLog.Info(LogChannel.Story, "Anomaly: window nudged (tiny)");
-            ShowNote(3);   // Phase R: "Window position changed by session 017." (it used to move with no name on it)
         }
 
         // ------------------------------------------------------------------ PHASE 1: ambiguous
@@ -347,6 +377,12 @@ namespace SecondCursor.Story
         {
             E.Phase = EntityPhase.Ambiguous;
             ArmIconBack();
+            if (_g.Flags.Has(Flags.FirstAnomaly))
+            {
+                GiveTask(ContentIds.TaskArchiveBatch);
+                yield return WaitTask(ContentIds.TaskArchiveBatch, 40f);
+                yield break;
+            }
             yield return Wait(4f);
             _g.Mail.Deliver(ContentIds.MailIt);
             yield return Wait(3f);
@@ -376,9 +412,6 @@ namespace SecondCursor.Story
                 // Nobody is looking at it, so the file manager opens by itself where the file lives.
                 fm = _g.Apps.OpenFolder(_g.Files.FolderOf(ContentIds.File017), null);
                 GameLog.Info(LogChannel.Story, "Anomaly: File Manager opened itself");
-                // Phase R: nobody's pointer is behind it, so the notice names who it was.
-                _g.Notifications.Show(_g.Content.Text("app.files"), _g.Content.Format("window.opened.by", "Session 017", _g.Content.Text("app.files")), "icon_info",
-                    null, "ui_select", false, null, Core.Game.NoticeKind.Entity);
                 yield return Wait(0.9f);
                 r = fm != null && fm.IsOpen ? fm.RowFor(ContentIds.File017) : null;
             }
@@ -388,7 +421,6 @@ namespace SecondCursor.Story
                 PhantomClick(r.Hit.Center);
                 _g.Flags.Set(Flags.FirstAnomaly);
                 GameLog.Info(LogChannel.Story, "Anomaly: employee_017 selected itself");
-                RunSide(Note(2, 1.4f), "note-selection");
             }
 
             // Anomaly B: a window drifts 10 px while you're looking elsewhere.
@@ -400,7 +432,6 @@ namespace SecondCursor.Story
                 _g.Audio.Play("mouse_release", 0.5f, 1f, Audio.AudioManager.PanFor(target.CaptionCenter.x));
                 GameLog.Info(LogChannel.Story, "Anomaly: window moved 10px");
             }
-            ShowNote(0);   // Phase R: "Session 017 connected pointing device 2 and moved a window."
 
             yield return WaitTask(ContentIds.TaskArchiveBatch, 40f);
         }
@@ -667,6 +698,13 @@ namespace SecondCursor.Story
             _g.Notifications.Show(_g.Content.Text("os.name"), "Permissions on Restricted changed by session 017.", "icon_lock", a => _g.Apps.OpenFolder(ContentIds.FolderRestricted, a), "ui_select", false, null, Core.Game.NoticeKind.Entity);
             _g.Flags.Set(Flags.CameraUnlocked);
             _g.Notifications.Show(_g.Content.Text("app.camera"), "Clearance override accepted: session 017.", "icon_lock", null, "sys_warning", false, null, Core.Game.NoticeKind.Entity);
+            if (_g.Flags.Has(Flags.PlayerRefused))
+            {
+                HoldControl(false);
+                yield return CameraConsent();
+                if (_g.Flags.Has(CameraDeclined)) yield break;
+                HoldControl(true);
+            }
             yield return Wait(0.8f);
             yield return E.OpenApp(AppIds.Camera, MovementProfiles.HumanLike);
             yield return Wait(0.8f);

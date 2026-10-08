@@ -25,6 +25,10 @@ namespace SecondCursor.Core.Game
         /// <summary>A tag asked for <paramref name="seconds"/> never shortens one already running.</summary>
         public static float Extend(float left, float seconds) => Math.Max(left, seconds);
 
+        /// <summary>Keep the player's identity visible for the whole shared-pointer interaction.</summary>
+        public static float VisibleYouAlpha(float secondsLeft, bool anotherPointerVisible) =>
+            anotherPointerVisible ? 1f : YouAlpha(secondsLeft);
+
         /// <summary>Whether a second pointer's first appearance in the night should bring the YOU tag back: once per pointer per night.</summary>
         public static bool IsFirstAppearance(bool visibleNow, ref bool seenBefore)
         {

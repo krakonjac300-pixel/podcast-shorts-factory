@@ -65,12 +65,13 @@ namespace SecondCursor.OS
             items.Add(MenuItem.Of(c.Text("start.shutdown"), ShutDown, "icon_shutdown", elementId: "start:shutdown"));
             const int width = 176;
             const int headerH = 26;
-            int bodyH = 4;
-            foreach (var it in items) bodyH += it.Separator ? 8 : 18;
-            var topLeft = new Vector2(2f, WindowManager.TaskbarHeight + bodyH + headerH);
-            _menu = PopupMenu.Show(_g.Layers.Popups, topLeft, items, width);
+            _menu = PopupMenu.Show(_g.Layers.Popups, new Vector2(2f, ScreenRig.Height), items, width,
+                maxHeight: ScreenRig.Height - WindowManager.TaskbarHeight - headerH);
+            float bodyH = _menu.Rect.sizeDelta.y;
+            float menuWidth = _menu.Rect.sizeDelta.x;
             _menu.ManagedExternally = true;
-            _menu.Rect.sizeDelta = new Vector2(width, bodyH + headerH);
+            _menu.Rect.sizeDelta = new Vector2(menuWidth, bodyH + headerH);
+            _menu.Rect.anchoredPosition = new Vector2(2f, WindowManager.TaskbarHeight + bodyH + headerH);
             // Shift item rows down to make room for the header strip.
             foreach (Transform child in _menu.Rect)
             {

@@ -12,7 +12,7 @@ namespace SecondCursor.Story
 {
     /// <summary>The buttons under a night's end card.</summary>
     [Flags]
-    public enum EndCardButtons { None = 0, Continue = 1, Title = 2, NightSelect = 4, Quit = 8, Wishlist = 16 }
+    public enum EndCardButtons { None = 0, Continue = 1, Title = 2, NightSelect = 4, Quit = 8, Wishlist = 16, Retry = 32, RestartRun = 64 }
 
     /// <summary>
     /// The card after an ending (expansion spec 6.3): the night's title and subtitle, and its buttons. Nights 1 and 2:
@@ -22,13 +22,38 @@ namespace SecondCursor.Story
     /// </summary>
     public static class EndCard
     {
-        const int ButtonWidth = 150, ButtonHeight = 24, ButtonGap = 12, ButtonTop = 420;
+        const int ButtonWidth = 150, ButtonHeight = 24, ButtonGap = 12, ButtonTop = 480;
         /// <summary>Seconds the card shows before its buttons take any input.</summary>
         const float ButtonsAfter = 1.5f;
+
+        public static Color32 ResultColor(EndingSpec spec)
+        {
+            switch (Core.Game.EndingResult.For(spec.Id))
+            {
+                case Core.Game.EndingResultKind.Lost: return new Color32(235, 143, 129, 255);
+                case Core.Game.EndingResultKind.Escaped: return new Color32(166, 221, 179, 255);
+                default: return Palette.BiosBright;
+            }
+        }
+
+        static int Paragraph(RectTransform parent, string value, int y, Color32 color, bool bold, string name)
+        {
+            if (string.IsNullOrEmpty(value)) return y;
+            const int margin = 60;
+            int width = ScreenRig.Width - margin * 2;
+            var text = UIBuilder.Text(parent, value, color, bold, name);
+            text.Wrap = true;
+            text.Align = TextAlign.Center;
+            int height = Mathf.Max(12, text.PreferredSize(width).y);
+            text.rectTransform.At(margin, y, width, height);
+            return y + height + 5;
+        }
 
         /// <summary>The spec's buttons, or the defaults its kind of card gets.</summary>
         public static EndCardButtons ButtonsFor(EndingSpec spec)
         {
+            if (Core.Game.EndingResult.For(spec.Id) == Core.Game.EndingResultKind.Lost)
+                return EndCardButtons.Retry | EndCardButtons.RestartRun | EndCardButtons.Title | EndCardButtons.Quit;
             if (spec.Buttons != EndCardButtons.None) return spec.Buttons;
             if (spec.DemoCard) return EndCardButtons.Wishlist | EndCardButtons.Title | EndCardButtons.Quit;
             if (spec.ContinueNight > 0 && !spec.FinalCard && spec.ContinueNight <= GameBootstrap.MaxNight)
@@ -61,27 +86,35 @@ namespace SecondCursor.Story
             g.Audio.Play("end_tone");
             g.Audio.Play("low_thump", 0.8f);
 
+            var resultKey = Core.Game.EndingResult.HeadingKey(spec.Id);
+            bool sacrifice = spec.Id == Core.Content.ContentIds.EndingN3Shred;
+            if (resultKey != null && !sacrifice)
+            {
+                var result = UIBuilder.Text(parent, c.Text(resultKey), ResultColor(spec), true, "Player Result");
+                result.Scale = 3;
+                result.Align = TextAlign.Center;
+                result.rectTransform.At(40, 48, ScreenRig.Width - 80, 36);
+            }
             var title = UIBuilder.Text(parent, c.Text(spec.TitleKey), Palette.BiosBright, true);
-            title.Scale = 5;
-            title.rectTransform.At(0, 150, ScreenRig.Width, 60);
+            title.Scale = 4;
+            title.rectTransform.At(0, 98, ScreenRig.Width, 50);
             title.Align = TextAlign.Center;
             var sub = UIBuilder.Text(parent, c.Text(spec.SubtitleKey), Palette.BiosText);
-            sub.rectTransform.At(0, 222, ScreenRig.Width, 12);
+            sub.rectTransform.At(0, 154, ScreenRig.Width, 12);
             sub.Align = TextAlign.Center;
+            int y = 180;
+            if (resultKey != null)
+                y = Paragraph(parent, c.Text(Core.Game.EndingResult.ExplanationKey(spec.Id)), y, Palette.BiosBright, true, "Player Result Explanation") + 8;
             if (!string.IsNullOrEmpty(spec.Outcome))
             {
                 // How the night ended for you, under the subtitle (the demo card too: above WISHLIST NOW).
                 // Phase Q4 (R8): the cause line is the one line that explains the ending, so it is bright and bold (it was #8A8A84, dimmer than the thanks).
-                var outcome = UIBuilder.Text(parent, spec.Outcome, Palette.BiosBright, true);
-                outcome.rectTransform.At(0, 244, ScreenRig.Width, 12);
-                outcome.Align = TextAlign.Center;
+                y = Paragraph(parent, spec.Outcome, y, Palette.BiosBright, true, "Outcome Cause");
                 GameLog.Info(LogChannel.Story, "End card outcome: " + spec.Outcome);
             }
             PixelText cta = null;
             // Phase J: the last night's card has a cause line too, so the thanks and the endings count move down under it.
-            int below = string.IsNullOrEmpty(spec.Outcome) ? 0 : 18;
             // Phase Q2: what session 017 kept (V7) and the night's Retention Record rows (T2) under the outcome.
-            int y = 244 + below;
             // Phase R: what the outcome means, in plain words (the demo's card keeps room for WISHLIST NOW: its first line only).
             if (spec.OutcomeDetail != null)
             {
@@ -89,29 +122,20 @@ namespace SecondCursor.Story
                 foreach (var key in spec.OutcomeDetail)
                 {
                     if (string.IsNullOrEmpty(key) || (spec.DemoCard && shown >= 1)) continue;
-                    var detail = UIBuilder.Text(parent, key, Palette.BiosText);
-                    detail.rectTransform.At(0, y, ScreenRig.Width, 12);
-                    detail.Align = TextAlign.Center;
+                    y = Paragraph(parent, key, y, Palette.BiosText, false, "Outcome Detail");
                     GameLog.Info(LogChannel.Story, "End card: " + key);
-                    y += 14;
                     shown++;
                 }
             }
             if (!string.IsNullOrEmpty(spec.KeptLine))
             {
-                var kept = UIBuilder.Text(parent, spec.KeptLine, new Color32(0x8A, 0x8A, 0x84, 0xFF));
-                kept.rectTransform.At(0, y, ScreenRig.Width, 12);
-                kept.Align = TextAlign.Center;
+                y = Paragraph(parent, spec.KeptLine, y, Palette.BiosText, false, "Kept Record");
                 GameLog.Info(LogChannel.Story, "End card: " + spec.KeptLine);
-                y += spec.OutcomeDetail == null ? 18 : 14;
             }
             if (!string.IsNullOrEmpty(spec.CarryLine) && !spec.DemoCard)
             {
-                var carry = UIBuilder.Text(parent, spec.CarryLine, new Color32(0x8A, 0x8A, 0x84, 0xFF));
-                carry.rectTransform.At(0, y, ScreenRig.Width, 12);
-                carry.Align = TextAlign.Center;
+                y = Paragraph(parent, spec.CarryLine, y, Palette.BiosText, false, "Next Night");
                 GameLog.Info(LogChannel.Story, "End card: " + spec.CarryLine);
-                y += 14;
             }
             if (spec.RecordRows != null && spec.RecordRows.Count > 0) y = RecordView.CardRows(parent, spec.RecordRows, y + 4) + 6;
             if (spec.DemoCard)
@@ -127,15 +151,18 @@ namespace SecondCursor.Story
             }
             else if (!string.IsNullOrEmpty(spec.ThanksKey))
             {
-                var line = UIBuilder.Text(parent, c.Text(spec.ThanksKey), new Color32(0x8A, 0x8A, 0x84, 0xFF));
-                line.rectTransform.At(0, 250 + below, ScreenRig.Width, 12);
-                line.Align = TextAlign.Center;
+                y = Paragraph(parent, c.Text(spec.ThanksKey), y + 10, Palette.BiosText, false, "Thanks");
             }
             if (spec.FinalCard)
             {
                 // The endings seen so far, under the thanks line: an invitation to Night Select. Phase Q4 (R8): three slots, not a count.
-                EndingSlots(parent, c, SaveSystem.Load().endingsSeen, 270 + below);
+                EndingSlots(parent, c, SaveSystem.Load().endingsSeen, y + 12);
             }
+            if (g.Night == 3 && SaveSystem.Load().FinalDecisionForReplay() != null)
+                Paragraph(parent, c.Text("end.card.return.final.hint", "Return keeps earlier choices. Replay Night 3 starts the whole night."), ButtonTop - 40, Palette.BiosText, false, "Retry Explanation");
+            else if (Core.Game.EndingResult.For(spec.Id) == Core.Game.EndingResultKind.Lost)
+                Paragraph(parent, c.Text(g.Night == 1 && SaveSystem.Load().CheckpointFor(1) != null
+                    ? "end.card.retry.checkpoint.hint" : "end.card.retry.hint"), ButtonTop - 40, Palette.BiosText, false, "Retry Explanation");
 
             g.Player.Enabled = true;
             g.Player.Visible = true;
@@ -227,27 +254,88 @@ namespace SecondCursor.Story
             var want = ButtonsFor(spec);
             if (!SteamBridge.CanOpenStore) want &= ~EndCardButtons.Wishlist;
             var defs = new List<(string label, string id, Action<CursorAgent> click)>();
+            bool canReturn = g.Night == 3 && !spec.DemoCard && SaveSystem.Load().FinalDecisionForReplay() != null;
+            if (canReturn)
+                defs.Add((c.Text("end.card.return.final", "Return to final decision"), "button:ReturnFinal", a => GameBootstrap.ReturnToFinalDecision(g.RecordsArmed, g.FromNightSelect)));
+            if (canReturn && (want & EndCardButtons.Retry) == 0)
+                defs.Add((c.Text("end.card.replay.n3", "Replay Night 3"), "button:Retry", a =>
+                {
+                    SaveSystem.ClearCheckpoint();
+                    GameBootstrap.StartFromMenu(3, false, true);
+                }));
+            if ((want & EndCardButtons.Retry) != 0)
+            {
+                int night = g.Night;
+                bool resume = night == 1 && SaveSystem.Load().CheckpointFor(night) != null;
+                defs.Add((resume ? c.Text("end.card.retry.checkpoint") : night == 3 ? c.Text("end.card.replay.n3", "Replay Night 3") : c.Format("end.card.retry", night), "button:Retry", a =>
+                {
+                    if (resume) GameBootstrap.RestartFromCheckpoint(night, g.RecordsArmed, g.FromNightSelect);
+                    else
+                    {
+                        SaveSystem.ClearCheckpoint();
+                        GameBootstrap.StartFromMenu(night, false, true);
+                    }
+                }));
+            }
             if ((want & EndCardButtons.Continue) != 0)
             {
                 int night = spec.ContinueNight;
                 defs.Add((c.Format("end.card.continue", night), "button:Continue", a => GameBootstrap.StartFromMenu(night)));
             }
+            var list = new List<UiButton>();
+            if ((want & EndCardButtons.RestartRun) != 0 && g.Night > 1)
+                defs.Add((c.Text("end.card.restart"), "button:RestartRun", a => AskRestartRun(g, parent, nav, list)));
             if ((want & EndCardButtons.Wishlist) != 0) defs.Add((c.Text("end.card.wishlist"), "button:Wishlist", a => SteamBridge.OpenStorePage()));
             if ((want & EndCardButtons.Title) != 0) defs.Add((c.Text("end.card.menu"), "button:Title", a => GameBootstrap.ToTitle()));
             if ((want & EndCardButtons.NightSelect) != 0) defs.Add((c.Text("end.card.select"), "button:NightSelect", a => GameBootstrap.ToNightSelect()));
-            var list = new List<UiButton>();
             if ((want & EndCardButtons.Quit) != 0) defs.Add((c.Text("end.card.quit"), "button:Quit", a => AskQuit(g, parent, nav, list)));
-            int total = defs.Count * ButtonWidth + (defs.Count - 1) * ButtonGap;
-            int x = (ScreenRig.Width - total) / 2;
-            foreach (var (label, id, click) in defs)
+            int columns = canReturn ? 3 : defs.Count;
+            int rows = Mathf.CeilToInt(defs.Count / (float)Mathf.Max(1, columns));
+            int width = canReturn ? 280 : ButtonWidth;
+            for (int i = 0; i < defs.Count; i++)
             {
-                var b = UiButton.Create(parent, label, click, id, id == "button:Continue" || id == "button:Wishlist");
-                ((RectTransform)b.transform).At(x, ButtonTop, ButtonWidth, ButtonHeight);
+                var (label, id, click) = defs[i];
+                int row = i / columns, column = i % columns;
+                int inRow = Mathf.Min(columns, defs.Count - row * columns);
+                int total = inRow * width + (inRow - 1) * ButtonGap;
+                int x = (ScreenRig.Width - total) / 2 + column * (width + ButtonGap);
+                int top = rows == 1 ? ButtonTop : ButtonTop - 12 + row * (ButtonHeight + ButtonGap);
+                var b = UiButton.Create(parent, label, click, id, id == "button:ReturnFinal" || id == "button:Retry" || id == "button:Continue" || id == "button:Wishlist");
+                ((RectTransform)b.transform).At(x, top, width, ButtonHeight);
                 nav.Add(b);
                 list.Add(b);
-                x += ButtonWidth + ButtonGap;
             }
             return list;
+        }
+
+        static void AskRestartRun(GameServices g, RectTransform parent, MenuNav nav, List<UiButton> buttons)
+        {
+            var c = g.Content;
+            foreach (var button in buttons) button.gameObject.SetActive(false);
+            var panel = UIBuilder.Rect("Restart Run Confirmation", parent).Stretch();
+            var shade = panel.gameObject.AddComponent<UnityEngine.UI.Image>();
+            shade.color = Color.black;
+            shade.raycastTarget = false;
+            UIBuilder.Hit(panel.gameObject, "restart-run-confirmation");
+            Paragraph(panel, c.Text("end.card.restart.ask"), 220, Palette.BiosBright, true, "Restart Run Explanation");
+            nav.Clear();
+            var back = UiButton.Create(panel, c.Text("end.card.restart.back"), a =>
+            {
+                UnityEngine.Object.Destroy(panel.gameObject);
+                nav.Clear();
+                foreach (var button in buttons) { button.gameObject.SetActive(true); nav.Add(button); }
+                nav.Focus(buttons[0]);
+            }, "button:RestartBack");
+            ((RectTransform)back.transform).At(318, 300, ButtonWidth, ButtonHeight);
+            var start = UiButton.Create(panel, c.Text("end.card.restart.confirm"), a =>
+            {
+                SaveSystem.NewGame();
+                GameBootstrap.StartFromMenu(1);
+            }, "button:RestartConfirm");
+            ((RectTransform)start.transform).At(492, 300, ButtonWidth, ButtonHeight);
+            nav.Add(back);
+            nav.Add(start);
+            nav.Focus(back);
         }
 
         /// <summary>Quit asks first, like the pause menu's: the card's buttons give way to "Quit SECOND CURSOR?" with Back focused.</summary>

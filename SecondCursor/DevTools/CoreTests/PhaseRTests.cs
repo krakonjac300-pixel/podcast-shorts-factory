@@ -85,10 +85,10 @@ namespace SecondCursor.Tests
             Assert.Equal("SESSION " + PointerTagRules.EntityNumber, demo.Text("pointer.tag.entity"));
             Assert.False(demo.HasText("pointer.tag.gary"), "session 209 is Night 2 and 3 text: the demo must not carry it");
             Assert.Equal("SESSION " + PointerTagRules.GaryNumber, Full().Text("pointer.tag.gary"));
-            // The title legend names the white arrow as yours and the dark one as session 017's.
+            // The title distinguishes the arrows without identifying the unknown session yet.
             Assert.Contains("WHITE", demo.Text("title.legend.you"));
             Assert.Contains("DARK", demo.Text("title.legend.entity"));
-            Assert.Contains("017", demo.Text("title.legend.entity"));
+            Assert.Contains("UNKNOWN", demo.Text("title.legend.entity"));
         }
 
         // ------------------------------------------------------------------ the confirm race's countdown
@@ -113,7 +113,7 @@ namespace SecondCursor.Tests
             var demo = Demo();
             string rule = demo.Text("race.rule");
             Assert.Contains("Click Yes", rule);
-            Assert.Contains("bar", rule);
+            Assert.DoesNotContain("bar", rule);
             Assert.Contains("Session 017 will try to click No", rule);
             Assert.Contains("Cancel", demo.Text("race.progress"));
         }
@@ -154,8 +154,8 @@ namespace SecondCursor.Tests
                 Assert.EndsWith(":", strip);
                 Assert.Equal(strip.ToUpperInvariant(), strip);   // the strip is caps, like the tug panel
             }
-            Assert.Equal("YOU WON", demo.Text("contest.card.won"));
-            Assert.Equal("YOU LOST", demo.Text("contest.card.lost"));
+            Assert.Equal("FILE CONTEST WON", demo.Text("contest.card.won"));
+            Assert.Equal("FILE CONTEST LOST", demo.Text("contest.card.lost"));
             foreach (var key in NewBaseKeys.Where(k => k.StartsWith("contest.card.", StringComparison.Ordinal) && k.Contains(".tug.") || k.StartsWith("contest.card.race.", StringComparison.Ordinal)))
             {
                 string text = demo.Text(key);
@@ -208,8 +208,8 @@ namespace SecondCursor.Tests
             Assert.StartsWith("Session 017 connected pointing device 2", notes[0]);
             Assert.Equal("{0} opened {1}.", demo.Text("window.opened.by"));
             Assert.Equal("Session 017 opened Camera Viewer.", string.Format(demo.Text("window.opened.by"), "Session 017", demo.Text("app.camera")));
-            Assert.Contains("session 017", demo.Text("login.autofill"));
-            Assert.Contains("previous session", demo.Text("login.autofill"));
+            Assert.Contains("workstation", demo.Text("login.autofill"));
+            Assert.DoesNotContain("017", demo.Text("login.autofill"));
             // Night 2 and 3: the third pointer is named in the full game only.
             var full = Full();
             Assert.Contains("session 209", full.Text("notify.pointer3"));
@@ -218,7 +218,7 @@ namespace SecondCursor.Tests
         }
 
         [Fact]
-        public void TheQuickStartSaysAPreviousSessionIsOpenAndTheWaitLineIsTheOwnersWords()
+        public void TheQuickStartOrientsThePlayerWithoutExplainingTheOtherCursor()
         {
             if (!Present) return;
             var demo = Demo();
@@ -226,10 +226,11 @@ namespace SecondCursor.Tests
             {
                 demo.Variant = variant;
                 string body = demo.Text("quickstart.body");
-                Assert.Contains("previous session", body);
+                Assert.DoesNotContain("previous session", body);
+                Assert.Contains("Casey Rourke", body);
                 Assert.Contains("NEXUS opened your Work Queue", body);
             }
-            Assert.Equal("Something is happening. You cannot act yet.", demo.Text("wait.line"));
+            Assert.Equal("NEXUS: remote input active. Waiting for the current session...", demo.Text("wait.line"));
         }
 
         // ------------------------------------------------------------------ the order of events (fight at first, then accept it)

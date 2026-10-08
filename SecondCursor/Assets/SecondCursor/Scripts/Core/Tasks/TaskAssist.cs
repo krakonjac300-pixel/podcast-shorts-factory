@@ -44,6 +44,14 @@ namespace SecondCursor.Core.Tasks
         /// <summary>The offer comes after the first hint and one repeat hint have had their time.</summary>
         public float FirstOfferAt => FirstHint + 2f * Repeat;
 
+        /// <summary>The player asks for help directly, without waiting for the timed hint ladder.</summary>
+        public bool RequestOffer()
+        {
+            if (!OfferAllowed || Accepted) return false;
+            if (!OfferOpen) { OfferOpen = true; OffersMade++; }
+            return true;
+        }
+
         void Restart()
         {
             StuckSeconds = 0f;
@@ -125,7 +133,7 @@ namespace SecondCursor.Core.Tasks
         public const float ScrollGrace = 8f;
         public const float IdleLimit = 30f;
 
-        static readonly string[] ReadingApps = { AppIds.Mail, AppIds.DataViewer, AppIds.Notepad, AppIds.Staff, AppIds.Help, AppIds.Camera };
+        static readonly string[] ReadingApps = { AppIds.Mail, AppIds.DataViewer, AppIds.Notepad, AppIds.Staff, AppIds.Help, AppIds.Camera, AppIds.WorkOrders, AppIds.Files };
 
         public static bool IsReadingApp(string appId) => !string.IsNullOrEmpty(appId) && Array.IndexOf(ReadingApps, appId) >= 0;
 

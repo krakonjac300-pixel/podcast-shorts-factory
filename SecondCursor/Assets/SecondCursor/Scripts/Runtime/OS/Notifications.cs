@@ -11,7 +11,7 @@ namespace SecondCursor.OS
     /// <summary>
     /// Balloon toasts that slide in above the Disposal bin ("You have 1 new message", "New input device
     /// detected"). Clicking one runs its action. Stacks upward when several are visible. They follow the Reading
-    /// text option (Large doubles them, for the Steam Deck); a sticky toast stays until it is clicked.
+    /// text option, with a compact header and enough height for the body; a sticky toast stays until it is clicked.
     /// Phase H: toasts that arrive together come in one after another (<see cref="Stagger"/>), slide in and out
     /// sideways so they never pass over the bin, and a toast about something already done (a task's hint once the
     /// task is ticked) goes away by itself.
@@ -73,6 +73,7 @@ namespace SecondCursor.OS
             /// <summary>Phase Q4: never dropped unseen (a task, deadline, camera or order notice, a sticky one, one with its own condition).</summary>
             public bool Important;
             public NoticeKind Kind;
+            internal string Channel;
             /// <summary>Seconds its turn has come but there was no room for it (Review J2).</summary>
             internal float Waited;
             internal float Slot;
@@ -80,6 +81,7 @@ namespace SecondCursor.OS
             internal bool Sticky;
             internal int Height;
             internal int Scale = 1;
+            internal int TextTop = 22;
             internal string Sound;
             /// <summary>While false the toast is dismissed (shown or still waiting its turn).</summary>
             internal Func<bool> KeepWhile;
@@ -102,9 +104,9 @@ namespace SecondCursor.OS
             internal void Fit()
             {
                 if (Rect == null || Body == null) return;
-                int w = (int)Rect.sizeDelta.x, textLeft = 14 + 16 * Scale, top = 8 + 14 * Scale;
+                int w = (int)Rect.sizeDelta.x, textLeft = 14 + 16 * Scale, top = TextTop;
                 int textH = PixelFont.Measure(Body.text, w - textLeft - 8, false, Scale).y;
-                Height = Mathf.Max(H * Scale, top + textH + 8);
+                Height = Mathf.Max(Scale == 1 ? H : 76, top + textH + 8);
                 Rect.sizeDelta = new Vector2(w, Height);
                 Body.rectTransform.At(textLeft, top, w - textLeft - 8, textH + 4);
             }
@@ -131,11 +133,15 @@ namespace SecondCursor.OS
         /// Like the others; <paramref name="keepWhile"/> (optional) is checked every frame and the toast goes as soon as it
         /// returns false (a task hint once the task is done), even before its turn came. Phase Q4: <paramref name="kind"/> says whose
         /// notice it is (session 017, session 209, a deadline), which sets its pointer icon and stripe.
+        /// A channel replaces obsolete live status but preserves its history. Urgent status gets a slot immediately, unless held by the story.
         /// </summary>
         public Toast Show(string title, string body, string icon, Action<CursorAgent> onClick, string sound, bool sticky, Func<bool> keepWhile,
-            NoticeKind kind = NoticeKind.Plain)
+            NoticeKind kind = NoticeKind.Plain, string channel = null, bool urgent = false)
         {
             History.Add(Stamp != null ? Stamp() : "", title, body, kind);
+            channel = NoticeRules.Channel(icon, channel);
+            urgent = urgent || channel == NoticeRules.CameraChannel;
+            if (!string.IsNullOrEmpty(channel)) DismissChannel(channel);
             int s = Mathf.Clamp(Game.DisplaySettings.ReadingScale, 1, 2);
             int w = W * s, h = H * s;
             var rt = UIBuilder.Rect("Toast " + title, _layer);
@@ -163,23 +169,26 @@ namespace SecondCursor.OS
             if (kind != NoticeKind.Plain) AddStripe(rt, kind, w, s);
             int textLeft = 14 + 16 * s;
             var t = UIBuilder.Text(rt, title, Palette.Text, true);
-            t.Scale = s;
-            t.rectTransform.At(textLeft, 8, w - textLeft - 8, 12 * s);
+            float headerFactor = Mathf.Min(Game.DisplaySettings.ReadingFactor, 1.5f);
+            int textTop = 8 + Mathf.CeilToInt(14 * headerFactor);
+            t.Factor = headerFactor;
+            t.rectTransform.At(textLeft, 8, w - textLeft - 8, Mathf.CeilToInt(12 * headerFactor));
             var b = UIBuilder.Text(rt, body, Palette.Text);
             b.Scale = s;
             b.Wrap = true;
-            b.rectTransform.At(textLeft, 8 + 14 * s, w - textLeft - 8, h - 14 * s - 14);
+            b.rectTransform.At(textLeft, textTop, w - textLeft - 8, h - textTop - 8);
 
             // Toasts asked for together arrive one after another, so a flood of three is read as three.
-            float delay = Mathf.Max(0f, _nextShowAt - Time.time);
-            _nextShowAt = Time.time + delay + Stagger;
+            float delay = urgent ? 0f : Mathf.Max(0f, _nextShowAt - Time.time);
+            if (!urgent) _nextShowAt = Time.time + delay + Stagger;
             int visible = 0;
             foreach (var other in _toasts) if (!other.Waiting) visible++;
             var toast = new Toast
             {
                 Group = group, Rect = rt, Slot = visible, Sticky = sticky, Height = h, Body = b, Scale = s, Age = -delay, Sound = sound, KeepWhile = keepWhile,
-                Kind = kind, Life = NoticeRules.Duration((body ?? "").Length, Game.AccessSettings.NoticeTime),
+                Kind = kind, TextTop = textTop, Life = NoticeRules.Duration((body ?? "").Length, Game.AccessSettings.NoticeTime),
                 Important = NoticeRules.IsImportant(icon, sticky, keepWhile != null, kind),
+                Channel = channel,
             };
             toast.Fit();
             var hit = UIBuilder.Hit(rt.gameObject, "toast:" + title, onClick != null ? CursorShape.Hand : CursorShape.Arrow);
@@ -189,11 +198,37 @@ namespace SecondCursor.OS
                 toast.Dismissed = true;
                 onClick?.Invoke(a);
             };
-            _toasts.Add(toast);
+            if (urgent)
+            {
+                // A current warning gets the next slot. An older visible notice waits intact and remains in Recent notices.
+                for (int i = _toasts.Count - 1; i >= 0; i--)
+                {
+                    var old = _toasts[i];
+                    if (!old.Shown || old.Dismissed) continue;
+                    old.Shown = false;
+                    old.Age = 0f;
+                    old.Rect.gameObject.SetActive(false);
+                }
+                _toasts.Insert(0, toast);
+                _nextRelease = Time.time;
+            }
+            else _toasts.Add(toast);
             // Not shown yet: its turn (the stagger) and room for it are settled in Layout.
             rt.gameObject.SetActive(false);
             Layout(0f);
             return toast;
+        }
+
+        /// <summary>Remove obsolete live status, including queued copies. Its history remains available.</summary>
+        public void DismissChannel(string channel)
+        {
+            if (string.IsNullOrEmpty(channel)) return;
+            foreach (var toast in _toasts)
+            {
+                if (toast.Channel != channel) continue;
+                toast.Dismissed = true;
+                if (toast.Rect != null) toast.Rect.gameObject.SetActive(false);
+            }
         }
 
         /// <summary>

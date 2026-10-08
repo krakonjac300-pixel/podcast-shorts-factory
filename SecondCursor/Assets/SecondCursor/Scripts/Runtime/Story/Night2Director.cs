@@ -9,9 +9,11 @@ using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Core.Tasks;
 using SecondCursor.Entity;
+using SecondCursor.Game;
 using SecondCursor.Input;
 using SecondCursor.OS;
 using SecondCursor.Rendering;
@@ -64,6 +66,8 @@ namespace SecondCursor.Story
         float _lastCloseIt = -100f;
         /// <summary>Lines Ellen types as soon as she is free (a mail read mid-task, for example).</summary>
         readonly List<string> _ellenQueue = new List<string>();
+        bool _warningReadingStarted, _warningReadingDone;
+        float _warningReadSeconds;
 
         public override string[] Beats => BeatList;
         public override int Night => 2;
@@ -143,6 +147,9 @@ namespace SecondCursor.Story
             _stopHelping = false;
             _saidAudit = false;
             _ellenQueue.Clear();
+            _firstEntityTaskAt = -1f;
+            _warningReadingStarted = _warningReadingDone = false;
+            _warningReadSeconds = 0f;
             UnhookFinish();
             UnhookRounds();
             _g.Clock.Frozen = false;
@@ -462,14 +469,13 @@ namespace SecondCursor.Story
         IEnumerator TaskHints(string taskId) => AssistLadder(taskId, taskId != ContentIds.TaskN2Shred209);
 
         /// <summary>
-        /// Ellen helps with Batch 46 through the real UI: after the player's first move (or 30 s) she comes in
-        /// from the right, drags one file onto Archive, hangs around, and 20 s later drags another if any remain.
+        /// Ellen demonstrates help once, after the player's first move. Reading or waiting never starts her work.
         /// </summary>
         IEnumerator EllenHelps()
         {
             E.State = EntityState.Helpful;
             int before = Archived46();
-            yield return WaitUntil(() => Archived46() > before || _stopHelping, 30f);
+            while (Archived46() <= before && !_stopHelping) yield return null;
             if (_stopHelping || Next46() == null) yield break;
             var start = new Vector2(ScreenRig.Width + 6f, 300f);
             E.Teleport(start);
@@ -478,9 +484,6 @@ namespace SecondCursor.Story
             yield return EllenArchiveOne();
             yield return E.Loiter(ScreenRig.ClampToScreen(_g.Player.Position + new Vector2(90f, 50f)), 30f, 2f, MovementProfiles.Hesitant);
             _g.Flags.Set(Flags.N2EllenHelped);
-            float wait = Time.time + 20f;
-            while (Time.time < wait && !_stopHelping) yield return null;
-            if (!_stopHelping && Next46() != null) yield return EllenArchiveOne();
         }
 
         int Archived46()
@@ -544,7 +547,6 @@ namespace SecondCursor.Story
         {
             E.Phase = EntityPhase.Communication;
             E.Brain.Enabled = false;
-            float start = Time.time;
             if (!E.IsVisible) yield return E.Appear(new Vector2(ScreenRig.Width * 0.62f, ScreenRig.Height * 0.55f), 0.5f, true);
             yield return TypeLines(_ellen, Lines("n2_ask_intro"), 3.5f);
             RunSide(RuthWarning(), "ruth-warning");
@@ -552,12 +554,7 @@ namespace SecondCursor.Story
             for (int i = 0; i < EntityAsks.Length; i++)
             {
                 var (task, flag) = EntityAsks[i];
-                // Cap 300 s: a request that no longer fits is never written.
-                if (Time.time - start > 300f - 40f)
-                {
-                    _g.Tasks.Withdraw(task);
-                    continue;
-                }
+                // Each request gets its own finite window. Reading an earlier request never silently skips a later one.
                 yield return EntityTask(task, flag, reactions[i]);
             }
             yield return FlushEllenQueue();
@@ -568,9 +565,9 @@ namespace SecondCursor.Story
             yield return WaitOrder(ContentIds.TaskN2Audit3324, ContentIds.Order3324);
         }
 
-        /// <summary>Phase Q3 (T7): the exchange's id, and how long she waits for an answer (a streamer answers at once; the rest of the night waits).</summary>
+        /// <summary>The audience question gets the same reading window as other conversations.</summary>
         const string ExchangeAudience = "ex2_audience";
-        const float AudienceSilenceSeconds = 12f;
+        const float AudienceSilenceSeconds = ReadingPace.MinimumReplySeconds;
 
         /// <summary>
         /// Phase Q3 (T7, "participation"): after her three asks she types WHO ELSE IS WATCHING. Chat, family and nobody get their own answer
@@ -608,7 +605,7 @@ namespace SecondCursor.Story
 
         /// <summary>
         /// One of Ellen's requests: she writes it into the Work Queue (keys you are not pressing), then waits.
-        /// Only what the player does counts. A nudge at 35 s; withdrawn at 75 s if nothing happened.
+        /// Only what the player does counts. Relaxed timing extends the finite window; instructions and guidance do not consume it.
         /// </summary>
         IEnumerator EntityTask(string taskId, string doneFlag, string reaction)
         {
@@ -622,23 +619,34 @@ namespace SecondCursor.Story
                 yield return Wait(1.5f);
             }
             yield return WriteIntoQueue(task);
-            // Only what the player does after she asks counts (a record looked up for a work order earlier does not).
-            foreach (var target in task.Data.targets)
-            {
-                _g.Flags.SetCounter(Flags.OpenedByPlayerPrefix + target, 0);
-                _g.Flags.SetCounter(Flags.ViewedByPlayerPrefix + target, 0);
-            }
+            // Earlier investigation still counts. A new move remains a choice; an already-read record needs no repeated click.
+            bool alreadyKnown = (task.Type == TaskType.OpenFile || task.Type == TaskType.ViewEmployee)
+                && Array.TrueForAll(task.Data.targets, target => _g.Tasks.IsTargetDone(task, target));
             GiveEntityTask(taskId);
+            _g.Tasks.Rewrite(taskId, task.TitleOverride, task.DescriptionOverride,
+                task.Data.hint + "\nReading Ruth's first warning in Mail pauses this timer briefly. Leaving the message resumes it.");
+            if (alreadyKnown)
+            {
+                _g.Tasks.SetResult(taskId, task.Title + ": " + _g.Content.Text("request.evidence.known", "Already read before the request."));
+                yield return TypeLines(_ellen, new[] { task.Type == TaskType.OpenFile ? "YOU ALREADY READ THE LOG" : "YOU ALREADY SAW 163" }, 4f);
+            }
+            if (taskId == ContentIds.TaskE2Hide214) yield return TypeLines(_ellen, Lines("n2_214"), 4f);
+            // Instruction typing is not time available to the player.
             float t0 = Time.time;
             if (_firstEntityTaskAt < 0f) _firstEntityTaskAt = t0;
-            if (taskId == ContentIds.TaskE2Hide214) yield return TypeLines(_ellen, Lines("n2_214"), 4f);
-
             var d = _g.Difficulty;
-            float withdrawAt = task.Data.timeout > 0f ? task.Data.timeout : d.EntityTaskWithdraw;
+            float withdrawAt = ReadingPace.TaskSeconds(task.Data.timeout > 0f ? task.Data.timeout : d.EntityTaskWithdraw, _g.TimeScale);
             _g.RemoteTaskLife[taskId] = new Vector2(t0, withdrawAt);
             bool nudged = false;
             while (!Done(taskId))
             {
+                if (ProtectFirstWarningReading())
+                {
+                    t0 += Time.deltaTime;
+                    _g.RemoteTaskLife[taskId] = new Vector2(t0, withdrawAt);
+                    yield return null;
+                    continue;
+                }
                 float elapsed = Time.time - t0;
                 if (elapsed >= withdrawAt) break;
                 if (!_whisperAsked && elapsed >= WhisperAfter)
@@ -652,12 +660,18 @@ namespace SecondCursor.Story
                 if (!nudged && elapsed >= d.EntityTaskNudge)
                 {
                     nudged = true;
+                    float guidanceAt = Time.time;
                     yield return Nudge(taskId);
+                    t0 += Time.time - guidanceAt;
+                    _g.RemoteTaskLife[taskId] = new Vector2(t0, withdrawAt);
                     continue;
                 }
                 if (_ellenQueue.Count > 0 && !_ellen.Typing)
                 {
+                    float guidanceAt = Time.time;
                     yield return FlushEllenQueue();
+                    t0 += Time.time - guidanceAt;
+                    _g.RemoteTaskLife[taskId] = new Vector2(t0, withdrawAt);
                     continue;
                 }
                 yield return null;
@@ -679,6 +693,32 @@ namespace SecondCursor.Story
                 yield return TypeLines(_ellen, Lines("n2_withdrawn"), 4f);
             }
             yield return Wait(2.5f);
+        }
+
+        /// <summary>One bounded first reading of Ruth's conflicting instruction pauses the optional request, not unrelated mail.</summary>
+        bool ProtectFirstWarningReading()
+        {
+            if (_warningReadingDone) return false;
+            var mail = _g.Apps.Find<MailApp>();
+            bool reading = mail != null && mail.IsOpen && !mail.Window.IsMinimized && _g.Windows.Active == mail.Window
+                && mail.ShowingMailId == ContentIds.MailN2RuthWarning;
+            if (!reading)
+            {
+                if (_warningReadingStarted) _warningReadingDone = true;
+                return false;
+            }
+            if (!_warningReadingStarted)
+            {
+                _warningReadingStarted = true;
+                GameLog.Info(LogChannel.Story, "Optional request paused for Ruth's first warning reading");
+            }
+            _warningReadSeconds += Time.deltaTime;
+            int characters = _g.Content.Email(ContentIds.MailN2RuthWarning)?.body?.Length ?? 0;
+            float readingSeconds = Mathf.Clamp(4f + characters / NoticeRules.CharsPerSecond, 25f, 60f);
+            readingSeconds = ReadingPace.TaskSeconds(readingSeconds * DisplaySettings.ReadingFactor, _g.TimeScale);
+            if (_warningReadSeconds < readingSeconds) return true;
+            _warningReadingDone = true;
+            return false;
         }
 
         /// <summary>She opens the Work Queue if it is closed, hovers over the list and "types" the title in.</summary>

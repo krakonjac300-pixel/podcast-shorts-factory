@@ -123,7 +123,7 @@ namespace SecondCursor.Story
                 }
                 if (id != ContentIds.Order3342 || _saidShelfYou || CurrentBeat != "rounds") return;
                 _saidShelfYou = true;
-                SayLater(_ellen, "n3_shelf_you", 4f);
+                RunSide(ShelfWarning(), "shelf-warning");
             };
             if (g.CameraRig != null)
             {
@@ -269,13 +269,17 @@ namespace SecondCursor.Story
             var g = _g;
             g.Mail.Deliver(ContentIds.MailN3SecurityRounds, false);
             g.Mail.MarkRead(ContentIds.MailN3SecurityRounds, null);
-            // Withdrawn first: cancelling the orders would otherwise complete the task.
-            if (!Done(ContentIds.TaskN3Shelf)) g.Tasks.Withdraw(ContentIds.TaskN3Shelf);
+            bool filed = true;
+            foreach (var id in ShelfOrders)
+                if (WorkOrderRules.Remembered(g.Flags, Night, id) == null) filed = false;
+            // Withdraw before cancellation so a missing decision cannot complete the task.
+            if (!filed) g.Tasks.Withdraw(ContentIds.TaskN3Shelf);
             foreach (var id in ShelfOrders)
             {
                 g.Orders.SetHidden(id, false);
-                g.Orders.Cancel(id);
+                NightSetup.RestoreOrder(g, Night, id);
             }
+            if (filed) g.Tasks.ForceComplete(ContentIds.TaskN3Shelf);
             if (g.CameraRig != null)
             {
                 g.CameraRig.Cam04Online = true;
@@ -385,7 +389,8 @@ namespace SecondCursor.Story
                 c.Text(decision == "approve" ? "workqueue.check.approved" : "workqueue.check.rejected"), Night3Rules.ShelfNumber(listed), reads,
                 c.Text(rule == "approve" ? "shelf.rule.approve" : "shelf.rule.reject"));
             _g.Tasks.SetTargetNote(ContentIds.TaskN3Shelf, orderId, line);
-            _g.Notifications.Show(c.Text("app.workorders"), line, "icon_info", null, "ui_select").Important = true;
+            if (!IsPreparing)
+                _g.Notifications.Show(c.Text("app.workorders"), line, "icon_info", null, "ui_select").Important = true;
             GameLog.Info(LogChannel.Story, "Shelf result: " + line);
         }
 

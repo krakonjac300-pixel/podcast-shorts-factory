@@ -474,9 +474,10 @@ namespace SecondCursor.CameraFeed
             return ExtraAreaFor(camId);
         }
 
-        /// <summary>Cuts the figure to a stage instantly. It never moves while watched.</summary>
+        /// <summary>Cuts to a stalking position. The committed capture attack has a separate visible rush.</summary>
         void SetFigure(FigureStage stage)
         {
+            ResetCapturePose();
             // The frame it moves on lands with a sound (it is never seen moving). Phase M: in the office it is a step on the carpet,
             // louder every time (M6: closer every time you look); anywhere else the building's thump.
             if (stage != _figureStage && stage != FigureStage.None && stage != FigureStage.AtLens && !Quiet)

@@ -17,7 +17,11 @@ namespace SecondCursor.Apps
         PixelText _stamp;
         UiButton _approve;
         UiButton _reject;
+        UiButton _owner;
         WorkOrderData _shown;
+        RectTransform _paper;
+        float _factor = -1f;
+        float _layoutWidth = -1f;
         int _revision = -1;
 
         public override string AppId => AppIds.WorkOrders;
@@ -35,7 +39,7 @@ namespace SecondCursor.Apps
             CreateWindow(G.Content.Text("app.workorders"), "icon_workorders", 120, 110, w, h, WindowFlags.Standard, zoomFrom);
             // Phase H: Personnel (opened next, to check the owner) must never land on Approve and Reject. Phase I: the buttons
             // are at the top of the form (a window that opens below cannot cover them), and the window keeps clear of notices.
-            Window.KeepVisible = new Rect(w - 190f, 24f, 186f, 30f);
+            Window.KeepVisible = new Rect(4f, 24f, w - 8f, 30f);
             var client = Window.Client;
 
             // Phase Q1: the status column is wide enough to say who decided an order that the player did not ("Approved (Night Ops)").
@@ -44,7 +48,7 @@ namespace SecondCursor.Apps
             _list.Root.anchorMax = new Vector2(0f, 1f);
             _list.Root.pivot = new Vector2(0f, 1f);
             _list.Root.offsetMin = new Vector2(2f, 2f);
-            _list.Root.offsetMax = new Vector2(ListW, -2f);
+            _list.Root.offsetMax = new Vector2(ListW, -30f);
             _list.RowSelected += (row, a) =>
             {
                 var order = (WorkOrderData)row.Tag;
@@ -53,6 +57,7 @@ namespace SecondCursor.Apps
             };
 
             var paper = UIBuilder.Bevel(client, BevelStyle.Sunken, "Form");
+            _paper = paper.rectTransform;
             paper.rectTransform.Stretch((int)ListW + 4, 32, 2, 2);
             _form = ReadingPane.Create(paper.rectTransform, "Form Scroll", Palette.Text);
             _form.SetText("Select a work order.", true);
@@ -65,6 +70,9 @@ namespace SecondCursor.Apps
             ((RectTransform)_approve.transform).TopRight(92, 4, 82, 22);
             _reject = UiButton.Create(client, "Reject", a => Decide("reject", a), "button:Reject");
             ((RectTransform)_reject.transform).TopRight(4, 4, 82, 22);
+            _owner = UiButton.Create(client, "Open owner record", OpenOwner, "workorder.owner");
+            ((RectTransform)_owner.transform).At(2, 4, ListW, 22);
+            LayoutControls();
             Refresh();
             if (_list.Rows.Count > 0)
             {
@@ -116,11 +124,40 @@ namespace SecondCursor.Apps
             bool open = _shown != null && d == null;
             _approve.Enabled = open;
             _reject.Enabled = open;
+            _owner.Enabled = _shown != null && G.Content.Employee(_shown.employeeRef) != null;
             _stamp.text = d == null ? "" : StatusText(d).ToUpperInvariant();
             _stamp.color = d == "approve" ? Palette.Green : d == WorkOrderService.Cancelled ? Palette.Shadow : Palette.Red;
         }
 
-        const float ListW = 218f;
+        float ListW => Mathf.Round(Mathf.Min(218f * Mathf.Sqrt(Game.DisplaySettings.ReadingFactor), Window.Size.x * 0.42f));
+
+        void LayoutControls()
+        {
+            _factor = Game.DisplaySettings.ReadingFactor;
+            _layoutWidth = Window.Client.rect.width;
+            int buttonW = Mathf.CeilToInt(82f * _factor);
+            int buttonH = _factor >= 2f ? 24 : 22;
+            bool stacked = _layoutWidth < ListW + buttonW * 2 + 24;
+            int actionY = stacked ? buttonH + 10 : 4;
+            int top = actionY + buttonH + 4;
+            _list.ColumnWidths[0] = Mathf.CeilToInt(56f * _factor);
+            _list.ColumnWidths[1] = Mathf.FloorToInt(ListW) - _list.ColumnWidths[0];
+            _list.Root.offsetMax = new Vector2(ListW, -top);
+            _paper.Stretch(ListW + 4, top + 2, 2, 2);
+            ((RectTransform)_approve.transform).TopRight(buttonW + 10, actionY, buttonW, buttonH);
+            ((RectTransform)_reject.transform).TopRight(4, actionY, buttonW, buttonH);
+            ((RectTransform)_owner.transform).At(2, 4, stacked ? Mathf.Max(80f, _layoutWidth - 4f) : ListW, buttonH);
+            Window.KeepVisible = new Rect(4f, 24f, Window.Size.x - 8f, top + 4f);
+        }
+
+        void OpenOwner(CursorAgent by)
+        {
+            if (_shown == null || !by.IsPlayer) return;
+            var staff = G.Apps.Launch(AppIds.Staff, by) as StaffApp;
+            staff?.ShowForOrder(_shown.employeeRef, _shown.id, by);
+        }
+
+        public void ShowOrder(string id, CursorAgent by) => _list.SelectWhere(row => ((WorkOrderData)row.Tag).id == id, by);
 
         /// <summary>"Approved", or "Approved (Night Ops)" / "Approved (session 017)" when someone else decided it.</summary>
         string StatusWithCredit(string orderId, string decision)
@@ -147,6 +184,7 @@ namespace SecondCursor.Apps
 
         public override void Tick(float dt)
         {
+            if (_factor != Game.DisplaySettings.ReadingFactor || !Mathf.Approximately(_layoutWidth, Window.Client.rect.width)) LayoutControls();
             if (_revision != G.Orders.Revision) Refresh();
             _form.Tick();
         }
@@ -156,20 +194,41 @@ namespace SecondCursor.Apps
     public sealed class HelpApp : App
     {
         public override string AppId => AppIds.Help;
+        bool _manual;
+        string _taskId;
+        UiButton _mode;
+        Core.Game.ClickSpeed _clickSpeed;
 
         public override void Open(Rect? zoomFrom, CursorAgent by)
         {
             // Every mechanic of the three nights is listed here, so the text scrolls (wheel or the bar on the right).
             CreateWindow(G.Content.Text("app.help"), "icon_help", 230, 30, 500, 440, WindowFlags.Standard, zoomFrom);
             var frame = UIBuilder.Bevel(Window.Client, BevelStyle.Sunken, "Help Text");
-            frame.rectTransform.Stretch(2, 2, 2, 2);
+            frame.rectTransform.Stretch(2, 30, 2, 2);
+            _mode = UiButton.Create(Window.Client, "Full manual", a => { _manual = !_manual; ShowHelp(); }, "help.mode");
+            ((RectTransform)_mode.transform).At(4, 3, 138, 22);
             _scroll = ScrollArea.Create(frame.rectTransform, "Help Scroll");
             ((RectTransform)_scroll.transform).Stretch(2, 2, 2, 2);
             // help.body carries its own "NEXUS OS 4.1 -- QUICK HELP" heading.
             _text = UIBuilder.Text(_scroll.Content, G.Content.Text("help.body"), Palette.Text);
             _text.Wrap = true;
             Window.Resized += _ => Layout();
+            ShowHelp();
+        }
+
+        void ShowHelp()
+        {
+            _clickSpeed = Game.AccessSettings.ClickSpeed;
+            var task = G.Tasks.Current;
+            _taskId = task?.Id;
+            _text.text = _manual ? G.Content.Text("help.body") : task == null
+                ? "NO CURRENT ASSIGNMENT\n\nCheck the Work Queue and unread Mail. The full manual explains all desktop controls."
+                : "CURRENT ASSIGNMENT\n\n" + task.Title + "\n\n" + task.Description + "\n\n" + task.Hint
+                    + "\n\nFor ordinary work, Help with task in the Work Queue offers assistance. You choose whether to accept.";
+            _text.text = ClickRules.Instructions(_text.text);
+            _mode.Label.text = _manual ? "Current task" : "Full manual";
             Layout();
+            _scroll.ScrollTo(0f);
         }
 
         ScrollArea _scroll;
@@ -188,6 +247,13 @@ namespace SecondCursor.Apps
 
         public override void Tick(float dt)
         {
+            if (!_manual && _taskId != G.Tasks.Current?.Id) ShowHelp();
+            if (_clickSpeed != Game.AccessSettings.ClickSpeed)
+            {
+                float offset = _scroll.Offset;
+                ShowHelp();
+                _scroll.ScrollTo(offset);
+            }
             if (_text != null && _scale != Game.DisplaySettings.ReadingFactor) Layout();
         }
     }

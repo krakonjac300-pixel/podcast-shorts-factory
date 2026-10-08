@@ -125,10 +125,14 @@ namespace SecondCursor.Game
         /// <summary>"Night Select" on the last night's card.</summary>
         public static void ToNightSelect() => ToTitle(TitleScreenId.NightSelect);
 
-        /// <summary>
-        /// The pause menu's Restart: this night's saved checkpoint, or the night from its start when it has none. The
-        /// run keeps its armed state (a debug run stays held).
-        /// </summary>
+        /// <summary>Replay the final encounter with earlier choices and the original record eligibility.</summary>
+public static void ReturnToFinalDecision(bool armed, bool fromNightSelect)
+        {
+            if (!SaveSystem.RestoreFinalDecision()) return;
+            RestartFromCheckpoint(3, armed, fromNightSelect);
+        }
+
+        /// <summary>The pause menu's Restart keeps this run's record eligibility and resumes its checkpoint when available.</summary>
         public static void RestartFromCheckpoint(int night, bool armed, bool fromNightSelect)
         {
             bool hasCheckpoint = SaveSystem.Load().CheckpointFor(night) != null;

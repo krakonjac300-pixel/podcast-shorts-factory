@@ -325,12 +325,13 @@ namespace SecondCursor.Tests
         [Fact]
         public void ReadingIsAReadingWindowOrARecentScroll()
         {
-            foreach (var app in new[] { AppIds.Mail, AppIds.DataViewer, AppIds.Notepad, AppIds.Staff, AppIds.Help, AppIds.Camera })
+            foreach (var app in new[] { AppIds.Mail, AppIds.DataViewer, AppIds.Notepad, AppIds.Staff, AppIds.Help, AppIds.Camera, AppIds.Files, AppIds.WorkOrders })
                 Assert.True(ReadingRule.IsReading(app, 1000f, 5f), app);
-            foreach (var app in new[] { AppIds.Files, AppIds.WorkOrders, AppIds.WorkQueue, AppIds.Disposal, "dialog", null })
+            foreach (var app in new[] { AppIds.WorkQueue, AppIds.Disposal, "dialog", null })
                 Assert.False(ReadingRule.IsReading(app, 1000f, 5f), app ?? "no window");
-            Assert.True(ReadingRule.IsReading(AppIds.Files, 2f, 5f));
-            Assert.False(ReadingRule.IsReading(AppIds.Files, ReadingRule.ScrollGrace + 0.1f, 5f));
+            Assert.True(ReadingRule.IsReading(AppIds.WorkQueue, 2f, 5f));
+            Assert.False(ReadingRule.IsReading(AppIds.WorkQueue, ReadingRule.ScrollGrace + 0.1f, 5f));
+            Assert.False(ReadingRule.IsReading(AppIds.Files, 2000f, ReadingRule.IdleLimit + 1f));
         }
 
         [Fact]
@@ -444,8 +445,8 @@ namespace SecondCursor.Tests
                                         "pause.textsize.medium", "pause.crt", "pause.crt.low", "task.filed.rest" })
                 Assert.True(s.ContainsKey(key), key);
             Assert.Contains("{0}", s["assist.offer.body"]);
-            Assert.Contains("Night Operations offers", s["help.body"]);
-            Assert.Contains("Night Operations offers", s["help.body.deck"]);
+            Assert.Contains("Help with task", s["help.body"]);
+            Assert.Contains("Help with task", s["help.body.deck"]);
             Assert.EndsWith("2", s["shutdown.denied.body"]);
         }
 

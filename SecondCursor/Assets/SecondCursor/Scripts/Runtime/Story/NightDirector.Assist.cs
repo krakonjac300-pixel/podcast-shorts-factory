@@ -18,13 +18,24 @@ namespace SecondCursor.Story
     /// <summary>
     /// Phase Q1 (owner 1 and 2, the outside tester's "the game will do the job while I look around"): a task is never finished for the
     /// player without asking. Waiting on a task runs the <see cref="TaskAssist"/> ladder: the task's hint, the hint again with the next
-    /// step spelled out, then an offer the player answers ("Night Operations can finish this task for you. Finish it / Not now"). Time spent
+    /// step spelled out, then a quiet help notice. The Work Queue opens an offer only when the player asks. Time spent
     /// reading does not count. An accepted offer finishes the task through the world (files moved, orders decided, mail read), so the Work
     /// Queue, Work Orders, the folders and the notice always agree, and everything it did is marked as done by Night Operations.
     /// </summary>
     public abstract partial class NightDirector
     {
         MessageBox _offerBox;
+        readonly Dictionary<string, TaskAssist> _taskAssists = new Dictionary<string, TaskAssist>();
+
+        public bool CanRequestTaskHelp(string taskId) => taskId != null && _g.Tasks.IsActive(taskId)
+            && _taskAssists.TryGetValue(taskId, out var assist) && assist.OfferAllowed && !assist.Accepted && CanOfferNow();
+
+        public void RequestTaskHelp(string taskId)
+        {
+            if (!CanRequestTaskHelp(taskId)) return;
+            var assist = _taskAssists[taskId];
+            if (assist.RequestOffer()) ShowOffer(taskId, assist);
+        }
 
         /// <summary>
         /// Waits for a task with the assist ladder. A beat that genuinely needs the task done waits as long as it takes: the offer comes back
@@ -73,18 +84,31 @@ namespace SecondCursor.Story
         TaskAssist NewAssist(string taskId, float hintAfter, bool offer)
         {
             var d = _g.Difficulty;
-            return new TaskAssist(hintAfter, d.TaskHintRepeat, d.TaskForceAfterHint, offer && TaskFinisher.CanOffer(_g.Tasks.Get(taskId)));
+            var assist = new TaskAssist(hintAfter, d.TaskHintRepeat, d.TaskForceAfterHint, offer && TaskFinisher.CanOffer(_g.Tasks.Get(taskId)));
+            _taskAssists[taskId] = assist;
+            return assist;
         }
 
-        /// <summary>Safety net (kept from before): a file a task needs is never lost; a shredded one comes back to Intake.</summary>
+        /// <summary>Required ordinary work files recover to Intake with an explicit Night Operations receipt.</summary>
         void KeepTaskFilesAlive(string taskId)
         {
             var task = _g.Tasks.Get(taskId);
             if (task == null || task.Type != TaskType.MoveFile) return;
+            var restored = new List<string>();
             foreach (var target in task.Data.targets)
             {
                 var f = _g.Files.GetFile(target);
-                if (f != null && f.Shredded) _g.Files.Restore(target, ContentIds.FolderIntake, Actor.System);
+                if (f != null && f.Shredded && _g.Files.Restore(target, ContentIds.FolderIntake, Actor.System)
+                    && !task.IsEntityAuthored && target != ContentIds.File017 && target != ContentIds.File209)
+                    restored.Add(f.Name);
+            }
+            if (restored.Count > 0)
+            {
+                string folder = _g.Files.GetFolder(ContentIds.FolderIntake)?.Name ?? "Intake";
+                string body = "Night Operations recovered required work files from a backup to " + folder + ": " + string.Join(", ", restored) + ".";
+                _g.Notifications.Show(TaskFinisher.NightOperations, body, "icon_task_pending",
+                    a => _g.Apps.OpenFolder(ContentIds.FolderIntake, a), "ui_select");
+                GameLog.Info(LogChannel.Task, body);
             }
         }
 
@@ -92,6 +116,9 @@ namespace SecondCursor.Story
         {
             var t = _g.Tasks.Get(taskId);
             if (t == null) return;
+            // If the player starts shredding with requested help still open, keep one decision on screen.
+            if (_g.Shred.Busy && _offerBox != null && _offerBox.IsOpen)
+                _offerBox.Window.Close(null, true);
             switch (assist.Tick(Time.deltaTime, PlayerReading(), CanOfferNow(), t.Progress))
             {
                 case AssistStep.Hint:
@@ -101,7 +128,9 @@ namespace SecondCursor.Story
                     ShowTaskHint(taskId, NextStepLine(t));
                     break;
                 case AssistStep.Offer:
-                    ShowOffer(taskId, assist);
+                    // Availability is a quiet notice. Only an explicit request opens a dialog.
+                    _g.Notifications.Show(_g.Content.Text("assist.offer.title"), "Help is available in the Work Queue.", "icon_info",
+                        a => _g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
                     break;
             }
         }
@@ -186,17 +215,31 @@ namespace SecondCursor.Story
             var c = _g.Content;
             var t = _g.Tasks.Get(taskId);
             if (t == null) { assist.Withdraw(); return; }
+            bool reading = t.Type == TaskType.ReadEmail;
+            string accept = c.Text(reading ? "assist.offer.mail.yes" : "assist.offer.yes");
             GameLog.Info(LogChannel.Task, "Offer " + assist.OffersMade + ": Night Operations can finish " + taskId + " (stuck " + assist.StuckSeconds.ToString("0") + " s active)");
-            _offerBox = Dialogs.Message(_g, c.Text("assist.offer.title"), c.Format("assist.offer.body", t.Title), "icon_question",
-                new[] { c.Text("assist.offer.yes"), c.Text("assist.offer.no") }, (result, by) =>
+            _offerBox = Dialogs.Message(_g, c.Text("assist.offer.title"), c.Format(reading ? "assist.offer.mail.body" : "assist.offer.body", t.Title), "icon_question",
+                new[] { accept, c.Text("assist.offer.no") }, (result, by) =>
                 {
                     _offerBox = null;
                     if (!assist.OfferOpen) return;
                     // Only the player's own answer finishes anything; a closed box (or another pointer's click) is "Not now".
-                    if (result == c.Text("assist.offer.yes") && by != null && by.IsPlayer)
+                    if (result == accept && by != null && by.IsPlayer)
                     {
                         assist.Accept();
-                        if (!FinishByNightOperations(taskId)) assist.AcceptFailed();
+                        if (reading)
+                        {
+                            foreach (var mailId in t.Data.targets)
+                                if (!_g.Mail.IsRead(mailId))
+                                {
+                                    _g.Mail.Deliver(mailId, false);
+                                    (_g.Apps.Launch(AppIds.Mail, by) as MailApp)?.ShowMail(mailId, by);
+                                    break;
+                                }
+                            _g.Tasks.Evaluate();
+                            if (!_g.Tasks.IsCompleted(taskId)) assist.AcceptFailed();
+                        }
+                        else if (!FinishByNightOperations(taskId)) assist.AcceptFailed();
                     }
                     else
                     {
@@ -220,6 +263,7 @@ namespace SecondCursor.Story
         {
             if (_offerBox != null && _offerBox.Window != null && !_offerBox.Window.IsClosed) _offerBox.Window.Close(null, true);
             _offerBox = null;
+            _taskAssists.Clear();
         }
 
         /// <summary>
@@ -235,12 +279,14 @@ namespace SecondCursor.Story
             const string by = TaskFinisher.NightOperations;
             g.Tasks.MarkFinishedBy(taskId, by);
             var moved = new List<string>();
+            bool recoveredOrdinary = false;
             foreach (var step in TaskFinisher.Plan(g.Tasks, t, id => g.Content.Order(id)?.correct))
             {
                 switch (step.Kind)
                 {
                     case FinishKind.MoveFile:
-                        if (g.Files.GetFile(step.Target)?.Shredded == true) g.Files.Restore(step.Target, ContentIds.FolderIntake, Actor.System);
+                        if (g.Files.GetFile(step.Target)?.Shredded == true && g.Files.Restore(step.Target, ContentIds.FolderIntake, Actor.System))
+                            recoveredOrdinary |= step.Target != ContentIds.File017 && step.Target != ContentIds.File209 && !t.IsEntityAuthored;
                         if (g.Files.Move(step.Target, step.Param, Actor.System, by)) moved.Add(g.Files.GetFile(step.Target).Name);
                         break;
                     case FinishKind.ShredFile:
@@ -281,6 +327,7 @@ namespace SecondCursor.Story
             string body = moved.Count > 0 && t.Type == TaskType.MoveFile
                 ? c.Format("task.filed.rest", t.Title, string.Join(", ", moved), g.Files.GetFolder(t.Data.param)?.Name ?? t.Data.param)
                 : c.Format("assist.done", t.Title);
+            if (recoveredOrdinary) body += "\nNight Operations recovered the required work files from a backup before filing them.";
             g.Notifications.Show(c.Text("app.workqueue"), body, "icon_task_done", a => g.Apps.Launch(AppIds.WorkQueue, a), "ui_select");
             GameLog.Info(LogChannel.Task, "Finished by Night Operations: " + taskId + " (" + t.ProgressText + ")");
             return true;

@@ -187,6 +187,19 @@ namespace SecondCursor.Apps
                 _g.Tasks.Evaluate();
             }
 
+            // Reopening evidence restores its existing viewer and preserves the reading position.
+            foreach (var open in _open)
+            {
+                if (!open.IsOpen) continue;
+                bool same = open is DataViewerApp data && data.FileId == fileId
+                    || open is NotepadApp note && !note.ConversationMode && note.FileId == fileId;
+                if (!same) continue;
+                if (open is DataViewerApp viewer) viewer.RefreshFile();
+                open.Window.Restore(by);
+                open.Window.Focus(by);
+                return open;
+            }
+
             switch (file.Kind)
             {
                 case FileKind.Executable:

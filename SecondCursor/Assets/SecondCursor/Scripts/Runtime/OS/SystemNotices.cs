@@ -44,35 +44,23 @@ namespace SecondCursor.OS
                 g.Notifications.Show(g.Content.Text("app.disposal"), g.Content.Format(key, name, SessionOf(g, by)), "icon_error", null, "sys_warning",
                     true, () => Time.time < until, other ? by.Actor : Core.Game.NoticeKind.Plain);
                 GameLog.Info(LogChannel.OS, "Notice: shred of " + name + " cancelled by " + (other ? SessionOf(g, by) : "the player") + (g.Shred.CancelledAtConfirm ? " at the confirm" : " during the shred"));
-                // Phase R: the race is over and the other session won it: a full-width LOST card, not only the toast.
-                var banner = Banner(g);
-                if (other && banner != null)
-                {
-                    banner.EndStrip();
-                    banner.ShowCard(false, g.Content.Format(ContestCopy.ShredKey(false, g.Shred.CancelledAtConfirm), name, SessionOf(g, by)));
-                }
-            };
-            // Phase R: a raced shred is a contest from the confirm to the last block of the bar (the confirm's own strip is ConfirmRace's).
-            g.Shred.ProgressStarted += (fileId, progress) =>
-            {
-                var banner = Banner(g);
-                if (g.Shred.Raced && banner != null) banner.BeginStrip(ContestCopy.StripCancel, g.EntityAgent.Actor, () => progress.IsOpen);
             };
             g.Shred.Completed += (fileId, by) =>
             {
-                var banner = Banner(g);
-                if (!g.Shred.Raced || banner == null || by == null || !by.IsPlayer) return;
+                if (!g.Shred.Raced || by == null || !by.IsPlayer) return;
                 var file = g.Files.GetFile(fileId);
-                banner.EndStrip();
-                banner.ShowCard(true, g.Content.Format(ContestCopy.ShredKey(true, false), file != null ? file.Name : fileId));
+                float until = Time.time + RaceNoticeSeconds;
+                g.Notifications.Show(g.Content.Text("app.disposal"),
+                    g.Content.Format(ContestCopy.ShredKey(true, false), file != null ? file.Name : fileId),
+                    "icon_info", null, "ui_select", true, () => Time.time < until);
             };
             g.Windows.ClosedEvent += (w, by) =>
             {
                 // Dialogs have their own notices (a shred cancelled); an app window closed by another cursor is named.
                 if (w == null || by == null || !by.IsEntity || w.AppId == "dialog" || w.AppId == "progress") return;
                 string app = g.Content.Text("app." + w.AppId, w.Title);
-                if (!Due("close:" + w.AppId)) return;
                 bool camera = w.AppId == AppIds.Camera;
+                if (!camera && !Due("close:" + w.AppId)) return;
                 // Phase K: during rounds it says why (it showed Custodial) and how to get the viewer back.
                 var rounds = g.Rounds;
                 bool custodial = camera && rounds != null && rounds.Running && rounds.Model != null && (w.Owner as Apps.CameraApp)?.CurrentCamera == rounds.Model.FigureCamera;
@@ -81,17 +69,26 @@ namespace SecondCursor.OS
                     : !custodial ? g.Content.Format("camera.closed.by", SessionOf(g, by))
                     : g.Content.Format(rounds.ClosedNoticeKey ?? "camera.closed.custodial", SessionOf(g, by),
                         Story.RoundsSystem.CameraName(g, rounds.Model.FigureCamera), Story.RoundsSystem.CameraName(g, Apps.CameraApp.CameraOnOpen(g)));
-                g.Notifications.Show(app, body, camera ? "icon_camera" : "icon_info", null, "ui_select", false, null, by.Actor);
+                bool duringRounds = rounds != null && rounds.Running;
+                g.Notifications.Show(app, body, camera ? "icon_camera" : "icon_info", null, "ui_select", false,
+                    camera ? () => (!duringRounds || rounds.Running) && g.Apps.Find<Apps.CameraApp>() == null : (System.Func<bool>)null,
+                    by.Actor, urgent: camera);
                 GameLog.Info(LogChannel.OS, "Notice: " + app + " closed by " + SessionOf(g, by));
             };
             // Phase R (sixth blind playtest: "Camera Viewer and Personnel opened by themselves with no author"): a program another session
             // opens is named, like a window it closes. Jotter has its own title and prompt; the code prompt and the viewers are the player's.
             g.Apps.Launched += (appId, by) =>
             {
-                if (by == null || !by.IsEntity || !NamesOpening(appId) || !Due("open:" + appId)) return;
+                if (by == null || !by.IsEntity || !NamesOpening(appId)) return;
+                bool camera = appId == AppIds.Camera;
+                if (!camera && !Due("open:" + appId)) return;
                 string app = g.Content.Text("app." + appId, appId);
                 string who = Capital(SessionOf(g, by));
-                g.Notifications.Show(app, g.Content.Format("window.opened.by", who, app), appId == AppIds.Camera ? "icon_camera" : "icon_info", null, "ui_select", false, null, by.Actor);
+                var viewer = camera ? g.Apps.Find<Apps.CameraApp>() : null;
+                string shownCamera = viewer != null ? viewer.CurrentCamera : null;
+                g.Notifications.Show(app, g.Content.Format("window.opened.by", who, app), camera ? "icon_camera" : "icon_info", null, "ui_select", false,
+                    camera ? () => viewer != null && viewer.IsOpen && !viewer.Window.IsMinimized && viewer.CurrentCamera == shownCamera : (System.Func<bool>)null,
+                    by.Actor, urgent: camera);
                 GameLog.Info(LogChannel.OS, "Notice: " + app + " opened by " + who);
             };
             g.Files.FileMoved += (file, from, to, actor) =>
@@ -143,7 +140,6 @@ namespace SecondCursor.OS
 
         static string Capital(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
 
-        static Entity.ContestBanner Banner(GameServices g) => g.Conflict != null && g.Conflict.Hud != null ? g.Conflict.Hud.Banner : null;
 
         /// <summary>"session 017" for the second cursor, "session 209" for the third, else "a remote session".</summary>
         public static string SessionOf(GameServices g, CursorAgent a)

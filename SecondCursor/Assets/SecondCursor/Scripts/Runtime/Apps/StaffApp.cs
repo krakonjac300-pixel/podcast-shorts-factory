@@ -23,10 +23,29 @@ namespace SecondCursor.Apps
         PixelText _fields;
         PixelText _status;
         ReadingPane _notes;
+        ReadingPane _fieldsPane;
+        RectTransform _fieldsFrame, _photoFrame;
         float _factor = -1f;
         EmployeeData _shown;
         Texture2D _photoTex;
         float _staticTimer;
+        UiButton _backToOrder;
+        string _returnOrder;
+
+        public void ShowForOrder(string employeeId, string orderId, CursorAgent by)
+        {
+            _returnOrder = orderId;
+            ShowById(employeeId, by);
+            if (_backToOrder != null) return;
+            _backToOrder = UiButton.Create(Window.Client, "Back to work order", a =>
+            {
+                var orders = G.Apps.Launch(AppIds.WorkOrders, a) as WorkOrdersApp;
+                orders?.ShowOrder(_returnOrder, a);
+            }, "staff.backtoorder");
+            ((RectTransform)_backToOrder.transform).TopRight(4, 3, Mathf.Ceil(154f * Game.DisplaySettings.ReadingFactor), 24);
+            _card.Stretch(ListWidth + 4, 32, 2, 2);
+            LayoutCard();
+        }
 
         public override string AppId => AppIds.Staff;
 
@@ -59,6 +78,7 @@ namespace SecondCursor.Apps
             _card.Stretch(216, 2, 2, 2);
 
             var photoFrame = UIBuilder.Bevel(_card, BevelStyle.Sunken, "Photo Frame");
+            _photoFrame = photoFrame.rectTransform;
             photoFrame.rectTransform.At(10, 10, 68, 84);
             _photoTex = OwnedAssets.Own(Window.gameObject,
                 new Texture2D(64, 80, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp });
@@ -69,8 +89,12 @@ namespace SecondCursor.Apps
             _photoCaption.Align = TextAlign.Center;
             _photoCaption.VAlign = TextVAlign.Middle;
 
-            _fields = UIBuilder.Text(_card, "Select an employee.", Palette.Text);
+            _fieldsFrame = UIBuilder.Rect("Employee Fields", _card);
+            _fieldsPane = ReadingPane.Create(_fieldsFrame, "Employee Fields Scroll", Palette.Text);
+            _fields = _fieldsPane.Text;
+            _fields.text = "Select an employee.";
             _status = UIBuilder.Text(_card, "", Palette.Text, true);
+            _status.Wrap = true;
             var notesFrame = UIBuilder.Rect("Notes", _card);
             _notes = ReadingPane.Create(notesFrame, "Notes Scroll", Palette.Text);
             _notesFrame = notesFrame;
@@ -80,22 +104,35 @@ namespace SecondCursor.Apps
         }
 
         RectTransform _notesFrame;
+        float ListWidth => Mathf.Round(Mathf.Min(210f * Mathf.Sqrt(Game.DisplaySettings.ReadingFactor), Window.Size.x * 0.34f));
 
         /// <summary>
-        /// Places the fields, the status line and the notes for the Reading text size: at 1x exactly where they always were (fields 110 px
-        /// tall, the status at 124, the notes from 144); larger text gives the fields and the status more room and the notes the rest.
+        /// Keep status and notes available at every reading size. Long fields scroll separately, and a narrow card gives text the photo's room.
         /// </summary>
         void LayoutCard()
         {
             if (_card == null) return;
             float f = Game.DisplaySettings.ReadingFactor;
             _factor = f;
+            _list.Root.offsetMax = new Vector2(ListWidth + 2f, -2f);
+            _card.Stretch(ListWidth + 6f, _backToOrder != null ? 32 : 2, 2, 2);
+            if (_backToOrder != null)
+                ((RectTransform)_backToOrder.transform).TopRight(4, 3, Mathf.Ceil(154f * f), 24);
+            Canvas.ForceUpdateCanvases();
             float cardW = _card.rect.width > 1f ? _card.rect.width : 322f;
-            float fieldsH = Mathf.Round(110f * f), statusY = 10f + fieldsH + 4f, notesTop = statusY + Mathf.Round(12f * f) + 8f;
+            bool compact = cardW < 320f;
+            _photoFrame.gameObject.SetActive(!compact);
+            float left = compact ? 6f : 88f;
+            float fieldsW = Mathf.Max(60f, cardW - left - 8f);
+            float statusH = Mathf.Max(12f * f, PixelFont.Measure(_status.text, Mathf.FloorToInt(fieldsW), true, f).y + 4f);
+            float wantedFieldsH = Mathf.Max(Mathf.Round(110f * f), PixelFont.Measure(_fields.text, Mathf.FloorToInt(fieldsW) - 28, false, f).y + 16f);
+            float fieldsH = Mathf.Clamp(wantedFieldsH, 40f, Mathf.Max(40f, _card.rect.height - statusH - 100f));
+            float statusY = 10f + fieldsH + 4f, notesTop = statusY + statusH + 8f;
             _fields.Factor = f;
             _status.Factor = f;
-            _fields.rectTransform.At(88, 10, cardW - 96f, fieldsH);
-            _status.rectTransform.At(88, statusY, cardW - 96f, Mathf.Round(12f * f));
+            _fieldsFrame.At(left, 10, fieldsW, fieldsH);
+            _fieldsPane.SetText(_fields.text, false);
+            _status.rectTransform.At(left, statusY, fieldsW, statusH);
             _notesFrame.Stretch(6, notesTop - 6f, 6, 4);
         }
 
@@ -103,12 +140,14 @@ namespace SecondCursor.Apps
         {
             if (e == null) return;
             _shown = e;
+            _fieldsPane.Scroll.ScrollTo(0f);
             bool locked = e.restricted && !G.Flags.Has(Flags.Staff017Revealed);
             if (locked)
             {
                 _fields.text = "Employee No.  " + e.number + "\n\nACCESS RESTRICTED\nClearance level 3 required.";
                 _status.text = "";
                 _notes.SetText("", true);
+                LayoutCard();
                 DrawPhoto("redacted");
                 return;
             }
@@ -118,6 +157,7 @@ namespace SecondCursor.Apps
                            office + e.office + "\nHired:       " + e.hired + "\nLast login:  " + e.lastLogin + "\nSupervisor:  " + e.supervisor;
             _status.text = "Status: " + e.status;
             _status.color = StatusColor(e.status);
+            LayoutCard();
             _notes.SetText(string.IsNullOrEmpty(e.notes) ? "" : "Notes:\n" + e.notes, true);
             DrawPhoto(e.photo);
             if (e.id == ContentIds.Employee017) G.Flags.Increment("viewed:employee017");
@@ -147,6 +187,7 @@ namespace SecondCursor.Apps
                 if (!(r.Tag is EmployeeData e) || r.Columns.Count < 2) continue;
                 r.Columns[1].text = e.restricted && !G.Flags.Has(Flags.Staff017Revealed) ? "[RESTRICTED]" : e.name;
             }
+            _list.Layout(true);
             if (_shown != null) Show(_shown, null);
         }
 
@@ -203,6 +244,7 @@ namespace SecondCursor.Apps
         {
             if (_factor != Game.DisplaySettings.ReadingFactor) LayoutCard();
             _notes.Tick();
+            _fieldsPane.Tick();
             if (_shown == null || _shown.photo != "static" || (_shown.restricted && !G.Flags.Has(Flags.Staff017Revealed))) return;
             _staticTimer -= dt;
             if (_staticTimer > 0f) return;

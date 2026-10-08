@@ -11,6 +11,23 @@
   ],
   "files": [
     {
+      "id": "prev_operator_continuation",
+      "name": "handover_recovered.txt",
+      "type": "txt",
+      "folder": "restricted",
+      "size": "2 KB",
+      "modified": "1998-11-02 02:56",
+      "content": "WS-04 HANDOVER NOTES - G. PRUITT\nLATER ENTRIES\n\n10/29\n- Desktop again. Retention says shred it.\n- Dragged it to the bin. Something dragged it back out. Not me.\n\n10/30\n- Opened it. Shouldn't have. Didn't sleep.\n\n10/31\n- Every time I go for the Camera Viewer, the other cursor pulls mine away. Like a hand on your wrist.\n- Door was open when I got back from break. I closed it before I left. I KNOW I did.\n\n11/01\n- It typed in Jotter tonight. Two words. NOT YET.\n- I think it's been stopping me, not fighting me. I think I had it backwards.\n\n11/02 2:50 AM\n- Retention called the desk phone. Nobody calls the desk phone.\n- They said Custodial is coming down to help me finish the shred.\n- Door's open. I'm not going to turn around.\n- If you're reading this, don't fi",
+      "hidden": false,
+      "protected": true,
+      "corrupted": false,
+      "tags": [
+        "story",
+        "clue",
+        "pruitt"
+      ]
+    },
+    {
       "id": "employee_017",
       "name": "employee_017.dat",
       "type": "dat",
@@ -30,7 +47,7 @@
       "folder": "intake",
       "size": "38 KB",
       "modified": "1995-01-06 16:22",
-      "content": "LETHEWORTH DATA RECLAMATION\nA/R LEDGER - FY1994 - LEGACY EXPORT\n------------------------------------------\nACCT  CLIENT                     BALANCE\n0412  Tolliver Freight Lines     1,240.00\n0415  Brisco Dental Group          310.50\n0433  Pine Hollow Water Auth.    4,882.00\n0441  Grace Valley Parish           96.00\n0458  Brandvold & Sons Grain     2,015.75\n0460  Estate of M. Quillan           0.00 C\n0461  Estate of R. Odell             0.00 C\n0477  Kettle Road Veterinary       640.00\n0482  Estate of H. Dunmore           0.00 C\n------------------------------------------\nTOTAL OUTSTANDING                9,184.25\n\nC = CONTINUITY. Billed to the estate.\nLapsed continuity accounts are sent to\nReclamation for shredding.",
+      "content": "LETHEWORTH DATA RECLAMATION\nA/R LEDGER - FY1994 - LEGACY EXPORT\n------------------------------------------\nACCT  CLIENT                     BALANCE\n0412  Tolliver Freight Lines     1,240.00\n0415  Brisco Dental Group          310.50\n0433  Pine Hollow Water Auth.    4,882.00\n0441  Grace Valley Parish           96.00\n0458  Brandvold & Sons Grain     2,015.75\n0460  Estate of M. Quillan           0.00 C\n0461  Estate of R. Odell             0.00 C\n0477  Kettle Road Veterinary       640.00\n0482  Estate of H. Dunmore           0.00 C\n------------------------------------------\nTOTAL OUTSTANDING                9,184.25\n\nC = CONTINUITY. Billed to the estate.\nLapsed continuity accounts are sent to\nReclamation for shredding.\n\nTRANSFER AUDIT - 11/16/98\nSource drive: LW-2100 SN 0093317\nOperator: 146 / P. DELACROIX\nSeparation entered: 10/30/98\nLast source activity: 11/16/98 02:17\nException: activity after separation.\nRetain this audit with the ledger.",
       "hidden": false,
       "protected": false,
       "corrupted": false,
@@ -147,7 +164,7 @@
       "folder": "documents",
       "size": "2 KB",
       "modified": "1998-11-02 02:56",
-      "content": "WS-04 HANDOVER NOTES - G. PRUITT\n(for whoever's next. sorry about the mess)\n\n10/26\n- Ledgers go to Archive, NOT Disposal.\n- Vending machine on B eats quarters. Hit it on the left side.\n- Heater in B-7 clicks. It's just the heater.\n\n10/28\n- Mouse acting up. Cursor jumps. IT says known issue.\n- employee_017.dat was on my desktop. Didn't put it there. Moved it back to Intake.\n\n10/29\n- Desktop again. Retention says shred it.\n- Dragged it to the bin. Something dragged it back out. Not me.\n\n10/30\n- Opened it. Shouldn't have. Didn't sleep.\n\n10/31\n- Every time I go for the Camera Viewer, the other cursor pulls mine away. Like a hand on your wrist.\n- Door was open when I got back from break. I closed it before I left. I KNOW I did.\n\n11/01\n- It typed in Jotter tonight. Two words. NOT YET.\n- I think it's been stopping me, not fighting me. I think I had it backwards.\n\n11/02 2:50 AM\n- Retention called the desk phone. Nobody calls the desk phone.\n- They said Custodial is coming down to help me finish the shred.\n- Door's open. I'm not going to turn around.\n- If you're reading this, don't fi",
+      "content": "WS-04 HANDOVER NOTES - G. PRUITT\n(for whoever's next. sorry about the mess)\n\n10/26\n- Ledgers go to Archive, NOT Disposal.\n- Vending machine on B eats quarters. Hit it on the left side.\n- Heater in B-7 clicks. It's just the heater.\n\n10/28\n- Mouse acting up. Cursor jumps. IT says known issue.\n- employee_017.dat was on my desktop. Didn't put it there. Moved it back to Intake.\n\nLater entries: Restricted / handover_recovered.txt",
       "hidden": false,
       "protected": true,
       "corrupted": false,

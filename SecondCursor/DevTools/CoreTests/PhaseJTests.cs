@@ -230,8 +230,11 @@ namespace SecondCursor.Tests
                 Assert.True(r.Tag == "letgo", "'" + said + "' was answered as " + r.Tag);
                 Assert.Contains("THEN PUT ME IN THE BIN", r.Lines);
             }
-            foreach (var said in new[] { "stay", "stay with me ellen", "i wont let you go", "i will never let you go", "please don't go", "don't leave me" })
+            foreach (var said in new[] { "stay", "stay with me", "don't go", "i am not leaving" })
                 Assert.True(engine.Respond(ex, said).Tag == "stay", "'" + said + "' should be stay");
+            // Longer or negated sentences never commit the stay branch.
+            foreach (var said in new[] { "i wont let you go", "i will never let you go", "please don't go" })
+                Assert.True(engine.Respond(ex, said).Tag != "stay", "'" + said + "' must not be stay");
             foreach (var said in new[] { "let me go", "log off", "go home" })
                 Assert.Equal("go", engine.Respond(ex, said).Tag);
             Assert.Equal("name", engine.Respond(ex, "ellen").Tag);

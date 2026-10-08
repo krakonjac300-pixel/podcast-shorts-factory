@@ -299,12 +299,45 @@ namespace SecondCursor.Apps
             var items = new List<MenuItem>
             {
                 new MenuItem { Label = "Open", Bold = true, Action = x => G.Apps.OpenFile(tag, x) },
+                MenuItem.Of("Archive", x => DropInto(tag, ContentIds.FolderArchive, x), "icon_folder",
+                    CanArchive(tag), "files.archive"),
                 MenuItem.Of("Shred", x => G.Shred.Request(tag, x), "icon_disposal_empty"),
                 MenuItem.Sep(),
                 MenuItem.Of("Properties", x => G.Apps.ShowProperties(tag, x)),
             };
-            PopupMenu.Show(G.Layers.Popups, a.Position, items, 130);
+            if (BatchToArchive(tag) != null)
+                items.Insert(2, MenuItem.Of("Archive remaining batch", x => ArchiveRemainingBatch(tag, x), "icon_folder", true, "files.archive.batch"));
+            PopupMenu.Show(G.Layers.Popups, a.Position, items, items.Exists(i => i.ElementId == "files.archive.batch") ? 186 : 130);
         }
+
+        WorkTask BatchToArchive(string fileId)
+        {
+            var task = TaskFor(G, fileId);
+            // Keep the first-shift tutorial and Ellen's shared batch as individual actions.
+            if (G.Night < 2 || task == null || task.State != TaskState.Active || task.Id == ContentIds.TaskN2Batch46
+                || task.Data.param != ContentIds.FolderArchive || task.Data.targets.Length < 2) return null;
+            int remaining = 0;
+            foreach (var id in task.Data.targets)
+            {
+                if (G.Files.FolderOf(id) == ContentIds.FolderArchive) continue;
+                if (!CanArchive(id)) return null;
+                remaining++;
+            }
+            return remaining > 1 ? task : null;
+        }
+
+        public void ArchiveRemainingBatch(string fileId, CursorAgent by)
+        {
+            if (by == null || !by.IsPlayer) return;
+            var task = BatchToArchive(fileId);
+            if (task == null) return;
+            foreach (var id in task.Data.targets)
+                if (CanArchive(id)) DropInto(id, ContentIds.FolderArchive, by);
+        }
+
+        // The menu offers the same move as dragging, including Ellen's optional requests.
+        public bool CanArchive(string id) => CanDropInto(id, ContentIds.FolderArchive)
+            && G.Files.FolderOf(id) != ContentIds.FolderArchive;
 
         public override void Tick(float dt)
         {

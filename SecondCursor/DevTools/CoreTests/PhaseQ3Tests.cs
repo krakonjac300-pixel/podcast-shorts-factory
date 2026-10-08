@@ -86,7 +86,7 @@ namespace SecondCursor.Tests
             Assert.Equal(new[] { "LET THEM CHOOSE", "THEY WONT BE HERE AT SEVEN" }, final.Lines);
             // A chat group never picks an exit: the finale keeps listening for STAY, LET GO and the name.
             Assert.Equal("chat", final.Tag);
-            Assert.Equal("stay", Say(Night(3), "ex3_final", "chat says stay").Tag);
+            Assert.NotEqual("stay", Say(Night(3), "ex3_final", "chat says stay").Tag);
             Assert.Equal("stay", Say(Night(3), "ex3_final", "i will stay").Tag);
         }
 
@@ -328,8 +328,11 @@ namespace SecondCursor.Tests
         {
             if (!Present) return;
             var db = Night(3);
-            foreach (var said in new[] { "stay", "i will stay", "yes", "chat says stay", "dont go", "i wont let you go" })
+            foreach (var said in new[] { "stay", "i will stay", "dont go" })
                 Assert.Equal("stay", Say(db, "ex3_final", said).Tag);
+            // Only a short explicit statement commits the stay branch; words inside a longer sentence or a refusal do not.
+            foreach (var said in new[] { "yes", "chat says stay", "i wont let you go" })
+                Assert.NotEqual("stay", Say(db, "ex3_final", said).Tag);
             foreach (var said in new[] { "let you go", "goodbye", "put you in the bin", "delete it" })
             {
                 var r = Say(db, "ex3_final", said);
@@ -562,7 +565,8 @@ namespace SecondCursor.Tests
             foreach (var (night, id) in Ellen)
             {
                 var db = Night(night);
-                Assert.Equal("nod", Say(db, id, "yes").Gesture);
+                // A bare yes in the final choice is not an answer, so it gets no nod.
+                Assert.Equal(id == "ex3_final" ? "" : "nod", Say(db, id, "yes").Gesture);
                 Assert.Equal("shake", Say(db, id, "make me").Gesture);
                 Assert.Equal("tremble", Say(db, id, "how did you die").Gesture);
                 Assert.Equal(night == 1 ? "point" : "", Say(db, id, "show me the camera").Gesture);

@@ -20,7 +20,10 @@ namespace SecondCursor.Game
     /// </summary>
     public sealed class PauseMenu : MonoBehaviour
     {
-        const int BoxWidth = 240, RowStep = 28, ButtonHeight = 22;
+        const int RowStep = 28;
+        static int BoxWidth => DisplaySettings.ReadingFactor >= 2f ? 600 : DisplaySettings.ReadingFactor > 1f ? 440 : 280;
+        static int ButtonHeight => DisplaySettings.ReadingFactor >= 2f ? 24 : 22;
+        static int NoteHeight => Mathf.CeilToInt(14f * DisplaySettings.ReadingFactor);
 
         GameServices _g;
         RectTransform _panel;
@@ -116,6 +119,7 @@ namespace SecondCursor.Game
         void Pause(bool settingsOnly)
         {
             if (IsPaused) return;
+            if (InShift) _g.Director?.SaveCurrentProgress();
             IsPaused = true;
             StateChangeFrame = Time.frameCount;
             _settingsOnly = settingsOnly;
@@ -148,7 +152,11 @@ namespace SecondCursor.Game
 
         void Rebuild()
         {
-            if (_panel != null) Destroy(_panel.gameObject);
+            if (_panel != null)
+            {
+                _panel.gameObject.SetActive(false);
+                Destroy(_panel.gameObject);
+            }
             _nav.Clear();
             _panel = UIBuilder.Rect("Pause", _g.Layers.Fullscreen).Stretch();
             var dim = _panel.gameObject.AddComponent<Image>();
@@ -171,6 +179,7 @@ namespace SecondCursor.Game
             cap.SetGradient(Palette.TitleActiveA, Palette.TitleActiveB);
             cap.rectTransform.TopStrip(3, 18, 3, 3);
             var t = UIBuilder.Text(cap.rectTransform, caption, Palette.TitleText, true);
+            t.Factor = DisplaySettings.ReadingFactor;
             t.rectTransform.Stretch(6, 0, 4, 0);
             t.VAlign = TextVAlign.Middle;
             // The build's version, at the right of the caption (support requests need it).
@@ -186,7 +195,9 @@ namespace SecondCursor.Game
             var c = _g.Content;
             bool pending = PendingDifficulty(out var saved);
             int rows = _settingsOnly ? 11 : 14;
-            var box = Box(rows, pending || _settingsOnly ? 14 : 0, _settingsOnly ? c.Text("title.settings") : c.Text("pause.title"));
+            string motorHelp = c.Text("pause.motorhelp", "Hold: hold the button to win a tug.\nClick lock: drag for 0.5 sec, release; click to drop.");
+            int motorHelpHeight = PixelFont.Measure(motorHelp, BoxWidth - 40, false, DisplaySettings.ReadingFactor).y + 8;
+            var box = Box(rows, motorHelpHeight + (pending || _settingsOnly ? NoteHeight : 0), _settingsOnly ? c.Text("title.settings") : c.Text("pause.title"));
             int y = 32;
             UiButton first;
             if (_settingsOnly) first = Button(box, c.Text("pause.back"), "pause:back", a => Resume(), ref y);
@@ -213,9 +224,10 @@ namespace SecondCursor.Game
             if (pending || _settingsOnly)
             {
                 var note = UIBuilder.Text(box, c.Text(_settingsOnly ? "pause.difficulty.next" : "pause.difficulty.note"), Palette.TextMuted);
-                note.rectTransform.At(20, y - 4, BoxWidth - 40, 12);
+                note.Factor = DisplaySettings.ReadingFactor;
+                note.rectTransform.At(20, y - 4, BoxWidth - 40, NoteHeight);
                 note.Align = TextAlign.Center;
-                y += 14;
+                y += NoteHeight;
             }
             // Phase P (A2): the motor-access options, right after Difficulty.
             Button(box, c.Format("pause.tugassist", c.Text(AccessSettings.TugAssistHold ? "pause.tugassist.hold" : "pause.tugassist.off")), "pause:tugassist", a =>
@@ -256,6 +268,10 @@ namespace SecondCursor.Game
                 _confirm = Confirm.Quit;
                 Rebuild();
             }, ref y);
+            var motorNote = UIBuilder.Text(box, motorHelp, Palette.TextMuted);
+            motorNote.Factor = DisplaySettings.ReadingFactor;
+            motorNote.Wrap = true;
+            motorNote.rectTransform.At(20, y + 2, BoxWidth - 40, motorHelpHeight);
             _nav.Focus(first);
         }
 
@@ -326,6 +342,7 @@ namespace SecondCursor.Game
             bool quit = _confirm == Confirm.Quit;
             var box = Box(2, 10, c.Text(quit ? "pause.quit" : "pause.totitle"));
             var text = UIBuilder.Text(box, c.Text(quit ? "pause.quit.confirm" : "pause.totitle.confirm"), Palette.Text);
+            text.Factor = DisplaySettings.ReadingFactor;
             text.rectTransform.At(12, 30, BoxWidth - 24, 30);
             text.Align = TextAlign.Center;
             text.Wrap = true;
@@ -361,6 +378,7 @@ namespace SecondCursor.Game
             minus.ClickSound = plus.ClickSound = "";
             ((RectTransform)plus.transform).At(BoxWidth - 70, 0, 30, ButtonHeight);
             _volume = UIBuilder.Text(row, "", Palette.Text);
+            _volume.Factor = DisplaySettings.ReadingFactor;
             _volume.rectTransform.Stretch(34, 0, 34, 0);
             _volume.Align = TextAlign.Center;
             _volume.VAlign = TextVAlign.Middle;

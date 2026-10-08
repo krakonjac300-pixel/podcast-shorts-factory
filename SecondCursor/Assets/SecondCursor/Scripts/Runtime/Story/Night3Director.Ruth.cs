@@ -7,6 +7,7 @@ using SecondCursor.Core;
 using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Core.Tasks;
 using SecondCursor.Entity;
@@ -16,14 +17,16 @@ using UnityEngine;
 namespace SecondCursor.Story
 {
     /// <summary>
-    /// Night 3, the Ruth beat (spec 5.3 N3.3): a missed call from ext. 2118 at 2:17, the Intake files flicker
-    /// into 0217.dat, Ruth's mail about the comment she finally wrote, Batch 48, and the Restricted code with
+    /// Night 3, the Ruth beat (spec 5.3 N3.3): a missed call from ext. 2118 at 2:17, the Intake files register
+    /// an unanswered call, Ruth's mail about the comment she finally wrote, Batch 48, and the Restricted code with
     /// its hints. The clock then runs on to 3:00.
     /// </summary>
     public sealed partial class Night3Director
     {
         const float RuthMinSeconds = 150f;
         const float RuthMaxSeconds = 300f;
+        float _ruthDecisionAt = -1f;
+        float _ruthDecisionSeconds;
         /// <summary>
         /// Phase K (finding 6): once the queue says "Nothing to do until then", the wait is at most this long before the clock runs
         /// to 3:00 (over <see cref="ToRoundsSeconds"/>), however quickly the chores were done; the fourth tester waited 20 s on one
@@ -49,6 +52,7 @@ namespace SecondCursor.Story
         IEnumerator Ruth()
         {
             var g = _g;
+            _ruthDecisionAt = -1f;
             yield return EnsureEllenLurking();
             _holdAt = -1;
             if (g.Clock.TotalMinutes < Night3Rules.RuthCall) yield return EnsureClockAtLeast(2, 17, 3f);
@@ -57,8 +61,8 @@ namespace SecondCursor.Story
             _holdAt = RuthHold;
             yield return Wait(2f);
 
-            // 2:17: the desk phone rings twice (there is no desk phone), and the files in Intake flicker into the code.
-            RunSide(ZeroTwoSeventeen(), "0217");
+            // The call time is a clue. The file anomaly reinforces the call without displaying its exact authorization code.
+            RunSide(UnansweredCallFiles(), "unanswered-call");
             g.Audio.Play("phone_ring", 0.9f);
             yield return Wait(3f);
             g.Audio.Play("phone_ring", 0.9f);
@@ -81,14 +85,15 @@ namespace SecondCursor.Story
             RunSide(WaitForRoundsLine(), "wait-rounds");
             RunSide(RuthDriveOrder(mailAt), "ruth-3333");
 
-            // At least 150 s after the mail (or the wait line's cap), the batch done and her order settled; at 300 s an order nobody decided
-            // lapses. Phase Q1: the batch is never archived for the player without asking: the beat waits for it (its hints offer Night
+            // Her decision window starts when her order arrives, not when the earlier confession arrived.
+            // Phase Q1: the batch is never archived for the player without asking: the beat waits for it (its hints offer Night
             // Operations' help, and offer it again after "Not now").
             _waitRoundsSince = -1f;
             while (!(Done(ContentIds.TaskN3Batch48) && Settled(ContentIds.Order3333)
                      && (Time.time - mailAt >= RuthMinSeconds || (_waitRoundsSince > 0f && Time.time - _waitRoundsSince >= WaitRoundsCap))))
             {
-                if (Time.time - mailAt >= RuthMaxSeconds && !Settled(ContentIds.Order3333)) LapseOrder(ContentIds.TaskN3Verify3333, ContentIds.Order3333);
+                if (_ruthDecisionAt >= 0f && ReadingPace.Remaining(Time.time, _ruthDecisionAt, _ruthDecisionSeconds) <= 0f
+                    && !Settled(ContentIds.Order3333)) LapseOrder(ContentIds.TaskN3Verify3333, ContentIds.Order3333);
                 yield return null;
             }
             // Let her finish what she is saying, then the clock runs on to 3:00.
@@ -124,11 +129,13 @@ namespace SecondCursor.Story
                 && ((_ruthReadAt > 0f && Time.time - _ruthReadAt >= 40f) || Time.time - mailAt >= 120f), RuthMaxSeconds);
             if (CurrentBeat != "ruth" || Settled(ContentIds.Order3333)) yield break;
             RevealOrder(ContentIds.TaskN3Verify3333, ContentIds.Order3333, ContentIds.MailN3RuthDrive);
+            _ruthDecisionAt = Time.time;
+            _ruthDecisionSeconds = ReadingPace.TaskSeconds(ReadingPace.RuthDecisionSeconds, _g.TimeScale);
             RunSide(BatchHints(ContentIds.TaskN3Verify3333), "hints-3333");
         }
 
-        /// <summary>Every .dat in Intake is called 0217.dat for 2.5 s (a glitch and a click you did not make).</summary>
-        IEnumerator ZeroTwoSeventeen()
+        /// <summary>Every .dat in Intake registers NO ANSWER for 2.5 s, with a glitch and a click you did not make.</summary>
+        IEnumerator UnansweredCallFiles()
         {
             var g = _g;
             var renamed = new List<(string id, string name)>();
@@ -136,7 +143,7 @@ namespace SecondCursor.Story
             {
                 if (f.Extension != "dat") continue;
                 renamed.Add((f.Id, f.Name));
-                g.Files.Rename(f.Id, "0217.dat");
+                g.Files.Rename(f.Id, "NO ANSWER.dat");
             }
             if (renamed.Count == 0) yield break;
             g.Fx.Glitch(0.2f, 0.8f);
@@ -144,7 +151,7 @@ namespace SecondCursor.Story
             var fm = g.Apps.Find<FilesApp>();
             var row = fm != null && !fm.Window.IsMinimized ? fm.RowFor(renamed[0].id) : null;
             PhantomClick(row != null ? row.Hit.Center : new Vector2(ScreenRig.Width * 0.5f, ScreenRig.Height * 0.5f));
-            GameLog.Info(LogChannel.Story, "Anomaly: " + renamed.Count + " Intake file(s) renamed 0217.dat");
+            GameLog.Info(LogChannel.Story, "Anomaly: " + renamed.Count + " Intake file(s) registered an unanswered call");
             yield return Wait(2.5f);
             foreach (var (id, name) in renamed)
                 if (g.Files.GetFile(id) != null) g.Files.Rename(id, name);

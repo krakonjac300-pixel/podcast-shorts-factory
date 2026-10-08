@@ -40,6 +40,8 @@ namespace SecondCursor.OS
         readonly List<Tip> _pending = new List<Tip>();
         Tip _active;
         int _slot = -1;
+        float _readingFactor;
+        Core.Game.ClickSpeed _clickSpeed;
 
         public static Tips Create(GameServices g)
         {
@@ -141,6 +143,7 @@ namespace SecondCursor.OS
         void Follow(float dt)
         {
             var t = _active;
+            if (_readingFactor != DisplaySettings.ReadingFactor || _clickSpeed != AccessSettings.ClickSpeed) Layout(t.Text);
             t.Age += dt;
             var anchor = t.Anchor();
             bool placed = anchor.HasValue && Place(anchor.Value, t.MaxHidden);
@@ -184,6 +187,9 @@ namespace SecondCursor.OS
 
         void Layout(string text)
         {
+            _readingFactor = DisplaySettings.ReadingFactor;
+            _clickSpeed = AccessSettings.ClickSpeed;
+            text = Input.ClickRules.Instructions(text);
             int s = Mathf.Clamp(DisplaySettings.ReadingScale, 1, 2);
             int w = Width * s;
             _title.text = _g.Content.Text("tip.title", "Tip");

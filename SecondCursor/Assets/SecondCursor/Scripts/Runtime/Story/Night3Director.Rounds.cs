@@ -9,7 +9,9 @@ using SecondCursor.Core;
 using SecondCursor.Core.Audio;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
+using SecondCursor.Game;
 using SecondCursor.Input;
 using SecondCursor.Rendering;
 using UnityEngine;
@@ -24,6 +26,9 @@ namespace SecondCursor.Story
     public sealed partial class Night3Director
     {
         const float RoundsCap = 420f;
+        const float RoundsMinimumSeconds = 120f, FiledShelfRemainder = 60f;
+        NotepadApp _shelfWarningPad;
+        float _shelfWarningUntil = -1f;
 
         Action<int> _onForcedOpen, _onStage;
         Action _onPlayerReopen, _onSeatCleared, _onTimeUp;
@@ -134,13 +139,28 @@ namespace SecondCursor.Story
             // The spec's 1.2-2.0 s is the whole close (7.4 budget); her hand needs about 0.4 s to get there.
             if (g.Difficulty.Mode == DifficultyMode.Normal) config.Hasten(0.4f);
             g.Rounds.Begin(config);
+            g.Rounds.PresentationHeld = ShelfWarningReading;
             model = g.Rounds.Model;
             // Phase J: once the shelf check is filed the queue says there is nothing to do until the round ends.
             RunSide(RoundsWaitLine(), "rounds-wait-line");
             RunSide(ScrapeBelow(), "scrape-below");
 
-            float start = Time.time;
-            while (!cleared && !timeUp && Time.time - start < RoundsCap) yield return null;
+            bool shortened = false;
+            while (!cleared && !timeUp && g.Rounds.Elapsed < RoundsCap)
+            {
+                if (!shortened && Done(ContentIds.TaskN3Shelf))
+                {
+                    shortened = true;
+                    // Keep the first approach and a further minute of risk, then remove repeated camera maintenance.
+                    config.Duration = Mathf.Min(config.Duration, Mathf.Max(RoundsMinimumSeconds, g.Rounds.Elapsed + FiledShelfRemainder));
+                    g.Tasks.Rewrite(ContentIds.TaskN3RoundsUntil,
+                        "Shelf check filed. Finish the round. Stay seated.",
+                        "No further work is assigned. Keep Custodial off your camera until the round ends.",
+                        "Watching Custodial brings it closer. Switch the viewer to a camera without it. Personnel 000 shows its current location.");
+                    GameLog.Info(LogChannel.Story, "Shelf filed: remaining round shortened to " + (config.Duration - g.Rounds.Elapsed).ToString("0") + " active seconds");
+                }
+                yield return null;
+            }
             int maxStage = model.MaxStage;
             g.Rounds.Stop();
             UnhookRounds();
@@ -163,6 +183,7 @@ namespace SecondCursor.Story
                 g.Rounds.PatchPersonnelFor("SublevelC");
                 if (maxStage <= 1) g.Flags.Set(Flags.N3RoundsSafe);
                 g.AchievementWatch?.OnRoundsSafe(Night, maxStage);
+                if (shortened) yield return EnsureClockAtLeast(3, 30, 3f);
                 yield return Say(_ellen, Lines("n3_rounds_safe"), 4f);
             }
 
@@ -192,6 +213,34 @@ namespace SecondCursor.Story
         /// viewer, which opens at the top left); windows are never closed, only moved.
         /// </summary>
         int _shelfPads;
+
+        /// <summary>The personal warning gets the front once and a bounded reading window before rounds continue.</summary>
+        IEnumerator ShelfWarning()
+        {
+            yield return WaitUntil(() => !_ellen.Typing || CurrentBeat != "rounds", 90f);
+            if (CurrentBeat != "rounds") yield break;
+            var lines = Lines("n3_shelf_you");
+            yield return Say(_ellen, lines, 4f);
+            if (CurrentBeat != "rounds") yield break;
+            var pad = EnsurePad(_ellen);
+            if (pad == null || !pad.IsOpen || pad.Window.IsMinimized) yield break;
+            _shelfWarningPad = pad;
+            float seconds = NoticeRules.Duration(string.Join(" ", lines).Length, NoticeTime.Normal);
+            seconds = ReadingPace.TaskSeconds(seconds * DisplaySettings.ReadingFactor, _g.TimeScale);
+            _shelfWarningUntil = Time.time + seconds;
+            _g.Windows.Front(pad.Window);
+            GameLog.Info(LogChannel.Story, "Shelf warning visible: rounds held briefly for reading");
+            while (ShelfWarningReading()) yield return null;
+        }
+
+        bool ShelfWarningReading()
+        {
+            var pad = _shelfWarningPad;
+            bool reading = CurrentBeat == "rounds" && Time.time < _shelfWarningUntil && pad != null && pad.IsOpen
+                && !pad.Window.IsMinimized && _g.Windows.Active == pad.Window;
+            if (!reading) _shelfWarningUntil = -1f;
+            return reading;
+        }
 
         /// <summary>A remote session's Jotter goes to the bottom left corner (each further one a little up and right).</summary>
         void TuckAwayPad(NotepadApp pad)
@@ -299,6 +348,8 @@ namespace SecondCursor.Story
             _onForcedOpen = _onStage = null;
             _onPlayerReopen = _onSeatCleared = _onTimeUp = null;
             _onShelfLaunch = null;
+            _shelfWarningPad = null;
+            _shelfWarningUntil = -1f;
         }
 
         /// <summary>Phase J: the shelf check filed while the round goes on: a queue line says there is nothing to do but wait.</summary>

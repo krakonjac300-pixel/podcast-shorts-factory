@@ -23,6 +23,15 @@ namespace SecondCursor.Story
 
         IEnumerator Reveal()
         {
+            _caught = false;
+            _afterHit = false;
+            if (_g.Flags.Has(CameraDeclined))
+            {
+                DeliverFirstShiftMail("mail_camera_offline");
+                yield return TypeLines(_ellen, new[] { "THEN KEEP IT CLOSED", "I WILL WATCH THE DOOR", "DO NOT TURN AROUND" }, 3.5f);
+                yield return Wait(3f);
+                yield break;
+            }
             E.Phase = EntityPhase.Reveal;
             var rig = _g.CameraRig;
             _g.Flags.Set(Flags.CameraUnlocked);
@@ -70,103 +79,59 @@ namespace SecondCursor.Story
             yield return WaitWatching(FirstViewSeconds, 14f);
             EndFullView();
 
-            // 3) The entity panics and fights to shut the feed. Each time you reopen it, it is closer.
+            // The warning is explicit before exposure starts. Ellen leaves the decision to the player.
+            E.Interrupt();
+            E.Brain.Enabled = false;
             E.State = EntityState.Panicked;
-            var panic = _g.Content.Dialogue.panicLines;
-            int panicLine = 0;
-            float lastOpen = Time.time;
-            int seenReopens = _cameraReopens;
-            bool ducked = false;
-            while (Time.time - revealStart < 150f)
+            var exposure = new Core.Game.CameraExposure();
+            // Put the instruction in the live notice slot before typing it, so a crowded desktop cannot hide the survival rule.
+            _g.Notifications.Show("SESSION 017", _g.Content.Text("capture.warning"), "icon_warning", null,
+                "sys_warning", true, () => CurrentBeat == "reveal" && !exposure.Finished,
+                Core.Game.NoticeKind.Entity, "camera.capture", urgent: true);
+            if (EnsurePad(_ellen) == null) yield return OpenNotepadAs(_ellen);
+            if (_ellen.Pad != null && _ellen.Pad.IsOpen)
             {
-                // M6: while the feed is shut (its timestamp frozen) the drone sinks 6 dB and a semitone; it snaps back on.
-                var shown = _g.Apps.Find<CameraApp>();
-                bool feedShut = shown == null || !shown.IsOpen || shown.Window.IsMinimized;
-                if (feedShut != ducked)
-                {
-                    ducked = feedShut;
-                    _g.Audio.SetLoopVolume("drone_tension", ducked ? DroneVolume * 0.5f : DroneVolume, ducked ? 0.25f : 0f);
-                    _g.Audio.SetLoopPitch("drone_tension", ducked ? OneSemitoneDown : 1f);
-                }
-                // Reopened (or restored) since we last looked - even mid-typing: it advances.
-                if (_cameraReopens > seenReopens)
-                {
-                    seenReopens = _cameraReopens;
-                    var reopened = _g.Apps.Find<CameraApp>();
-                    if (reopened != null) reopened.Select(ContentIds.Cam03, null);
-                    // M6: the new position resolves out of half a second of static instead of a hard cut (the rig's step: closer every time).
-                    var next = rig.Figure == FigureStage.Doorway ? FigureStage.Middle : FigureStage.BehindChair;
-                    yield return StaticResolve(() => rig.Figure = next, 0.5f);
-                    yield return WaitWatching(3f, 6f);
-                    continue;
-                }
+                _ellen.Pad.Window.Restore(E.Agent);
+                _g.Windows.Front(_ellen.Pad.Window);
+            }
+            float warningChoiceAt = _g.Windows.PlayerChoiceAt;
+            yield return TypeLines(_ellen, _g.Content.Lines("n1_capture_warning"), 2.5f);
+            cam = _g.Apps.Find<CameraApp>();
+            if (cam != null && cam.IsShowing(ContentIds.Cam03) && _g.Windows.PlayerChoiceAt <= warningChoiceAt) _g.Windows.Front(cam.Window);
+            GameLog.Info(LogChannel.Story, "Capture warning: close CAM 03 to survive");
+            while (!exposure.Finished)
+            {
                 cam = _g.Apps.Find<CameraApp>();
-                if (cam != null && cam.IsOpen && !cam.Window.IsMinimized)
+                bool watching = cam != null && cam.IsShowing(ContentIds.Cam03) && _g.Windows.Active == cam.Window;
+                exposure.Tick(watching, Time.deltaTime);
+                if (watching)
                 {
-                    lastOpen = Time.time;
-                    if (rig.Figure == FigureStage.BehindChair && cam.CurrentCamera == ContentIds.Cam03)
-                    {
-                        yield return WaitWatching(5f, 8f);
-                        break;
-                    }
-                    var close = cam.Window.CloseButton;
-                    var closed = new bool[1];
-                    if (close != null) yield return E.ClickElement(close.Hit, MovementProfiles.Panicked, closed, 4f);
-                    // You blocking the close box is a fight it keeps losing (it tries again next time round);
-                    // anything else in the way (another window) it simply pushes past.
-                    if (!closed[0] && cam.IsOpen && !cam.Window.IsMinimized && close != null && !E.IsBlockedByPlayer(close.Hit))
-                    {
-                        cam.Window.Focus(E.Agent);
-                        yield return Wait(0.2f);
-                        if (close != null && cam.IsOpen) yield return E.ClickElement(close.Hit, MovementProfiles.Panicked, closed, 2f);
-                        if (!closed[0] && cam.IsOpen)
-                        {
-                            cam.Window.Close(E.Agent);
-                            _g.Fx.Glitch(0.15f, 0.7f);
-                            GameLog.Info(LogChannel.Entity, "Entity forced the camera feed shut");
-                        }
-                    }
-                    if (panicLine < panic.Length) yield return TypeLines(_ellen, new[] { panic[panicLine++] }, 6f);
-                }
-                else
-                {
-                    // Closed: wait to see whether you look again (handled at the top of the loop).
-                    yield return WaitUntil(() => _cameraReopens > seenReopens || Time.time - lastOpen > 12f, 13f);
-                    if (_cameraReopens <= seenReopens)
-                    {
-                        // You obeyed. It shows you why instead - and then the feed opens by itself.
-                        yield return ShowEmployee017();
-                        rig.Figure = FigureStage.BehindChair;
-                        rig.DoorOpen = 1f;
-                        var self = (CameraApp)_g.Apps.Launch(AppIds.Camera, null);
-                        self?.Select(ContentIds.Cam03, null);
-                        if (panicLine < panic.Length) yield return TypeLines(_ellen, new[] { panic[panicLine++] }, 7f);
-                        yield return WaitWatching(4f, 8f);
-                        break;
-                    }
+                    var stage = exposure.WatchedSeconds >= 6f ? FigureStage.BehindChair
+                        : exposure.WatchedSeconds >= 3f ? FigureStage.Middle : FigureStage.Doorway;
+                    if (rig.Figure != stage) rig.Figure = stage;
                 }
                 yield return null;
             }
-
-            if (ducked)
+            if (exposure.Escaped)
             {
-                _g.Audio.SetLoopVolume("drone_tension", DroneVolume, 0f);
-                _g.Audio.SetLoopPitch("drone_tension", 1f);
+                rig.Figure = FigureStage.None;
+                _g.Audio.StopLoop("drone_tension", 0.4f);
+                _g.Audio.SetAmbience(true, 1f);
+                GameLog.Info(LogChannel.Story, "Capture avoided: player looked away");
+                yield return TypeLines(_ellen, _g.Content.Lines("n1_capture_safe"), 2.5f);
+                yield break;
             }
 
-            // Final image: it's right behind you, and "you" turn to look at the camera (Phase M: the demo's last scare, 5.3).
-            cam = _g.Apps.Find<CameraApp>();
-            if (cam == null || !cam.IsOpen) cam = (CameraApp)_g.Apps.Launch(AppIds.Camera, null);
-            else cam.Window.Restore(null);
-            if (cam != null)
-            {
-                // Review M5: the climax plays on CAM 03 in front, whatever the viewer was doing.
-                _g.Windows.Front(cam.Window);
-                if (cam.CurrentCamera != ContentIds.Cam03) cam.Select(ContentIds.Cam03, null);
-            }
-            // Phase Q3 (V4): the demo's last image, full size (no caption: the head turns in silence).
-            yield return FullSizeFeed(null, null, FullViewSeconds);
-            yield return RevealClimax(DroneVolume);
+            _caught = true;
+            BeginClimax();
+            _g.Player.Enabled = false;
+            // From this point the capture is committed. The player had the whole warning window to close it.
+            yield return FullSizeFeed(null, null, 4f);
+            DropRoom(0.15f);
+            CutToSilence(0.3f);
+            yield return Wait(0.3f);
+            yield return CaptureRush();
+            yield return TubeDies(true, 0.6f, 0.9f, 0.8f);
             _afterHit = true;
         }
 

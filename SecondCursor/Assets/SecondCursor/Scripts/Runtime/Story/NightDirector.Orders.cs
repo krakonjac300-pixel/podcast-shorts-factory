@@ -21,8 +21,9 @@ namespace SecondCursor.Story
         {
             var g = _g;
             var order = g.Content.Order(id);
-            if (!WorkOrderRules.IsChoice(order) || by == null || !by.IsPlayer || IsPreparing) return;
-            g.Flags.Set(WorkOrderRules.MemoryKey(g.Night, id, decision));
+            if (order == null || IsPreparing) return;
+            WorkOrderRules.Remember(g.Flags, g.Night, id, decision, g.Orders.DecidedBy(id));
+            if (!WorkOrderRules.IsChoice(order) || by == null || !by.IsPlayer) return;
             AppendNote(order.employeeRef, WorkOrderRules.NoteFor(order, decision));
             g.Notifications.Show(g.Content.Text("app.workorders"), WorkOrderRules.ResultFor(order, decision), "icon_info",
                 a => g.Apps.Launch(AppIds.WorkOrders, a), "ui_select").Important = true;
@@ -106,7 +107,7 @@ namespace SecondCursor.Story
                 return;
             }
             var order = g.Content.Order(orderId);
-            g.Orders.Decide(orderId, decision, null);
+            NightSetup.RestoreOrder(g, g.Night, orderId);
             AppendNote(order.employeeRef, WorkOrderRules.NoteFor(order, decision));
             SetFiledLine(orderId, decision);
             g.Tasks.ForceComplete(taskId);
@@ -120,14 +121,11 @@ namespace SecondCursor.Story
             if (_g.Files.Exists(fileId) && _g.Files.FolderOf(fileId) == fromFolder) _g.Files.Move(fileId, toFolder, Core.FileSystem.Actor.System);
         }
 
-        /// <summary>Decides each undecided order by its own rule, as the system (a jump or Continue past the order: the world as it would have been).</summary>
+        /// <summary>Rebuilds past work from its recorded decisions. Missing history remains no decision, never the rule's expected answer.</summary>
         protected void DecideByRule(params string[] orderIds)
         {
             foreach (var id in orderIds)
-            {
-                var order = _g.Content.Order(id);
-                if (order != null && _g.Orders.DecisionFor(id) == null) _g.Orders.Decide(id, order.correct, null);
-            }
+                NightSetup.RestoreOrder(_g, _g.Night, id);
         }
 
         /// <summary>

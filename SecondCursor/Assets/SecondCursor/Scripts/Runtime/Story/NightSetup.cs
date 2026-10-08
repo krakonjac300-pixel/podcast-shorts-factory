@@ -3,6 +3,7 @@ using SecondCursor.Core.Content;
 using SecondCursor.Core.FileSystem;
 using SecondCursor.Core.Story;
 using SecondCursor.Game;
+using SecondCursor.OS;
 
 namespace SecondCursor.Story
 {
@@ -84,19 +85,9 @@ namespace SecondCursor.Story
                 g.Mail.MarkRead(id, null);
             g.Mail.SortByDate();
             // Earlier orders are decided history; the shelf checks arrive with the round.
-            foreach (var id in new[] { ContentIds.Order3317, ContentIds.Order3318, ContentIds.Order3319, ContentIds.Order3321 })
-            {
-                var order = g.Content.Order(id);
-                if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
-            }
-            // Night 2's choice orders are history too, as the player decided them (an order nobody decided stays cancelled).
-            foreach (var id in new[] { ContentIds.Order3320, ContentIds.Order3322, ContentIds.Order3324 })
-            {
-                if (g.Orders.DecisionFor(id) != null) continue;
-                string decision = WorkOrderRules.Remembered(g.Flags, 2, id);
-                if (decision == null) g.Orders.Cancel(id);
-                else g.Orders.Decide(id, decision, null);
-            }
+            foreach (var id in new[] { ContentIds.Order3317, ContentIds.Order3318 }) RestoreOrder(g, 1, id);
+            foreach (var id in new[] { ContentIds.Order3319, ContentIds.Order3321, ContentIds.Order3320, ContentIds.Order3322, ContentIds.Order3324 })
+                RestoreOrder(g, 2, id);
             // The shelf checks arrive with the round; tonight's choice orders with their tasks.
             foreach (var id in new[] { ContentIds.Order3340, ContentIds.Order3341, ContentIds.Order3342, ContentIds.Order3332, ContentIds.Order3333 }) g.Orders.SetHidden(id, true);
 
@@ -123,10 +114,7 @@ namespace SecondCursor.Story
             g.Mail.SortByDate();
             // Last night's work orders are decided history (not pending again in tonight's list).
             foreach (var id in new[] { ContentIds.Order3317, ContentIds.Order3318 })
-            {
-                var order = g.Content.Order(id);
-                if (order != null && g.Orders.DecisionFor(id) == null) g.Orders.Decide(id, order.correct, null);
-            }
+                RestoreOrder(g, 1, id);
             // Tonight's choice orders stay out of Work Orders until their tasks are given.
             g.Orders.SetHidden(ContentIds.Order3320, true);
             g.Orders.SetHidden(ContentIds.Order3322, true);
@@ -148,6 +136,29 @@ namespace SecondCursor.Story
         {
             FillTemplates(g);
             FillBios(g);
+        }
+
+        /// <summary>Restores history without guessing a choice or counting a previous mistake again.</summary>
+        public static string RestoreOrder(GameServices g, int night, string id)
+        {
+            var current = g.Orders.DecisionFor(id);
+            if (current != null) return current;
+            var order = g.Content.Order(id);
+            if (order == null) return null;
+            string decision = WorkOrderRules.Remembered(g.Flags, night, id);
+            if (decision == null)
+            {
+                g.Orders.Cancel(id);
+                return WorkOrderService.Cancelled;
+            }
+            int mistakes = g.Flags.Get(Flags.CounterWrongOrders);
+            try { g.Orders.Decide(id, decision, null, WorkOrderRules.RememberedCredit(g.Flags, night, id)); }
+            finally { g.Flags.SetCounter(Flags.CounterWrongOrders, mistakes); }
+            string note = WorkOrderRules.NoteFor(order, decision);
+            var employee = g.Content.Employee(order.employeeRef);
+            if (employee != null && !string.IsNullOrEmpty(note) && !employee.notes.Contains(note))
+                employee.notes = string.IsNullOrEmpty(employee.notes) ? note : employee.notes + " " + note;
+            return decision;
         }
 
         static void FillBios(GameServices g)

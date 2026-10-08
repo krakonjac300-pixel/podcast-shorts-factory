@@ -159,6 +159,8 @@
     "SO AM I"
   ],
   "lineSets": [
+    {"id": "n1_capture_warning", "voice": "", "lines": ["CLOSE CAMERA 03", "IT MOVES WHEN YOU WATCH", "CLOSE IT BEFORE IT REACHES YOU"], "speakers": []},
+    {"id": "n1_capture_safe", "voice": "", "lines": ["YOU STOPPED IT", "KEEP THE CAMERA CLOSED", "I WILL END THE SHIFT"], "speakers": []},
     { "id": "name_taken", "voice": "", "lines": ["THAT ONE IS TAKEN"], "speakers": [] },
     { "id": "name_casey", "voice": "", "lines": ["YES", "THAT IS WHAT THEY WROTE"], "speakers": [] },
     { "id": "name_gary", "voice": "", "lines": ["HE STILL USES IT"], "speakers": [] },

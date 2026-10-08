@@ -51,6 +51,7 @@ namespace SecondCursor.Story
         bool _confirmed, _fastForward, _tugLineSaid, _garyGuardSaid, _logOffCut;
         int _garyLogOffTries;
         MessageBox _logOffConfirm;
+        MessageBox _stayConfirm;
         ProgressDialog _logOffProgress;
         Routine _lastWords;
         Action<string, CursorAgent> _onFinaleRequested;
@@ -127,6 +128,7 @@ namespace SecondCursor.Story
             g.Rounds.NotOnItNoticeKey = "finale.notonit";
             g.Rounds.ClosedNoticeKey = "camera.closed.finale";
             g.Rounds.Begin(RoundsConfig.Night3Finale(g.Difficulty.Mode, g.Memory.Trust));
+            g.Rounds.PresentationHeld = () => _stayConfirm?.IsOpen == true;
             bool open650 = false, open655 = false, open700 = false, open702 = false, said652 = false, said700 = false, flicker658 = false, gary700 = false;
             // Phase M (N3-6, N3-7, N3-bed2): a whisper at 6:45 and your chair at 6:52 (a reply being waited for does not hold them:
             // the finale listens for "stay" throughout), and a drone that tightens toward seven.
@@ -138,6 +140,13 @@ namespace SecondCursor.Story
 
             while (_exit == Night3Exit.None)
             {
+                if (_stayConfirm?.IsOpen == true)
+                {
+                    start += Time.deltaTime;
+                    _idleSince = Time.time;
+                    yield return null;
+                    continue;
+                }
                 int clock = g.Clock.TotalMinutes;
                 if (brain.Defenses >= 1) brain.AllowIdleLurk = true;
                 if (!open650 && clock >= 6 * 60 + 50) { open650 = true; g.Rounds.OpenViewer(null); }
@@ -390,29 +399,52 @@ namespace SecondCursor.Story
         IEnumerator FinalExchange()
         {
             yield return Wait(1.5f);
-            var last = new DialogueReply[1];
-            // M8: a miss gets another turn; Phase J: from the second miss on she names the two ways out plainly.
-            yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Final, OnFinalReply, last, OfferCps, 4f, 25f, "DONT",
-                fallbackRetries: 1, lastFallbackSet: "n3_final_third", keepListening: r => r.Tag != "stay" && _exit == Night3Exit.None,
-                onLinesTyped: ex => _offerTyped = true);
-            if (last[0] == null || last[0].Tag != "stay" || _exit != Night3Exit.None) yield break;
-            var confirm = new DialogueReply[1];
-            yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Confirm, OnFinalReply, confirm, 3f, 4f, 25f, "DONT",
-                keepListening: r => r.Tag != "confirm" && _exit == Night3Exit.None);
-            if (confirm[0] == null || confirm[0].Tag != "confirm" || _exit != Night3Exit.None) yield break;
-            // She keeps the time: seven comes quickly, and her request to be put in the bin is over (Review J7).
-            _confirmed = true;
-            if (_g.Tasks.IsActive(ContentIds.TaskE3LetGo)) _g.Tasks.Withdraw(ContentIds.TaskE3LetGo, _g.Content.Text("workqueue.withdrawn.expired", "expired"));
-            GameLog.Info(LogChannel.Story, "KEEP confirmed: the clock runs to 7:00");
-            _fastForward = true;
-            yield return EnsureClockAtLeast(7, 0, 25f);
-            _fastForward = false;
-        }
+            while (_exit == Night3Exit.None)
+            {
+                var last = new DialogueReply[1];
+                yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Final, OnFinalReply, last, OfferCps, 4f, 25f, "DONT",
+                    fallbackRetries: 1, lastFallbackSet: "n3_final_third", keepListening: r => r.Tag != "stay" && _exit == Night3Exit.None,
+                    onLinesTyped: ex => _offerTyped = true);
+                if (last[0] == null || last[0].Tag != "stay" || _exit != Night3Exit.None) yield break;
+                var confirm = new DialogueReply[1];
+                yield return RunExchangeChain(_ellen, ContentIds.ExchangeN3Confirm, OnFinalReply, confirm, 3f, 4f, 25f, "DONT",
+                    keepListening: r => r.Tag != "confirm" && r.Tag != "cancel" && _exit == Night3Exit.None);
+                if (_exit != Night3Exit.None) yield break;
+                if (confirm[0] == null || confirm[0].Tag != "confirm") continue;
 
+                bool wasFrozen = _g.Clock.Frozen;
+                _g.Clock.Frozen = true;
+                var box = Dialogs.Message(_g, "Session 017", "Stay seated with Ellen until seven?\nBack keeps your other choices open.",
+                    "icon_question", new[] { "Back", "Stay" }, null, defaultIndex: 0);
+                _stayConfirm = box;
+                // Only a deliberate player answer can commit this choice.
+                try
+                {
+                    while (box.IsOpen && _exit == Night3Exit.None) yield return null;
+                }
+                finally
+                {
+                    if (box.IsOpen) box.Window.Close(null);
+                    _stayConfirm = null;
+                    _g.Clock.Frozen = wasFrozen;
+                }
+                if (_exit != Night3Exit.None) yield break;
+                if (box.Result != "Stay" || box.AnsweredBy == null || !box.AnsweredBy.IsPlayer) continue;
+
+                _g.Flags.Set(MemoryFlags.N3SaidStay);
+                _confirmed = true;
+                if (_g.Tasks.IsActive(ContentIds.TaskE3LetGo)) _g.Tasks.Withdraw(ContentIds.TaskE3LetGo, _g.Content.Text("workqueue.withdrawn.expired", "expired"));
+                GameLog.Info(LogChannel.Story, "KEEP confirmed by the player: the clock runs to 7:00");
+                _fastForward = true;
+                yield return EnsureClockAtLeast(7, 0, 25f);
+                _fastForward = false;
+                yield break;
+            }
+        }
         void OnFinalReply(DialogueReply r, string said)
         {
             OnEllenReply(r, said);
-            if (r.Tag == "stay") _g.Flags.Set(MemoryFlags.N3SaidStay);
+
             NoteFinalReplyForLetGo(r);
             if (!string.IsNullOrEmpty(r.Tag)) GameLog.Info(LogChannel.Story, "Finale reply tag: " + r.Tag);
         }
@@ -513,6 +545,8 @@ namespace SecondCursor.Story
             _onFinaleCancelled = null;
             _onFinaleTug = null;
             _onFinaleSeat = null;
+            if (_stayConfirm != null && _stayConfirm.IsOpen) _stayConfirm.Window.Close(null);
+            _stayConfirm = null;
             if (_logOffConfirm != null && _logOffConfirm.IsOpen) _logOffConfirm.Window.Close(null);
             if (_logOffProgress != null && _logOffProgress.IsOpen) _logOffProgress.Close(null);
             _logOffConfirm = null;
@@ -740,11 +774,8 @@ namespace SecondCursor.Story
                 yield return null;
             }
             CutToSilence(KeepSilence);
-            yield return Wait(KeepSilence - StingerPreRoll);
-            // A lighter flash than Night 1's: the dark shape at the lens must still read through it.
-            yield return Hit(1f, 1f, 6f, 0.3f, "crt_off", "ear_ring");
-            // Full effects: for the hit's first frames its head is right at the lens.
-            if (!g.Fx.ReduceFlashing) rig.Figure = FigureStage.AtLens;
+            yield return Wait(KeepSilence);
+            yield return CaptureRush();
             yield return TubeDies(true, 0.6f, 0.9f, 0.8f);
         }
 

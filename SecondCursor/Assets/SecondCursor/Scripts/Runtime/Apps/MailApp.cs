@@ -21,6 +21,9 @@ namespace SecondCursor.Apps
         PixelText _status;
         int _revision = -1;
         string _showing;
+        RectTransform _readerFrame;
+
+        public string ShowingMailId => _showing;
 
         /// <summary>Phase I: Mail (560 wide) ends left of the Work Queue (which starts at x 690), so the task and its hint stay readable.</summary>
         const int MailX = 100;
@@ -38,6 +41,7 @@ namespace SecondCursor.Apps
             _list.RowSelected += (row, a) => Show((string)row.Tag, a);
 
             var readerFrame = UIBuilder.Bevel(client, BevelStyle.Sunken, "Reader");
+            _readerFrame = readerFrame.rectTransform;
             readerFrame.rectTransform.Stretch(2, 124, 2, 20);
             _reader = ScrollArea.Create(readerFrame.rectTransform, "Reader Scroll");
             ((RectTransform)_reader.transform).Stretch(2, 2, 2, 2);
@@ -98,8 +102,9 @@ namespace SecondCursor.Apps
             if (mail == null) return;
             bool changed = _showing != id;
             _showing = id;
-            _header.text = "From:    " + (string.IsNullOrEmpty(mail.from) ? "" : mail.from) + "\nTo:      " + mail.to +
-                           "\nSubject: " + mail.subject + "\nDate:    " + G.Mail.DateOf(id);
+            _header.text = "From: " + (string.IsNullOrEmpty(mail.from) ? "" : ShortFrom(mail.from)) +
+                           "\nTo: " + (string.IsNullOrEmpty(mail.to) ? "" : ShortFrom(mail.to)) +
+                           "\nSubject: " + mail.subject + "\nDate: " + G.Mail.DateOf(id);
             _body.text = mail.body;
             Layout();
             if (changed) _reader.ScrollTo(0);
@@ -111,11 +116,15 @@ namespace SecondCursor.Apps
         void Layout()
         {
             float scale = Game.DisplaySettings.ReadingFactor;
-            _header.Factor = scale;
+            float headerScale = Mathf.Min(scale, 1.5f);
+            _header.Factor = headerScale;
             _body.Factor = scale;
+            int inboxHeight = Mathf.RoundToInt(118f + 36f * (scale - 1f));
+            _list.Root.TopStrip(2, inboxHeight, 2, 2);
+            _readerFrame.Stretch(2, inboxHeight + 6, 2, 20);
             Canvas.ForceUpdateCanvases();
             int width = Mathf.Max(100, Mathf.FloorToInt(_reader.Viewport.rect.width) - 8);
-            var hs = PixelFont.Measure(_header.text, width, false, scale);
+            var hs = PixelFont.Measure(_header.text, width, false, headerScale);
             var bs = PixelFont.Measure(_body.text, width, false, scale);
             _header.rectTransform.At(4, 4, width, hs.y + 2);
             _body.rectTransform.At(4, 4 + hs.y + 14, width, bs.y + 4);

@@ -29,6 +29,12 @@ namespace SecondCursor.Core.Game
         public const int VisibleCap = 3;
         /// <summary>The Recent notices list keeps this many.</summary>
         public const int HistoryCap = 20;
+        /// <summary>Camera events describe one changing state, rather than independent jobs waiting to be done.</summary>
+        public const string CameraChannel = "camera.status";
+
+        /// <summary>An explicit channel wins; ordinary camera messages share one replaceable live status.</summary>
+        public static string Channel(string icon, string requested) =>
+            !string.IsNullOrEmpty(requested) ? requested : icon == "icon_camera" ? CameraChannel : null;
 
         /// <summary>Seconds a notice with <paramref name="characters"/> characters of body text stays up.</summary>
         public static float Duration(int characters, NoticeTime mode)

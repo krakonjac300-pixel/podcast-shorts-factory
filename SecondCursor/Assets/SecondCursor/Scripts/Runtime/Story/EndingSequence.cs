@@ -86,6 +86,16 @@ namespace SecondCursor.Story
 #endif
             return spec;
         }
+
+        public static EndingSpec Capture() => new EndingSpec
+        {
+            Id = Core.Game.EndingResult.CameraCapture,
+            DemoCard = false,
+            AfterHit = true,
+            TitleKey = "end.capture.title",
+            SubtitleKey = "end.capture.subtitle",
+            Lines = System.Array.Empty<string>(),
+        };
     }
 
     /// <summary>
@@ -150,6 +160,15 @@ namespace SecondCursor.Story
             g.Windows.CloseAll();
             g.Fx.SetBlack(false);
             g.Fx.PowerOn();
+
+            yield return ShowResolution(black);
+
+            if (Core.Game.EndingResult.For(_spec.Id) == Core.Game.EndingResultKind.Lost)
+            {
+                g.Entity.SetPresent(false, 0f);
+                yield return ShowCard(black);
+                yield break;
+            }
 
             g.Entity.Teleport(new Vector2(ScreenRig.Width * 0.5f, ScreenRig.Height * 0.62f));
             g.Entity.State = Core.Entity.EntityState.Communicating;
@@ -230,6 +249,26 @@ namespace SecondCursor.Story
 
         /// <summary>The card and its buttons (<see cref="Story.EndCard"/>); never returns (a button starts something new).</summary>
         IEnumerator ShowCard(RectTransform parent) => Story.EndCard.Run(_g, _spec, parent);
+
+        /// <summary>A legible result after shutdown, before the epilogue or the optional retention record.</summary>
+        IEnumerator ShowResolution(RectTransform parent)
+        {
+            string headingKey = Core.Game.EndingResult.HeadingKey(_spec.Id);
+            if (headingKey == null) yield break;
+            var panel = UIBuilder.Rect("Session Result", parent).Stretch();
+            var heading = UIBuilder.Text(panel, _g.Content.Text(headingKey), EndCard.ResultColor(_spec), true, "Result Heading");
+            heading.Scale = 3;
+            heading.Align = TextAlign.Center;
+            heading.rectTransform.At(40, 188, ScreenRig.Width - 80, 38);
+            var detail = UIBuilder.Text(panel, _g.Content.Text(Core.Game.EndingResult.ExplanationKey(_spec.Id)), Palette.BiosBright, false, "Result Explanation");
+            detail.Scale = 2;
+            detail.Wrap = true;
+            detail.Align = TextAlign.Center;
+            detail.rectTransform.At(70, 246, ScreenRig.Width - 140, 110);
+            GameLog.Info(LogChannel.Story, "Session result: " + _spec.Id + " / " + heading.text);
+            yield return Waits.Seconds(5f);
+            Object.Destroy(panel.gameObject);
+        }
 
         static float AudioPanFor(GameServices g) => Audio.AudioManager.PanFor(g.EntityAgent.Position.x);
 

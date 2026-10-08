@@ -45,6 +45,8 @@ namespace SecondCursor.Story
         /// so a job that needs a camera can be done by a person who switches at human speed. Null = the figure's camera.
         /// </summary>
         [NonSerialized] public Func<string> PreferredCamera;
+        /// <summary>A bounded story reading interval pauses the meter and forced opens while its line is foreground.</summary>
+        [NonSerialized] public Func<bool> PresentationHeld;
         /// <summary>Phase K: the second line of a forced open's notice when Custodial is on that camera (null = the rounds' own).</summary>
         [NonSerialized] public string OnItNoticeKey, NotOnItNoticeKey;
         /// <summary>Phase K: the notice when session 017 closes a viewer that showed Custodial (null = the rounds' own, which says to reopen it).</summary>
@@ -130,6 +132,8 @@ namespace SecondCursor.Story
             _onRestored = null;
             if (Running) GameLog.Info(LogChannel.Story, "Rounds: stopped after " + Elapsed.ToString("0") + "s at stage " + Model.Stage);
             Running = false;
+            PresentationHeld = null;
+            _g.Notifications.DismissChannel(Core.Game.NoticeRules.CameraChannel);
         }
 
         /// <summary>Debug: put the figure on a stage now.</summary>
@@ -141,7 +145,7 @@ namespace SecondCursor.Story
 
         void Update()
         {
-            if (!Running || Model == null) return;
+            if (!Running || Model == null || PresentationHeld?.Invoke() == true) return;
             float dt = Time.deltaTime;
             Elapsed += dt;
             var c = Model.Config;
@@ -216,7 +220,12 @@ namespace SecondCursor.Story
             string body = text.Format(index == 0 ? "rounds.begin" : "rounds.reopen", CameraName(_g, cam.CurrentCamera)) + "\n"
                 + text.Text(onIt ? OnItNoticeKey ?? "rounds.onit" : NotOnItNoticeKey ?? "rounds.notonit");
             // Phase M: the alarm rings for Security's first open of a round; the repeats (up to 13 in Night 3's) chime softly.
-            _g.Notifications.Show(text.Text("app.camera"), body, "icon_camera", null, index == 0 ? "sys_warning" : "ui_select");
+            string shownCamera = cam.CurrentCamera;
+            var shownRound = Model;
+            _g.Notifications.Show(text.Text("app.camera"), body, "icon_camera", null, index == 0 ? "sys_warning" : "ui_select",
+                false, () => Running && Model == shownRound && !shownRound.Finished && cam.IsOpen && !cam.Window.IsMinimized
+                    && cam.CurrentCamera == shownCamera && (shownCamera == shownRound.FigureCamera) == onIt,
+                urgent: true);
             GameLog.Info(LogChannel.Story, "Rounds: viewer forced open (" + (index + 1) + ") on " + cam.CurrentCamera);
             ForcedOpen?.Invoke(index);
         }

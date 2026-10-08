@@ -426,6 +426,13 @@ namespace SecondCursor.OS
             var items = new List<MenuItem> { new MenuItem { Label = "Open", Bold = true, Action = x => Open(icon, x) } };
             if (icon.IsFile)
             {
+                bool canArchive = _g.Files.FolderOf(icon.FileId) != ContentIds.FolderArchive
+                    && _g.Files.CanMove(icon.FileId, ContentIds.FolderArchive, out _);
+                items.Add(MenuItem.Of("Archive", x =>
+                {
+                    _g.Files.Move(icon.FileId, ContentIds.FolderArchive, Actor.Player);
+                    _g.Tasks.Evaluate();
+                }, "icon_folder", canArchive, "desktop.archive"));
                 items.Add(MenuItem.Of("Shred", x => _g.Shred.Request(icon.FileId, x), "icon_disposal_empty"));
                 items.Add(MenuItem.Sep());
                 items.Add(MenuItem.Of("Properties", x => _g.Apps.ShowProperties(icon.FileId, x)));

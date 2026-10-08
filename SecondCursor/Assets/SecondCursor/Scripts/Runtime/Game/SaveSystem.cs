@@ -231,6 +231,21 @@ namespace SecondCursor.Game
             Save(data);
         }
 
+        /// <summary>Prepare a copy of the final encounter snapshot without changing the original.</summary>
+public static bool RestoreFinalDecision()
+        {
+            var data = Load();
+            var original = data.FinalDecisionForReplay();
+            if (original == null) return false;
+            // Copy before changing elapsed time, so repeated tries retain the original story state.
+            var replay = JsonUtility.FromJson<Checkpoint>(JsonUtility.ToJson(original));
+            replay.finalDecisionReplay = true;
+            replay.elapsed = 0f;
+            data.SetCheckpoint(replay);
+            Save(data);
+            return true;
+        }
+
         /// <summary>New Game: progression starts over, records and settings stay.</summary>
         public static void NewGame()
         {
@@ -255,7 +270,10 @@ namespace SecondCursor.Game
                 flags = g.Flags.Snapshot(),
                 elapsed = g.Director != null ? g.Director.NightElapsed : 0f,
                 armed = g.RecordsArmed,
+                finalDecisionReplay = g.Night == 3 && beat == "finale" && data.CheckpointFor(3)?.finalDecisionReplay == true,
             });
+            g.Director?.CaptureCheckpointReplies(data.checkpoint);
+            g.Director?.CaptureCheckpointWorld(data.checkpoint);
             Save(data);
             GameLog.Info(LogChannel.System, (ProgressReadOnly ? "Checkpoint not saved (QA launch): night " : "Checkpoint saved: night ") + g.Night + ", " + beat
                                             + (g.RecordsArmed ? "" : " (debug run)"));
@@ -277,6 +295,7 @@ namespace SecondCursor.Game
                 PlayerLines = playerLines,
                 PlayerLineMinutes = lineMinutes,
                 Records = g.RecordsArmed,
+                FinalDecisionReplay = data.CheckpointFor(g.Night)?.finalDecisionReplay == true,
                 Capture = capture,
                 GhostPath = ghostPath,
             });

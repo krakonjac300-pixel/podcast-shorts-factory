@@ -152,14 +152,14 @@ namespace SecondCursor.Entity
 
         // ------------------------------------------------------------------ the card
 
-        /// <summary>The full-width card: YOU WON or YOU LOST, one sentence under it, and a short sting.</summary>
+        /// <summary>The file contest result, one sentence under it, and a short sting.</summary>
         public void ShowCard(bool won, string sentence)
         {
             if (string.IsNullOrEmpty(sentence)) return;
             float f = DisplaySettings.ReadingFactor;
             _line.Factor = f;
             _line.text = sentence;
-            _word.text = T(won ? "contest.card.won" : "contest.card.lost", won ? "YOU WON" : "YOU LOST");
+            _word.text = T(won ? "contest.card.won" : "contest.card.lost", won ? "FILE CONTEST WON" : "FILE CONTEST LOST");
             _word.color = won ? Palette.GreenOnDark : new Color32(0xFF, 0x8A, 0x78, 0xFF);
             _cardFill.color = won ? WonFill : LostFill;
             _cardTop.color = _cardBottom.color = won ? WonEdge : LostEdge;

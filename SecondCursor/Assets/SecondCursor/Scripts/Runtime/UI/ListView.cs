@@ -26,6 +26,7 @@ namespace SecondCursor.UI
             /// <summary>Phase Q4 (R7): the whole text of each column and the pixels it may use (0 = the last column, which takes the rest), so a long text ends in "..." before the next column.</summary>
             public string[] Full;
             public int[] Room;
+            public string[] Displayed;
         }
 
         public readonly RectTransform Root;
@@ -33,7 +34,10 @@ namespace SecondCursor.UI
         public int RowHeight = 16;
         public readonly int[] ColumnWidths;
         readonly List<Row> _rows = new List<Row>();
-        readonly int _headerHeight;
+        int _headerHeight;
+        readonly List<RectTransform> _headerRects = new List<RectTransform>();
+        readonly List<PixelText> _headerTexts = new List<PixelText>();
+        float _factor = -1f, _width = -1f;
         int _selected = -1;
 
         public event Action<Row, CursorAgent> RowSelected;
@@ -64,6 +68,8 @@ namespace SecondCursor.UI
                     var ht = UIBuilder.Text(hb.rectTransform, headers[i], Palette.Text);
                     ht.rectTransform.Stretch(4, 0, 2, 0);
                     ht.VAlign = TextVAlign.Middle;
+                    _headerRects.Add(hb.rectTransform);
+                    _headerTexts.Add(ht);
                     x += ColumnWidths[i];
                 }
             }
@@ -71,6 +77,9 @@ namespace SecondCursor.UI
             ((RectTransform)Scroll.transform).Stretch(2, 2 + _headerHeight, 2, 2);
             Scroll.LineStep = RowHeight;
             Scroll.WheelStep = RowHeight * 3;
+            var layout = Root.gameObject.AddComponent<ListViewLayout>();
+            layout.View = this;
+            Layout(true);
         }
 
         public Row AddRow(string icon, object tag, string elementId, params string[] columns)
@@ -94,6 +103,7 @@ namespace SecondCursor.UI
             }
             row.Full = (string[])columns.Clone();
             row.Room = new int[columns.Length];
+            row.Displayed = new string[columns.Length];
             for (int i = 0; i < columns.Length; i++)
             {
                 var t = UIBuilder.Text(rt, columns[i], Palette.Text);
@@ -130,8 +140,67 @@ namespace SecondCursor.UI
                 RowDragBegin?.Invoke(row, a);
             };
             _rows.Add(row);
-            Scroll.ContentHeight = _rows.Count * RowHeight;
+            Layout(true);
             return row;
+        }
+
+        /// <summary>Reflow headers, row hit areas and ellipses together when the reading size or window width changes.</summary>
+        public void Layout(bool force = false)
+        {
+            float factor = Game.DisplaySettings.ReadingFactor;
+            float width = Scroll.Viewport.rect.width;
+            if (width < 1f)
+            {
+                width = 0f;
+                foreach (int column in ColumnWidths) width += column;
+            }
+            if (!force && factor == _factor && Mathf.Approximately(width, _width)) return;
+            float oldRowHeight = RowHeight;
+            float rowAtTop = Scroll.Offset / Mathf.Max(1f, oldRowHeight);
+            _factor = factor;
+            _width = width;
+            RowHeight = Mathf.CeilToInt(16f * factor);
+            _headerHeight = _headerRects.Count > 0 ? RowHeight : 0;
+            ((RectTransform)Scroll.transform).Stretch(2, 2 + _headerHeight, 2, 2);
+            Scroll.LineStep = RowHeight;
+            Scroll.WheelStep = RowHeight * 3;
+            int total = 0;
+            foreach (int column in ColumnWidths) total += column;
+            float ratio = Mathf.Max(1f, width - 4f) / Mathf.Max(1, total);
+            int x = 2;
+            for (int i = 0; i < _headerRects.Count; i++)
+            {
+                int w = Mathf.Max(12, Mathf.RoundToInt(ColumnWidths[i] * ratio));
+                if (i == _headerRects.Count - 1) _headerRects[i].TopStrip(2, _headerHeight, x, 2);
+                else _headerRects[i].At(x, 2, w, _headerHeight);
+                _headerTexts[i].Factor = factor;
+                x += w;
+            }
+            foreach (var row in _rows)
+            {
+                row.Rect.TopStrip(row.Index * RowHeight, RowHeight);
+                if (row.Icon != null) row.Icon.rectTransform.anchoredPosition = new Vector2(2f, -Mathf.Floor((RowHeight - 16f) / 2f));
+                int columnX = 2;
+                for (int i = 0; i < row.Columns.Count; i++)
+                {
+                    var text = row.Columns[i];
+                    // Some live monitor columns update their text directly. Keep that value on the next reflow.
+                    if (row.Displayed[i] != null && text.text != row.Displayed[i]) row.Full[i] = text.text;
+                    int cellW = Mathf.Max(12, Mathf.RoundToInt((i < ColumnWidths.Length ? ColumnWidths[i] : 100) * ratio));
+                    int inset = i == 0 && HasIcons ? 19 : 0;
+                    int left = columnX + inset;
+                    int room = i == row.Columns.Count - 1 ? Mathf.FloorToInt(width) - left - 4 : cellW - inset - 8;
+                    row.Room[i] = Mathf.Max(4, room);
+                    if (i == row.Columns.Count - 1) text.rectTransform.Stretch(left, 0, 2, 0);
+                    else text.rectTransform.At(left, 0, Mathf.Max(4, cellW - inset - 4), RowHeight);
+                    text.Factor = factor;
+                    text.text = Ellipsize(row.Full[i], row.Room[i], row.Bold, factor);
+                    row.Displayed[i] = text.text;
+                    columnX += cellW;
+                }
+            }
+            Scroll.ContentHeight = _rows.Count * RowHeight;
+            if (oldRowHeight != RowHeight) Scroll.ScrollTo(rowAtTop * RowHeight);
         }
 
         /// <summary>Phase Q4 (A7): opens a row as a double-click would (the Enter key).</summary>
@@ -152,16 +221,21 @@ namespace SecondCursor.UI
             {
                 row.Columns[i].Bold = bold;
                 // Bold is wider: the text is cut again to the room its column has.
-                if (row.Full != null && i < row.Full.Length && row.Room[i] > 0) row.Columns[i].text = Ellipsize(row.Full[i], row.Room[i], bold);
+                if (row.Full != null && i < row.Full.Length && row.Room[i] > 0)
+                {
+                    row.Columns[i].text = Ellipsize(row.Full[i], row.Room[i], bold, Game.DisplaySettings.ReadingFactor);
+                    row.Displayed[i] = row.Columns[i].text;
+                }
             }
         }
 
         /// <summary>Phase Q4 (R7): <paramref name="text"/> cut to <paramref name="room"/> px with "..." (unchanged when it fits).</summary>
-        static string Ellipsize(string text, int room, bool bold)
+        static string Ellipsize(string text, int room, bool bold, float factor = 1f)
         {
-            if (string.IsNullOrEmpty(text) || PixelFont.MeasureLine(text, bold) <= room) return text;
+            if (string.IsNullOrEmpty(text) || PixelFont.MeasureLine(text, bold, factor) <= room) return text;
+            if (PixelFont.MeasureLine("...", bold, factor) > room) return "";
             string s = text;
-            while (s.Length > 1 && PixelFont.MeasureLine(s + "...", bold) > room) s = s.Substring(0, s.Length - 1);
+            while (s.Length > 1 && PixelFont.MeasureLine(s + "...", bold, factor) > room) s = s.Substring(0, s.Length - 1);
             return s.TrimEnd() + "...";
         }
 
@@ -207,5 +281,12 @@ namespace SecondCursor.UI
             r.Background.enabled = selected;
             foreach (var c in r.Columns) c.color = selected ? Palette.SelectionText : Palette.Text;
         }
+    }
+
+    sealed class ListViewLayout : MonoBehaviour
+    {
+        [NonSerialized]
+        public ListView View;
+        void LateUpdate() => View?.Layout();
     }
 }

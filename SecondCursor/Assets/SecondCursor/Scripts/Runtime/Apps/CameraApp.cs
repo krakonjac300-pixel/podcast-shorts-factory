@@ -300,11 +300,12 @@ namespace SecondCursor.Apps
         {
             var rig = G.CameraRig;
             Vector2 vp = default;
-            bool show = signal && rig != null && _switchNoise <= 0f && rig.OperatorTagViewport(out vp);
+            bool show = signal && rig != null && !rig.CaptureRushActive && _switchNoise <= 0f && rig.OperatorTagViewport(out vp);
             if (show)
             {
                 var r = _feed.rectTransform.rect;
-                const int w = 120;
+                _nameTag.text = G.Content.Text(rig.SeatedVisible ? "camera.operator.you" : "camera.operator.empty");
+                int w = Mathf.Min(Mathf.RoundToInt(r.width) - 12, PixelFont.MeasureLine(_nameTag.text, false, 1) + 8);
                 _nameTag.rectTransform.At(Mathf.Round(vp.x * r.width - w * 0.5f), Mathf.Round((1f - vp.y) * r.height - 14f), w, 12);
             }
             if (_nameTag.enabled != show) _nameTag.enabled = show;

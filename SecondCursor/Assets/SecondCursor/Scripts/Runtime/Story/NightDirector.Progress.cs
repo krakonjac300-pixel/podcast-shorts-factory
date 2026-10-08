@@ -71,6 +71,24 @@ namespace SecondCursor.Story
             GameLog.Info(LogChannel.System, "Night " + Night + " started" + (_g.FromNightSelect ? " from Night Select" : ""));
         }
 
+        /// <summary>Save the conversation evidence alongside the checkpoint.</summary>
+        public void CaptureCheckpointReplies(Core.Game.Checkpoint checkpoint) => checkpoint.CaptureReplies(PlayerLines, PlayerLineMinutes);
+
+        public virtual void RestoreCheckpointReplies(Core.Game.Checkpoint checkpoint)
+        {
+            PlayerLines.Clear();
+            PlayerLineMinutes.Clear();
+            var clean = new Core.Game.Checkpoint();
+            clean.CaptureReplies(checkpoint.playerLines, checkpoint.playerLineMinutes);
+            PlayerLines.AddRange(clean.playerLines);
+            PlayerLineMinutes.AddRange(clean.playerLineMinutes);
+        }
+
+        public virtual void CaptureCheckpointWorld(Core.Game.Checkpoint checkpoint) { }
+
+        /// <summary>Commit ordinary work before leaving or suspending a shift.</summary>
+        public virtual void SaveCurrentProgress() { }
+
         /// <summary>Continue from a checkpoint: the play time before it counts too.</summary>
         public void ResumeElapsed(float seconds)
         {

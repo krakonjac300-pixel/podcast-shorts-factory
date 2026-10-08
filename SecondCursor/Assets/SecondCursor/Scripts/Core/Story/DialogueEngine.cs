@@ -53,13 +53,17 @@ namespace SecondCursor.Core.Story
             var reply = new DialogueReply();
             string norm = Normalize(playerInput);
             reply.Category = Categorize(norm);
-            if (exchange == null) return reply;
+            if (exchange == null || exchange.responses == null) return reply;
+            bool finalChoice = exchange.id == "ex3_final" || exchange.id == "ex3_confirm";
+            bool explicitStay = !finalChoice || IsExplicitStay(norm, exchange.id == "ex3_confirm");
 
             for (int i = 0; i < exchange.responses.Length; i++)
             {
                 var r = exchange.responses[i];
                 // Phase Q2: the name group answers only a captured name (NameReply), never a keyword.
-                if (r == null || r.tag == NameTag) continue;
+                if (r == null || r.tag == NameTag || r.keywords == null) continue;
+                // A word inside a refusal or a question cannot choose an ending.
+                if (!explicitStay && (r.tag == "stay" || r.tag == "confirm")) continue;
                 foreach (var kw in r.keywords)
                 {
                     if (Matches(norm, kw))
@@ -68,6 +72,10 @@ namespace SecondCursor.Core.Story
                         reply.MatchedKeyword = kw;
                         reply.ResponseIndex = i;
                         reply.Tag = r.tag ?? "";
+                        // Record the accepted finale intention, rather than an unrelated generic keyword such as "wont".
+                        if (reply.Tag == "stay" || reply.Tag == "letgo") reply.Category = reply.Tag;
+                        else if (reply.Tag == "trust") reply.Category = "agree";
+                        else if (reply.Tag == "distrust") reply.Category = "refuse";
                         reply.Gesture = r.gesture ?? "";
                         return reply;
                     }
@@ -90,6 +98,24 @@ namespace SecondCursor.Core.Story
             return null;
         }
 
+        // This high-stakes choice accepts a short, explicit statement. Uncertain free text still
+        // receives an authored reply, but never commits the stay branch.
+        static bool IsExplicitStay(string normalized, bool confirming)
+        {
+            foreach (string phrase in new[]
+            {
+                "stay", "yes stay", "i want to stay", "yes i want to stay", "i will stay", "ill stay",
+                "id like to stay", "i would like to stay", "i choose to stay", "yes i will stay", "yes ill stay", "i want to stay here",
+                "i am staying", "im staying", "stay with me", "i will stay with you", "i want to stay with you",
+                "together", "with you", "keep me", "keep you", "remain", "not leaving", "im not leaving",
+                "i am not leaving", "wont leave", "i wont leave", "dont go", "do not go", "dont leave", "do not leave"
+            }) if (normalized == phrase) return true;
+            if (confirming)
+                foreach (string phrase in new[] { "yes", "yeah", "yep", "sure", "fine", "okay", "alright", "agree", "deal", "understood", "got it", "ok" })
+                    if (normalized == phrase) return true;
+            return false;
+        }
+
         public static string Categorize(string normalized)
         {
             foreach (var cat in Categories)
@@ -107,7 +133,7 @@ namespace SecondCursor.Core.Story
             foreach (char raw in s)
             {
                 char c = char.ToLowerInvariant(raw);
-                if (c == '\'' || c == '`') continue;
+                if (c == '\'' || c == '`' || c == '\u2019' || c == '\u2018') continue;
                 if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
                 {
                     sb.Append(c);

@@ -254,6 +254,7 @@ namespace SecondCursor.Game
             g.Flags.Restore(cp.flags);
             g.Memory.Seed(cp.trust);
             g.Director.ResumeElapsed(cp.elapsed);
+            g.Director.RestoreCheckpointReplies(cp);
             g.Assist.SetLevel(Mathf.Max(g.Difficulty.AssistFloor, cp.assistLevel));
             g.Clock.Reset(cp.clockMinutes / 60, cp.clockMinutes % 60);
             g.Audio.SetAmbience(true, 2f);
@@ -377,7 +378,11 @@ namespace SecondCursor.Game
         System.Func<Input.Interactable, Input.CursorAgent> _guardOf;
 
         /// <summary>Phase Q4 (CH8): the saves are written by a background thread; quitting waits for it.</summary>
-        void OnApplicationQuit() => SaveSystem.Flush();
+        void OnApplicationQuit()
+        {
+            G?.Director?.SaveCurrentProgress();
+            SaveSystem.Flush();
+        }
 
         void OnApplicationFocus(bool focus)
         {

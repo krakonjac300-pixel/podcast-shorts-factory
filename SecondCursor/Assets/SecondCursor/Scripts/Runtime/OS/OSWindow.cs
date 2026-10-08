@@ -89,6 +89,7 @@ namespace SecondCursor.OS
         float _shakeTime;
         float _shakeAmp;
         Vector2 _shakeBase;
+        float _readingFactor;
         readonly Dictionary<string, Interactable> _elements = new Dictionary<string, Interactable>();
 
         internal static OSWindow Build(WindowManager wm, RectTransform layer, string appId, string title, string icon,
@@ -101,6 +102,7 @@ namespace SecondCursor.OS
             win.AppId = appId;
             win.IconSprite = icon;
             win.Flags = flags;
+            win._readingFactor = Game.DisplaySettings.ReadingFactor;
             rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
             rt.pivot = new Vector2(0f, 1f);
             rt.sizeDelta = new Vector2(Mathf.Max(MinWidth, w), Mathf.Max(MinHeight, h));
@@ -446,6 +448,20 @@ namespace SecondCursor.OS
 
         void Update()
         {
+            float reading = Game.DisplaySettings.ReadingFactor;
+            if (reading != _readingFactor)
+            {
+                float previous = _readingFactor;
+                _readingFactor = reading;
+                if (reading > previous && (Flags & WindowFlags.Resizable) != 0 && !IsMaximized && !IsSnapped && !Locked)
+                {
+                    // A setting changed while this window was already open. Give its larger text room without restarting the app.
+                    float increase = reading / previous - 1f;
+                    SetSize(new Vector2(Size.x * (1f + increase * 0.6f), Size.y * (1f + increase * 0.4f)));
+                    MoveTo(new Vector2(Mathf.Clamp(TopLeft.x, 0f, ScreenRig.Width - Size.x),
+                        Mathf.Clamp(TopLeft.y, 0f, ScreenRig.Height - WindowManager.TaskbarHeight - Size.y)));
+                }
+            }
             if (_shakeTime > 0f)
             {
                 _shakeTime -= Time.deltaTime;

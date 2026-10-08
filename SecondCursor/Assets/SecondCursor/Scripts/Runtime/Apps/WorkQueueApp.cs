@@ -22,6 +22,10 @@ namespace SecondCursor.Apps
     public sealed class WorkQueueApp : App
     {
         RectTransform _listRoot;
+        RectTransform _tasksFrame, _detailFrame;
+        ScrollArea _taskScroll;
+        float _factor = -1f;
+        ClickSpeed _clickSpeed;
         /// <summary>The line the player clicked, and the current task it was clicked under (a new current task clears it).</summary>
         string _selectedId, _selectedUnder;
         /// <summary>M9: the remote rows' band and label, faded as their time runs out.</summary>
@@ -31,6 +35,7 @@ namespace SecondCursor.Apps
         /// <summary>Phase Q4 (R3): the task's bold scan lines (the last five minutes), above the paragraph.</summary>
         PixelText _detailHead;
         PixelText _header;
+        UiButton _help;
         /// <summary>Phase Q4 (R3): the red countdown chip of a row under two real minutes from its deadline.</summary>
         sealed class RowChip
         {
@@ -61,11 +66,16 @@ namespace SecondCursor.Apps
             var client = Window.Client;
             _header = UIBuilder.Text(client, G.Content.Text("workqueue.header"), Palette.Text, true);
             _header.rectTransform.TopStrip(4, 12, 6, 4);
+            _help = UiButton.Create(client, "Help with task", a => G.Director.RequestTaskHelp(Shown()?.Id), "workqueue.help");
+            ((RectTransform)_help.transform).TopRight(4, 1, 110, 18);
             var frame = UIBuilder.Bevel(client, BevelStyle.Sunken, "Tasks");
+            _tasksFrame = frame.rectTransform;
             frame.rectTransform.TopStrip(20, ListHeight + 6, 2, 2);
-            _listRoot = UIBuilder.Rect("Rows", frame.rectTransform).Stretch(3, 3, 3, 3);
-            UIBuilder.Clip(_listRoot);
+            _taskScroll = ScrollArea.Create(frame.rectTransform, "Task List Scroll");
+            ((RectTransform)_taskScroll.transform).Stretch(3, 3, 3, 3);
+            _listRoot = _taskScroll.Content;
             var detailFrame = UIBuilder.Bevel(client, BevelStyle.StatusField, "Detail");
+            _detailFrame = detailFrame.rectTransform;
             detailFrame.rectTransform.Stretch(2, 30 + ListHeight, 2, 2);
             // Phase I: the instructions and the hint scroll (a long hint used to be cut off at the bottom of the pane).
             _detailScroll = ScrollArea.Create(detailFrame.rectTransform, "Detail Scroll");
@@ -79,14 +89,33 @@ namespace SecondCursor.Apps
             MoreBelow.Create(detailFrame.rectTransform, _detailScroll, G.Content.Text("mail.more", "More below"), "morebelow:workqueue");
             // Phase L: the list's titles and the instructions follow the window's width when it is resized or snapped to a half.
             Window.Resized += _ => _resized = true;
+            LayoutChrome();
             Refresh();
         }
 
         /// <summary>Height of the task list's inner area (px).</summary>
-        const int ListHeight = 122;
+        static int ListHeight => Mathf.RoundToInt(122f * Mathf.Sqrt(Game.DisplaySettings.ReadingFactor));
         /// <summary>One line of a row, and the extra a second line adds.</summary>
-        const int RowH = 18, LineH = 12;
+        static int RowH => Mathf.CeilToInt(18f * Game.DisplaySettings.ReadingFactor);
+        static int LineH => Mathf.CeilToInt(12f * Game.DisplaySettings.ReadingFactor);
         const int TextLeft = 20;
+        static int ChipWidth => Mathf.CeilToInt(DeadlineChip.ChipWidth * Game.DisplaySettings.ReadingFactor);
+        static int ChipHeight => Mathf.CeilToInt(DeadlineChip.ChipHeight * Game.DisplaySettings.ReadingFactor);
+
+        void LayoutChrome()
+        {
+            _factor = Game.DisplaySettings.ReadingFactor;
+            int headerH = Mathf.CeilToInt(12f * _factor);
+            int helpW = Mathf.CeilToInt(110f * _factor);
+            _header.Factor = _factor;
+            _header.rectTransform.TopStrip(4, headerH, 6, helpW + 12);
+            ((RectTransform)_help.transform).TopRight(4, 1, helpW, Mathf.Max(18, headerH));
+            int listTop = headerH + 8;
+            _tasksFrame.TopStrip(listTop, ListHeight + 6, 2, 2);
+            _detailFrame.Stretch(2, listTop + ListHeight + 10, 2, 2);
+            _taskScroll.LineStep = RowH;
+            _taskScroll.WheelStep = RowH * 3;
+        }
 
         WorkTask Current
         {
@@ -109,16 +138,17 @@ namespace SecondCursor.Apps
         float ListWidth => _listRoot != null && _listRoot.rect.width > 1f ? _listRoot.rect.width : Window.Size.x - 14f;
 
         /// <summary>Text width of a row (px): the list less the icon column and a right margin.</summary>
-        int TextWidth => Mathf.Max(60, Mathf.FloorToInt(ListWidth) - TextLeft - 4 - (_chipIds.Count > 0 ? DeadlineChip.ChipWidth + 4 : 0));
+        int TextWidth => Mathf.Max(60, Mathf.FloorToInt(ListWidth) - TextLeft - 4 - (_chipIds.Count > 0 ? ChipWidth + 4 : 0));
 
         /// <summary>The title as shown, and how many lines (1 or 2) it needs; a title of three lines or more is ended with "...".</summary>
         (string text, int lines) FitTitle(string title, bool bold)
         {
             int width = TextWidth;
-            if (PixelFont.MeasureLine(title, bold, 1) <= width) return (title, 1);
-            if (PixelFont.Measure(title, width, bold, 1).y <= LineH * 2 + 1) return (title, 2);
+            float factor = Game.DisplaySettings.ReadingFactor;
+            if (PixelFont.MeasureLine(title, bold, factor) <= width) return (title, 1);
+            if (PixelFont.Measure(title, width, bold, factor).y <= LineH * 2 + 1) return (title, 2);
             string s = title;
-            while (s.Length > 1 && PixelFont.Measure(s + "...", width, bold, 1).y > LineH * 2 + 1) s = s.Substring(0, s.Length - 1);
+            while (s.Length > 1 && PixelFont.Measure(s + "...", width, bold, factor).y > LineH * 2 + 1) s = s.Substring(0, s.Length - 1);
             return (s.TrimEnd() + "...", 2);
         }
 
@@ -128,7 +158,11 @@ namespace SecondCursor.Apps
         {
             _revision = G.Tasks.Revision;
             _mailRevision = G.Mail != null ? G.Mail.Revision : -1;
-            for (int i = _listRoot.childCount - 1; i >= 0; i--) Object.Destroy(_listRoot.GetChild(i).gameObject);
+            for (int i = _listRoot.childCount - 1; i >= 0; i--)
+            {
+                _listRoot.GetChild(i).gameObject.SetActive(false);
+                Object.Destroy(_listRoot.GetChild(i).gameObject);
+            }
             _remoteRows.Clear();
             _chips.Clear();
             UpdateChipIds();
@@ -149,16 +183,19 @@ namespace SecondCursor.Apps
             if (rows.Count == 0 && !clear)
             {
                 var none = UIBuilder.Text(_listRoot, G.Content.Text("workqueue.empty"), Palette.TextDisabled);
-                none.rectTransform.TopStrip(4, 12, 4, 4);
+                none.Factor = Game.DisplaySettings.ReadingFactor;
+                none.rectTransform.TopStrip(4, LineH, 4, 4);
                 y = RowH;
             }
             if (clear)
             {
                 var line = UIBuilder.Text(_listRoot, G.Content.Text("workqueue.empty"), Palette.TextDisabled);
-                line.rectTransform.TopStrip(y + 4, 12, 4, 4);
+                line.Factor = Game.DisplaySettings.ReadingFactor;
+                line.rectTransform.TopStrip(y + 4, LineH, 4, 4);
                 y += RowH;
             }
-            if (mail != null) AddMailRow(mail, y);
+            if (mail != null) { AddMailRow(mail, y); y += RowH; }
+            _taskScroll.ContentHeight = y;
             RefreshDetail(shown, false);
         }
 
@@ -195,7 +232,8 @@ namespace SecondCursor.Apps
             while (list.Count > 1 && Total() > budget)
             {
                 int done = list.FindIndex(r => r.task.State != TaskState.Active);
-                list.RemoveAt(done >= 0 ? done : 0);
+                if (done < 0) break; // Active assignments remain reachable through the list's scrollbar.
+                list.RemoveAt(done);
             }
             return list;
         }
@@ -240,6 +278,7 @@ namespace SecondCursor.Apps
             bool urgent = t.State == TaskState.Active && (_chipIds.Contains(t.Id) || (t.Summary.Length > 0 && _chipIds.Count > 0));
             var color = t.State != TaskState.Active ? Palette.TextDisabled : (remote ? Palette.EntityText : urgent ? Palette.Red : Palette.Text);
             var label = UIBuilder.Text(row, lines > 1 ? FitTitle(title, isCurrent).text : title, color, isCurrent || urgent);
+            label.Factor = Game.DisplaySettings.ReadingFactor;
             label.VAlign = TextVAlign.Middle;
             if (lines > 1) label.Wrap = true;
             int right = 2;
@@ -247,21 +286,22 @@ namespace SecondCursor.Apps
             {
                 // Taken back: the line stays, struck through, and says why in red at its right end.
                 string note = t.WithdrawNote.ToUpperInvariant();
-                int noteW = PixelFont.MeasureLine(note, true, 1);
+                int noteW = PixelFont.MeasureLine(note, true, Game.DisplaySettings.ReadingFactor);
                 var why = UIBuilder.Text(row, note, Palette.Red, true, "Why");
+                why.Factor = Game.DisplaySettings.ReadingFactor;
                 why.rectTransform.Stretch(0, 0, 2, 0);
                 why.Align = TextAlign.Right;
                 why.VAlign = TextVAlign.Middle;
                 right = noteW + 8;
                 float listW = ListWidth;
                 label.text = Ellipsize(title, Mathf.Max(20, Mathf.FloorToInt(listW) - 20 - right), false);
-                int width = Mathf.Min(PixelFont.MeasureLine(label.text, false, 1), Mathf.Max(20, Mathf.FloorToInt(listW) - 20 - right));
+                int width = Mathf.Min(PixelFont.MeasureLine(label.text, false, Game.DisplaySettings.ReadingFactor), Mathf.Max(20, Mathf.FloorToInt(listW) - 20 - right));
                 var strike = UIBuilder.Solid(row, Palette.TextDisabled, "Strike");
                 strike.rectTransform.At(20, RowH / 2, width, 1);
             }
             if (_chipIds.Contains(t.Id)) AddChip(row, t.Id);
             else if (t.State == TaskState.Active && t.Title.StartsWith("PRIORITY", System.StringComparison.Ordinal)) AddPriorityMark(row);
-            if (_chipIds.Count > 0 && !withdrawn) right += DeadlineChip.ChipWidth + 4;
+            if (_chipIds.Count > 0 && !withdrawn) right += ChipWidth + 4;
             label.rectTransform.Stretch(TextLeft, 0, right, 0);
             if (band != null) _remoteRows[t.Id] = (band, label);
             if (id == _selectedId)
@@ -308,12 +348,13 @@ namespace SecondCursor.Apps
             chip.anchorMin = new Vector2(1f, 0.5f);
             chip.anchorMax = new Vector2(1f, 0.5f);
             chip.pivot = new Vector2(1f, 0.5f);
-            chip.sizeDelta = new Vector2(DeadlineChip.ChipWidth, DeadlineChip.ChipHeight);
+            chip.sizeDelta = new Vector2(ChipWidth, ChipHeight);
             chip.anchoredPosition = new Vector2(-2f, 0f);
             UIBuilder.Solid(chip, Palette.Dark, "Chip Border").rectTransform.Stretch();
             var fill = UIBuilder.Solid(chip, Palette.Red, "Chip Fill");
             fill.rectTransform.Stretch(1, 1, 1, 1);
             var text = UIBuilder.Text(chip, "", Palette.Highlight, true, "Chip Text");
+            text.Factor = Game.DisplaySettings.ReadingFactor;
             text.Align = TextAlign.Center;
             text.VAlign = TextVAlign.Middle;
             text.rectTransform.Stretch(1, 0, 1, 0);
@@ -368,6 +409,7 @@ namespace SecondCursor.Apps
             string text = count > 1 ? G.Content.Format("workqueue.mail.more", subject, count) : G.Content.Format("workqueue.mail", subject);
             text = Ellipsize(text, Mathf.FloorToInt(ListWidth) - 24, true);
             var label = UIBuilder.Text(row, text, Palette.Link, true);
+            label.Factor = Game.DisplaySettings.ReadingFactor;
             label.rectTransform.Stretch(20, 0, 2, 0);
             label.VAlign = TextVAlign.Middle;
             var hit = UIBuilder.Hit(row.gameObject, "workqueue:mail", CursorShape.Hand);
@@ -381,14 +423,16 @@ namespace SecondCursor.Apps
 
         static string Ellipsize(string s, int width, bool bold)
         {
-            if (PixelFont.MeasureLine(s, bold, 1) <= width) return s;
-            while (s.Length > 1 && PixelFont.MeasureLine(s + "...", bold, 1) > width) s = s.Substring(0, s.Length - 1);
+            float factor = Game.DisplaySettings.ReadingFactor;
+            if (PixelFont.MeasureLine(s, bold, factor) <= width) return s;
+            while (s.Length > 1 && PixelFont.MeasureLine(s + "...", bold, factor) > width) s = s.Substring(0, s.Length - 1);
             return s.TrimEnd() + "...";
         }
 
         /// <param name="toTop">A different task: the pane starts at its top (a countdown tick keeps the reader's place).</param>
         void RefreshDetail(WorkTask current, bool toTop)
         {
+            _clickSpeed = Game.AccessSettings.ClickSpeed;
             _clockMinute = G.Clock.TotalMinutes;
             string text = "";
             if (current != null)
@@ -413,7 +457,7 @@ namespace SecondCursor.Apps
             _detailHead.text = current != null && current.State == TaskState.Active ? string.Join("\n", current.Summary) : "";
             string id = current?.Id;
             if (id != _detailTaskId) { toTop = true; _detailTaskId = id; }
-            _detail.text = text;
+            _detail.text = ClickRules.Instructions(text);
             LayoutDetail();
             FitKeyTask(current);
             if (toTop) _detailScroll.ScrollTo(0f);
@@ -563,9 +607,11 @@ namespace SecondCursor.Apps
 
         public override void Tick(float dt)
         {
-            if (_resized)
+            _help.Enabled = G.Director != null && G.Director.CanRequestTaskHelp(Shown()?.Id);
+            if (_resized || _factor != Game.DisplaySettings.ReadingFactor)
             {
                 _resized = false;
+                LayoutChrome();
                 Canvas.ForceUpdateCanvases();
                 Refresh();
             }
@@ -581,6 +627,7 @@ namespace SecondCursor.Apps
             }
             FadeRemoteRows();
             TickChips();
+            if (_clickSpeed != Game.AccessSettings.ClickSpeed) RefreshDetail(Shown(), false);
             float scale = Game.DisplaySettings.ReadingFactor;
             if (_detail != null && _detail.Factor != scale) LayoutDetail();
         }

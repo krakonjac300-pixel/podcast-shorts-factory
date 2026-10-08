@@ -36,6 +36,9 @@ namespace SecondCursor.Apps
         public bool IsTalking => IsOpen && ConversationMode && (EntityTyping || ThinkingCaret);
         /// <summary>The speaker is "thinking" before a reply: the caret blinks although nobody types.</summary>
         public bool ThinkingCaret;
+        /// <summary>Seconds until silence answers this turn; negative means no active reply deadline.</summary>
+        public float ReplySecondsRemaining = -1f;
+        public bool HasPendingReply => ConversationMode && !string.IsNullOrWhiteSpace(PendingInput);
         public event Action<string, CursorAgent> LineSubmitted;
         public float LastPlayerKeyTime { get; private set; } = -100f;
         /// <summary>Phase K: who is on the other side of a conversation ("session 017"), for its title and status line.</summary>
@@ -194,7 +197,7 @@ namespace SecondCursor.Apps
             // frame while a reply was awaited).
             bool convHeld = ConversationMode && _held.Length > 0;
             bool nobody = NobodyListening;
-            bool turn = !convHeld && WaitsForPlayer && PendingInput.Length == 0;
+            bool turn = !convHeld && WaitsForPlayer;
             int hash = 0;
             if (convHeld)
             {
@@ -202,13 +205,19 @@ namespace SecondCursor.Apps
                 for (int i = 0; i < _held.Length; i++) hash = hash * 31 + _held[i];
             }
             hash = hash * 31 + (SessionLabel != null ? SessionLabel.GetHashCode() : 0);
+            int replySeconds = ReplySecondsRemaining >= 0f ? Mathf.CeilToInt(ReplySecondsRemaining) : -1;
+            hash = hash * 31 + replySeconds;
             int key = (convHeld ? 1 : 0) | (nobody ? 2 : 0) | (turn ? 4 : 0);
             float statusWidth = _convStatus.rect.width;
             if (key != _statusKey || hash != _statusHash || !Mathf.Approximately(statusWidth, _statusWidth))
             {
                 string made = null;
                 if (convHeld) made = G.Content.Format(nobody ? "notepad.status.held" : "notepad.status.typing", SessionLabel, PendingHeld());
-                else if (turn) made = G.Content.Text("notepad.status.turn");
+                else if (turn)
+                {
+                    made = G.Content.Text("notepad.status.turn");
+                    if (replySeconds >= 0) made += " Silence answers in " + replySeconds + "s.";
+                }
                 if (made != null && made.Length > 0) made = char.ToUpperInvariant(made[0]) + made.Substring(1);
                 _statusText = made;
                 // Phase K: the strip grows to a second line for the longer reasons (it used to be cut at the window's edge).
@@ -624,7 +633,7 @@ namespace SecondCursor.Apps
             if (_view != null && _view.Factor != scale)
             {
                 _view.Factor = scale;
-                Changed(true);
+                Changed(ConversationMode);
             }
             // The status first: it sees the turn that ReleaseHeldKeys may end on this frame (a typed-ahead line sent).
             UpdateConversationStatus();

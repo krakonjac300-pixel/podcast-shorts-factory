@@ -5,6 +5,7 @@ using SecondCursor.Apps;
 using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Entity;
 using SecondCursor.Input;
@@ -277,12 +278,15 @@ namespace SecondCursor.Story
             Action<string, CursorAgent> handler = (line, a) => said = line;
             s.Pad.LineSubmitted += handler;
             float waitStart = Time.time;
+            float replySeconds = ReadingPace.ReplySeconds(silenceSeconds, _g.TimeScale);
             int reopened = 0;
             while (said == null)
             {
                 // Silence: counted from the last keystroke (or since it finished typing).
                 float lastActivity = Mathf.Max(waitStart, s.Pad != null ? s.Pad.LastPlayerKeyTime : 0f);
-                if (Time.time - lastActivity > silenceSeconds) break;
+                float left = ReadingPace.Remaining(Time.time, lastActivity, replySeconds);
+                if (s.Pad != null) s.Pad.ReplySecondsRemaining = left;
+                if (left <= 0f) break;
                 NudgeIfUnseen(s, lastActivity);
                 if (EnsurePad(s) == null && reopened >= 2) break; // keeps closing it: treat as silence
                 if (EnsurePad(s) == null)
@@ -298,7 +302,11 @@ namespace SecondCursor.Story
                 yield return null;
             }
             if (s.Pad != null) s.Pad.LineSubmitted -= handler;
-            if (s.Pad != null) s.Pad.PlayerCanType = false;
+            if (s.Pad != null)
+            {
+                s.Pad.PlayerCanType = false;
+                s.Pad.ReplySecondsRemaining = -1f;
+            }
             if (said != null) onSaid(said);
         }
 

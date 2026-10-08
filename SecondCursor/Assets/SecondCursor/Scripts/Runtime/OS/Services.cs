@@ -139,7 +139,7 @@ namespace SecondCursor.OS
 
         /// <summary>Phase R: the night's first raced confirm showed its rule line (and is owed a longer head start, taken once by <see cref="TakeRaceGrace"/>).</summary>
         bool _ruleShown, _graceOwed;
-        /// <summary>Phase R: extra seconds before session 017 goes for No on the night's first race, so the rule can be read (the countdown shows it).</summary>
+        /// <summary>Extra seconds before session 017 goes for No on the night's first race, so the rule can be read.</summary>
         public const float RaceGraceSeconds = 2.5f;
 
         /// <summary>The extra head start the first race of Night 1 gets (0 for every later race, and on the other nights).</summary>
@@ -150,8 +150,8 @@ namespace SecondCursor.OS
             return RaceGraceSeconds;
         }
 
-        /// <summary>Phase N: room in a dialog for the race line and its bar.</summary>
-        public const int RaceStatusHeight = 26;
+        /// <summary>Room in a dialog for the actor's status line.</summary>
+        public const int RaceStatusHeight = 14;
         /// <summary>Phase N: the shred under way is one another session races (its outcome is always a notice).</summary>
         public bool Raced { get; private set; }
         /// <summary>Phase N: the last cancel was an answer to the Confirm Shred (No or closed), not a Cancel during the shred.</summary>
@@ -342,6 +342,20 @@ namespace SecondCursor.OS
         public IReadOnlyList<string> Inbox => _inbox;
         public bool Has(string id) => _inbox.Contains(id);
         public bool IsRead(string id) => _read.Contains(id);
+
+        public bool IsLive(string id) => _live.Contains(id);
+
+        /// <summary>Restore delivery evidence without replaying arrival sounds or notifications.</summary>
+        public void RestoreDelivery(string id, string date, bool read, bool live, string credit)
+        {
+            if (string.IsNullOrEmpty(id) || _g.Content.Email(id) == null) return;
+            if (!_inbox.Contains(id)) _inbox.Add(id);
+            _received[id] = date ?? _g.Content.Email(id).date;
+            if (read) _read.Add(id); else _read.Remove(id);
+            if (live && !_live.Contains(id)) _live.Add(id);
+            _g.Credits.Set(TaskType.ReadEmail, id, credit);
+            Revision++;
+        }
 
         public int UnreadCount
         {

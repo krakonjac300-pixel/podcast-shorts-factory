@@ -131,7 +131,7 @@ namespace SecondCursor.EditorTools
                 if (line.Length == 0 || line.StartsWith("#")) return;
                 _out.Append("> ").Append(line).Append('\n');
                 _errorsAtCommand = ConsoleErrors.Count;
-                _current = Run(line);
+                _current = FlattenBridgeRoutine(Run(line));
             }
             bool more;
             try
@@ -244,6 +244,32 @@ namespace SecondCursor.EditorTools
 
         // ------------------------------------------------------------------ commands
 
+        // EditorApplication.update drives this bridge, so it must execute nested waiters itself.
+        static IEnumerator FlattenBridgeRoutine(IEnumerator routine)
+        {
+            var pending = new Stack<IEnumerator>();
+            pending.Push(routine);
+            try
+            {
+                while (pending.Count > 0)
+                {
+                    var current = pending.Peek();
+                    if (!current.MoveNext())
+                    {
+                        pending.Pop();
+                        (current as IDisposable)?.Dispose();
+                        continue;
+                    }
+                    if (current.Current is IEnumerator nested) pending.Push(nested);
+                    else yield return current.Current;
+                }
+            }
+            finally
+            {
+                while (pending.Count > 0) (pending.Pop() as IDisposable)?.Dispose();
+            }
+        }
+
         static IEnumerator Run(string line)
         {
             string[] a = line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
@@ -296,6 +322,17 @@ namespace SecondCursor.EditorTools
             IEnumerator inner = null;
             switch (cmd)
             {
+                case "finalchoicecheck": FinalChoiceCheck(); break;
+                case "bridgewaitcheck": inner = BridgeWaitCheck(); break;
+                case "finalconsentcheck": inner = FinalConsentCheck(); break;
+                case "finalreplaycheck": inner = FinalReplayCheck(); break;
+                case "uireviewfixcheck": inner = UiReviewFixCheck(); break;
+                case "storyreviewcheck": inner = StoryReviewFixesCheck(); break;
+                case "continuitycheck": inner = ContinuityCheck(); break;
+                case "readabilitycheck": inner = ReadabilityCheck(); break;
+                case "noticereview": NoticeReviewCheck(); break;
+                case "experiencecheck": inner = PlayerExperienceCheck(); break;
+                case "openingcheck": inner = RunOpeningChecks(); break;
                 case "beat": g.Director.JumpTo(a[1]); inner = WaitSeconds(0.3f); break;
                 case "jump":
                 {
@@ -476,7 +513,7 @@ namespace SecondCursor.EditorTools
                     if (inner == null) Say("ERROR: unknown command '" + cmd + "' (try help)");
                     break;
             }
-            if (inner != null) while (inner.MoveNext()) yield return inner.Current;
+            if (inner != null) yield return inner;
         }
 
         static IEnumerator Done() { yield break; }
@@ -507,7 +544,7 @@ namespace SecondCursor.EditorTools
         {
             float since = Time.unscaledTime;
             var wait = WaitFor(() => GameLog.Recent(40).Any(e => e.Time >= since && e.ToString().IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0), timeout, "log '" + text + "'");
-            while (wait.MoveNext()) yield return null;
+            yield return wait;
         }
 
         /// <summary>Waits until the scripted input has played every queued step.</summary>

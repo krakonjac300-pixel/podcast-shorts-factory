@@ -25,6 +25,29 @@ namespace SecondCursor.Core.Game
         /// checkpoint saved before this field existed loads as armed.
         /// </summary>
         public bool armed = true;
+        /// <summary>A replay of the final encounter counts new endings, but cannot set a full-night best time.</summary>
+        public bool finalDecisionReplay;
+        public string[] playerLines = Array.Empty<string>();
+        public int[] playerLineMinutes = Array.Empty<int>();
+        /// <summary>Optional ordinary-work snapshot. Older checkpoints rebuild their original beat.</summary>
+        public OpeningCheckpoint opening;
+
+        /// <summary>The first replies carry through a retry just as they carry into the next night.</summary>
+        public void CaptureReplies(IList<string> lines, IList<int> minutes)
+        {
+            var kept = new List<string>();
+            var times = new List<int>();
+            if (lines != null)
+                for (int i = 0; i < lines.Count && kept.Count < SaveData.MaxPlayerLines; i++)
+                {
+                    string clean = SaveData.SanitizePlayerLine(lines[i]);
+                    if (clean.Length == 0) continue;
+                    kept.Add(clean);
+                    times.Add(minutes != null && i < minutes.Count ? minutes[i] : -1);
+                }
+            playerLines = kept.ToArray();
+            playerLineMinutes = times.ToArray();
+        }
     }
 
     /// <summary>What a finished night hands to the save (see <see cref="SaveData.RecordNightComplete"/>).</summary>
@@ -42,6 +65,7 @@ namespace SecondCursor.Core.Game
         /// run may unlock nights, never endings or achievements.
         /// </summary>
         public bool Records = true;
+        public bool FinalDecisionReplay;
         /// <summary>What the player typed to the second cursor, in order (Night 1 keeps the first three).</summary>
         public IList<string> PlayerLines;
         /// <summary>The game clock (minutes since midnight) when each line was typed; same order, may be shorter.</summary>
@@ -80,6 +104,8 @@ namespace SecondCursor.Core.Game
         /// <summary>The night Continue starts.</summary>
         public int currentNight = 1;
         public Checkpoint checkpoint = new Checkpoint();
+        /// <summary>The state before the last final encounter, retained after its end card.</summary>
+        public Checkpoint finalDecision = new Checkpoint();
         /// <summary>Memory at the first start of each night (Night Select replays from here).</summary>
         public FlagSnapshot[] nightStartMemory = { new FlagSnapshot(), new FlagSnapshot(), new FlagSnapshot() };
         /// <summary>How often each night was started (0 = never; tells an empty start memory from an unset one).</summary>
@@ -185,6 +211,7 @@ namespace SecondCursor.Core.Game
         {
             bool changed = false;
             if (checkpoint == null) { checkpoint = new Checkpoint(); changed = true; }
+            if (finalDecision == null) { finalDecision = new Checkpoint(); changed = true; }
             if (checkpoint.flags == null) { checkpoint.flags = new FlagSnapshot(); changed = true; }
             checkpoint.beat = checkpoint.beat ?? "";
             if (memory == null) { memory = new FlagSnapshot(); changed = true; }
@@ -257,6 +284,7 @@ namespace SecondCursor.Core.Game
                 nightStartMemory[i] = memoryAtStart ?? new FlagSnapshot();
                 nightStartTrust[i] = MathUtil.Clamp(trustAtStart, -1f, 1f);
             }
+            finalDecision = new Checkpoint();
             nightStarts[i]++;
             currentNight = i + 1;
         }
@@ -275,6 +303,8 @@ namespace SecondCursor.Core.Game
         {
             checkpoint = cp ?? new Checkpoint();
             if (checkpoint.valid) currentNight = Index(checkpoint.night) + 1;
+            if (checkpoint.valid && checkpoint.night == 3 && checkpoint.beat == "finale" && !checkpoint.finalDecisionReplay)
+                finalDecision = checkpoint;
         }
 
         /// <summary>The saved checkpoint if it belongs to <paramref name="night"/>, else null.</summary>
@@ -283,10 +313,17 @@ namespace SecondCursor.Core.Game
             return checkpoint != null && checkpoint.valid && checkpoint.night == night && !string.IsNullOrEmpty(checkpoint.beat) ? checkpoint : null;
         }
 
+        public Checkpoint FinalDecisionForReplay()
+        {
+            return lastCompletedNight == 3 && finalDecision != null && finalDecision.valid
+                && finalDecision.night == 3 && finalDecision.beat == "finale" ? finalDecision : null;
+        }
+
         public void RecordNightComplete(NightResult r)
         {
             if (r == null) return;
             int i = Index(r.Night);
+            if (r.Night < 3) finalDecision = new Checkpoint();
             if (r.Records && !string.IsNullOrEmpty(r.EndingId) && Array.IndexOf(endingsSeen, r.EndingId) < 0)
             {
                 var list = new List<string>(endingsSeen) { r.EndingId };
@@ -305,7 +342,7 @@ namespace SecondCursor.Core.Game
             if (r.Records && r.Seconds >= MinRecordedSeconds)
             {
                 nightSeconds[i] += r.Seconds;
-                if (bestNightSeconds[i] <= 0f || r.Seconds < bestNightSeconds[i]) bestNightSeconds[i] = r.Seconds;
+                if (!r.FinalDecisionReplay && (bestNightSeconds[i] <= 0f || r.Seconds < bestNightSeconds[i])) bestNightSeconds[i] = r.Seconds;
             }
             if (r.Night == 1 && r.PlayerLines != null)
             {
@@ -371,6 +408,7 @@ namespace SecondCursor.Core.Game
             currentNight = 1;
             lastCompletedNight = 0;
             checkpoint = new Checkpoint();
+            finalDecision = new Checkpoint();
             nightStartMemory = new[] { new FlagSnapshot(), new FlagSnapshot(), new FlagSnapshot() };
             nightStarts = new int[Nights];
             nightStartTrust = new float[Nights];

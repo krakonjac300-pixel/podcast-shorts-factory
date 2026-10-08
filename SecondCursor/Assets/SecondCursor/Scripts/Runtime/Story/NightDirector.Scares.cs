@@ -16,6 +16,62 @@ namespace SecondCursor.Story
         /// <summary>The hit lands this far into scare_hit (its pre-roll): the clip starts this much before the picture cuts.</summary>
         protected const float StingerPreRoll = 0.10f;
 
+        /// <summary>A committed capture: accelerating footsteps, a visible rush, then the existing shriek and impact.</summary>
+        protected IEnumerator CaptureRush()
+        {
+            var rig = _g.CameraRig;
+            if (rig == null) yield break;
+            _g.Player.Visible = false;
+            _g.Entity.SetPresent(false, 0.05f);
+            _g.Gary?.SetPresent(false, 0.05f);
+            // Capture is committed and input is already released. Keep the attack large until the tube dies.
+            EndFullView();
+            var camera = _g.Apps.Find<Apps.CameraApp>();
+            if (camera != null && camera.IsOpen)
+            {
+                camera.BeginFullView(null);
+                if (!camera.Window.IsMaximized) camera.Window.ToggleMaximize(null);
+                _g.Windows.Front(camera.Window);
+                _fullCam = camera;
+            }
+            rig.BeginCaptureRush();
+            GameLog.Info(LogChannel.Story, "Capture: rush toward CAM 03");
+            const float seconds = 0.95f;
+            float elapsed = 0f;
+            int step = 0;
+            float[] steps = { 0f, 0.25f, 0.44f, 0.59f };
+            while (elapsed < seconds - StingerPreRoll)
+            {
+                rig.SetCaptureRush(elapsed / seconds);
+                if (step < steps.Length && elapsed >= steps[step])
+                {
+                    _g.Audio.Play("step_near", 0.65f + step * 0.08f, 1f + step * 0.07f);
+                    step++;
+                }
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+            // The shriek is already mixed into scare_hit. Soft sounds uses its quieter alternate.
+            _g.Audio.PlayStinger(1f, Game.AccessSettings.SoftSounds(_g.Fx.ReduceFlashing), "crt_off", "ear_ring");
+            float impact = Time.time + StingerPreRoll;
+            while (Time.time < impact)
+            {
+                rig.SetCaptureRush(Mathf.Lerp((seconds - StingerPreRoll) / seconds, 1f,
+                    1f - (impact - Time.time) / StingerPreRoll));
+                yield return null;
+            }
+            rig.SetCaptureRush(1f);
+            rig.FreezeFeed = true;
+            if (_g.Fx.ReduceFlashing) _g.Fx.Shake(0.2f, 2f);
+            else
+            {
+                var verdict = _g.Fx.Decide("capture impact");
+                _g.Fx.Shake(0.3f, 6f);
+                _g.Fx.Glitch(0.15f, 0.7f, verdict);
+            }
+            GameLog.Info(LogChannel.Story, "Capture: impact");
+        }
+
         /// <summary>An ambient scare at a story moment: tried after <paramref name="delay"/> for up to <paramref name="window"/> seconds.</summary>
         protected void Scare(string id, float volume, float pan, float delay, float window, ScareGate ignore = ScareGate.None) =>
             _g.Scares.Slot(id, volume, pan, delay, window, ignore);
