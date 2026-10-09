@@ -16,20 +16,42 @@ namespace SecondCursor.Story
         static readonly Color32 Label = new Color32(0x8A, 0x8A, 0x84, 0xFF);
         const int RowStep = 12, PageRowStep = 16;
 
+        /// <summary>The height of one card row at <paramref name="f"/> (a long value wraps in its column).</summary>
+        static int CardRowHeight(RecordRow r, float f)
+        {
+            int mid = ScreenRig.Width / 2;
+            int h = Mathf.CeilToInt(RowStep * f);
+            if (f > 1f) h = Mathf.Max(h + 2, PixelFont.Measure(r.Value, mid - 16, false, f).y + 2, PixelFont.Measure(r.Label, mid - 8, false, f).y + 2);
+            return h;
+        }
+
+        /// <summary>Phase S: how tall the card rows are at the reading size <paramref name="f"/>.</summary>
+        public static int CardRowsHeight(IList<RecordRow> rows, float f)
+        {
+            int y = 0;
+            if (rows != null) foreach (var r in rows) y += CardRowHeight(r, f);
+            return y;
+        }
+
         /// <summary>The rows under a card from <paramref name="y"/> (top, virtual px). Returns the y under the last row.</summary>
-        public static int CardRows(RectTransform parent, IList<RecordRow> rows, int y)
+        public static int CardRows(RectTransform parent, IList<RecordRow> rows, int y, float f = 1f)
         {
             if (rows == null) return y;
             int mid = ScreenRig.Width / 2;
             foreach (var r in rows)
             {
+                int h = CardRowHeight(r, f);
                 var label = UIBuilder.Text(parent, r.Label, Label);
-                label.rectTransform.At(0, y, mid - 8, 12);
+                label.Factor = f;
+                label.Wrap = f > 1f;
+                label.rectTransform.At(0, y, mid - 8, h);
                 label.Align = TextAlign.Right;
                 var value = UIBuilder.Text(parent, r.Value, Palette.BiosText);
-                value.rectTransform.At(mid + 8, y, mid - 16, 12);
+                value.Factor = f;
+                value.Wrap = f > 1f;
+                value.rectTransform.At(mid + 8, y, mid - 16, h);
                 value.Align = TextAlign.Left;
-                y += RowStep;
+                y += h;
             }
             return y;
         }

@@ -43,7 +43,10 @@ namespace SecondCursor.Core.Game
             var s = Night(d, night);
             if (s == null) return rows;
             bool hid = d.memory != null && HasFlag(d.memory, MemoryFlags.N2Hid214);
-            rows.Add(new RecordRow(fmt("record.capture", null), fmt("record.pct", new object[] { CaptureProfile.Percent(night, hid, "") })));
+            // Phase S (two cards read 88% and nothing said why): Night 2's card says whether the copy grew, and why not.
+            int pct = CaptureProfile.Percent(night, hid, "");
+            string pctKey = night == 2 ? (hid ? "record.pct.held" : "record.pct.grew") : "record.pct";
+            rows.Add(new RecordRow(fmt("record.capture", null), fmt(pctKey, new object[] { pct })));
             rows.Add(new RecordRow(fmt("record.words", null), s.words017.ToString()));
             // Phase R: the card counts the player's own openings of CAM 03 (the story opens the viewer too, and the page said "looked at"); the full page keeps the looks.
             rows.Add(new RecordRow(fmt("record.camopen", null), Times(s.camOpened, fmt)));

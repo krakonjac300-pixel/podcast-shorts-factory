@@ -31,6 +31,8 @@ namespace SecondCursor.Input
 
         /// <summary>Set when a drop target accepted the payload.</summary>
         public bool Dropped;
+        /// <summary>Phase S: the element the payload was released on when that element takes drops but refused this one (null = it was released on nothing that takes drops).</summary>
+        public Interactable RefusedBy;
 
         /// <summary>The ghost's own interactable (lets the other cursor grab it).</summary>
         public Interactable Ghost;

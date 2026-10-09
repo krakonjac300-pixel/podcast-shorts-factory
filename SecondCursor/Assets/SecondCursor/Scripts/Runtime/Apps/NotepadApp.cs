@@ -118,6 +118,8 @@ namespace SecondCursor.Apps
             _view.Wrap = true;
             var hit = _scroll.Viewport.GetComponent<Interactable>();
             hit.cursor = CursorShape.IBeam;
+            // Phase S: a click on the page while she types shows the rest of the line (never the first line of an exchange).
+            hit.PointerDown += a => { if (a != null && a.IsPlayer) RequestSkip(); };
 
             if (file != null) SetText(file.Content);
             _inputStart = _text.Length;
@@ -205,14 +207,19 @@ namespace SecondCursor.Apps
                 for (int i = 0; i < _held.Length; i++) hash = hash * 31 + _held[i];
             }
             hash = hash * 31 + (SessionLabel != null ? SessionLabel.GetHashCode() : 0);
+            // Phase S (Large text tester: "Your turn" in 8 px type): the status strip follows the Reading text size too.
+            float statusFactor = Game.DisplaySettings.ReadingFactor;
+            hash = hash * 31 + Mathf.RoundToInt(statusFactor * 10f);
             int replySeconds = ReplySecondsRemaining >= 0f ? Mathf.CeilToInt(ReplySecondsRemaining) : -1;
             hash = hash * 31 + replySeconds;
-            int key = (convHeld ? 1 : 0) | (nobody ? 2 : 0) | (turn ? 4 : 0);
+            bool skipHint = !convHeld && ConversationMode && EntityTyping && SkipAllowed;
+            int key = (convHeld ? 1 : 0) | (nobody ? 2 : 0) | (turn ? 4 : 0) | (skipHint ? 8 : 0);
             float statusWidth = _convStatus.rect.width;
             if (key != _statusKey || hash != _statusHash || !Mathf.Approximately(statusWidth, _statusWidth))
             {
                 string made = null;
                 if (convHeld) made = G.Content.Format(nobody ? "notepad.status.held" : "notepad.status.typing", SessionLabel, PendingHeld());
+                else if (skipHint) made = G.Content.Format("notepad.status.skip", SessionLabel);
                 else if (turn)
                 {
                     made = G.Content.Text("notepad.status.turn");
@@ -221,7 +228,8 @@ namespace SecondCursor.Apps
                 if (made != null && made.Length > 0) made = char.ToUpperInvariant(made[0]) + made.Substring(1);
                 _statusText = made;
                 // Phase K: the strip grows to a second line for the longer reasons (it used to be cut at the window's edge).
-                _statusHeight = made != null ? Mathf.Max(15, PixelFont.Measure(made, Mathf.FloorToInt(statusWidth) - 9, false, 1).y + 4) : 0;
+                _convStatusText.Factor = statusFactor;
+                _statusHeight = made != null ? Mathf.Max(15, PixelFont.Measure(made, Mathf.FloorToInt(statusWidth) - 9, false, statusFactor).y + 4) : 0;
                 _statusKey = key;
                 _statusHash = hash;
                 _statusWidth = statusWidth;
@@ -401,6 +409,7 @@ namespace SecondCursor.Apps
         {
             // A routine stopped in the middle of an interjection never cleared the flag; a new line always can cut in again.
             _interjecting = false;
+            _skip = false;
             EntityTyping = true;
             bool previous = PlayerCanType;
             PlayerCanType = false;
@@ -417,6 +426,19 @@ namespace SecondCursor.Apps
                 }
                 char c = text[i];
                 if (!IsOpen) break;
+                if (_skip && SkipAllowed)
+                {
+                    // Phase S: the player asked to read the rest of this line now (a click, or Enter). The text ends up exactly as given.
+                    for (int j = i; j < text.Length; j++)
+                    {
+                        if (text[j] == '\b') { if (_text.Length > 0) _text.Length -= 1; }
+                        else _text.Append(text[j]);
+                    }
+                    _skip = false;
+                    Changed(true);
+                    Sfx.Play("key_enter", entity);
+                    break;
+                }
                 if (c == '\b')
                 {
                     // A scripted Backspace (code only, never content): the last character goes.
@@ -587,6 +609,16 @@ namespace SecondCursor.Apps
         readonly System.Text.StringBuilder _held = new System.Text.StringBuilder();
         CursorAgent _heldBy;
 
+        /// <summary>Phase S: the line being typed may be shown at once (false for the first line of an exchange, which keeps its pace).</summary>
+        public bool SkipAllowed;
+        bool _skip;
+
+        /// <summary>Phase S: show the rest of the line now (a click on the page, or Enter with nothing typed ahead).</summary>
+        public void RequestSkip()
+        {
+            if (ConversationMode && EntityTyping && SkipAllowed) _skip = true;
+        }
+
         void HoldKeys(string text, CursorAgent by)
         {
             _heldBy = by;
@@ -594,6 +626,8 @@ namespace SecondCursor.Apps
             {
                 LastPlayerKeyTime = Time.time;
                 if (c == ControlChars.Save) continue;
+                // Enter with nothing typed ahead is not a reply: it shows the rest of her line.
+                if (c == '\n' && _held.Length == 0 && SkipAllowed && EntityTyping) { _skip = true; continue; }
                 if (c == '\b') { if (_held.Length > 0 && _held[_held.Length - 1] != '\n') _held.Length -= 1; }
                 else if (_held.Length < 120) _held.Append(c);
             }

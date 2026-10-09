@@ -24,7 +24,7 @@ namespace SecondCursor.Story
 
         readonly GameServices _g;
         readonly string _briefing;
-        readonly CaptureStats _s = new CaptureStats();
+        CaptureStats _s = new CaptureStats();
         readonly DragMeter _drag = new DragMeter();
         DragPayload _carried;
         bool _dragDone;
@@ -41,6 +41,17 @@ namespace SecondCursor.Story
             g.Mail.Opened += OnMailOpened;
             g.DragDrop.PayloadFinished += OnPayloadFinished;
             g.Windows.Restored += (w, by) => { if (w != null && w.Owner is CameraApp camera) camera.Touch(by); };
+        }
+
+        /// <summary>Phase S: what has been measured so far (saved with a checkpoint).</summary>
+        public CaptureStats Snapshot() => _s.Copy();
+
+        /// <summary>Phase S: continue measuring from what a checkpoint saved.</summary>
+        public void Restore(CaptureStats saved)
+        {
+            if (saved == null) return;
+            _s = saved.Copy();
+            _dragDone = _s.dragSeconds >= 0f;
         }
 
         /// <summary>Every frame: the drag being carried and the CAM 03 feed.</summary>

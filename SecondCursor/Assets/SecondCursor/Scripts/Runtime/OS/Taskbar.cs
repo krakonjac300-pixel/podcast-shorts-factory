@@ -490,8 +490,11 @@ namespace SecondCursor.OS
 
         static string Ellipsize(string s, int width)
         {
-            if (PixelFont.MeasureLine(s, false) <= width) return s;
-            while (s.Length > 1 && PixelFont.MeasureLine(s + "...", false) > width) s = s.Substring(0, s.Length - 1);
+            // Phase S (Large text: taskbar entries were tiny once six windows were open): the label is cut to fit at the Reading text size, so the
+            // button keeps that size (it used to be cut at normal size, and the button then shrank the text to fit).
+            float f = Mathf.Min(Game.DisplaySettings.ReadingFactor, 2f);
+            if (PixelFont.MeasureLine(s, false, f) <= width) return s;
+            while (s.Length > 1 && PixelFont.MeasureLine(s + "...", false, f) > width) s = s.Substring(0, s.Length - 1);
             return s + "...";
         }
     }

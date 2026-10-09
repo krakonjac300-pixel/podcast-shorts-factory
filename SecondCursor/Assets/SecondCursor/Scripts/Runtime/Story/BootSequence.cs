@@ -277,6 +277,15 @@ namespace SecondCursor.Story
             var c = _g.Content;
             const int w = 360, h = 190;
             var box = UIBuilder.Rect("Log On", p).At((ScreenRig.Width - w) / 2, (ScreenRig.Height - h) / 2 - 20, w, h);
+            // Phase S (Large text tester: the log-on box stayed at normal size): the whole box grows with the Reading text size, about its centre.
+            float readingFactor = DisplaySettings.ReadingFactor;
+            if (readingFactor > 1f)
+            {
+                var centre = box.anchoredPosition + new Vector2(w / 2f, -h / 2f);
+                box.pivot = new Vector2(0.5f, 0.5f);
+                box.anchoredPosition = centre;
+                box.localScale = new Vector3(readingFactor, readingFactor, 1f);
+            }
             var frame = box.gameObject.AddComponent<BevelGraphic>();
             frame.Style = BevelStyle.Window;
             frame.raycastTarget = false;

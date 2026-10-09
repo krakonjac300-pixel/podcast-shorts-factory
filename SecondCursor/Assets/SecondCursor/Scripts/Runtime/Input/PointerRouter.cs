@@ -221,6 +221,7 @@ namespace SecondCursor.Input
                     // Letting go during a tug-of-war is letting go, not a drop: the contest decides (Phase F), unless the
                     // player was clearly ahead (Phase J: then the contest has just ended and this is an ordinary drop).
                     bool accepted = hit != null && !p.Contested && hit.Accepts(a, p);
+                    p.RefusedBy = !accepted && hit != null && hit.AcceptsDrop != null ? hit : null;
                     if (st.DropHover != null)
                     {
                         st.DropHover.RaiseDropHover(a, p, false);

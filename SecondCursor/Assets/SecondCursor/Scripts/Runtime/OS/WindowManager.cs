@@ -284,6 +284,20 @@ namespace SecondCursor.OS
             Raise(win, by);
         }
 
+        /// <summary>Phase S: another window that is above <paramref name="win"/> overlaps it (a dialog that has come to cover it).</summary>
+        public bool IsCoveredByAnother(OSWindow win)
+        {
+            if (win == null || win.IsClosed) return false;
+            int mine = win.transform.GetSiblingIndex();
+            Rect rect = win.WorldRect;
+            foreach (var w in _windows)
+            {
+                if (w == null || w == win || w.IsClosed || w.IsMinimized || w.transform.GetSiblingIndex() <= mine) continue;
+                if (w.WorldRect.Overlaps(rect)) return true;
+            }
+            return false;
+        }
+
         /// <summary>A window the story must show now (a climax's feed): the front and the focus, never held back.</summary>
         public void Front(OSWindow win)
         {

@@ -44,13 +44,15 @@ namespace SecondCursor.Story
         const float IdleMoveSqr = 16f;
         float _idleSince;
         Vector2 _idleLastPos;
-        static readonly Vector2 File017Spot = new Vector2(600f, 300f);
+        // Phase S: well clear of the Work Queue (which grows with the Reading text size and covered half of the file at 600).
+        static readonly Vector2 File017Spot = new Vector2(450f, 300f);
 
         Night3Exit _exit;
         string _keepCause = "time";
         bool _confirmed, _fastForward, _tugLineSaid, _garyGuardSaid, _logOffCut;
         int _garyLogOffTries;
         MessageBox _logOffConfirm;
+        ExitCountdown _exitCountdown;
         MessageBox _stayConfirm;
         ProgressDialog _logOffProgress;
         Routine _lastWords;
@@ -211,6 +213,11 @@ namespace SecondCursor.Story
                 if (clock >= Night3Rules.LogOffTime && !_fastForward) g.Clock.Rate = PostSevenRate;
                 // M8: the last five minutes before seven read amber on the tray clock.
                 g.Taskbar.ClockAmber = clock >= Night3Rules.LogOffTime - AmberMinutes && clock < Night3Rules.LogOffTime;
+                // Phase S: the real seconds left to log off, from 7:00; and nothing may cover the Log Off confirm or its progress.
+                if (_exitCountdown == null) _exitCountdown = new ExitCountdown(g);
+                _exitCountdown.Tick(clock >= Night3Rules.LogOffTime && clock < Night3Rules.KeepTime && _exit == Night3Exit.None,
+                    ExitCountdown.SecondsLeft(g.Clock.ExactMinutes, Night3Rules.KeepTime, g.Clock.Rate));
+                KeepLogOffOnTop();
 
                 // KEEP by confirmation lands at 7:00 (unless a shred is already running). Phase P (T1): a LetGo hold under way is an exit too.
                 bool running = g.Shred.Busy || LogOffRunning || LetGoHoldRunning;
@@ -233,6 +240,7 @@ namespace SecondCursor.Story
                 yield return null;
             }
             g.Taskbar.ClockAmber = false;
+            _exitCountdown?.Tick(false, 0f);
             // Phase M: the KEEP climax starts here: nothing ambient any more, and the cause notice shows without its chime.
             if (_exit == Night3Exit.Keep) BeginClimax();
             // Phase J: a log off that the seat or the clock cut short says so at once (and the card names it).

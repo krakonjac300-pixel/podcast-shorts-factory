@@ -282,6 +282,12 @@ namespace SecondCursor.Core.Tasks
         {
             var t = Get(id);
             if (t == null || t.State == TaskState.Completed || t.State == TaskState.Withdrawn) return;
+            // Phase S (a task that was done showed EXPIRED): what the world already shows as done is counted before the task is withdrawn.
+            if (t.State == TaskState.Active)
+            {
+                Evaluate();
+                if (t.State == TaskState.Completed) return;
+            }
             t.State = TaskState.Withdrawn;
             t.WithdrawNote = t.WasShown && !string.IsNullOrEmpty(note) ? note : null;
             Revision++;

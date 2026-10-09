@@ -39,6 +39,8 @@ namespace SecondCursor.OS
         public OSWindow Window;
         public UiButton CancelButton;
         public PixelText Text;
+        /// <summary>Phase S: a strip under the bar for a live line (who can press Cancel), or null.</summary>
+        public RectTransform Status;
         RectTransform _barArea;
         readonly List<UnityEngine.UI.Image> _blocks = new List<UnityEngine.UI.Image>();
         float _progress;
@@ -95,9 +97,19 @@ namespace SecondCursor.OS
             int textMax = Mathf.RoundToInt(280 * f);
             var size = PixelFont.Measure(text, textMax, false, f);
             statusHeight = Mathf.RoundToInt(statusHeight * f);
+            // Phase S (Large text: "Read easier" shrank to fit a 72 px button): each button is as wide as its label needs at the reading size.
+            float bf = Mathf.Min(f, 2f);
+            int buttonH = bf > 1f ? Mathf.CeilToInt(PixelFont.GlyphHeight * bf) + 12 : ButtonH;
+            var widths = new int[buttons.Length];
+            int buttonsTotal = 0;
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                widths[i] = Mathf.Max(ButtonW, PixelFont.MeasureLine(buttons[i], false, bf) + 16);
+                buttonsTotal += widths[i] + (i > 0 ? 6 : 0);
+            }
             // A status line needs room for "Session 209 is holding No for you. Click Yes." in bold.
-            int clientW = Mathf.Max(size.x + 62, buttons.Length * (ButtonW + 6) + 20, statusHeight > 0 ? Mathf.RoundToInt(380 * f) : 200);
-            int clientH = Mathf.Max(size.y, 32) + 22 + ButtonH + 14 + (statusHeight > 0 ? statusHeight + 6 : 0);
+            int clientW = Mathf.Max(size.x + 62, buttonsTotal + 20, statusHeight > 0 ? Mathf.RoundToInt(380 * f) : 200);
+            int clientH = Mathf.Max(size.y, 32) + 22 + buttonH + 14 + (statusHeight > 0 ? statusHeight + 6 : 0);
             int w = clientW + 8;
             int h = clientH + OSWindow.CaptionHeight + 9;
             var pos = desktopTopLeft ?? (Vector2)WindowManager.Centered(w, h);
@@ -119,13 +131,13 @@ namespace SecondCursor.OS
             if (size.y < 32) t.VAlign = TextVAlign.Middle;
             if (statusHeight > 0) box.Status = UIBuilder.Rect("Status", win.Client).At(52, 12 + Mathf.Max(size.y, 32) + 10, clientW - 60, statusHeight);
 
-            int total = buttons.Length * ButtonW + (buttons.Length - 1) * 6;
-            int bx = (clientW - total) / 2;
+            int bx = (clientW - buttonsTotal) / 2;
             for (int i = 0; i < buttons.Length; i++)
             {
                 string label = buttons[i];
                 var b = UiButton.Create(win.Client, label, a => box.Answer(label, a), "button:" + label);
-                ((RectTransform)b.transform).At(bx + i * (ButtonW + 6), clientH - ButtonH - 10, ButtonW, ButtonH);
+                ((RectTransform)b.transform).At(bx, clientH - buttonH - 10, widths[i], buttonH);
+                bx += widths[i] + 6;
                 if (i == defaultIndex) b.IsDefault = true;
                 box.Buttons[label] = b;
             }
@@ -136,9 +148,22 @@ namespace SecondCursor.OS
             return box;
         }
 
-        public static ProgressDialog Progress(GameServices g, string title, string text, string icon = "icon_disposal_full")
+        /// <param name="statusHeight">Phase S: room for <see cref="ProgressDialog.Status"/>, a live line under the bar (who can press Cancel), 0 = none.</param>
+        public static ProgressDialog Progress(GameServices g, string title, string text, string icon = "icon_disposal_full", int statusHeight = 0)
         {
-            const int w = 320, h = 132;
+            // Phase S: the dialog follows the Reading text size like every other box (the Large text tester found "Shredding..." at 8 px).
+            float f = DisplaySettings.ReadingFactor;
+            int textW = Mathf.RoundToInt(250 * f);
+            var textSize = PixelFont.Measure(text, textW, false, f);
+            int textH = Mathf.Max(26, textSize.y + 2);
+            int statusH = statusHeight > 0 ? Mathf.RoundToInt(statusHeight * f) + 4 : 0;
+            int barY = 10 + textH + 8;
+            int barH = Mathf.RoundToInt(18 * Mathf.Min(f, 1.5f));
+            int statusY = barY + barH + 6;
+            int cancelY = statusY + statusH + (statusH > 0 ? 2 : 0) + 4;
+            int btnW = Mathf.RoundToInt(ButtonW * Mathf.Min(f, 1.5f)), btnH = Mathf.RoundToInt(ButtonH * Mathf.Min(f, 1.5f));
+            int w = Mathf.Min(ScreenRig.Width - 20, Mathf.Max(320, textW + 70, statusHeight > 0 ? Mathf.RoundToInt(380 * f) + 40 : 0));
+            int h = cancelY + btnH + 14 + OSWindow.CaptionHeight + 9 - 8;
             var pos = WindowManager.Centered(w, h);
             var dlg = new ProgressDialog();
             var win = g.Windows.Create("progress", title, null, pos.x, pos.y, w, h, WindowFlags.AlwaysOnTop | WindowFlags.NoTaskbar);
@@ -151,13 +176,15 @@ namespace SecondCursor.OS
                 ic.rectTransform.anchoredPosition = new Vector2(10f, -8f);
             }
             dlg.Text = UIBuilder.Text(win.Client, text, Palette.Text);
-            dlg.Text.rectTransform.At(52, 10, w - 70, 26);
+            dlg.Text.Factor = f;
+            dlg.Text.rectTransform.At(52, 10, w - 70, textH);
             dlg.Text.Wrap = true;
 
             var bar = UIBuilder.Bevel(win.Client, BevelStyle.Sunken, "Progress Bar");
-            bar.rectTransform.At(10, 48, w - 28, 18);
+            bar.rectTransform.At(10, barY, w - 28, barH);
             Canvas.ForceUpdateCanvases();
             dlg.BuildBar(bar.rectTransform);
+            if (statusH > 0) dlg.Status = UIBuilder.Rect("Status", win.Client).At(10, statusY, w - 28, statusH);
 
             // Phase H: the dialog opens where Yes was, so Cancel can land under the pointer. A click of the player's in the
             // first moment is a reflex, not a decision: it is ignored (another cursor's click never is).
@@ -167,11 +194,14 @@ namespace SecondCursor.OS
                 if (a != null && a.IsPlayer && Time.unscaledTime - openedAt < CancelGrace)
                 {
                     Core.GameLog.Info(Core.LogChannel.Player, "Cancel ignored (clicked " + (Time.unscaledTime - openedAt).ToString("0.00") + " s after " + title + " opened)");
+                    // Phase S (Cancel "did nothing"): say that a click this early is taken for a slip, and shake the box.
+                    win.Shake(0.2f, 2f);
+                    g.Notifications.Show(g.Content.Text("app.disposal"), g.Content.Text("shred.cancel.ignored"), "icon_info", null, "ui_select", false, null, Core.Game.NoticeKind.Plain, null, true);
                     return;
                 }
                 dlg.RaiseCancel(a);
             }, "button:Cancel");
-            ((RectTransform)dlg.CancelButton.transform).At((w - 8 - ButtonW) / 2, 76, ButtonW, ButtonH);
+            ((RectTransform)dlg.CancelButton.transform).At((w - 8 - btnW) / 2, cancelY, btnW, btnH);
             dlg.Progress = 0f;
             return dlg;
         }

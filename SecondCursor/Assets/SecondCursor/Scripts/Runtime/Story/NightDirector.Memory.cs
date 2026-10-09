@@ -103,7 +103,24 @@ namespace SecondCursor.Story
         /// <summary>Called for every start of the flow: only a start at the first beat measures the whole night.</summary>
         void NoteFlowStart(int index)
         {
-            if (index > 0) _partialNight = true;
+            if (index > 0 && !_meterRestored) _partialNight = true;
+        }
+
+        bool _meterRestored;
+
+        /// <summary>Phase S: the checkpoint keeps what the night measured so far (only a night measured from its first beat).</summary>
+        public void CaptureCheckpointMeter(Core.Game.Checkpoint checkpoint)
+        {
+            checkpoint.captureComplete = Meter != null && !_partialNight;
+            checkpoint.capture = checkpoint.captureComplete ? Meter.Snapshot() : new CaptureStats();
+        }
+
+        /// <summary>Phase S: Continue picks the measuring up where the checkpoint left it, so the night is still one recorded night.</summary>
+        public void RestoreCheckpointMeter(Core.Game.Checkpoint checkpoint)
+        {
+            if (Meter == null || checkpoint == null || !checkpoint.captureComplete) return;
+            Meter.Restore(checkpoint.capture);
+            _meterRestored = true;
         }
 
         /// <summary>Night 1's archive drag for the title's second pointer (null = none).</summary>

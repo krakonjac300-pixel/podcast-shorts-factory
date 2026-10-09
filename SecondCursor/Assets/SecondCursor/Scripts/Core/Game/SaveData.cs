@@ -31,6 +31,12 @@ namespace SecondCursor.Core.Game
         public int[] playerLineMinutes = Array.Empty<int>();
         /// <summary>Optional ordinary-work snapshot. Older checkpoints rebuild their original beat.</summary>
         public OpeningCheckpoint opening;
+        /// <summary>
+        /// Phase S (the Retention Record said 2 shifts after 3): what the night had measured when the checkpoint was saved, so a night
+        /// continued from it is still one whole, recorded night (false = the night did not run from its first beat).
+        /// </summary>
+        public bool captureComplete;
+        public CaptureStats capture = new CaptureStats();
 
         /// <summary>The first replies carry through a retry just as they carry into the next night.</summary>
         public void CaptureReplies(IList<string> lines, IList<int> minutes)

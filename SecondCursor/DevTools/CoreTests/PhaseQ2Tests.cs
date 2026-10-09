@@ -413,7 +413,7 @@ namespace SecondCursor.Tests
             Assert.Equal(new[] { "COPY OF YOU (CAPTURE 214)", "WORDS TYPED TO 017", "CAM 03 OPENED BY YOU", "FIRST WORDS" }, n1.Select(r => r.Label).ToArray());
             Assert.Equal(new[] { "88% MADE", "6", "ONCE", "\"who are you\"" }, n1.Select(r => r.Value).ToArray());
             var n2 = RetentionRecord.Card(2, d, Fmt(Night(2)));
-            Assert.Equal("96% MADE", n2[0].Value);
+            Assert.Equal("96% MADE, UP FROM 88%", n2[0].Value);
             Assert.Equal("HESITATION BEFORE YES", n2[3].Label);
             Assert.Empty(RetentionRecord.Card(1, new SaveData(), Fmt(demo)));   // nothing measured, nothing shown
             Assert.Equal("NEVER", RetentionRecord.Card(1, new SaveData { capture = new[] { new CaptureStats { recorded = true }, new CaptureStats(), new CaptureStats() } }, Fmt(demo))[2].Value);

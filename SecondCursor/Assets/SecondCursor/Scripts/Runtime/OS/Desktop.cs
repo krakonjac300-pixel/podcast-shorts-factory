@@ -52,6 +52,7 @@ namespace SecondCursor.OS
             icon._label.ShadowColor = Palette.DesktopLabelShadow;
             icon._label.rectTransform.At(0, 37, CellW, 24);
             icon.LayoutLabel();
+            icon.ApplyReadingFactor();
 
             icon.Hit = UIBuilder.Hit(rt.gameObject, fileId != null ? "file:" + fileId : "app:" + appId);
             icon.Hit.draggable = true;
@@ -74,9 +75,33 @@ namespace SecondCursor.OS
             LayoutLabel();
         }
 
+        float _labelFactor = 1f;
+
+        /// <summary>Phase S (Large text: the icon labels stayed at 8 px): labels follow the Reading text size up to 1.5x, the most a 60 px cell holds in two lines.</summary>
+        void ApplyReadingFactor()
+        {
+            float f = Mathf.Min(Game.DisplaySettings.ReadingFactor, 1.5f);
+            // The size is the largest at which the label's longest word still fits the cell (a long word would break mid-word).
+            while (f > 1f && LongestWord(_label.text, f) > CellW) f -= 0.5f;
+            if (Mathf.Approximately(f, _labelFactor) && _label.Factor == f) return;
+            _labelFactor = f;
+            _label.Factor = f;
+            _label.rectTransform.At(0, 37, CellW, Mathf.CeilToInt(24 * f));
+            LayoutLabel();
+        }
+
+        void LateUpdate() => ApplyReadingFactor();
+
+        static int LongestWord(string text, float f)
+        {
+            int longest = 0;
+            foreach (var word in (text ?? "").Split(' ')) longest = Mathf.Max(longest, PixelFont.MeasureLine(word, false, f));
+            return longest;
+        }
+
         void LayoutLabel()
         {
-            var size = PixelFont.Measure(_label.text, CellW, false, 1);
+            var size = PixelFont.Measure(_label.text, CellW, false, _labelFactor);
             int w = Mathf.Min(CellW, size.x + 4);
             _labelBg.rectTransform.At((CellW - w) / 2, 36, w, size.y + 3);
         }

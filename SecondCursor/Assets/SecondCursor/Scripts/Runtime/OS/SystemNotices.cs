@@ -36,23 +36,38 @@ namespace SecondCursor.OS
                 // Phase N (finding 2): every end of a raced shred is said, and how (No first, Cancel, or the player's own answer), and it
                 // stays up for a while: the tester looked back 30 s later and found no dialog and no reason.
                 bool other = by != null && by.IsEntity;
-                if (!other && (by == null || !g.Shred.Raced)) return;
+                // Phase S (a Cancel on a plain shred said nothing): the player's own Cancel is answered too.
+                bool own = by != null && by.IsPlayer && !g.Shred.CancelledAtConfirm;
+                if (!other && !own && (by == null || !g.Shred.Raced)) return;
                 var file = g.Files.GetFile(fileId);
                 string name = file != null ? file.Name : fileId;
                 string key = (g.Shred.CancelledAtConfirm ? "shred.cancelled.no" : "shred.cancelled.cancel") + (other ? "" : ".you");
                 float until = Time.time + RaceNoticeSeconds;
                 g.Notifications.Show(g.Content.Text("app.disposal"), g.Content.Format(key, name, SessionOf(g, by)), "icon_error", null, "sys_warning",
-                    true, () => Time.time < until, other ? by.Actor : Core.Game.NoticeKind.Plain);
+                    true, () => Time.time < until, other ? by.Actor : Core.Game.NoticeKind.Plain, urgent: true);
                 GameLog.Info(LogChannel.OS, "Notice: shred of " + name + " cancelled by " + (other ? SessionOf(g, by) : "the player") + (g.Shred.CancelledAtConfirm ? " at the confirm" : " during the shred"));
+                // Phase S (eleven blind testers: "the dialog just vanished"): the race is over and another session won it. The toast jumps the
+                // queue and a full-width card says who clicked what and what it means (Night 1's file says plainly that it may not let go).
+                var banner = Banner(g);
+                if (other && banner != null)
+                {
+                    string sentence = g.Night == 1 && fileId == ContentIds.File017
+                        ? RaceRules.Night1LossKey(g.Shred.CancelledAtConfirm, g.Shred.RacesLost)
+                        : ContestCopy.ShredKey(false, g.Shred.CancelledAtConfirm);
+                    banner.EndStrip();
+                    banner.ShowCard(false, g.Content.Format(sentence, name, SessionOf(g, by)));
+                }
+                // The file went back to where it lives (the desktop corner the tester lost it in): it blinks once so the eye finds it.
+                if (other && file != null && file.FolderId == ContentIds.FolderDesktop && g.Desktop != null) g.Desktop.Attention(fileId);
             };
             g.Shred.Completed += (fileId, by) =>
             {
                 if (!g.Shred.Raced || by == null || !by.IsPlayer) return;
                 var file = g.Files.GetFile(fileId);
                 float until = Time.time + RaceNoticeSeconds;
-                g.Notifications.Show(g.Content.Text("app.disposal"),
-                    g.Content.Format(ContestCopy.ShredKey(true, false), file != null ? file.Name : fileId),
-                    "icon_info", null, "ui_select", true, () => Time.time < until);
+                string won = g.Content.Format(g.Night == 1 && fileId == ContentIds.File017 ? "contest.card.n1.won" : ContestCopy.ShredKey(true, false), file != null ? file.Name : fileId);
+                g.Notifications.Show(g.Content.Text("app.disposal"), won, "icon_info", null, "ui_select", true, () => Time.time < until, Core.Game.NoticeKind.Plain, null, true);
+                Banner(g)?.ShowCard(true, won);
             };
             g.Windows.ClosedEvent += (w, by) =>
             {
@@ -65,6 +80,7 @@ namespace SecondCursor.OS
                 var rounds = g.Rounds;
                 bool custodial = camera && rounds != null && rounds.Running && rounds.Model != null && (w.Owner as Apps.CameraApp)?.CurrentCamera == rounds.Model.FigureCamera;
                 // Phase N (finding 4): where Custodial is now, and the camera a reopen comes back on (never Custodial's).
+                if (camera) Apps.CameraApp.PromiseReopen(Apps.CameraApp.CameraOnOpen(g));
                 string body = !camera ? g.Content.Format("window.closed.by", app, SessionOf(g, by))
                     : !custodial ? g.Content.Format("camera.closed.by", SessionOf(g, by))
                     : g.Content.Format(rounds.ClosedNoticeKey ?? "camera.closed.custodial", SessionOf(g, by),
@@ -139,6 +155,8 @@ namespace SecondCursor.OS
             || appId == AppIds.WorkOrders || appId == AppIds.WorkQueue || appId == AppIds.Disposal;
 
         static string Capital(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s.Substring(1);
+
+        static Entity.ContestBanner Banner(GameServices g) => g.Conflict != null && g.Conflict.Hud != null ? g.Conflict.Hud.Banner : null;
 
 
         /// <summary>"session 017" for the second cursor, "session 209" for the third, else "a remote session".</summary>

@@ -129,6 +129,16 @@ namespace SecondCursor.Story
             if (GaryFinished) Gary.Run(GaryCancelsLogOff(progress), "gary-cancel-logoff");
         }
 
+        /// <summary>
+        /// Phase S (a dialog opened over the Log Off confirm in the last seconds): while the confirm or its progress is up, another dialog or window
+        /// that has come to cover it goes behind it again.
+        /// </summary>
+        void KeepLogOffOnTop()
+        {
+            var w = _logOffConfirm != null && _logOffConfirm.IsOpen ? _logOffConfirm.Window : _logOffProgress != null && _logOffProgress.IsOpen ? _logOffProgress.Window : null;
+            if (w != null && !w.IsClosed && _g.Windows.IsCoveredByAnother(w)) _g.Windows.Front(w);
+        }
+
         /// <summary>Phase N: like a raced shred's result, it stays up for a while (or until clicked: it opens the Nexus menu).</summary>
         void CancelledByNotice(CursorAgent by)
         {

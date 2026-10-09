@@ -125,7 +125,9 @@ namespace SecondCursor.Story
             s.Pad.Window.Focus(c.Agent);
         }
 
-        protected IEnumerator TypeLines(Speaker s, IEnumerable<string> lines, float cps = 4.5f)
+        /// <param name="skippable">Phase S: the player may click or press Enter to read the rest of a line now (conversation lines only).</param>
+        /// <param name="protectFirst">Phase S: the first line keeps its pace (the first line of an exchange).</param>
+        protected IEnumerator TypeLines(Speaker s, IEnumerable<string> lines, float cps = 4.5f, bool skippable = false, bool protectFirst = false)
         {
             if (lines == null) yield break;
             // Another routine is typing into this pad: wait for it (never interleave two lines).
@@ -133,15 +135,19 @@ namespace SecondCursor.Story
             while (s.Typing && Time.time < wait) yield return null;
             // (A stopped routine never reaches the end: jumps reset the flag, and the wait above times out.)
             s.Typing = true;
+            int lineIndex = 0;
             foreach (var line in lines)
             {
                 if (string.IsNullOrEmpty(line)) continue;
                 if (EnsurePad(s) == null) yield return OpenNotepadAs(s);
+                s.Pad.SkipAllowed = skippable && !(protectFirst && lineIndex == 0);
+                lineIndex++;
                 if (s.Pad.Text.Length > 0 && !s.Pad.Text.EndsWith("\n")) s.Pad.Append("\n");
                 if (s.Direct) yield return s.Pad.TypeAsEntity(line, cps, s.Cursor.Agent, s.Cursor.TypoRate);
                 else yield return s.Cursor.Type(s.Pad, line, cps);
                 yield return Wait(0.5f);
             }
+            if (s.Pad != null) s.Pad.SkipAllowed = false;
             if (s.Pad != null && s.Pad.IsOpen && !s.Pad.Text.EndsWith("\n")) s.Pad.Append("\n");
             s.Typing = false;
         }
@@ -174,10 +180,10 @@ namespace SecondCursor.Story
             int guard = 0;
             while (exchange != null && guard++ < 6)
             {
-                yield return TypeLines(s, Fill(exchange.entityLines), first ? firstCps : cps);
+                yield return TypeLines(s, Fill(exchange.entityLines), first ? firstCps : cps, true, true);
                 // Lines some exchanges add before the player's turn (a memory of an earlier night).
                 var extra = extraLines?.Invoke(exchange);
-                if (extra != null) yield return TypeLines(s, Fill(extra), cps);
+                if (extra != null) yield return TypeLines(s, Fill(extra), cps, true);
                 onLinesTyped?.Invoke(exchange);
                 // Typing back is the game's hook: say so in the OS's own voice, for the first talk of every remote session
                 // (Phase I: a second session that waits for a reply used to give no prompt at all).
@@ -338,7 +344,7 @@ namespace SecondCursor.Story
             yield return Wait(hit ? ThinkPauseHit : ThinkPauseFallback);
             if (s.Pad != null) s.Pad.ThinkingCaret = false;
             if (s.Cursor == _g.Entity && !string.IsNullOrEmpty(reply.Gesture)) yield return GestureBeforeReply(reply.Gesture);
-            yield return TypeLines(s, reply.Lines, cps);
+            yield return TypeLines(s, reply.Lines, cps, true);
         }
 
         /// <summary>

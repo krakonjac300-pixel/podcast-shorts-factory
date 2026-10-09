@@ -1,6 +1,7 @@
 using System;
 using SecondCursor.Entity;
 using SecondCursor.Game;
+using SecondCursor.Input;
 using SecondCursor.Rendering;
 using SecondCursor.UI;
 using UnityEngine;
@@ -46,7 +47,23 @@ namespace SecondCursor.OS
             r._icon = Rendering.ActorSprites.TinyIcon(box.Status, Core.Game.NoticeKind.Entity);
             r._icon.rectTransform.anchoredPosition = new Vector2(0f, -2f);
             r._icon.enabled = false;
+            g.Router.PressRefused += r.OnRefused;
             r.LateUpdate();
+        }
+
+        float _refusedUntil = -1f;
+
+        /// <summary>Phase S: the player's click on a covered Yes bounces: the line says so for a moment (nothing else told the player why).</summary>
+        void OnRefused(CursorAgent a, Interactable hit)
+        {
+            if (a == null || !a.IsPlayer || _box == null || !_box.IsOpen) return;
+            var yes = _box.Button("Yes");
+            if (yes != null && hit == yes.Hit) _refusedUntil = Time.time + 2.5f;
+        }
+
+        void OnDestroy()
+        {
+            if (_g != null && _g.Router != null) _g.Router.PressRefused -= OnRefused;
         }
 
         /// <summary>The racer's pointer left of the line while someone is racing, else only the text (the line then starts at the edge).</summary>
@@ -78,6 +95,23 @@ namespace SecondCursor.OS
                 if (other == null || !other.IsVisible || other.Agent == null || !other.Agent.Enabled) continue;
                 if (other.Guarding == no.Hit && other != _racer) { text = _g.Content.Format("race.holding", Session(other)); kind = other.Agent.Actor; }
                 else if (other.Guarding == yes.Hit) { text = _g.Content.Format("race.covering", Session(other)); kind = other.Agent.Actor; }
+            }
+            if (Time.time < _refusedUntil)
+            {
+                // The click was refused: say why and what to do (a pointer held on No keeps the other from clicking it).
+                foreach (var other in new[] { _g.Entity, _g.Gary })
+                    if (other != null && other.IsVisible && other.Guarding == yes.Hit)
+                    {
+                        text = _g.Content.Format("race.covered.click", Session(other));
+                        kind = other.Agent.Actor;
+                        approaching = true;
+                    }
+            }
+            if (text == null && _racer != null && _racer.IsVisible && _racing() && _racer.Brain != null && _racer.Brain.DraggingDialog)
+            {
+                text = _g.Content.Format("race.dragging", Session(_racer));
+                kind = _racer.Agent.Actor;
+                approaching = true;
             }
             if (text == null && _racer != null && _racer.IsVisible && _racing())
             {

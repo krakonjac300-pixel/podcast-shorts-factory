@@ -213,7 +213,9 @@ namespace SecondCursor.OS
         public Vector2 ClampTopLeft(Vector2 p)
         {
             float w = Size.x;
-            float x = Mathf.Clamp(p.x, -w + 60f, ScreenRig.Width - 60f);
+            // Phase S (the Camera Viewer's close button off the right edge): the window's right edge never goes past the screen's, so its
+            // caption buttons are always reachable; to the left it may still slide almost out of sight.
+            float x = Mathf.Clamp(p.x, -w + 60f, ScreenRig.Width - w);
             float y = Mathf.Clamp(p.y, 0f, ScreenRig.Height - WindowManager.TaskbarHeight - CaptionHeight - 4f);
             return new Vector2(x, y);
         }

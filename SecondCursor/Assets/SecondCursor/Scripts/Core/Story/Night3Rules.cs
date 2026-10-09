@@ -35,6 +35,17 @@ namespace SecondCursor.Core.Story
         /// <summary>Seconds a shred or log off already running at 7:05 gets to finish before KEEP.</summary>
         public const float ExitGrace = 20f;
 
+        /// <summary>Phase S: real seconds until <paramref name="endMinute"/> on a clock that runs <paramref name="clockRate"/> game minutes a second (never negative).</summary>
+        public static float ExitSecondsLeft(double exactMinutes, double endMinute, float clockRate) =>
+            clockRate <= 0f ? float.MaxValue : (float)Math.Max(0.0, (endMinute - exactMinutes) / clockRate);
+
+        /// <summary>Phase S: "1:05" for the countdown to 7:05 (whole seconds, rounded up).</summary>
+        public static string ExitClock(float seconds)
+        {
+            int s = (int)Math.Ceiling(Math.Max(0f, seconds));
+            return (s / 60) + ":" + (s % 60).ToString("00");
+        }
+
         /// <summary>Trust at or above this: she asks to be let go (and grips 10% softer).</summary>
         public const float TrustLetGo = 0.2f;
         /// <summary>Trust at or below this: she refuses and grips 10% harder.</summary>

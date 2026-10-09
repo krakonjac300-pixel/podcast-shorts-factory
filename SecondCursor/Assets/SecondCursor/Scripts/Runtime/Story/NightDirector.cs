@@ -122,7 +122,11 @@ namespace SecondCursor.Story
             string folder = g.Files.FolderOf(p.FileId);
             if (folder == null) return;
             bool desktop = folder == ContentIds.FolderDesktop;
-            string text = desktop ? g.Content.Format("drop.missed.desktop", p.Label) : g.Content.Format("drop.missed", p.Label, g.Files.GetFolder(folder)?.Name ?? folder);
+            // Phase S ("Drop missed" for a drop that was refused): a target that takes drops but would not take this one says so.
+            bool refused = p.RefusedBy != null;
+            string where = desktop ? null : g.Files.GetFolder(folder)?.Name ?? folder;
+            string text = refused ? (desktop ? g.Content.Format("drop.refused.desktop", p.Label) : g.Content.Format("drop.refused", p.Label, where))
+                : desktop ? g.Content.Format("drop.missed.desktop", p.Label) : g.Content.Format("drop.missed", p.Label, where);
             g.Notifications.Show(g.Content.Text("os.name"), text, "icon_info", null, "ui_select");
             GameLog.Info(LogChannel.OS, "Drop missed: " + p.Label + " back in " + folder);
             if (desktop) RunSide(BringIntoView(p.FileId, p.GhostPosition + new Vector2(16f, -16f)), "drop-missed");

@@ -125,6 +125,16 @@ namespace SecondCursor.Core.Story
         }
 
         /// <summary>Lowercase, apostrophes removed, other non-alphanumerics become spaces, runs collapsed.</summary>
+        /// <summary>
+        /// Phase S (the record said "SAID HER NAME: NO" after the player typed it): her name anywhere in a line counts, whichever
+        /// answer the keywords chose ("is your name ellen marsh?" is a question first and still says her name).
+        /// </summary>
+        public static bool MentionsHerName(string said)
+        {
+            string norm = Normalize(said);
+            return Matches(norm, "=ellen") || Matches(norm, "=ellens") || Matches(norm, "=marsh");
+        }
+
         public static string Normalize(string s)
         {
             if (string.IsNullOrEmpty(s)) return "";

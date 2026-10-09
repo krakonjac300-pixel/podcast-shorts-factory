@@ -114,6 +114,8 @@ namespace SecondCursor.Apps
                 if (existing != null)
                 {
                     existing.Window.Restore(by);
+                    // Phase S (a double-click on the icon showed only a taskbar button): the player's own launch always brings the window forward.
+                    if (by != null && by.IsPlayer) existing.Window.Focus(by);
                     return existing;
                 }
             }

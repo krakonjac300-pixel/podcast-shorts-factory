@@ -458,7 +458,7 @@ namespace SecondCursor.Story
 
         void OnEllenReply(DialogueReply r, string said)
         {
-            if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N2SaidName);
+            if (r.Tag == "name" || DialogueEngine.MentionsHerName(said)) _g.Flags.Set(MemoryFlags.N2SaidName);
             if (r.Tag == "chat") _g.Flags.Set(MemoryFlags.N2NamedChat);
         }
 

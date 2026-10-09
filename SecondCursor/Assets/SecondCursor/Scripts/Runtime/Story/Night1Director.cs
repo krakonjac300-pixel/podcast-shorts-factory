@@ -7,6 +7,7 @@ using SecondCursor.Core;
 using SecondCursor.Core.Content;
 using SecondCursor.Core.Entity;
 using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Game;
 using SecondCursor.Core.Story;
 using SecondCursor.Entity;
 using SecondCursor.Input;
@@ -540,6 +541,14 @@ namespace SecondCursor.Story
                 // Phase K: a file the player won is theirs until they let go, so the fight never ends (and blocks the order) under it.
                 bool carrying = _g.Player.Payload != null && _g.Player.Payload.FileId == ContentIds.File017;
                 if (brain.Defenses >= ConflictDefenseCap && !_g.Conflict.IsFighting && !_g.Shred.Busy && !carrying) break;
+                // Phase S: the file is held by the story. After two lost shred races the fight is over (the card said so plainly the first time).
+                if (RaceRules.Night1FightOver(_g.Shred.RacesLost) && !_g.Conflict.IsFighting && !_g.Shred.Busy && !carrying)
+                {
+                    GameLog.Info(LogChannel.Story, "Conflict: two shred races lost, session 017 takes the night over");
+                    // Let the last card (it says to stop fighting) be read before the takeover starts.
+                    yield return Wait(3f);
+                    break;
+                }
                 float elapsed = Time.time - start;
                 int attempts = _g.Memory.Count(MemoryKind.ShredAttempt, ContentIds.File017) - attemptsAtStart;
                 // A player who has not tried yet (no shred request, no tug, no defense) is nudged, then let go.
@@ -649,7 +658,7 @@ namespace SecondCursor.Story
             // Phase Q2 (V7): the first reply is saved with the night (Night 2 quotes it).
             if (r.Tag != DialogueEngine.NameTag) KeptCopy("reply"); // a name reply already announced "name" (one toast, not two)
             // Phase Q3 (D2, V2): her name (the demo's Her Name beat) and a word to chat are remembered.
-            if (r.Tag == "name") _g.Flags.Set(MemoryFlags.N1SaidName);
+            if (r.Tag == "name" || DialogueEngine.MentionsHerName(said)) _g.Flags.Set(MemoryFlags.N1SaidName);
             if (r.Tag == "chat") _g.Flags.Set(MemoryFlags.N1NamedChat);
             switch (r.Category)
             {

@@ -72,6 +72,8 @@ namespace SecondCursor.Apps
                 G.DragDrop.BeginFileDrag(a, file.Id, file.Name, FileIcons.SpriteFor(file), row.Hit, new Vector2(iconRect.xMin - 8, iconRect.yMax + 8));
             };
             _filesBackground = _files.Scroll.Viewport.GetComponent<Interactable>();
+            // Phase S (a file sat below the fold with no sign of it): the same "More below" chip as Mail's, while the list goes on under the fold.
+            MoreBelow.Create(_files.Root, _files.Scroll, G.Content.Text("mail.more", "More below"), "morebelow:files", 20, 3, 96);
             AcceptDropsHere(_filesBackground);
             _filesBackground.Click += (a, n) => _files.Select(-1, a);
 

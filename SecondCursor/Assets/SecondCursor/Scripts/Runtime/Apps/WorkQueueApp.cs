@@ -189,7 +189,8 @@ namespace SecondCursor.Apps
             }
             if (clear)
             {
-                var line = UIBuilder.Text(_listRoot, G.Content.Text("workqueue.empty"), Palette.TextDisabled);
+                // Phase S ("Queue clear" above an unread mail that is still an open item): with mail waiting it says so.
+                var line = UIBuilder.Text(_listRoot, G.Content.Text(mail != null ? "workqueue.empty.mail" : "workqueue.empty"), Palette.TextDisabled);
                 line.Factor = Game.DisplaySettings.ReadingFactor;
                 line.rectTransform.TopStrip(y + 4, LineH, 4, 4);
                 y += RowH;

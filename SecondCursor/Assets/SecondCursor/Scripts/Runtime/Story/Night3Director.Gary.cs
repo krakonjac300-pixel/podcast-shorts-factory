@@ -331,6 +331,9 @@ namespace SecondCursor.Story
                 yield return Gary.Appear(from, 0.15f, false);
             }
             float delay = _g.Difficulty.RaceToNoDelay(UnityEngine.Random.value, _g.Assist) + RelaxedTiming.RaceDelayAdd(_g.TimeScale);
+            // Phase S: never before a normal human could get from where the pointer is to Yes.
+            var yesBtn = box.Button("Yes");
+            if (yesBtn != null) delay = RaceRules.FairDelay(delay, Vector2.Distance(_g.Player.Position, yesBtn.Hit.Center), _g.TimeScale);
             var result = new bool[1];
             yield return RaceTo(Gary, no.Hit, delay, result, 1.5f);
             GameLog.Info(LogChannel.Entity, "Gary raced to No: " + (result[0] ? "clicked" : "blocked"));

@@ -133,6 +133,10 @@ namespace SecondCursor.OS
             }
             Confirm = Dialogs.Message(_g, c.Text("shred.confirm.title"), body, "icon_question",
                 new[] { "Yes", "No" }, OnConfirm, 0, null, Raced ? RaceStatusHeight : 0);
+            // Phase S: how far the player's pointer is from Yes when the dialog opens, so the other pointer never clicks before a normal human could get there.
+            RaceOpenedAt = Time.time;
+            var yesBtn = Confirm.Button("Yes");
+            RaceReachDistance = yesBtn != null && _g.Player != null ? Vector2.Distance(_g.Player.Position, yesBtn.Hit.Center) : 0f;
             if (Raced) ConfirmRace.Attach(_g, Confirm, _g.Entity, () => true, "race.idle.shred");
             ConfirmShown?.Invoke(fileId, Confirm);
         }
@@ -149,6 +153,12 @@ namespace SecondCursor.OS
             _graceOwed = false;
             return RaceGraceSeconds;
         }
+
+        /// <summary>Phase S: when (Time.time) the raced confirm opened and how far the player's pointer was from Yes then.</summary>
+        public float RaceOpenedAt { get; private set; }
+        public float RaceReachDistance { get; private set; }
+        /// <summary>Phase S: races another session has won on this shift (a No at the confirm or a Cancel during the shred).</summary>
+        public int RacesLost { get; private set; }
 
         /// <summary>Room in a dialog for the actor's status line.</summary>
         public const int RaceStatusHeight = 14;
@@ -177,6 +187,7 @@ namespace SecondCursor.OS
                 GameLog.Info(by != null && by.IsEntity ? LogChannel.Entity : LogChannel.OS, "Shred of " + fileId + " declined (" + result + " by " + (by?.Name ?? "System") + ")");
                 PendingFileId = null;
                 CancelledAtConfirm = true;
+                if (Raced && by != null && by.IsEntity) RacesLost++;
                 Cancelled?.Invoke(fileId, by);
                 return;
             }
@@ -185,8 +196,9 @@ namespace SecondCursor.OS
             var file = _g.Files.GetFile(fileId);
             string progressBody = c.Format("shred.progress.body", file != null ? file.Name : fileId);
             // Phase R: a raced shred can still be cancelled by the other session; the dialog says so (the bar looked like a win, then it was undone).
-            if (Raced) progressBody += "\n" + c.Text("race.progress", "");
-            Progress = Dialogs.Progress(_g, c.Text("shred.progress.title"), progressBody);
+            // Phase S: a raced shred's dialog carries a live line (ProgressRace) saying who can press Cancel and how to stop it.
+            Progress = Dialogs.Progress(_g, c.Text("shred.progress.title"), progressBody, "icon_disposal_full", Raced ? RaceStatusHeight : 0);
+            if (Raced) ProgressRace.Attach(_g, Progress);
             Progress.Cancelled += a => CancelProgress(a);
             _progressTime = 0f;
             _g.Audio?.PlayLoop("shred_loop", 0.5f);
@@ -204,6 +216,7 @@ namespace SecondCursor.OS
             _g.Audio?.StopLoop("shred_loop");
             p.Close(by);
             CancelledAtConfirm = false;
+            if (Raced && by != null && by.IsEntity) RacesLost++;
             Cancelled?.Invoke(fileId, by);
         }
 

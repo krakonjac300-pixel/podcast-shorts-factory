@@ -255,6 +255,7 @@ namespace SecondCursor.Game
             g.Memory.Seed(cp.trust);
             g.Director.ResumeElapsed(cp.elapsed);
             g.Director.RestoreCheckpointReplies(cp);
+            g.Director.RestoreCheckpointMeter(cp);
             g.Assist.SetLevel(Mathf.Max(g.Difficulty.AssistFloor, cp.assistLevel));
             g.Clock.Reset(cp.clockMinutes / 60, cp.clockMinutes % 60);
             g.Audio.SetAmbience(true, 2f);

@@ -381,7 +381,7 @@ namespace SecondCursor.Story
                 // can land on it, so the check repeats every 2 s for the first 24 s (Phase I: it used to run once, before his
                 // Notepad covered the icon). It only moves the icon when something covers it.
                 float sinceOrder = Time.time - orderAt;
-                if (checks < 12 && sinceOrder > nextShow && !_triedShred209)
+                if (checks < 45 && sinceOrder > nextShow && !_triedShred209)
                 {
                     checks++;
                     nextShow = sinceOrder + 2f;

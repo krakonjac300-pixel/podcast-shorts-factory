@@ -141,6 +141,7 @@ namespace SecondCursor.Apps
             _motion.enabled = false;
 
             Select(CameraOnOpen(G), by);
+            _promised = null;
             if (G.CameraRig != null) G.CameraRig.SetViewing(true);
         }
 
@@ -150,6 +151,9 @@ namespace SecondCursor.Apps
         /// </summary>
         public static string CameraOnOpen(Game.GameServices g)
         {
+            // Phase S (a notice said "it comes back on CAM 01" and it opened on CAM 02): the camera a notice promised is the camera it opens on.
+            if (!string.IsNullOrEmpty(_promised) && Time.time - _promisedAt < PromiseSeconds && IsUsableOnOpen(g, _promised)) return _promised;
+            _promised = null;
             var rig = g.CameraRig;
             string pick = rig != null ? rig.PlayerCamera ?? rig.ActiveCamera ?? ContentIds.Cam01 : ContentIds.Cam01;
             var rounds = g.Rounds;
@@ -158,6 +162,24 @@ namespace SecondCursor.Apps
             foreach (var cam in g.Content.Story.cameras)
                 if (cam != null && !cam.hidden && cam.id != figure) return cam.id;
             return pick;
+        }
+
+        const float PromiseSeconds = 180f;
+        static string _promised;
+        static float _promisedAt;
+
+        /// <summary>A notice has just said the viewer reopens on <paramref name="camera"/>: it will, until it is reopened (or three minutes pass).</summary>
+        public static void PromiseReopen(string camera)
+        {
+            _promised = camera;
+            _promisedAt = Time.time;
+        }
+
+        static bool IsUsableOnOpen(Game.GameServices g, string camera)
+        {
+            var rounds = g.Rounds;
+            string figure = rounds != null && rounds.Running && rounds.Model != null && !rounds.Model.Finished ? rounds.Model.FigureCamera : null;
+            return camera != figure;
         }
 
         /// <summary>

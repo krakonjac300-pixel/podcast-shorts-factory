@@ -59,6 +59,8 @@ namespace SecondCursor.Entity
         public string ProtectedFileId = ContentIds.File017;
         /// <summary>Phase R: when (Time.time) she goes for No on the race in progress; -1 when no race is waiting (the confirm's countdown reads it).</summary>
         public float RaceNoAt { get; private set; } = -1f;
+        /// <summary>Phase S: she is dragging the confirm away from the player right now (the dialog's line says so).</summary>
+        public bool DraggingDialog { get; private set; }
         /// <summary>How many times it has stopped the player (drives escalation).</summary>
         public int Defenses { get; private set; }
         /// <summary>Tugs the player has lost to it (only these make its grip grow).</summary>
@@ -398,13 +400,16 @@ namespace SecondCursor.Entity
             var no = box.Button("No");
             if (no == null) yield break;
             yield return EnsurePresent(EntryPointNear(no.Hit.Center));
+            DraggingDialog = false;
             _c.State = Core.Entity.EntityState.Aggressive;
             // A beat of reaction time: the player gets a real chance to click Yes first.
             // Phase Q4 (A4): Story mode and Relaxed timing give the player a longer head start.
             // Phase R: the night's first race also waits out the rule line (ShredService.TakeRaceGrace), and the confirm's countdown reads RaceNoAt.
             float delay = Profile.RaceToNoDelay(UnityEngine.Random.value, Assist) + Core.Game.RelaxedTiming.RaceDelayAdd(_g.TimeScale) + _g.Shred.TakeRaceGrace();
-            RaceNoAt = Time.time + delay;
-            yield return Waits.Seconds(delay);
+            // Phase S: never before a normal human, from where the pointer was when the dialog opened, could have reached Yes (Relaxed timing and Story stretch it).
+            float fairAt = _g.Shred.RaceOpenedAt + Core.Game.RaceRules.ReachSeconds(_g.Shred.RaceReachDistance, _g.TimeScale);
+            RaceNoAt = Mathf.Max(Time.time + delay, fairAt);
+            yield return Waits.Seconds(RaceNoAt - Time.time);
             var result = new bool[1];
             yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 1.5f);
             RaceNoAt = -1f;
@@ -438,9 +443,14 @@ namespace SecondCursor.Entity
             if (away.sqrMagnitude < 1f) away = Vector2.right;
             Vector2 dest = caption + away.normalized * 260f;
             dest = new Vector2(Mathf.Clamp(dest.x, 80f, ScreenRig.Width - 80f), Mathf.Clamp(dest.y, 120f, ScreenRig.Height - 12f));
+            DraggingDialog = true;
             yield return _c.DragWindow(box.Window, dest, MovementProfiles.Aggressive);
+            DraggingDialog = false;
             if (box.IsOpen)
             {
+                // Phase S: the dialog is dragged away; the player gets a beat to follow it before No is clicked.
+                yield return Waits.Seconds(Core.Game.RaceRules.DragGraceSeconds + Core.Game.RelaxedTiming.RaceDelayAdd(_g.TimeScale));
+                if (!box.IsOpen) yield break;
                 var no = box.Button("No");
                 var result = new bool[1];
                 if (no != null) yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 2f);
@@ -488,6 +498,9 @@ namespace SecondCursor.Entity
             }
             _c.Guarding = null;
             if (!box.IsOpen) yield break;
+            // Phase S: Yes is uncovered: a beat to click it before No is clicked (a pointer held on No stops the click altogether).
+            yield return Waits.Seconds(Core.Game.RaceRules.UncoverGraceSeconds + Core.Game.RelaxedTiming.RaceDelayAdd(_g.TimeScale));
+            if (!box.IsOpen) yield break;
             var no = box.Button("No");
             var result = new bool[1];
             if (no != null) yield return _c.ClickElement(no.Hit, MovementProfiles.Aggressive, result, 2f);
@@ -514,7 +527,10 @@ namespace SecondCursor.Entity
             yield return EnsurePresent(EntryPointNear(p.CancelButton.Hit.Center));
             _c.State = Core.Entity.EntityState.Panicked;
             // A beat of reaction: a player who knows the trick gets to Cancel first.
-            float wait = Profile.CancelDelay(UnityEngine.Random.value) - (Time.time - noticed);
+            // Phase S: Relaxed timing and Story stretch it, and it never beats a normal human to a Cancel the pointer is on its way to.
+            float scale = _g.TimeScale;
+            float reach = Core.Game.RaceRules.ReachSeconds(Vector2.Distance(Player.Position, p.CancelButton.Hit.Center), scale);
+            float wait = Mathf.Max(Profile.CancelDelay(UnityEngine.Random.value) + Core.Game.RaceRules.CancelDelayAdd(scale), reach) - (Time.time - noticed);
             if (wait > 0f) yield return Waits.Seconds(wait);
             if (!p.IsOpen)
             {
@@ -526,11 +542,12 @@ namespace SecondCursor.Entity
             // While fighting over Cancel the operation crawls - it is holding the process back.
             _g.Shred.SpeedMultiplier = Profile.CancelCrawl;
             float fightStart = Time.time;
-            yield return _c.ClickElement(p.CancelButton.Hit, MovementProfiles.Panicked, result, Profile.CancelPatience);
+            float patience = Core.Game.RaceRules.CancelPatience(Profile.CancelPatience, scale);
+            yield return _c.ClickElement(p.CancelButton.Hit, MovementProfiles.Panicked, result, patience);
             _g.Shred.SpeedMultiplier = 1f;
             if (result[0]) RegisterDefense("cancel");
             // Only a whole patience held off counts (a click that missed for another reason retries as before).
-            else if (p.IsOpen && Time.time - fightStart >= Profile.CancelPatience)
+            else if (p.IsOpen && Time.time - fightStart >= patience)
             {
                 _cancelGaveUp = p;
                 GameLog.Info(LogChannel.Entity, "Gave up on Cancel");

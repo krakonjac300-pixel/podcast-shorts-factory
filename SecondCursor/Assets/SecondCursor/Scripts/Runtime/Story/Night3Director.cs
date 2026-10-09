@@ -36,7 +36,12 @@ namespace SecondCursor.Story
         const float RoundsRate = 1f / 12f;
         const float FinaleRate = 0.09f;
         /// <summary>Phase Q4 (A4): the clock's rate from 7:00 to 7:05: 1/12 game minute a second (60 s), half that when relaxed (120 s).</summary>
-        float PostSevenRate => RelaxedTiming.Rate(RoundsRate, _g.TimeScale);
+        float PostSevenRate => RelaxedTiming.Rate(PostSevenBase, _g.TimeScale);
+        /// <summary>
+        /// Phase S (Marcus: 35 to 60 s was a tight window with two pointers and a feed): 7:00 to 7:05 lasts 90 s (180 s when relaxed), counted
+        /// down on screen (<see cref="ExitCountdown"/>). Every earlier clock rate is as it was.
+        /// </summary>
+        const float PostSevenBase = 1f / 18f;
         /// <summary>During work the clock waits at 2:16: the phone rings at 2:17.</summary>
         const int WorkHold = 2 * 60 + 16;
         /// <summary>During the Ruth beat it waits at 2:57 until the round.</summary>

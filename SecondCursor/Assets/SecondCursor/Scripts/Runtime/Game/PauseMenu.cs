@@ -96,6 +96,7 @@ namespace SecondCursor.Game
                 return;
             }
             _nav.Tick();
+            UpdateDescription();
         }
 
         bool InShift => _g != null && _g.Flags != null && _g.Flags.Has(Core.Story.Flags.LoggedIn);
@@ -168,9 +169,16 @@ namespace SecondCursor.Game
             else BuildMenu();
         }
 
-        RectTransform Box(int rows, int extra, string caption)
+        /// <summary>Phase S: the one-line description of the setting under the pointer or the focus, in a strip at the bottom of the box.</summary>
+        PixelText _desc;
+        string _descShown;
+        static int DescHeight => Mathf.CeilToInt(26f * DisplaySettings.ReadingFactor);
+
+        RectTransform Box(int rows, int extra, string caption, bool withDescription = false)
         {
-            int h = 32 + rows * RowStep + extra + 12;
+            _desc = null;
+            _descShown = null;
+            int h = 32 + rows * RowStep + extra + 12 + (withDescription ? DescHeight + 4 : 0);
             var box = UIBuilder.Rect("Pause Box", _panel).At((ScreenRig.Width - BoxWidth) / 2, (ScreenRig.Height - h) / 2, BoxWidth, h);
             var frame = box.gameObject.AddComponent<BevelGraphic>();
             frame.Style = BevelStyle.Window;
@@ -187,7 +195,32 @@ namespace SecondCursor.Game
             v.rectTransform.Stretch(4, 0, 6, 0);
             v.Align = TextAlign.Right;
             v.VAlign = TextVAlign.Middle;
+            if (withDescription)
+            {
+                _desc = UIBuilder.Text(box, "", Palette.TextMuted);
+                _desc.Factor = DisplaySettings.ReadingFactor;
+                _desc.Wrap = true;
+                _desc.Align = TextAlign.Center;
+                _desc.rectTransform.At(20, h - 8 - DescHeight, BoxWidth - 40, DescHeight);
+            }
             return box;
+        }
+
+        /// <summary>
+        /// Phase S (Story, Tug assist, Click lock, Relaxed timing meant nothing to a first-time reader): each setting says in one line what it
+        /// does while the pointer is on it or it has the focus. The text key is <c>pause.desc.</c> plus the control's id after "pause:".
+        /// </summary>
+        void UpdateDescription()
+        {
+            if (_desc == null) return;
+            string id = null;
+            var hovered = _g.Player != null ? _g.Player.Hovered : null;
+            if (hovered != null && !string.IsNullOrEmpty(hovered.elementId) && hovered.elementId.StartsWith("pause:", StringComparison.Ordinal)) id = hovered.elementId;
+            if (id == null && _nav.Focused != null && _nav.Focused.Hit != null) id = _nav.Focused.Hit.elementId;
+            if (id == null || !id.StartsWith("pause:", StringComparison.Ordinal)) return;
+            if (id == _descShown) return;
+            _descShown = id;
+            _desc.text = _g.Content.Text("pause.desc." + id.Substring("pause:".Length), "");
         }
 
         void BuildMenu()
@@ -195,9 +228,7 @@ namespace SecondCursor.Game
             var c = _g.Content;
             bool pending = PendingDifficulty(out var saved);
             int rows = _settingsOnly ? 11 : 14;
-            string motorHelp = c.Text("pause.motorhelp", "Hold: hold the button to win a tug.\nClick lock: drag for 0.5 sec, release; click to drop.");
-            int motorHelpHeight = PixelFont.Measure(motorHelp, BoxWidth - 40, false, DisplaySettings.ReadingFactor).y + 8;
-            var box = Box(rows, motorHelpHeight + (pending || _settingsOnly ? NoteHeight : 0), _settingsOnly ? c.Text("title.settings") : c.Text("pause.title"));
+            var box = Box(rows, pending || _settingsOnly ? NoteHeight : 0, _settingsOnly ? c.Text("title.settings") : c.Text("pause.title"), true);
             int y = 32;
             UiButton first;
             if (_settingsOnly) first = Button(box, c.Text("pause.back"), "pause:back", a => Resume(), ref y);
@@ -268,11 +299,8 @@ namespace SecondCursor.Game
                 _confirm = Confirm.Quit;
                 Rebuild();
             }, ref y);
-            var motorNote = UIBuilder.Text(box, motorHelp, Palette.TextMuted);
-            motorNote.Factor = DisplaySettings.ReadingFactor;
-            motorNote.Wrap = true;
-            motorNote.rectTransform.At(20, y + 2, BoxWidth - 40, motorHelpHeight);
             _nav.Focus(first);
+            UpdateDescription();
         }
 
         /// <summary>
@@ -282,7 +310,7 @@ namespace SecondCursor.Game
         void BuildAccess()
         {
             var c = _g.Content;
-            var box = Box(9, 0, c.Text("pause.access.title", "ACCESSIBILITY"));
+            var box = Box(9, 0, c.Text("pause.access.title", "ACCESSIBILITY"), true);
             int y = 32;
             var back = Button(box, c.Text("pause.back"), "pause:accessback", a =>
             {
@@ -332,6 +360,7 @@ namespace SecondCursor.Game
                 Changed();
             }, ref y);
             _nav.Focus(back);
+            UpdateDescription();
         }
 
         string OnOff(bool on) => _g.Content.Text(on ? "pause.on" : "pause.off", on ? "On" : "Off");
@@ -340,10 +369,12 @@ namespace SecondCursor.Game
         {
             var c = _g.Content;
             bool quit = _confirm == Confirm.Quit;
-            var box = Box(2, 10, c.Text(quit ? "pause.quit" : "pause.totitle"));
-            var text = UIBuilder.Text(box, c.Text(quit ? "pause.quit.confirm" : "pause.totitle.confirm"), Palette.Text);
+            string body = c.Text(quit ? "pause.quit.q" : "pause.totitle.q") + "\n" + LostText();
+            int bodyH = Mathf.Max(30, PixelFont.Measure(body, BoxWidth - 24, false, DisplaySettings.ReadingFactor).y + 4);
+            var box = Box(2, 10 + (bodyH - 30), c.Text(quit ? "pause.quit" : "pause.totitle"));
+            var text = UIBuilder.Text(box, body, Palette.Text);
             text.Factor = DisplaySettings.ReadingFactor;
-            text.rectTransform.At(12, 30, BoxWidth - 24, 30);
+            text.rectTransform.At(12, 30, BoxWidth - 24, bodyH);
             text.Align = TextAlign.Center;
             text.Wrap = true;
             var yes = UiButton.Create(box, c.Text("pause.yes"), a =>
@@ -356,16 +387,29 @@ namespace SecondCursor.Game
                 Resume();
                 GameBootstrap.ToTitle();
             }, "pause:yes");
-            ((RectTransform)yes.transform).At(BoxWidth / 2 - 90, 72, 80, ButtonHeight);
+            ((RectTransform)yes.transform).At(BoxWidth / 2 - 90, 42 + bodyH, 80, ButtonHeight);
             var no = UiButton.Create(box, c.Text("pause.no"), a =>
             {
                 _confirm = Confirm.None;
                 Rebuild();
             }, "pause:no");
-            ((RectTransform)no.transform).At(BoxWidth / 2 + 10, 72, 80, ButtonHeight);
+            ((RectTransform)no.transform).At(BoxWidth / 2 + 10, 42 + bodyH, 80, ButtonHeight);
             _nav.Add(yes);
             _nav.Add(no);
             _nav.Focus(no);
+        }
+
+        /// <summary>
+        /// Phase S (the tester lost 15 game minutes to a Quit that said "the last checkpoint"): says where Continue will put you and what that
+        /// loses: the last checkpoint (and the clock time it saved) or the start of the night.
+        /// </summary>
+        string LostText()
+        {
+            var c = _g.Content;
+            var cp = SaveSystem.Load().CheckpointFor(_g.Night);
+            string now = Core.Story.GameClock.Format12(_g.Clock.TotalMinutes);
+            if (cp == null) return c.Format("pause.lost.start", now);
+            return c.Format("pause.lost.checkpoint", Core.Story.GameClock.Format12(cp.clockMinutes), now);
         }
 
         void VolumeRow(RectTransform box, ref int y)

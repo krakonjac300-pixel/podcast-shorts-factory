@@ -274,6 +274,7 @@ public static bool RestoreFinalDecision()
             });
             g.Director?.CaptureCheckpointReplies(data.checkpoint);
             g.Director?.CaptureCheckpointWorld(data.checkpoint);
+            g.Director?.CaptureCheckpointMeter(data.checkpoint);
             Save(data);
             GameLog.Info(LogChannel.System, (ProgressReadOnly ? "Checkpoint not saved (QA launch): night " : "Checkpoint saved: night ") + g.Night + ", " + beat
                                             + (g.RecordsArmed ? "" : " (debug run)"));
