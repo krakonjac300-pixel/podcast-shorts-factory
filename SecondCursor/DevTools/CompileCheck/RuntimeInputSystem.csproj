@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Player build, ONLY the new Input System active (Unity 6 template default) -->
+  <PropertyGroup>
+    <AssemblyName>SecondCursor.Runtime</AssemblyName>
+    <DefineConstants>$(UnityDefines);ENABLE_INPUT_SYSTEM;SC_INPUT_SYSTEM</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Scripts)/Runtime/**/*.cs" />
+    <Compile Include="Stubs/InputSystemStub.cs" />
+    <ProjectReference Include="Core.csproj" />
+    <Reference Include="$(Deps)/engine/*.dll" Private="false" />
+    <Reference Include="$(Deps)/ugui/UnityEngine.UI.dll" Private="false" />
+  </ItemGroup>
+</Project>

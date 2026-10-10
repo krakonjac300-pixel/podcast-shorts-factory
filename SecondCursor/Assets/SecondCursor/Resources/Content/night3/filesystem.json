@@ -1,0 +1,83 @@
+{
+  "folders": [
+    { "id": "restricted", "name": "Restricted", "parent": "root", "hidden": false, "locked": true, "code": "0217" }
+  ],
+  "files": [
+    { "id": "cache_tmp_n2", "removed": true },
+    {
+      "id": "batch47_a", "name": "batch47_a.dat", "type": "dat", "folder": "intake", "size": "190 KB", "modified": "1998-11-19 15:02",
+      "content": "RECLAIMED RECORDS: BATCH 47-A\nSource drive: LW-2100 SN 0091230\nReceived: 11/19/98 from Sublevel C\n------------------------------------------\nClass:     Legacy customer records\nRecords:   190\nVerified:  190\nStatus:    Dormant. Ready for archive.\n\nChecked by: V. Pell 11/19/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch47"]
+    },
+    {
+      "id": "batch47_b", "name": "batch47_b.dat", "type": "dat", "folder": "intake", "size": "88 KB", "modified": "1998-11-19 15:14",
+      "content": "RECLAIMED RECORDS: BATCH 47-B\nSource drive: LW-2100 SN 0091231\nReceived: 11/19/98 from Sublevel C\n------------------------------------------\nClass:     Legacy customer records\nRecords:   88\nVerified:  87\nStatus:    Dormant. Ready for archive.\n\nNote: 1 record answered the integrity\ncheck. It answered with a time: 02:17.\n\nChecked by: V. Pell 11/19/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch47", "clue"]
+    },
+    {
+      "id": "batch47_c", "name": "batch47_c.dat", "type": "dat", "folder": "intake", "size": "9 KB", "modified": "1998-11-19 15:30",
+      "content": "RECLAIMED RECORDS: BATCH 47-C\nSource drive: LW-2100 SN 0091232\nReceived: 11/19/98 from Sublevel C\n------------------------------------------\nClass:     Personnel records\nRecords:   9\nVerified:  9\nStatus:    Dormant. Ready for archive.\n\nNote: Record 175 now responds normally.\nFlag cleared. Filed under Sublevel C,\nshelf 19.\n\nChecked by: V. Pell 11/19/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch47", "clue"]
+    },
+    {
+      "id": "batch48_a", "name": "batch48_a.dat", "type": "dat", "folder": "intake", "size": "118 KB", "modified": "1998-11-19 16:40",
+      "content": "RECLAIMED RECORDS: BATCH 48-A\nSource drive: LW-2100 SN 0091240\nReceived: 11/19/98 from Sublevel C\n------------------------------------------\nClass:     Legacy business records\nRecords:   118\nVerified:  118\nStatus:    Dormant. Ready for archive.\n\nChecked by: V. Pell 11/19/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch48"]
+    },
+    {
+      "id": "batch48_b", "name": "batch48_b.dat", "type": "dat", "folder": "intake", "size": "66 KB", "modified": "1998-11-19 16:48",
+      "content": "RECLAIMED RECORDS: BATCH 48-B\nSource drive: LW-2100 SN 0091241\nReceived: 11/19/98 from Sublevel C\n------------------------------------------\nClass:     Estate records (Continuity)\nRecords:   66\nVerified:  66\nStatus:    Active. Ready for archive.\n\nNote: 1 new Continuity account opened\n11/19/98 (pre-need): ROURKE, C. (214).\nBilled monthly. First payment 12/01/98.\n\nChecked by: V. Pell 11/19/98 (covering)",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "archive", "batch48"]
+    },
+    {
+      "id": "recovered_0558", "name": "recovered_0558.txt", "type": "txt", "folder": "desktop", "size": "1 KB", "modified": "1998-11-20 05:58",
+      "content": "NEXUS JOTTER: RECOVERED PAGE\nUntitled, last edited 11/20/98 05:58 (CROURKE)\n------------------------------------------\nis this on\nthe heater is clicking again\nit is just the heater\nthe door was closed when i sat down\nmy name is c\ni had it a minute ago\n------------------------------------------\n[NOT SAVED]",
+      "hidden": true, "protected": true, "corrupted": false, "tags": ["story", "clue"]
+    },
+    {
+      "id": "cache_tmp_n3", "name": "~nxs0150.tmp", "type": "tmp", "folder": "intake", "size": "2 KB", "modified": "1998-11-20 01:48",
+      "content": "NEXUS TEMPORARY FILE: SAFE TO DELETE\nOwner: WS-04   Created: 11/20/98 01:48\n\n[autosave buffer: Untitled]\nden its me. i'm fine. i'm at my desk.\n\n[clipboard]\n0217\n\n[recent files]\n/restricted/session.cfg\n/restricted/session.cfg\n/restricted/session.cfg",
+      "hidden": false, "protected": false, "corrupted": false, "tags": ["task", "junk", "clue"]
+    },
+    {
+      "id": "b7_door_log", "name": "b7_door_log.txt", "type": "txt", "folder": "documents", "size": "2 KB", "modified": "1998-11-20 01:52",
+      "content": "FACILITIES DOOR LOG: OFFICE B-7 (NIGHTS)\n\nDATE      CLOSED  OPENED  BADGE\n11/02/98  03:00   Operator not present.\n11/03/98 to 11/17/98  B-7 unoccupied.\n11/18/98  n/a     03:00   000\n11/18/98  B-7 unoccupied.\n11/19/98  {n2door}\n11/19/98  B-7 unoccupied.\n11/20/98  n/a     n/a     n/a\n11/20/98  B-7 unoccupied.\n\nSensor replaced 11/19/98 09:00.\nNo entry recorded for badge 214.\nPlease stop asking. (H.W.)",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["flavor", "clue", "door", "template"]
+    },
+    {
+      "id": "incident_870302", "name": "incident_870302.txt", "type": "txt", "folder": "restricted", "size": "3 KB", "modified": "1998-11-20 02:17",
+      "content": "INCIDENT REPORT: OFFICE B-7: 03/02/87\nFiled by: R. Hale, Night Supervisor\n------------------------------------------\n02:17  WS-04 alarm (session fault).\n02:24  Went down to B-7. Door open.\n       Operator 017 (E. Marsh) seated.\n       Did not respond. Eyes open.\n       Hands on keyboard. Screen on.\n02:26  Called Custodial per procedure.\n02:31  Custodial arrived. I was told to\n       return to A-2 and remain seated.\n03:10  B-7 clear. Chair empty.\n       WS-04 still logged on.\n       Could not log off.\n------------------------------------------\nDisposition: RETAINED (A. Voss)\nSupervisor comment (added 11/20/98 02:17):\nEllen was still typing when I got there.\nHer hands were not moving. The words kept\ncoming anyway. The last line on the screen\nwas I WILL KEEP THE NEXT ONE.\nI was told to return to A-2 and remain\nseated. I did. I have remained seated for\neleven years.\nI am sorry, Ellen. I am sorry, Gary.\nCasey, I am sorry. Go home.",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["story", "clue", "017"]
+    },
+    {
+      "id": "session_log", "name": "session_ws04.log", "type": "log", "folder": "restricted", "size": "46 KB", "modified": "1998-11-20 02:17",
+      "content": "NEXUS SESSION LOG: WS-04 (OFFICE B-7)\nEntries before 06/96 imported from legacy system.\n------------------------------------------\n03/02/87 01:58  LOGON   017 MARSH E.\n03/02/87 02:17  SESSION FAULT\n03/02/87 03:10  SEAT B-7 CLEARED (CUSTODIAL)\n03/02/87 03:11  SESSION 017 RETAINED\n05/14/90 01:58  LOGON   142 LUNDY T.\n09/08/93 03:00  SEAT B-7 CLEARED (CUSTODIAL)\n03/11/96 01:59  LOGON   188 ACHTERBERG M.\n01/27/97 03:00  SEAT B-7 CLEARED (CUSTODIAL)\n02/16/98 01:56  LOGON   209 PRUITT G.\n11/02/98 03:00  SEAT B-7 CLEARED (CUSTODIAL)\n11/02/98 03:00  PROFILE 209 HELD (INCOMPLETE)\n11/18/98 01:52  LOGON   214 ROURKE C.\n11/18/98 02:19  RECLAIM 017 ... FAILED (IN USE)\n11/18/98 03:00  SEAT B-7 CLEARED (CUSTODIAL)\n11/18/98 03:00  PROFILE 214 COPY RETAINED (017)\n11/19/98 01:52  LOGON   214 ROURKE C. (SOURCE UNVERIFIED)\n11/19/98 01:52  POINTER 3 ATTACHED (209)\n{n2_209}\n11/19/98 07:00  LOGOFF  214 ... FAILED\n11/19/98 07:02  MAIL    214 TO 175 ... HELD\n------------------------------------------\n11/20/98 01:52  LOGON   214 ROURKE C. (SOURCE UNVERIFIED)\n11/20/98 03:00  RECLAIM 214 SCHEDULED (ROUNDS)\n11/20/98 07:00  LOGOFF  214 ... PENDING",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["story", "clue", "017", "session", "template"]
+    },
+    {
+      "id": "retention_queue", "name": "retention_queue.dat", "type": "dat", "folder": "restricted", "size": "10 KB", "modified": "1998-11-20 02:17",
+      "content": "OFFICE OF RETENTION: ACTIVE QUEUE\nPrinted 11/20/98 02:17\n------------------------------------------\nSUBJ  NAME           SEAT  STATE\n017   MARSH E.       B-7   PERSISTENT (RECLAIM)\n031   VOSS A.        ADM1  RETAINED (ACTIVE)\n142   LUNDY T.       C/14  RETAINED\n163   NAKAMURA J.    C/17  RETAINED\n175   CASTELL D.     C/19  RETAINED (NEW)\n188   ACHTERBERG M.  C/15  RETAINED\n{209row}\n214   ROURKE C.      B-7   IN PROGRESS ({pct})\n------------------------------------------\nNOTE: Complete 214 at rounds (03:00).\nIf 017 is reclaimed first, 214 takes\nthe seat. If not, 214 is held at the\nseat with what 017 keeps.\n{214note}",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["story", "clue", "retention", "template"]
+    },
+    {
+      "id": "seat_b7", "name": "seat_b7.dat", "type": "dat", "folder": "restricted", "size": "1 KB", "modified": "1998-11-20 02:17",
+      "content": "SEAT ASSIGNMENT: OFFICE B-7 (WS-04)\n------------------------------------------\nHOLDER:  017 MARSH E.   PERSISTENT\nNEXT:    214 ROURKE C.  IN PROGRESS\n{heldrow}\n------------------------------------------\nSEAT RULES (RETENTION, REV. 2)\n1. One holder per seat.\n2. While the holder persists, NEXT cannot\n   complete. NEXT is held at the seat.\n3. If the holder is reclaimed, the seat\n   passes to NEXT.\n4. A holder that is not reclaimed keeps\n   what it holds.\n5. Operators who log off at 07:00 are\n   released from the seat. See\n   session.cfg (ALLOW_LOGOFF).\n6. Released operators are not recorded\n   leaving.",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["story", "clue", "seat", "template"]
+    },
+    {
+      "id": "session_cfg", "name": "session.cfg", "type": "cfg", "folder": "restricted", "size": "1 KB", "modified": "1998-11-20 01:52",
+      "content": "; NEXUS SESSION POLICY: WS-04\n; Edit requires Office of Retention.\n[SESSION]\nHOST=WS-04\nSEAT=B-7\nOPEN_SESSIONS=2\nRETAIN_ON_FAULT=1\nNOTIFY=CUSTODIAL\nLOGOFF_TIME=07:00\nALLOW_LOGOFF=0",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["story", "clue", "editable"]
+    },
+    {
+      "id": "camview_cfg", "name": "camview.cfg", "type": "cfg", "folder": "system", "size": "1 KB", "modified": "1998-11-20 01:52",
+      "content": "[CAMVIEW]\nACCESS=SECURITY\nCAM01=LOBBY\nCAM02=B-LEVEL HALL\nCAM03=OFFICE B-7 (WS-04)\nCAM03_NOTE=DO NOT DISABLE\nCAM04=SUBLEVEL C\nCAM04_STATE=RESTORED 11/20/98\nCAM00=ADMIN 1 (HIDDEN)\nLAST_OPENED_BY=ADMIN 1 (031)\nRECORD=ALL\nRETAIN_FOOTAGE=INDEFINITE\nOPERATOR_OVERRIDE=0",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["system", "camera", "editable", "secret"]
+    },
+    {
+      "id": "nexus_cfg", "name": "nexus.cfg", "type": "cfg", "folder": "system", "size": "1 KB", "modified": "1998-11-20 01:52",
+      "content": "; NEXUS OS 4.1: WS-04\n[NEXUS]\nHOST=WS-04\nLOCATION=B-7\nOWNER=LETHEWORTH\n\n[INPUT]\nPOINTER_DEVICES=3\nPOINTER_1_OWNER=214\nPOINTER_2_OWNER=\nPOINTER_2_STATE=ACTIVE\nPOINTER_2_DETACH=DENIED\nPOINTER_3_OWNER=209\n\n[CAPTURE]\nSERVICE=LWCAP.EXE\nMODE=CONTINUOUS\nTARGET=OPERATOR\nPROFILE_214=IN PROGRESS (96%)\nPROFILE_214_SOURCE=COPY\n\n[CAMERA]\nVIEWER=RESTRICTED\nPRIORITY_FEED=CAM03\nROUNDS_FEED=AUTO\nCONFIG=SYSTEM\\camview.cfg\n\n[SESSION]\nPOLICY=RESTRICTED\\session.cfg",
+      "hidden": false, "protected": true, "corrupted": false, "tags": ["system", "clue"]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+<!-- Compiles ProceduralSoundBank.cs exactly as Unity's SecondCursor.Core assembly sees it:
+     .NET Standard 2.1 API surface, C# 9, no UnityEngine, warnings as errors.
+     dotnet build DevTools/SoundPreview/CompatCheck -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningLevel>5</WarningLevel>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../../Assets/SecondCursor/Scripts/Core/Audio/ProceduralSoundBank.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,30 @@
+{
+  "entries": [
+    { "key": "login.welcome", "value": "Welcome, Night Operator.\nPress Log On to continue your shift." },
+    { "key": "login.progress", "value": "Restoring your personal settings from a copy..." },
+    { "key": "camera.denied.body", "value": "Camera Viewer access has been restored to Security staff only.\nThis attempt has been logged.\n\nNight Operators: your work is in the Work Queue." },
+    { "key": "notify.missedcall", "value": "Missed call: ext. 2118 (R. Hale)" },
+    { "key": "rounds.shelf.cancelled", "value": "Office of Retention: shelf check cancelled." },
+    { "key": "lost.recovered", "value": "NEXUS OS recovered 1 unsaved Jotter page.\nUntitled, last edited 5:58 AM by CROURKE: \"is this on\"" },
+    { "key": "lost.recover", "value": "NEXUS OS recovered from an unexpected pause.\nDuration: 3 h 10 min." },
+    { "key": "shred.closed017", "value": "Session 017 closed (11 years, 263 days)." },
+    { "key": "end.shred.title", "value": "SHRED" },
+    { "key": "end.shred.subtitle", "value": "You took the seat." },
+    { "key": "end.keep.title", "value": "KEEP" },
+    { "key": "end.keep.subtitle", "value": "You stayed." },
+    { "key": "end.keep.subtitle.kept", "value": "Session 017 kept you." },
+    { "key": "notify.endofshift", "value": "End of shift at 7:00 AM. Log off between 7:00 and 7:05 AM (Nexus menu, Log Off CROURKE...). Until you leave, keep Custodial off your camera: if it reaches your chair, session 017 keeps you. Still logged on at 7:05 AM: session 017 keeps you." },
+    { "key": "end.logoff.title", "value": "LOG OFF" },
+    { "key": "end.logoff.subtitle", "value": "The log shows nobody left." },
+    { "key": "end.card.thanks", "value": "Thank you for working nights at Letheworth." },
+    { "key": "haul.ready.letgo", "value": "SESSION 017 GRABBED IT.\nHOLD THE BUTTON." },
+    { "key": "haul.ready.letgo.deck", "value": "SESSION 017 GRABBED IT.\nKEEP R2 HELD." },
+    { "key": "haul.label.letgo", "value": "SESSION 017 IS HOLDING ON.\nKEEP HOLDING THE BUTTON." },
+    { "key": "haul.label.letgo.deck", "value": "SESSION 017 IS HOLDING ON.\nKEEP R2 HELD." },
+    { "key": "haul.letgo.released", "value": "YOU LET GO. THE FILE IS STILL HERE.\nGRAB IT AGAIN." },
+    { "key": "haul.letgo.released.deck", "value": "YOU RELEASED R2. THE FILE IS STILL HERE.\nGRAB IT AGAIN." },
+    { "key": "haul.word.released", "value": "STILL HERE" },
+    { "key": "notify.haul.letgo.released", "value": "Input conflict: you let go of {0}. It is still here: drag it to the bin again." },
+    { "key": "notify.haul.letgo.released.deck", "value": "Input conflict: you released R2 on {0}. It is still here: hold R2 on it and drop it on the bin again." }
+  ]
+}

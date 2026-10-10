@@ -1,0 +1,120 @@
+{
+  "emails": [
+    {
+      "id": "mail_welcome",
+      "from": "Ruth Hale <rhale@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "Night shift briefing - Wed 11/18",
+      "date": "Wed 11/18/98 1:40 AM",
+      "body": "Casey,\n\nFirst solo night in Office B-7. WS-04 is your desk, Casey. Camera 03 watches that room from behind your chair. Gary's old notes are in Documents if you want them.\n\nTonight's work is in your Work Queue. Do the items in order:\n\n1. ARCHIVE: drag finished files from Intake onto the Archive folder.\n2. WORK ORDERS: before you approve a drive wipe, look up the owner's employee number in Personnel. Approve ONLY if their status is TERMINATED. Anything else, reject.\n3. JUNK: drag temp files onto the Disposal bin and confirm. Shredding is permanent.\n\nDon't open the .dat files. The Data Viewer is for integrity checks only.\n\nCustodial starts rounds on B-Level around 3:00. Stay seated while they're through.\n\nShift ends at 7:00 AM. Log off before you leave. If WS-04 goes down before then, go home and I will sort it out.\n\nRuth Hale\nNight Operations Supervisor",
+      "preload": true,
+      "read": false
+    },
+    {
+      "id": "mail_facilities_doors",
+      "from": "Facilities <facilities@letheworth.corp>",
+      "to": "B-Level Staff <blevel@letheworth.corp>",
+      "subject": "Reminder: B-Level doors",
+      "date": "Mon 11/16/98 4:30 PM",
+      "body": "Reminder to all B-Level night staff:\n\nOffice doors on B-Level are to remain CLOSED during the night shift.\n\nIf you return to your office and find the door open, do not close it. Note the time and report it to Facilities in the morning.\n\nDo not prop doors open, and do not stand in doorways during Custodial rounds.\n\nDoor behavior on B-Level is related to air balancing and is not a security concern.\n\nHarold Whitcomb\nFacilities",
+      "preload": true,
+      "read": true
+    },
+    {
+      "id": "mail_security_cameras",
+      "from": "Security Office <security@letheworth.corp>",
+      "to": "All Staff <allstaff@letheworth.corp>",
+      "subject": "Camera Viewer access (policy change)",
+      "date": "Thu 10/15/98 9:00 AM",
+      "body": "Effective today, the Camera Viewer on operator workstations is restricted to Security staff. Operators will see ACCESS DENIED. This is expected.\n\nB-Level is monitored at all times for your safety.\n\n- CAM 04 is offline pending repair.\n- CAM 03 is functioning as intended. Please stop submitting tickets about CAM 03.\n\nLeonard Brandt\nSecurity Supervisor",
+      "preload": true,
+      "read": true
+    },
+    {
+      "id": "mail_custodial_rounds",
+      "from": "Custodial Services <custodial@letheworth.corp>",
+      "to": "New Night Staff <nightops@letheworth.corp>",
+      "subject": "Night rounds - what to expect",
+      "date": "Mon 11/09/98 8:15 AM",
+      "body": "New night staff:\n\nCustodial Services completes rounds on B-Level each night, beginning around 3:00 AM.\n\nCustodial personnel do not converse. Please do not greet, question, or follow them, and do not obstruct their route.\n\nDuring rounds, remain seated at your workstation and continue working. If Custodial enters your office, do not turn around. They will leave when they are finished.\n\nThank you for helping us keep Letheworth clean.",
+      "preload": true,
+      "read": true
+    },
+    {
+      "id": "mail_retention_faq",
+      "from": "Office of Retention <retention@letheworth.corp>",
+      "to": "New Night Staff <nightops@letheworth.corp>",
+      "subject": "Reclaimed records: operator FAQ",
+      "date": "Mon 11/09/98 8:00 AM",
+      "body": "Q: What is on the drives?\nA: Legacy customer and business records from accounts that have lapsed.\n\nQ: May I open them?\nA: No. The Data Viewer is for integrity checks only.\n\nQ: A record did not respond to the integrity check.\nA: Flag it QUIET. Most records are quiet.\n\nQ: A QUIET record has started to respond.\nA: Clear the flag. File it with Retention.\n\nQ: A file will not shred.\nA: Some records are persistent. Keep trying. Report persistent records to the Office of Retention.\n\nQ: A file has moved on its own.\nA: Files do not move on their own. Report the operator.\n\nOffice of Retention",
+      "preload": true,
+      "read": true
+    },
+    {
+      "id": "mail_castell_gary",
+      "from": "Denise Castell <dcastell@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "welcome + Gary's stuff",
+      "date": "Mon 11/16/98 5:48 PM",
+      "body": "Hi Casey!\n\nWelcome to the night crew, officially. You're in Gary's old chair, so if you find any of his stuff (mug with the ducks on it, a paperback, reading glasses) there's a box at reception.\n\nNobody's heard from him. HR says \"extended leave.\" His car was in the lot for a week, and then it wasn't.\n\nAnyway. Don't drink the coffee on B. Call me if you need anything. I'm day shift but I'm up late.\n\nDenise\n\nP.S. If Joan Nakamura's name comes through your queue (Accounts, she runs the coffee fund), go easy on it. Her review is Friday and she's been a wreck about it.",
+      "preload": true,
+      "read": true
+    },
+    {
+      "id": "mail_pruitt_handover",
+      "from": "Gary Pruitt <gpruitt@letheworth.corp>",
+      "to": "Night Operator <nightops@letheworth.corp>",
+      "subject": "handover",
+      "date": "Mon 11/02/98 2:56 AM",
+      "body": "To whoever gets WS-04 next:\n\nMy notes are in Documents. Sorry, they got messy at the end.\n\nTake your breaks. Don't open the .dat files. If your door opens, leave it.\n\nIf the mouse acts up, don't fight it too hard.\n\n- G",
+      "preload": true,
+      "read": true
+    },
+    {
+      "id": "mail_it_maintenance",
+      "from": "Victor Pell <vpell@letheworth.corp>",
+      "to": "B-Level Staff <blevel@letheworth.corp>",
+      "subject": "Scheduled maintenance: input irregularities",
+      "date": "Wed 11/18/98 2:01 AM",
+      "body": "Hi all,\n\nWe're aware of input irregularities on some B-Level workstations: cursors jumping, files selecting themselves, a window shifting a few pixels, phantom clicks.\n\nThis is a known fault in the older pointing-device driver and is not caused by anything you did. A patch is scheduled for Saturday.\n\nIn the meantime:\n- Do not unplug your mouse.\n- Do not restart your workstation.\n- If the pointer moves on its own, take your hand off the mouse and let it finish. Do not fight it unless a task in your Work Queue tells you to.\n\nPlease do NOT report irregularities on WS-04. They are already logged.\n\nThanks,\nVictor Pell\nInformation Systems",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_urgent_017",
+      "from": "Office of Retention <retention@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "URGENT: employee_017.dat - shred immediately",
+      "date": "Wed 11/18/98 2:17 AM",
+      "body": "PRIORITY ORDER - OFFICE OF RETENTION\n\nA persistent record, employee_017.dat, has been detected on the WS-04 desktop.\n\nYou are instructed to SHRED this file immediately.\n\n- Do not open it.\n- Do not read it.\n- Do not move it anywhere except the Disposal bin.\n- Do not discuss it with other staff.\n- If it types to you, do not reply.\n\nThis order supersedes all other work. Your supervisor has been notified.\n\nA. Voss\nDirector of Retention",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_supervisor_check",
+      "from": "Ruth Hale <rhale@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "Re: employee_017.dat",
+      "date": "Wed 11/18/98 2:21 AM",
+      "body": "Casey,\n\nRetention says the file is still on your desktop.\n\nI know. It does that. It did it to Gary too. Drag it to the bin and try it a few times, and do not open it. If it will not go, stop: nobody can shred it while another session holds it. Let it finish, and watch.\n\nRetention will tell you not to answer it. If it types to you, answer it in Jotter. I would rather you knew what it wants.\n\nCustodial is coming down to B-Level early tonight. I have noted that I checked in on you at 2:21 AM.\n\nRuth",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_no_sender",
+      "from": "Casey Rourke <crourke@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "(no subject)",
+      "date": "Mon 03/02/87 2:17 AM",
+      "body": "remain seated",
+      "preload": false,
+      "read": false
+    },
+    {"id":"mail_ledger_receipt","from":"Archive Control","to":"Casey Rourke <crourke@letheworth.corp>","subject":"Receipt: ledger_1994.dat","date":"Wed 11/18/98 1:52 AM","body":"Ledger received from WS-04.\n\nOne exception was preserved with the transfer:\n\nOwner 146: P. Delacroix. Employee separation entered 10/30/98. Workstation activity continued on 11/16/98.\n\nThe dates do not reconcile. Original entries are now retained in Archive.\n\nWO-3317 requests disposal of the source drive. Check the owner before signing.","preload":false,"read":false},
+    {"id":"mail_wo_3317_approve","from":"Ruth Hale","to":"Casey Rourke <crourke@letheworth.corp>","subject":"WO-3317: source drive cleared","date":"Wed 11/18/98 1:52 AM","body":"Casey,\n\nYou followed the separation rule. Paul's source drive is gone. Your ledger export is the only copy left of those entries after his termination.\n\nRetention says to leave the dates alone. I am keeping your receipt.\n\nRuth","preload":false,"read":false},
+    {"id":"mail_wo_3317_reject","from":"Ruth Hale","to":"Casey Rourke <crourke@letheworth.corp>","subject":"WO-3317: drive on hold","date":"Wed 11/18/98 1:52 AM","body":"Casey,\n\nPersonnel says Paul is terminated, so Retention will count your rejection as an error. His source drive is still here, including the activity after his separation date.\n\nI have left the hold in your name. Do not let anyone tell you it was automatic.\n\nRuth","preload":false,"read":false},
+    {"id":"mail_wo_3318_approve","from":"Denise Castell","to":"Casey Rourke <crourke@letheworth.corp>","subject":"Joan cannot log in","date":"Wed 11/18/98 1:52 AM","body":"Casey,\n\nJoan is still on shift. Her files disappeared when your approval reached the wipe station. She asked whether she had done something wrong.\n\nHer review is now at 3:00 tonight. I gave her your workstation number because it is the only name on the authorization.\n\nDenise","preload":false,"read":false},
+    {"id":"mail_wo_3318_reject","from":"Denise Castell","to":"Casey Rourke <crourke@letheworth.corp>","subject":"Joan still has her files","date":"Wed 11/18/98 1:52 AM","body":"Casey,\n\nYour rejection stopped the wipe. Joan copied her shift notes before Retention called her upstairs.\n\nThey moved her review to 3:00 tonight anyway. You did not stop that, but she has a record of what happened.\n\nThank you for checking.\n\nDenise","preload":false,"read":false},
+    {"id":"mail_camera_offline","from":"Session Control","to":"Casey Rourke <crourke@letheworth.corp>","subject":"CAM 03: operator declined","date":"Wed 11/18/98 1:52 AM","body":"WS-04 declined the live feed.\n\nCamera 03 remains connected to session 017. No video was delivered to the operator.\n\nDoor observation assigned to: 017.","preload":false,"read":false}
+  ]
+}

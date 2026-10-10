@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- In-editor compile of the runtime assembly (UNITY_EDITOR defined), both input backends enabled -->
+  <PropertyGroup>
+    <AssemblyName>SecondCursor.Runtime</AssemblyName>
+    <DefineConstants>$(UnityDefines);UNITY_EDITOR;UNITY_EDITOR_WIN;ENABLE_LEGACY_INPUT_MANAGER;ENABLE_INPUT_SYSTEM;SC_INPUT_SYSTEM</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Scripts)/Runtime/**/*.cs" />
+    <Compile Include="Stubs/InputSystemStub.cs" />
+    <ProjectReference Include="Core.csproj" />
+    <Reference Include="$(Deps)/engine/*.dll" Private="false" />
+    <Reference Include="$(Deps)/ugui/UnityEngine.UI.dll" Private="false" />
+    <Reference Include="$(Deps)/editor/*.dll" Private="false" />
+  </ItemGroup>
+</Project>

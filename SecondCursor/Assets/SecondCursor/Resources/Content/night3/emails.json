@@ -1,0 +1,64 @@
+{
+  "emails": [
+    {
+      "id": "mail_n3_briefing",
+      "from": "Ruth Hale <rhale@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "Night shift briefing: Fri 11/20",
+      "date": "Fri 11/20/98 1:40 AM",
+      "body": "Casey,\n\nWork's in the queue. Batch 47, three work orders, the temp file. Same rules.\n\nCustodial is doing a full round tonight, 3:00 to 3:30. Security wants the Camera Viewer on for all of it.\n\nI'm sorry. I should have told you that on your first night. I should have told Gary.\n\nRuth",
+      "preload": true,
+      "read": false
+    },
+    {
+      "id": "mail_n3_undeliverable",
+      "from": "NEXUS Mail <postmaster@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "Undeliverable: you ok?",
+      "date": "Thu 11/19/98 7:03 AM",
+      "body": "Your message to dcastell@letheworth.corp could not be delivered.\n\nReason: Mailbox held by Custodial Services.\n\n[ Original message ]\nFrom: Casey Rourke <crourke@letheworth.corp>\nDate: Thu 11/19/98 7:02 AM\n\nden its me. i'm fine. i'm at my desk.\ni don't remember the drive home.\ni don't remember the drive in either.",
+      "preload": true,
+      "read": false
+    },
+    {
+      "id": "mail_n3_ruth_comment",
+      "from": "Ruth Hale <rhale@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "the comment",
+      "date": "Fri 11/20/98 2:17 AM",
+      "body": "Casey,\n\nI called your desk. I don't know why I thought it would ring.\n\nIn 1987 I filed the incident report for B-7 and left the comment field blank. Mr. Voss said a blank field is a clean field. I have been a clean field for eleven years.\n\nI wrote the comment tonight. It's in the report, in Restricted. I want someone to read it who isn't them.\n\nRetention's authorization code hasn't changed since that night. It's the minute she stopped. Personnel still has the time: look her up, 017.\n\nThere's a file in there called session.cfg. It decides whether WS-04 lets you log off at seven. I can't change it from A-2. You can.\n\nGo home at seven. They come up to B-7 at seven: don't watch them come. And don't wait for someone to come and help you.\n\nRuth\n\nP.S. Personnel always says where everyone is. Even them. I never had the nerve to look.",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_n3_security_rounds",
+      "from": "Security Office <security@letheworth.corp>",
+      "to": "B-Level Staff <blevel@letheworth.corp>",
+      "subject": "Full round tonight: 3:00 to 3:30",
+      "date": "Fri 11/20/98 2:58 AM",
+      "body": "B-Level operators:\n\nCustodial Services will complete a full round tonight, 3:00 to 3:30 AM, beginning in Sublevel C.\n\nSecurity will open the Camera Viewer during the round. Keep it open. Do not close or minimize it.\n\nRetention requires a shelf check of Sublevel C during the round. CAM 04 has been restored for this purpose, and the viewer opens on CAM 04 until the check is filed. The orders are in Work Orders.\n\nLeonard Brandt\nSecurity Supervisor",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_n3_nosubject",
+      "from": "Casey Rourke <crourke@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "(no subject)",
+      "date": "Fri 11/20/98 3:31 AM",
+      "body": "remain seated",
+      "preload": false,
+      "read": false
+    },
+    {
+      "id": "mail_n3_ruth_drive",
+      "from": "Ruth Hale <rhale@letheworth.corp>",
+      "to": "Casey Rourke <crourke@letheworth.corp>",
+      "subject": "one more",
+      "date": "Fri 11/20/98 2:24 AM",
+      "body": "Casey,\n\n{ruthask}\n\nThere's a wipe order for my drive in Work Orders (3333). I put it there. Approve it.\n\nI know the rule. I've read it to every night operator since 1985, and I know I'm not TERMINATED. I've read what they keep. I don't want to be kept.\n\nIf you'd rather keep to the rule, reject it. I won't blame you. Nobody ever taught you anything else.\n\nRuth",
+      "preload": false,
+      "read": false
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Throwaway preview/validation tool for the NEXUS OS pixel art.
+    Compiles the runtime art file directly (no Unity needed), validates every
+    sprite and dumps out/sprites.json for render_preview.py.
+    Run everything with ./run.sh
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>SecondCursor.DevTools.ArtPreview</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="../../Assets/SecondCursor/Scripts/Core/Art/PixelArtData.cs" />
+  </ItemGroup>
+
+</Project>

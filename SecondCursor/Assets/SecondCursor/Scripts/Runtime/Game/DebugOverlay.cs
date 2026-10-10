@@ -1,0 +1,332 @@
+using System.Text;
+using SecondCursor.Apps;
+using SecondCursor.Core;
+using SecondCursor.Core.Content;
+using SecondCursor.Core.Entity;
+using SecondCursor.Core.FileSystem;
+using SecondCursor.Core.Story;
+using SecondCursor.Core.Tasks;
+using SecondCursor.Entity;
+using SecondCursor.Input;
+using UnityEngine;
+
+namespace SecondCursor.Game
+{
+    /// <summary>
+    /// Developer panel (F1). Start any night, jump to any story beat, summon/dismiss the second cursor,
+    /// trigger its abilities, change its state, force tug-of-war outcomes, set the assist level, trust and
+    /// difficulty, complete tasks, spawn files, change game speed, toggle CRT, reset.
+    /// Also: F2 skip beat, F3 entity to mouse, F4 speed, F5 restart, F6 CRT. IMGUI on purpose: always
+    /// crisp, independent of the fake OS it is debugging.
+    /// </summary>
+    public sealed class DebugOverlay : MonoBehaviour
+    {
+        GameServices _g;
+        bool _open;
+#if UNITY_EDITOR || DEBUG
+        Vector2 _scroll;
+        GUIStyle _box;
+        GUIStyle _label;
+        GUIStyle _hint;
+#endif
+        int _speedIndex;
+        static readonly float[] Speeds = { 1f, 2f, 4f, 0.5f };
+        float _fps;
+
+        /// <summary>Test bridge (store screenshots): no developer hint on screen.</summary>
+        internal static bool HideHint;
+        // Button actions run in the next Update, never in the middle of an OnGUI pass: changing game state
+        // (which also writes log lines) between IMGUI's Layout and input events breaks GUILayout.
+        readonly System.Collections.Generic.List<System.Action> _pending = new System.Collections.Generic.List<System.Action>();
+#if UNITY_EDITOR || DEBUG
+        System.Collections.Generic.List<LogEntry> _logSnapshot;
+#endif
+
+        /// <summary>A panel action runs next Update; anything done from the panel stops the run counting for records.</summary>
+        void Defer(System.Action action)
+        {
+            _pending.Add(() =>
+            {
+                _g.Disarm("debug panel");
+                action();
+            });
+        }
+
+        /// <summary>Keeps the panel open across the restart a beat jump makes.</summary>
+        static bool _reopen;
+
+        public static DebugOverlay Create(GameServices g, Transform parent)
+        {
+            var go = new GameObject("Debug Overlay");
+            go.transform.SetParent(parent, false);
+            var d = go.AddComponent<DebugOverlay>();
+            d._g = g;
+            d._open = _reopen;
+            _reopen = false;
+            return d;
+        }
+
+        void Update()
+        {
+            _fps = Mathf.Lerp(_fps, 1f / Mathf.Max(0.0001f, Time.unscaledDeltaTime), 0.05f);
+            if (_pending.Count > 0)
+            {
+                var run = _pending.ToArray();
+                _pending.Clear();
+                foreach (var action in run) action();
+            }
+            var input = _g.Input;
+            // Developer keys exist only in the Editor and development builds; players never see the panel.
+            if (Debug.isDebugBuild)
+            {
+#if UNITY_EDITOR || DEBUG
+                if (input.KeyDown(GameKey.F1)) _open = !_open;   // the panel itself is only compiled in these builds
+#endif
+                if (input.KeyDown(GameKey.F2))
+                {
+                    _g.Disarm("F2 skip beat");
+                    _g.Director.SkipBeat();
+                }
+                if (input.KeyDown(GameKey.F3))
+                {
+                    _g.Disarm("F3 summon");
+                    SummonToMouse();
+                }
+                if (input.KeyDown(GameKey.F4))
+                {
+                    _g.Disarm("F4 speed");
+                    _speedIndex = (_speedIndex + 1) % Speeds.Length;
+                    if (!PauseMenu.IsPaused) Time.timeScale = Speeds[_speedIndex];
+                    GameLog.Info(LogChannel.Debug, "Time scale " + Speeds[_speedIndex]);
+                }
+                if (input.KeyDown(GameKey.F5))
+                {
+                    _g.Disarm("F5 restart");
+                    GameBootstrap.Restart();
+                }
+            }
+            if (input.KeyDown(GameKey.F6)) _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled;
+            PanelOpen = _open;
+            // Keep clicks on the panel from also clicking the fake OS underneath.
+            Vector2 m = input.MouseScreenPosition;
+            MouseOverPanel = _open && m.x >= 10f && m.x <= 390f && m.y >= 10f && m.y <= Screen.height - 10f;
+        }
+
+        /// <summary>True while the real mouse is over the open debug panel.</summary>
+        public static bool MouseOverPanel { get; private set; }
+
+        /// <summary>The developer panel is open (GameRoot shows the real pointer for it; a build without the panel never does).</summary>
+        public static bool PanelOpen { get; private set; }
+
+        public static float CurrentSpeed = 1f;
+
+        void SummonToMouse()
+        {
+            var e = _g.Entity;
+            e.Interrupt();
+            e.Teleport(_g.Player.Position + new Vector2(40f, -20f));
+            e.SetPresent(!e.IsVisible || e.View.Alpha < 0.5f, 0.2f);
+        }
+
+        // Phase Q4 (CH7): IMGUI exists only in the Editor and development builds. A release player never runs OnGUI for a panel nobody can open
+        // (it cost a layout and a repaint pass every frame); the debug keys and the pointer rule live in Update and GameRoot as before.
+#if UNITY_EDITOR || DEBUG
+        void OnGUI()
+        {
+            var e = _g.Entity;
+            GUI.color = Color.white;
+            if (!_open)
+            {
+                // Developer hint only (Editor and development builds), faint and top-centre so it never
+                // covers the taskbar or the Nexus button.
+                if (!Debug.isDebugBuild || HideHint) return;
+                if (_hint == null) _hint = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter, fontSize = 11 };
+                GUI.color = new Color(1f, 1f, 1f, 0.35f);
+                GUI.Label(new Rect(Screen.width * 0.5f - 150f, 2f, 300f, 18f), "F1 debug  |  " + _fps.ToString("0") + " fps", _hint);
+                GUI.color = Color.white;
+                return;
+            }
+            if (_box == null)
+            {
+                _box = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft };
+                _label = new GUIStyle(GUI.skin.label) { wordWrap = true, fontSize = 12 };
+            }
+            GUILayout.BeginArea(new Rect(10, 10, 380, Screen.height - 20), _box);
+            _scroll = GUILayout.BeginScrollView(_scroll);
+            GUILayout.Label("SECOND CURSOR debug  " + _fps.ToString("0") + " fps  x" + Time.timeScale, _label);
+            var assist = _g.Assist;
+            GUILayout.Label("Night " + _g.Night + " (" + _g.Difficulty.Mode + ")   Beat: " + _g.Director.CurrentBeat + "   Phase: " + e.Phase + "   State: " + e.State +
+                            "\nEntity action: " + (e.CurrentAction ?? "-") + "   Brain: " + (e.Brain.Enabled ? "ON" : "off") +
+                            "  Defenses: " + e.Brain.Defenses + "  Grip: " + e.Brain.Grip.ToString("0.00") +
+                            "\nFight: " + (_g.Conflict.IsFighting ? "YES strain " + _g.Conflict.Strain.ToString("0.00") + (_g.Conflict.IsReel ? ReelLine(_g.Conflict.Reel)
+                                : " share " + _g.Conflict.EntityShare.ToString("0.00")) + (_g.Conflict.IsMercyContest ? " MERCY" : "") : "no") + "   Tug model: " + _g.Difficulty.Tug.model +
+                            "\nAssist L" + assist.Level + "  loss streak " + assist.LossStreak.ToString("0.0") + "  wins " + assist.WinStreak + (assist.MercyArmed ? "  mercy armed" : "") +
+                            "   Tug: " + (ConflictSystem.ForcedOutcome == TugOutcome.None ? "real" : ConflictSystem.ForcedOutcome.ToString()) +
+                            "\nTrust: " + _g.Memory.Trust.ToString("0.00") + "   Shred busy: " + _g.Shred.Busy +
+                            (_g.Rounds != null && _g.Rounds.Model != null
+                                ? "\nRounds: " + (_g.Rounds.Running ? "ON" : "off") + " stage " + _g.Rounds.Model.Stage + " (" + _g.Rounds.Model.FigureStage + ") meter " +
+                                  _g.Rounds.Model.Meter.ToString("0.0") + "/" + _g.Rounds.Model.Config.WatchSeconds.ToString("0") + "  t " + _g.Rounds.Elapsed.ToString("0")
+                                : "") +
+                            (_g.Gary != null && _g.Gary.IsVisible ? "\nGary: " + (_g.Gary.CurrentAction ?? "-") + " alpha " + _g.Gary.View.Alpha.ToString("0.00") : "") +
+                            "\nRecords: " + (_g.RecordsArmed ? "armed" : "held (" + _g.RecordsHeldReason + ")"), _label);
+                // Arming is the one panel action that does not hold records.
+                if (GUILayout.Button(_g.RecordsArmed ? "Records armed" : "Arm records (testing)")) _pending.Add(() => _g.ForceArm());
+
+            GUILayout.Label("Night (fresh shift):", _label);
+            GUILayout.BeginHorizontal();
+            for (int n = 1; n <= 3; n++)
+            {
+                int night = n;
+                if (GUILayout.Button("Night " + night)) Defer(() => { _reopen = true; GameBootstrap.Restart(night); });
+            }
+            if (GUILayout.Button(_g.Difficulty.Mode == DifficultyMode.Story ? "-> Normal" : "-> Story")) Defer(() =>
+            {
+                // Difficulty is read when a night is built: save it, then restart this beat.
+                SaveSystem.SetDifficulty(_g.Difficulty.Mode == DifficultyMode.Story ? DifficultyMode.Normal : DifficultyMode.Story);
+                _reopen = true;
+                GameBootstrap.Restart(_g.Night, _g.Director.CurrentBeat);
+            });
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label("Jump to beat:", _label);
+            GUILayout.BeginHorizontal();
+            int col = 0;
+            foreach (var beat in _g.Director.Beats)
+            {
+                // A fresh shift at that beat: jumping back never leaves later windows or entity state behind.
+                if (GUILayout.Button(beat)) Defer(() => { _reopen = true; GameBootstrap.Restart(beat); });
+                if (++col % 3 == 0) { GUILayout.EndHorizontal(); GUILayout.BeginHorizontal(); }
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label("Difficulty:", _label);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Tug win")) Defer(() => ConflictSystem.ForcedOutcome = TugOutcome.PlayerWins);
+            if (GUILayout.Button("Tug lose")) Defer(() => ConflictSystem.ForcedOutcome = TugOutcome.EntityWins);
+            if (GUILayout.Button("Tug real")) Defer(() => ConflictSystem.ForcedOutcome = TugOutcome.None);
+            if (GUILayout.Button("Assist -")) Defer(() => assist.SetLevel(assist.Level - 1));
+            if (GUILayout.Button("Assist +")) Defer(() => assist.SetLevel(assist.Level + 1));
+            GUILayout.EndHorizontal();
+            if (GUILayout.Button("Tug model: " + _g.Difficulty.Tug.model + " (next contest)")) Defer(() =>
+                SetTugModel(_g, _g.Difficulty.Tug.model == TugModel.Reel ? TugModel.Speed : TugModel.Reel));
+            GUILayout.BeginHorizontal();
+            foreach (float trust in new[] { -0.5f, 0f, 0.5f })
+                if (GUILayout.Button("Trust " + trust.ToString("+0.0;-0.0;0"))) Defer(() => _g.Memory.Seed(trust));
+            GUILayout.EndHorizontal();
+#if !SC_DEMO
+            if (_g.Director is Story.Night3Director n3)
+            {
+                // Night 3's exits, straight to their ending (the finale must be running).
+                GUILayout.BeginHorizontal();
+                foreach (var exit in new[] { Night3Exit.Shred, Night3Exit.Keep, Night3Exit.LogOff })
+                    if (GUILayout.Button("Force " + exit.ToString().ToUpperInvariant())) Defer(() => n3.ForceExit(exit));
+                GUILayout.EndHorizontal();
+            }
+#endif
+
+            GUILayout.Label("Entity:", _label);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Summon (F3)")) Defer(SummonToMouse);
+            if (GUILayout.Button("Dismiss")) Defer(() => { e.Interrupt(); e.SetPresent(false, 0.3f); });
+            if (GUILayout.Button(e.Brain.Enabled ? "Brain OFF" : "Brain ON")) Defer(() => e.Brain.Enabled = !e.Brain.Enabled);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Close top window")) Defer(() =>
+            {
+                var w = _g.Windows.Active;
+                if (w != null && w.CloseButton != null)
+                {
+                    e.SetPresent(true, 0.1f);
+                    e.Run(e.ClickElement(w.CloseButton.Hit, MovementProfiles.Aggressive), "debug:close");
+                }
+            });
+            if (GUILayout.Button("Type STOP")) Defer(() =>
+            {
+                e.SetPresent(true, 0.1f);
+                e.Run(DebugType(), "debug:type");
+            });
+            if (GUILayout.Button("Mimic me")) Defer(() =>
+            {
+                e.SetPresent(true, 0.1f);
+                e.Run(e.Replay(_g.Recorder.Last(5f, Time.time)), "debug:mimic");
+            });
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            foreach (var st in new[] { EntityState.Observing, EntityState.Defensive, EntityState.Aggressive, EntityState.Panicked })
+                if (GUILayout.Button(st.ToString())) Defer(() => e.State = st);
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label("World:", _label);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Complete task")) Defer(() =>
+            {
+                var t = _g.Tasks.Current;
+                if (t != null) _g.Tasks.ForceComplete(t.Id);
+            });
+            if (GUILayout.Button("Spawn file")) Defer(() =>
+            {
+                string id = "debug_" + Random.Range(1000, 9999);
+                _g.Files.CreateFile(id, id + ".dat", "dat", ContentIds.FolderDesktop, "DEBUG FILE " + id, Actor.System);
+            });
+            if (GUILayout.Button("017 to desktop")) Defer(() =>
+            {
+                if (_g.Files.GetFile(ContentIds.File017)?.Shredded ?? false) _g.Files.Restore(ContentIds.File017, ContentIds.FolderDesktop, Actor.System);
+                else _g.Files.Move(ContentIds.File017, ContentIds.FolderDesktop, Actor.System);
+            });
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Unlock camera")) Defer(() => _g.Flags.Set(Flags.CameraUnlocked));
+            if (GUILayout.Button("CRT (F6)")) Defer(() => _g.Fx.CrtEnabled = !_g.Fx.CrtEnabled);
+            if (GUILayout.Button("Glitch")) Defer(() => _g.Fx.Glitch(0.4f, 1f));
+            if (GUILayout.Button("Restart (F5)")) Defer(GameBootstrap.Restart);
+            GUILayout.EndHorizontal();
+
+            if (_g.CameraRig != null)
+            {
+                GUILayout.Label("Camera 03 set:", _label);
+                GUILayout.BeginHorizontal();
+                foreach (CameraFeed.FigureStage s in System.Enum.GetValues(typeof(CameraFeed.FigureStage)))
+                    if (GUILayout.Button(s.ToString())) Defer(() => _g.CameraRig.Figure = s);
+                GUILayout.EndHorizontal();
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Door", GUILayout.Width(40));
+                _g.CameraRig.DoorOpen = GUILayout.HorizontalSlider(_g.CameraRig.DoorOpen, 0f, 1f);
+                GUILayout.EndHorizontal();
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("Flags: ");
+            foreach (var f in _g.Flags.AllFlags) sb.Append(f).Append(' ');
+            sb.Append("\nTasks: ");
+            foreach (var t in _g.Tasks.Tasks) sb.Append(t.Id).Append('=').Append(t.State).Append(' ');
+            GUILayout.Label(sb.ToString(), _label);
+
+            GUILayout.Label("Log:", _label);
+            // Same number of rows in every event of this frame (IMGUI requires Layout and input passes to match).
+            if (Event.current.type == EventType.Layout || _logSnapshot == null) _logSnapshot = GameLog.Recent(24);
+            foreach (var line in _logSnapshot) GUILayout.Label(line.ToString(), _label);
+            GUILayout.EndScrollView();
+            GUILayout.EndArea();
+        }
+#endif
+
+        /// <summary>Phase P: the reel's state in one line ("s 34/140 bin pull 38 reel 210 SURGE").</summary>
+        public static string ReelLine(TugReel r) =>
+            " s " + r.S.ToString("0") + "/" + r.Finish.ToString("0") + (r.FinishIsBin ? " bin" : " tear") + " pull " + r.Pull.ToString("0") + " reel "
+            + r.ReelSpeed.ToString("0") + (r.Surging ? " SURGE" : r.Telegraph ? " warn" : "") + (r.InRegrip ? " REGRIP " + r.RegripLeft.ToString("0.00") : "");
+
+        /// <summary>Phase P: the tug model from the next contest on (and for any root this launch builds).</summary>
+        public static void SetTugModel(GameServices g, TugModel model)
+        {
+            GameRoot.TugModel = model;
+            g.Difficulty.Tug.model = model;
+            GameLog.Info(LogChannel.Debug, "Tug model " + model + " from the next contest");
+        }
+
+        System.Collections.IEnumerator DebugType()
+        {
+            var n = _g.Apps.Find<NotepadApp>() ?? (NotepadApp)_g.Apps.Launch(AppIds.Notepad, _g.EntityAgent);
+            yield return _g.Entity.Type(n, "STOP", 3f);
+        }
+    }
+}

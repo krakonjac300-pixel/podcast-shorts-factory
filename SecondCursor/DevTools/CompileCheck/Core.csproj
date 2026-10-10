@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>SecondCursor.Core</AssemblyName></PropertyGroup>
+  <ItemGroup><Compile Include="$(Scripts)/Core/**/*.cs" /><Compile Include="Stubs/PixelArtDataStub.cs" Condition="!Exists('$(Scripts)/Core/Art/PixelArtData.cs')" /></ItemGroup>
+</Project>

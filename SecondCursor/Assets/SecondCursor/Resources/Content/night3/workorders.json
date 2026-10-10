@@ -1,0 +1,103 @@
+{
+  "orders": [
+    {
+      "id": "wo_3330", "title": "Drive Wipe Request #3330",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW-2100 SN 0093330" },
+        { "label": "Owner Emp. No.", "value": "214" },
+        { "label": "Owner Name", "value": "C. Rourke" },
+        { "label": "Batch", "value": "47" },
+        { "label": "Requested By", "value": "Office of Retention" },
+        { "label": "Reason", "value": "Seat reassignment (07:00)" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the wipe ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "reject", "employeeRef": "214", "rule": ""
+    },
+    {
+      "id": "wo_3331", "title": "Drive Wipe Request #3331",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW-2100 SN 0093331" },
+        { "label": "Owner Emp. No.", "value": "175" },
+        { "label": "Owner Name", "value": "D. Castell" },
+        { "label": "Batch", "value": "47" },
+        { "label": "Requested By", "value": "Office of Retention" },
+        { "label": "Reason", "value": "Separation (pending)" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the wipe ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "reject", "employeeRef": "175", "rule": ""
+    },
+    {
+      "id": "wo_3332", "title": "Effects Disposal Request #3332",
+      "fields": [
+        { "label": "Owner Emp. No.", "value": "209" },
+        { "label": "Owner Name", "value": "G. Pruitt" },
+        { "label": "Items", "value": "1 mug (ducks), 1 paperback, 1 pair reading glasses" },
+        { "label": "Location", "value": "B-Level stairwell (left by D. Castell 11/18)" },
+        { "label": "Requested By", "value": "Custodial Services (000)" },
+        { "label": "Reason", "value": "Unclaimed. Collected on rounds (3:00)" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the disposal ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "reject", "employeeRef": "209", "rule": "",
+      "resultApprove": "WO-3332 approved. Custodial Services will collect the box on rounds.",
+      "resultReject": "WO-3332 rejected. The box stays on B-Level for its owner.",
+      "noteApprove": "Personal effects collected by Custodial on rounds 11/20/98 (WO-3332).",
+      "noteReject": "Personal effects held on B-Level for the owner (WO-3332)."
+    },
+    {
+      "id": "wo_3333", "title": "Drive Wipe Request #3333",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW-2100 SN 0093333" },
+        { "label": "Owner Emp. No.", "value": "118" },
+        { "label": "Owner Name", "value": "R. Hale" },
+        { "label": "Batch", "value": "48" },
+        { "label": "Requested By", "value": "R. Hale, Night Operations" },
+        { "label": "Reason", "value": "Separation (requested by owner)" }
+      ],
+      "instructions": "Look up the owner's employee number in Personnel. Approve the wipe ONLY if the owner's status is TERMINATED. Otherwise, reject.",
+      "correct": "reject", "employeeRef": "118", "rule": "",
+      "resultApprove": "WO-3333 approved. Drive LW-2100 SN 0093333 released for wiping. The Office of Retention has been notified.",
+      "resultReject": "WO-3333 rejected. Drive returned to owner.",
+      "noteApprove": "Drive wiped 11/20/98 (WO-3333, approved by WS-04). Retention profile: not found.",
+      "noteReject": "Own wipe request rejected 11/20/98 (WO-3333)."
+    },
+    {
+      "id": "wo_3340", "title": "Shelf Check #3340",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW SN 0000142" },
+        { "label": "Owner Emp. No.", "value": "142" },
+        { "label": "Owner Name", "value": "T. Lundy" },
+        { "label": "Listed Location", "value": "Sublevel C, SHELF 14" },
+        { "label": "Requested By", "value": "Office of Retention" },
+        { "label": "Check With", "value": "CAM 04" }
+      ],
+      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf (a RESERVED shelf counts as the owner's). Otherwise, reject.",
+      "correct": "approve", "employeeRef": "142", "rule": "shelf"
+    },
+    {
+      "id": "wo_3341", "title": "Shelf Check #3341",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW SN 0000188" },
+        { "label": "Owner Emp. No.", "value": "188" },
+        { "label": "Owner Name", "value": "M. Achterberg" },
+        { "label": "Listed Location", "value": "Sublevel C, SHELF 16" },
+        { "label": "Requested By", "value": "Office of Retention" },
+        { "label": "Check With", "value": "CAM 04" }
+      ],
+      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf (a RESERVED shelf counts as the owner's). Otherwise, reject.",
+      "correct": "reject", "employeeRef": "188", "rule": "shelf"
+    },
+    {
+      "id": "wo_3342", "title": "Shelf Check #3342",
+      "fields": [
+        { "label": "Drive Serial", "value": "LW SN 0000214" },
+        { "label": "Owner Emp. No.", "value": "214" },
+        { "label": "Owner Name", "value": "C. Rourke" },
+        { "label": "Listed Location", "value": "Sublevel C, SHELF 18" },
+        { "label": "Requested By", "value": "Office of Retention" },
+        { "label": "Check With", "value": "CAM 04" }
+      ],
+      "instructions": "View CAM 04 (Sublevel C). The camera shows each shelf label in turn. Approve ONLY if the owner's number is on the listed shelf (a RESERVED shelf counts as the owner's). Otherwise, reject.",
+      "correct": "approve", "employeeRef": "214", "rule": "shelf"
+    }
+  ]
+}
